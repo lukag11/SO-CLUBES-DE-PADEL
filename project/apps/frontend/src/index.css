@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  /* Fuente base */
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  /* Brand — verde cancha de pádel */
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-200: #a7f3d0;
+  --color-brand-300: #6ee7b7;
+  --color-brand-400: #34d399;
+  --color-brand-500: #10b981;
+  --color-brand-600: #059669;
+  --color-brand-700: #047857;
+  --color-brand-800: #065f46;
+  --color-brand-900: #064e3b;
+
+  /* Dark — navy profundo para paneles oscuros */
+  --color-dark-900: #080d1e;
+  --color-dark-800: #0d1426;
+  --color-dark-700: #131c30;
+  --color-dark-600: #1a2540;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Admin siempre usa Inter */
+#root {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Landing y área de jugadores usan la fuente del club */
+.public-font {
+  font-family: var(--club-font, 'Inter', system-ui, sans-serif);
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}

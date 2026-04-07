@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import useReservasStore from './reservasStore'
+import usePlayerNotificationsStore from './playerNotificationsStore'
 
 const KEY = 'player_turnos_fijos'
 
@@ -14,14 +16,14 @@ const save = (list) => {
   try { localStorage.setItem(KEY, JSON.stringify(list)) } catch { /* ignore */ }
 }
 
-const useTurnosFijosStore = create((set) => ({
+const useTurnosFijosStore = create((set, get) => ({
   turnosFijos: load(),
 
   // Admin aprueba una solicitud de turno fijo del jugador
-  addTurnoFijo: ({ canchaId, canchaNombre, canchaInfo, dia, inicio, fin, precio, jugador }) => {
+  addTurnoFijo: ({ canchaId, canchaNombre, canchaInfo, dia, inicio, fin, precio, jugador, reservaId }) => {
     const nuevo = {
       id: Date.now(),
-      canchaId,
+      canchaId: Number(canchaId),
       canchaNombre,
       canchaInfo,
       dia,
@@ -29,6 +31,7 @@ const useTurnosFijosStore = create((set) => ({
       fin,
       precio,
       jugador: jugador || 'Jugador',
+      reservaId: reservaId ?? null, // id de la reserva original en reservasStore
       activo: true,
       diasAusentes: [],       // fechas ISO confirmadas por el admin (slot libre en grilla)
       ausenciasPendientes: [], // fechas ISO avisadas por jugador, pendientes de confirmación admin
@@ -41,8 +44,9 @@ const useTurnosFijosStore = create((set) => ({
     })
   },
 
-  // Baja permanente del turno fijo
+  // Baja permanente del turno fijo — también cancela la reserva original en reservasStore
   liberarTurno: (id) => {
+    const turno = get().turnosFijos.find((t) => t.id === id)
     set((state) => {
       const updated = state.turnosFijos.map((t) =>
         t.id === id ? { ...t, activo: false } : t
@@ -50,6 +54,17 @@ const useTurnosFijosStore = create((set) => ({
       save(updated)
       return { turnosFijos: updated }
     })
+    if (turno?.reservaId) {
+      useReservasStore.getState().cancelarReserva(turno.reservaId, { notificarAdmin: false })
+    }
+    if (turno) {
+      usePlayerNotificationsStore.getState().addTurnoFijoBajaPermanente({
+        canchaNombre: turno.canchaNombre,
+        dia: turno.dia,
+        inicio: turno.inicio,
+        fin: turno.fin,
+      })
+    }
   },
 
   // Jugador avisa ausencia → queda pendiente hasta que admin confirme

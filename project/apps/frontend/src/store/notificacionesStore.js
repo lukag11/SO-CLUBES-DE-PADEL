@@ -87,6 +87,26 @@ const useNotificacionesStore = create((set, get) => ({
     })
   },
 
+  // Jugador cancela una reserva → avisa al admin
+  cancelacionReserva: ({ jugador, canchaNombre, fecha, inicio, fin }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'cancelacion_reserva',
+      jugador,
+      cancha: canchaNombre,
+      fecha,
+      inicio,
+      fin,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      saveNotificaciones(updated)
+      return { notificaciones: updated }
+    })
+  },
+
   marcarLeida: (id) => {
     set((state) => {
       const updated = state.notificaciones.map((n) =>

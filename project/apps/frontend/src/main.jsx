@@ -4,7 +4,7 @@ import './index.css'
 import App from './App.jsx'
 
 // Limpieza total de localStorage al cambiar versión de app
-const APP_VERSION = '16.0'
+const APP_VERSION = '19.0'
 if (localStorage.getItem('app_version') !== APP_VERSION) {
   localStorage.clear()
   localStorage.setItem('app_version', APP_VERSION)

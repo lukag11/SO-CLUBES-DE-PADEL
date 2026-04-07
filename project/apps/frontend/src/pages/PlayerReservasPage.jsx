@@ -103,6 +103,7 @@ const PlayerReservasPage = () => {
   const [confirmadoEsFijo, setConfirmadoEsFijo] = useState(false)
   const [esTurnoFijo, setEsTurnoFijo] = useState(false)
   const [modalAbierto, setModalAbierto] = useState(false)
+  const [reservaACancelar, setReservaACancelar] = useState(null)
 
   const fechaSeleccionada = fmtDate(addDays(hoy, fechaOffset))
   const dayObj = addDays(hoy, fechaOffset)
@@ -146,11 +147,38 @@ const PlayerReservasPage = () => {
 
   const precio = canchaActual?.precioTurno ?? 0
 
-  const proximasReservas = useMemo(() =>
-    reservas
+  const proximasReservas = useMemo(() => {
+    const DIAS_INDEX = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 }
+    const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+
+    const proximaOcurrencia = (dia, inicio) => {
+      const ahora = new Date()
+      const target = DIAS_INDEX[dia]
+      if (ahora.getDay() === target) {
+        const [h, m] = inicio.split(':').map(Number)
+        if (ahora.getHours() * 60 + ahora.getMinutes() < h * 60 + m) {
+          const hoy2 = new Date(ahora); hoy2.setHours(0, 0, 0, 0); return toISO(hoy2)
+        }
+      }
+      const base = new Date(ahora); base.setHours(0, 0, 0, 0)
+      const diff = (target - base.getDay() + 7) % 7
+      base.setDate(base.getDate() + (diff === 0 ? 7 : diff))
+      return toISO(base)
+    }
+
+    return reservas
       .filter((r) => (r.estado === 'confirmada' || r.estado === 'pendiente') && r.fecha >= fmtDate(hoy))
+      .map((r) => {
+        if (!r.esTurnoFijo) return { ...r, turnoFijoEstado: null }
+        const turno = turnosFijos.find((t) => t.reservaId === r.id)
+        if (!turno || !turno.activo) return { ...r, turnoFijoEstado: 'inactivo' }
+        const proxISO = proximaOcurrencia(turno.dia, turno.inicio)
+        if ((turno.ausenciasPendientes || []).includes(proxISO)) return { ...r, turnoFijoEstado: 'baja_pendiente' }
+        if ((turno.diasAusentes || []).includes(proxISO)) return { ...r, turnoFijoEstado: 'ausente' }
+        return { ...r, turnoFijoEstado: 'activo' }
+      })
       .sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora))
-  , [reservas])
+  }, [reservas, turnosFijos])
 
   const handleSelectSlot = (slot) => {
     if (slot.ocupado || slot.miReserva) return
@@ -517,47 +545,136 @@ const PlayerReservasPage = () => {
           </div>
         ) : (
           <div className="divide-y divide-white/5">
-            {proximasReservas.map((r) => (
-              <div key={r.id} className={`px-5 py-4 flex items-center gap-4 transition-colors ${r.estado === 'pendiente' ? 'bg-amber-500/3 hover:bg-amber-500/6' : 'hover:bg-white/2'}`}>
-                <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 ${r.estado === 'pendiente' ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-[#afca0b]/10 border border-[#afca0b]/20'}`}>
-                  <span className={`font-black text-base leading-none ${r.estado === 'pendiente' ? 'text-amber-400' : 'text-[#afca0b]'}`}>{r.fecha.slice(8)}</span>
-                  <span className={`text-[9px] uppercase ${r.estado === 'pendiente' ? 'text-amber-400/50' : 'text-[#afca0b]/50'}`}>{MESES[parseInt(r.fecha.slice(5, 7)) - 1]}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-white font-semibold text-sm truncate">{r.canchaNombre}</p>
-                    {r.estado === 'pendiente' && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">
-                        Pendiente aprobación
-                      </span>
-                    )}
-                    {r.estado === 'confirmada' && r.esTurnoFijo && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0">
-                        Turno fijo
-                      </span>
-                    )}
+            {proximasReservas.map((r) => {
+              const bajaPendiente = r.turnoFijoEstado === 'baja_pendiente'
+              const ausente = r.turnoFijoEstado === 'ausente'
+              const bloqueado = bajaPendiente || ausente
+
+              // Colores del bloque de fecha
+              const dateBoxCls = r.estado === 'pendiente'
+                ? 'bg-amber-500/10 border border-amber-500/20'
+                : bajaPendiente ? 'bg-amber-500/10 border border-amber-500/20'
+                : ausente ? 'bg-white/5 border border-white/8'
+                : 'bg-[#afca0b]/10 border border-[#afca0b]/20'
+
+              const dateTextCls = r.estado === 'pendiente'
+                ? 'text-amber-400'
+                : bajaPendiente ? 'text-amber-400'
+                : ausente ? 'text-white/25'
+                : 'text-[#afca0b]'
+
+              return (
+                <div key={r.id} className={`px-5 py-4 flex items-center gap-4 transition-colors ${bloqueado ? 'opacity-60' : r.estado === 'pendiente' ? 'bg-amber-500/3 hover:bg-amber-500/6' : 'hover:bg-white/2'}`}>
+                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 ${dateBoxCls}`}>
+                    <span className={`font-black text-base leading-none ${dateTextCls}`}>{r.fecha.slice(8)}</span>
+                    <span className={`text-[9px] uppercase ${dateTextCls} opacity-50`}>{MESES[parseInt(r.fecha.slice(5, 7)) - 1]}</span>
                   </div>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-white/40 text-xs flex items-center gap-1">
-                      <Clock size={10} /> {r.hora}{r.horaFin ? ` a ${r.horaFin}` : ''}
-                    </span>
-                    <span className={`text-xs font-medium ${r.estado === 'pendiente' ? 'text-amber-400/70' : 'text-[#afca0b]/70'}`}>
-                      ${r.precio.toLocaleString('es-AR')}
-                    </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className={`font-semibold text-sm truncate ${bloqueado ? 'text-white/40' : 'text-white'}`}>{r.canchaNombre}</p>
+                      {r.estado === 'pendiente' && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">
+                          Pendiente aprobación
+                        </span>
+                      )}
+                      {r.estado === 'confirmada' && r.esTurnoFijo && !bloqueado && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0">
+                          Turno fijo
+                        </span>
+                      )}
+                      {bajaPendiente && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">
+                          Baja pendiente
+                        </span>
+                      )}
+                      {ausente && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/8 text-white/30 border border-white/10 shrink-0">
+                          Ausencia confirmada
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-white/40 text-xs flex items-center gap-1">
+                        <Clock size={10} /> {r.hora}{r.horaFin ? ` a ${r.horaFin}` : ''}
+                      </span>
+                      <span className={`text-xs font-medium ${bloqueado ? 'text-white/20' : r.estado === 'pendiente' ? 'text-amber-400/70' : 'text-[#afca0b]/70'}`}>
+                        ${r.precio.toLocaleString('es-AR')}
+                      </span>
+                    </div>
                   </div>
+                  {!r.esTurnoFijo && (
+                    <button
+                      onClick={() => setReservaACancelar(r)}
+                      className="text-white/20 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-400/8 shrink-0"
+                      title="Cancelar reserva"
+                    >
+                      <XCircle size={16} />
+                    </button>
+                  )}
                 </div>
-                <button
-                  onClick={() => cancelarReserva(r.id)}
-                  className="text-white/20 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-400/8 shrink-0"
-                  title="Cancelar reserva"
-                >
-                  <XCircle size={16} />
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
+
+      {/* ── Modal confirmación cancelar reserva eventual ── */}
+      {reservaACancelar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setReservaACancelar(null)}>
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm bg-[#0d1117] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-white/8">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                  <XCircle size={16} className="text-red-400" />
+                </div>
+                <div>
+                  <p className="text-white font-bold text-sm">Cancelar reserva</p>
+                  <p className="text-white/30 text-xs mt-0.5">{reservaACancelar.canchaNombre} · {reservaACancelar.hora} a {reservaACancelar.horaFin}</p>
+                </div>
+              </div>
+              <button onClick={() => setReservaACancelar(null)} className="text-white/20 hover:text-white/60 transition-colors p-1">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 flex flex-col gap-5">
+              <p className="text-white/50 text-xs leading-relaxed">
+                ¿Estás seguro que deseás cancelar esta reserva? Esta acción no se puede deshacer.
+              </p>
+
+              <div className="flex items-center gap-4 px-4 py-4 rounded-2xl bg-red-500/8 border border-red-500/20">
+                <div className="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center shrink-0">
+                  <CalendarDays size={18} className="text-red-400" />
+                </div>
+                <div>
+                  <p className="text-red-300 font-bold text-sm">{reservaACancelar.canchaNombre}</p>
+                  <p className="text-white/30 text-xs mt-0.5">
+                    {MESES[parseInt(reservaACancelar.fecha.slice(5, 7)) - 1]} {reservaACancelar.fecha.slice(8)} · {reservaACancelar.hora} a {reservaACancelar.horaFin}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => { cancelarReserva(reservaACancelar.id); setReservaACancelar(null) }}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all bg-red-500 text-white hover:bg-red-400 active:scale-[0.98] shadow-lg shadow-red-500/20"
+              >
+                <XCircle size={15} />
+                Sí, cancelar reserva
+              </button>
+
+              <button onClick={() => setReservaACancelar(null)} className="text-white/25 hover:text-white/50 text-xs text-center transition-colors">
+                Volver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

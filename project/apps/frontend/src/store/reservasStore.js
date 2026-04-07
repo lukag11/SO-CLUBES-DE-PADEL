@@ -83,7 +83,9 @@ const useReservasStore = create((set, get) => ({
     })
   },
 
-  cancelarReserva: (id) => {
+  // notificarAdmin: false cuando la baja la inicia el propio admin (ej. liberar turno fijo)
+  cancelarReserva: (id, { notificarAdmin = true } = {}) => {
+    const reserva = get().reservas.find((r) => r.id === id)
     set((state) => {
       const updated = state.reservas.map((r) =>
         r.id === id ? { ...r, estado: 'cancelada' } : r
@@ -91,6 +93,16 @@ const useReservasStore = create((set, get) => ({
       save(updated)
       return { reservas: updated }
     })
+    if (reserva && notificarAdmin) {
+      const notifStore = useNotificacionesStore.getState()
+      notifStore.cancelacionReserva({
+        jugador: reserva.jugador,
+        canchaNombre: reserva.canchaNombre,
+        fecha: reserva.fecha,
+        inicio: reserva.hora,
+        fin: reserva.horaFin,
+      })
+    }
   },
 }))
 

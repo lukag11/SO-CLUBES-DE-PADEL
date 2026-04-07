@@ -118,7 +118,7 @@ const Select = ({ label, children, ...props }) => (
 
 // ─── Stats bar ────────────────────────────────────────────────────────────────
 
-const StatsBar = ({ reservasDia, clasesDia }) => {
+const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos }) => {
   const total = CANCHAS_MOCK.length * FRANJAS.length
 
   // Turnos ocupados: slots únicos de reservas + clases (bloqueados también ocupan)
@@ -133,8 +133,8 @@ const StatsBar = ({ reservasDia, clasesDia }) => {
   const ingresados = conPago.filter((r) => r.pago === 'pagado').reduce((s, r) => s + (r.monto || 0), 0)
   const pendientes = conPago.filter((r) => r.pago === 'pendiente').reduce((s, r) => s + (r.monto || 0), 0)
 
-  // Turnos fijos: jugadores con turno fijo aprobado + clases del profesor
-  const fijos = reservasDia.filter((r) => r.tipo === 'fijo').length + (clasesDia?.length || 0)
+  // Turnos fijos: total de activos para el día de semana (sin descontar ausencias puntuales)
+  const fijos = totalTurnosFijos + (clasesDia?.length || 0)
 
   const stats = [
     { label: 'Turnos ocupados', value: `${ocupados} / ${total}`, icon: CalendarDays, color: 'text-blue-500',    bg: 'bg-blue-50'    },
@@ -705,7 +705,7 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose }) => {
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors"
           >
             <Ban size={14} />
-            Cancelar reserva
+            {reserva.tipo === 'fijo' ? 'Liberar este día' : 'Cancelar reserva'}
           </button>
         </div>
       )}
@@ -1073,6 +1073,7 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onMarcarTodas, onLiberaci
           fin: reserva.horaFin,
           precio: reserva.precio,
           jugador: reserva.jugador,
+          reservaId: reserva.id,
         })
         addSolicitudAprobada?.({
           canchaNombre: reserva.canchaNombre,
@@ -1131,6 +1132,7 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onMarcarTodas, onLiberaci
             const esNuevaReserva = n.tipo === 'nueva_reserva'
             const esSolicitudFijo = n.tipo === 'solicitud_turno_fijo'
             const esLiberacion = n.tipo === 'liberacion_turno'
+            const esCancelacion = n.tipo === 'cancelacion_reserva'
             const dotColor = n.leida ? 'bg-slate-300' : esNuevaReserva ? 'bg-blue-500' : esSolicitudFijo ? 'bg-amber-500' : 'bg-red-500'
             const rowBg = n.leida ? '' : esNuevaReserva ? 'bg-blue-50/40' : esSolicitudFijo ? 'bg-amber-50/40' : 'bg-red-50/30'
             const esClickeable = (esSolicitudFijo || esNuevaReserva || esLiberacion) && !n.leida
@@ -1199,7 +1201,18 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onMarcarTodas, onLiberaci
                       )}
                     </>
                   )}
-                  {!esNuevaReserva && !esSolicitudFijo && !esLiberacion && (
+                  {esCancelacion && (
+                    <>
+                      <p className="text-slate-700 text-sm font-medium">
+                        <span className="text-slate-600 font-semibold">Cancelación</span>
+                        {n.jugador && <span className="text-slate-700 font-semibold"> · {n.jugador}</span>}
+                      </p>
+                      <p className="text-slate-400 text-xs mt-0.5">
+                        {n.cancha} · {n.inicio}–{n.fin} · {fechaReserva}
+                      </p>
+                    </>
+                  )}
+                  {!esNuevaReserva && !esSolicitudFijo && !esLiberacion && !esCancelacion && (
                     <p className="text-slate-500 text-sm">{n.jugador}</p>
                   )}
                 </div>
@@ -1268,7 +1281,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase }) => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {['Jugador', 'Cancha', 'Día', 'Horario', 'Precio', 'Desde', 'Ausencias', 'Acción'].map((h) => (
+                  {['Jugador', 'Cancha', 'Día', 'Horario', 'Precio', 'Fecha de aprobación', 'Ausencias', 'Acción'].map((h) => (
                     <th key={h} className="text-left text-slate-400 font-medium text-xs px-4 py-3">{h}</th>
                   ))}
                 </tr>
@@ -1495,7 +1508,10 @@ const ReservasPage = () => {
 
   const { notificaciones, marcarLeida, marcarTodasLeidas } = useNotificacionesStore()
   const playerReservas = useReservasStore((s) => s.reservas)
+  const cancelarReservaStore = useReservasStore((s) => s.cancelarReserva)
   const turnosFijos = useTurnosFijosStore((s) => s.turnosFijos)
+  const ausentarDiaStore = useTurnosFijosStore((s) => s.ausentarDia)
+  const { addReservaCanceladaAdmin, addTurnoFijoLiberadoAdmin } = usePlayerNotificationsStore()
 
   // Mapea la hora del jugador (ej. '10:00') a la franja admin que la contiene
   const franjaParaHora = (hora) =>
@@ -1559,6 +1575,12 @@ const ReservasPage = () => {
     [reservas, fecha, playerReservasDia, turnosFijosDia]
   )
 
+  // Total de turnos fijos activos para el día de semana, sin descontar ausencias puntuales
+  const totalTurnosFijos = useMemo(
+    () => turnosFijos.filter((t) => t.activo && t.dia === diaSemanaFecha).length,
+    [turnosFijos, diaSemanaFecha]
+  )
+
   // Clases activas del profesor para el día actual (convertidas a formato compatible con la grilla)
   const clasesDia = useMemo(() => {
     const diaSemana = getDiaSemana(fecha)
@@ -1592,6 +1614,41 @@ const ReservasPage = () => {
   }
 
   const handleCancelar = (id) => {
+    // Reserva eventual del jugador: id = 'player_<reservaId>'
+    if (String(id).startsWith('player_')) {
+      const reservaId = Number(String(id).replace('player_', ''))
+      const reserva = playerReservas.find((r) => r.id === reservaId)
+      cancelarReservaStore(reservaId, { notificarAdmin: false })
+      if (reserva) {
+        addReservaCanceladaAdmin({
+          canchaNombre: reserva.canchaNombre,
+          fecha: reserva.fecha,
+          inicio: reserva.hora,
+          fin: reserva.horaFin,
+        })
+      }
+      setSeleccion(null)
+      return
+    }
+
+    // Turno fijo del jugador: id = 'fijo_player_<turnoFijoId>' → ausencia puntual para ese día
+    if (String(id).startsWith('fijo_player_')) {
+      const turnoFijoId = Number(String(id).replace('fijo_player_', ''))
+      const turno = turnosFijos.find((t) => t.id === turnoFijoId)
+      ausentarDiaStore(turnoFijoId, fecha)
+      if (turno) {
+        addTurnoFijoLiberadoAdmin({
+          canchaNombre: turno.canchaNombre,
+          fecha,
+          inicio: turno.inicio,
+          fin: turno.fin,
+        })
+      }
+      setSeleccion(null)
+      return
+    }
+
+    // Reserva admin (bloqueo, clase, reserva manual) → solo estado local
     setReservas((prev) => prev.filter((r) => r.id !== id))
     setSeleccion(null)
     setEditando(null)
@@ -1660,7 +1717,7 @@ const ReservasPage = () => {
       )}
 
       {/* Stats */}
-      <StatsBar reservasDia={reservasDia} clasesDia={clasesDia} />
+      <StatsBar reservasDia={reservasDia} clasesDia={clasesDia} totalTurnosFijos={totalTurnosFijos} />
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">

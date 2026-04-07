@@ -68,7 +68,7 @@ const ModalAusencia = ({ turno, fecha, onConfirmar, onCerrar }) => {
               <AlertTriangle size={16} className="text-red-400" />
             </div>
             <div>
-              <p className="text-white font-bold text-sm">No puedo asistir</p>
+              <p className="text-white font-bold text-sm">¿Confirmar ausencia?</p>
               <p className="text-white/30 text-xs mt-0.5">{turno.canchaNombre} · {turno.inicio} a {turno.fin}</p>
             </div>
           </div>

@@ -88,6 +88,59 @@ const usePlayerNotificationsStore = create((set, get) => ({
     })
   },
 
+  // Admin cancela reserva eventual del jugador manualmente
+  addReservaCanceladaAdmin: ({ canchaNombre, fecha, inicio, fin }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'reserva_cancelada_admin',
+      titulo: 'Reserva cancelada por el club',
+      cuerpo: `${canchaNombre} · ${inicio} a ${fin} · ${fecha}`,
+      fecha,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      save(updated)
+      return { notificaciones: updated }
+    })
+  },
+
+  // Admin libera un día puntual del turno fijo del jugador (sin que el jugador lo haya pedido)
+  addTurnoFijoLiberadoAdmin: ({ canchaNombre, fecha, inicio, fin }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'turno_fijo_liberado_admin',
+      titulo: 'Tu turno fijo fue liberado por el club',
+      cuerpo: `${canchaNombre} · ${inicio} a ${fin} · el slot del ${fecha} está libre`,
+      fecha,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      save(updated)
+      return { notificaciones: updated }
+    })
+  },
+
+  // Admin da de baja permanente el turno fijo del jugador
+  addTurnoFijoBajaPermanente: ({ canchaNombre, dia, inicio, fin }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'turno_fijo_baja_permanente',
+      titulo: 'Tu turno fijo fue dado de baja',
+      cuerpo: `${canchaNombre} · ${dia} · ${inicio} a ${fin} · El club canceló el turno recurrente`,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      save(updated)
+      return { notificaciones: updated }
+    })
+  },
+
   marcarLeida: (id) => {
     set((state) => {
       const updated = state.notificaciones.map((n) =>

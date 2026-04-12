@@ -2,6 +2,7 @@
 // Galería, Servicios, Staff, FAQ, TurnosDisponibles — cada template las importa y adapta su wrapper visual
 
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   ShowerHead, Car, GraduationCap, Wifi, Coffee,
@@ -9,7 +10,10 @@ import {
   CalendarDays, CheckCircle, Lock,
 } from 'lucide-react'
 import useReservasStore from '../../store/reservasStore'
+import useTurnosFijosStore from '../../store/turnosFijosStore'
+import useReservasAdminStore from '../../store/reservasAdminStore'
 import usePlayerStore from '../../store/playerStore'
+import { inRange, overlaps } from '../../utils/timeUtils'
 
 // ─── Mapa de íconos ──────────────────────────────────────────────────────────
 
@@ -137,45 +141,78 @@ export const FaqList = ({ faq, colorPrimario, dark = true }) => {
 
 const DIAS_CORTOS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 const DIAS_LARGOS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
-const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
-const fmtDateStr = (d) => d.toISOString().slice(0, 10)
+
+// Usa hora LOCAL, no UTC — evita mismatch con fechas guardadas en stores (ej: Argentina UTC-3 a las 22hs)
+const fmtDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const addDaysTo = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 
-// Mismo algoritmo determinístico que PlayerReservasPage
-const isMockOcupado = (canchaId, fechaStr, hora) => {
-  const h = parseInt(hora)
-  const d = parseInt(fechaStr.slice(8, 10))
-  return (canchaId * 7 + d * 3 + h * 13) % 4 === 0
-}
+// Franjas fijas de 1.5h (igual que el admin y PlayerReservasPage)
+const FRANJAS = [
+  { inicio: '07:00', fin: '08:30' },
+  { inicio: '08:30', fin: '10:00' },
+  { inicio: '10:00', fin: '11:30' },
+  { inicio: '11:30', fin: '13:00' },
+  { inicio: '13:00', fin: '14:30' },
+  { inicio: '14:30', fin: '16:00' },
+  { inicio: '16:00', fin: '17:30' },
+  { inicio: '17:30', fin: '19:00' },
+  { inicio: '19:00', fin: '20:30' },
+  { inicio: '20:30', fin: '22:00' },
+  { inicio: '22:00', fin: '23:30' },
+]
 
-const parseH = (str) => parseInt(str.split(':')[0])
-const fmtH = (h) => `${String(h).padStart(2, '0')}:00`
+// Días normalizados (sin tilde, minúsculas) — igual que turnosFijosStore
+const DIAS_SEMANA_KEY = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+const getDiaKey = (date) => DIAS_SEMANA_KEY[date.getDay()]
 
-const calcSlots = (canchaId, fechaStr, apertura, cierre, reservasConfirmadas) => {
-  const inicio = parseH(apertura)
-  const fin = parseH(cierre)
-  return Array.from({ length: fin - inicio }, (_, i) => {
-    const h = inicio + i
-    const hora = fmtH(h)
-    const mockOcupado = isMockOcupado(canchaId, fechaStr, hora)
-    const reservado = reservasConfirmadas.some(
-      (r) => r.canchaId === canchaId && r.fecha === fechaStr && r.hora === hora
-    )
-    return { hora, libre: !mockOcupado && !reservado }
-  })
+const calcSlotsConFranjas = (canchaId, fechaStr, diaKey, apertura, cierre, reservasConfirmadas, turnosFijos, reservasAdmin) => {
+  return FRANJAS
+    .filter((f) => inRange(f.inicio, f.fin, apertura, cierre))
+    .map((f) => {
+      // Reserva eventual confirmada del jugador — excluye turno fijo (manejado por tieneTurnoFijo).
+      // Si se incluyera esTurnoFijo aquí, un turno liberado por ausencia seguiría bloqueado
+      // porque la reserva original sigue con estado 'confirmada' en reservasStore.
+      const tieneReserva = reservasConfirmadas.some(
+        (r) => !r.esTurnoFijo &&
+               Number(r.canchaId) === Number(canchaId) &&
+               r.fecha === fechaStr &&
+               overlaps(r.hora, r.horaFin || r.hora, f.inicio, f.fin)
+      )
+      // Turno fijo activo para este día (compara diaKey en lowercase sin tilde)
+      const tieneTurnoFijo = turnosFijos.some(
+        (t) =>
+          t.activo &&
+          Number(t.canchaId) === Number(canchaId) &&
+          t.dia === diaKey &&
+          overlaps(t.inicio, t.fin || t.inicio, f.inicio, f.fin) &&
+          !(t.diasAusentes || []).includes(fechaStr)
+      )
+      // Reserva del admin (clases, bloqueos, eventuales admin) para este día
+      const tieneReservaAdmin = (reservasAdmin || []).some(
+        (r) => Number(r.canchaId) === Number(canchaId) &&
+               r.fecha === fechaStr &&
+               r.estado !== 'cancelada' &&
+               overlaps(r.inicio, r.fin, f.inicio, f.fin)
+      )
+      return { ...f, libre: !tieneReserva && !tieneTurnoFijo && !tieneReservaAdmin }
+    })
 }
 
 export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dark = true }) => {
+  const navigate = useNavigate()
   const reservas = useReservasStore((s) => s.reservas)
+  const turnosFijos = useTurnosFijosStore((s) => s.turnosFijos)
+  const reservasAdmin = useReservasAdminStore((s) => s.reservas)
   const isAuthenticated = usePlayerStore((s) => s.isAuthenticated)
   const [diaOffset, setDiaOffset] = useState(0)
 
   const hoy = useMemo(() => new Date(), [])
   const diaActual = addDaysTo(hoy, diaOffset)
   const fechaStr = fmtDateStr(diaActual)
-  const diaNombre = DIAS_LARGOS[diaActual.getDay()]
-  const horarioDia = horarios?.[diaNombre]
+  const diaNombreLargo = DIAS_LARGOS[diaActual.getDay()]  // 'Lunes' — para horarios del club
+  const diaKey = getDiaKey(diaActual)                     // 'lunes' — para comparar con turnosFijos
+  const horarioDia = horarios?.[diaNombreLargo]
   const canchasActivas = (canchas ?? []).filter((c) => c.activa)
 
   const reservasConfirmadas = useMemo(
@@ -186,10 +223,10 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
   const dataPorCancha = useMemo(() => {
     if (!horarioDia?.activo) return []
     return canchasActivas.map((c) => {
-      const slots = calcSlots(c.id, fechaStr, horarioDia.apertura, horarioDia.cierre, reservasConfirmadas)
+      const slots = calcSlotsConFranjas(c.id, fechaStr, diaKey, horarioDia.apertura, horarioDia.cierre, reservasConfirmadas, turnosFijos, reservasAdmin)
       return { cancha: c, slots, libres: slots.filter((s) => s.libre).length }
     })
-  }, [canchasActivas, fechaStr, horarioDia, reservasConfirmadas])
+  }, [canchasActivas, fechaStr, diaKey, horarioDia, reservasConfirmadas, turnosFijos, reservasAdmin])
 
   const totalLibres = dataPorCancha.reduce((sum, d) => sum + d.libres, 0)
 
@@ -288,13 +325,16 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
               {/* Franja de slots */}
               <div className="flex flex-wrap gap-1 flex-1">
                 {slots.map((slot) => (
-                  <div key={slot.hora} className="relative group">
+                  <div key={slot.inicio} className="relative group">
                     <button
-                      onClick={slot.libre ? onCta : undefined}
+                      onClick={slot.libre ? () => {
+                          if (!isAuthenticated) { onCta(); return }
+                          navigate('/dashboardJugadores/reservas', { state: { canchaId: cancha.id, fechaStr, hora: slot.inicio } })
+                        } : undefined}
                       className={[
-                        'w-9 h-8 rounded-lg text-[10px] font-bold transition-all duration-150 flex items-center justify-center',
+                        'h-8 px-2 rounded-lg text-[9px] font-bold transition-all duration-150 flex items-center justify-center whitespace-nowrap',
                         slot.libre
-                          ? 'cursor-pointer hover:scale-110 hover:shadow-md'
+                          ? 'cursor-pointer hover:scale-105 hover:shadow-md'
                           : 'cursor-default opacity-20',
                       ].join(' ')}
                       style={slot.libre
@@ -304,13 +344,13 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
                     >
                       {slot.libre && !isAuthenticated
                         ? <Lock size={9} />
-                        : slot.hora.slice(0, 2)
+                        : `${slot.inicio} a ${slot.fin}`
                       }
                     </button>
                     {/* Tooltip */}
                     {slot.libre && (
                       <div className={`absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 text-[10px] px-2 py-1 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 font-semibold ${dark ? 'bg-white/90 text-slate-800' : 'bg-slate-800 text-white'}`}>
-                        {isAuthenticated ? slot.hora : 'Iniciá sesión para reservar'}
+                        {isAuthenticated ? `${slot.inicio} a ${slot.fin}` : 'Iniciá sesión para reservar'}
                       </div>
                     )}
                   </div>
@@ -338,6 +378,7 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
           </button>
         </div>
       )}
+
     </div>
   )
 }

@@ -7,6 +7,11 @@ pero deben resolverse antes de conectar el backend o escalar el sistema.
 
 ## Alta prioridad (afectan lógica de negocio)
 
+### ~~INC-00 — handleAprobar confundía reserva eventual con turno fijo~~ ✅ RESUELTO
+El `.find()` buscaba solo por `hora + fecha`. Si había dos reservas pendientes en el mismo horario (una eventual, una fijo), podía encontrar la equivocada y llamar `addTurnoFijo()` para una reserva eventual. Fix: se agrega `esTurnoFijo === (notif.tipo === 'solicitud_turno_fijo')` y `canchaId` al criterio de búsqueda. También se agrega `canchaId` a las notificaciones `nueva_reserva` y `solicitud_turno_fijo`.
+
+
+
 ### ~~INC-01 — canchaId: inconsistencia de tipos~~ ✅ RESUELTO
 `turnosFijosStore.addTurnoFijo()` normaliza `canchaId: Number(canchaId)` en origen.
 
@@ -64,3 +69,15 @@ El precio es fijo por turno (RN-02). No existe recargo pico. Los campos `recargo
 **Dónde**: `/dashboardAdmin/pagos` existe en el router y tiene layout pero sin lógica real.  
 **Síntoma**: Sección incompleta.  
 **Decisión pendiente**: Definir modelo de pagos antes de implementar.
+
+### ~~INC-13 — El admin no recibe notificación cuando el profesor crea/cancela una clase~~ ✅ RESUELTO
+`notificacionesStore` tiene `nuevaClaseProfesor()` y `cancelacionClaseProfesor()`. `ProfesorAgendaPage` los llama al crear/cancelar. El panel de alertas del admin renderiza ambos tipos (`nueva_clase_profesor` / `cancelacion_clase_profesor`) en naranja con el nombre del profesor y slot.
+
+### ~~INC-14 — Admin no puede crear profesores desde la UI~~ ✅ RESUELTO
+Tab "Profesores" agregada en `QuienesSomosPage`. ABM completo: crear, editar, desactivar. Escribe directamente en `profesoresStore`.
+
+### ~~INC-15 — Grilla del admin no diferencia visualmente clases del profesor vs clases sin profesor~~ ✅ RESUELTO
+Slots con `creadoPor === 'profesor'` muestran badge "Prof" + nombre del profesor. Slots de no-disponibilidad del profesor (`tipo: 'bloqueado'` + `creadoPor: 'profesor'`) se renderizan en rojo con ícono de profesor.
+
+### ~~INC-16 — Clases del profesor no bloqueaban slots en el dashboard jugador~~ ✅ RESUELTO
+`generarSlots()` en `PlayerReservasPage` no consultaba `reservasAdminStore`. Un jugador podía reservar un slot donde el profesor tenía clase. Fix: se agrega `esOcupadoAdmin` con overlap check (`r.inicio < f.fin && r.fin > f.inicio`) contra `reservasAdminStore`. Cubre clases de 1h del profesor, bloqueos del admin y cualquier otra reserva creada desde el panel admin.

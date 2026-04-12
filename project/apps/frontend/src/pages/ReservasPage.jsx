@@ -12,6 +12,9 @@ import useNotificacionesStore from '../store/notificacionesStore'
 import useReservasStore from '../store/reservasStore'
 import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
+import useReservasAdminStore from '../store/reservasAdminStore'
+import useProfesoresStore from '../store/profesoresStore'
+import { overlaps, toMin } from '../utils/timeUtils'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -34,12 +37,11 @@ const todayISO = () => {
 const formatPrice = (n) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n)
 
-// Busca si hay reserva para cancha+franja. Un bloqueo puede abarcar varias franjas.
+// Busca si hay reserva para cancha+franja usando overlap cross-midnight aware.
 const getReserva = (reservas, canchaId, franja) =>
   reservas.find((r) =>
     r.canchaId === canchaId &&
-    r.inicio <= franja.inicio &&
-    r.fin >= franja.fin
+    overlaps(r.inicio, r.fin, franja.inicio, franja.fin)
   ) || null
 
 // Hora actual HH:MM para marcar franjas pasadas
@@ -52,7 +54,7 @@ const esPasado = (fecha, fin) => {
   const hoy = todayISO()
   if (fecha < hoy) return true
   if (fecha > hoy) return false
-  return fin <= horaActual()
+  return toMin(fin) <= toMin(horaActual())
 }
 
 // Devuelve el día de semana de una fecha ISO en formato normalizado ('lunes', 'miercoles', etc.)
@@ -187,25 +189,30 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick }) => {
 
   // Bloqueo, Clase, Online, Solicitud fijo — rowspan
   if (reserva.tipo === 'bloqueado' || reserva.tipo === 'clase' || reserva.tipo === 'online' || reserva.tipo === 'solicitud_fijo') {
-    if (reserva.inicio !== franja.inicio) return null // celda ya cubierta por rowspan
-    const franjasCubiertas = FRANJAS.filter(
-      (f) => f.inicio >= reserva.inicio && f.fin <= reserva.fin
-    ).length
+    // Primera franja que overlappea con esta reserva (donde se renderiza)
+    const primeraFranja = FRANJAS.find((f) => overlaps(reserva.inicio, reserva.fin, f.inicio, f.fin))
+    if (!primeraFranja || primeraFranja.inicio !== franja.inicio) return null
+    const franjasCubiertas = Math.max(1, FRANJAS.filter(
+      (f) => overlaps(reserva.inicio, reserva.fin, f.inicio, f.fin)
+    ).length)
 
     const esClase = reserva.tipo === 'clase'
     const esOnline = reserva.tipo === 'online'
     const esSolicitudFijo = reserva.tipo === 'solicitud_fijo'
+    const esClaseProfesor = esClase && reserva.creadoPor === 'profesor'
+    const esNoDisponibilidadProfesor = reserva.tipo === 'bloqueado' && reserva.creadoPor === 'profesor'
 
     return (
       <td
         rowSpan={franjasCubiertas}
-        onClick={esClase ? undefined : () => onClick({ tipo: 'detalle', reserva, franja, cancha })}
+        onClick={() => onClick({ tipo: 'detalle', reserva, franja, cancha })}
         className={[
-          'border border-slate-100 align-top transition-colors',
-          esClase ? 'bg-orange-50/70 cursor-default'
-          : esOnline ? 'bg-emerald-50/60 cursor-pointer hover:bg-emerald-100/50'
-          : esSolicitudFijo ? 'bg-amber-50/60 cursor-pointer hover:bg-amber-100/50'
-          : 'bg-slate-100 cursor-pointer hover:bg-slate-200/60',
+          'border border-slate-100 align-top transition-colors cursor-pointer',
+          esClase ? 'bg-orange-50/70 hover:bg-orange-100/60'
+          : esNoDisponibilidadProfesor ? 'bg-red-50/60 hover:bg-red-100/50'
+          : esOnline ? 'bg-emerald-50/60 hover:bg-emerald-100/50'
+          : esSolicitudFijo ? 'bg-amber-50/60 hover:bg-amber-100/50'
+          : 'bg-slate-100 hover:bg-slate-200/60',
         ].join(' ')}
       >
         <div className="h-full min-h-14 p-2 flex flex-col gap-1">
@@ -214,8 +221,21 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick }) => {
               <div className="flex items-center gap-1.5">
                 <GraduationCap size={11} className="text-orange-400 shrink-0" />
                 <span className="text-orange-600 text-xs font-semibold truncate">Clase</span>
+                {esClaseProfesor && (
+                  <span className="text-[9px] bg-orange-100 text-orange-500 font-bold px-1 py-0.5 rounded leading-none shrink-0">Prof</span>
+                )}
               </div>
-              <p className="text-orange-500 text-xs leading-snug truncate">{reserva.profesor}</p>
+              <p className="text-orange-500 text-xs leading-snug truncate">
+                {esClaseProfesor ? reserva.profesorNombre : (reserva.profesor || reserva.nota || '')}
+              </p>
+            </>
+          ) : esNoDisponibilidadProfesor ? (
+            <>
+              <div className="flex items-center gap-1.5">
+                <GraduationCap size={11} className="text-red-400 shrink-0" />
+                <span className="text-red-600 text-xs font-semibold truncate">No disponible</span>
+              </div>
+              <p className="text-red-400 text-[10px] leading-snug truncate">{reserva.profesorNombre}</p>
             </>
           ) : esOnline ? (
             <>
@@ -351,6 +371,7 @@ const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick }) => (
 // ─── Panel lateral — Formulario nueva reserva ─────────────────────────────────
 
 const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
+  const profesoresActivos = useProfesoresStore((s) => s.profesores.filter((p) => p.activo))
   const [form, setForm] = useState({
     tipo: 'eventual',
     jugadores: ['', '', '', ''],
@@ -359,6 +380,7 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
     monto: 12000,
     notas: '',
     recurrenciaHasta: '',
+    profesorId: '',
   })
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }))
@@ -369,21 +391,35 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
   }
 
   const handleSave = () => {
+    const esClase = form.tipo === 'clase'
     const jugadores = form.jugadores.filter(Boolean)
-    if (!jugadores.length) return
+    if (!esClase && !jugadores.length) return
+
+    const profesor = form.profesorId
+      ? profesoresActivos.find((p) => p.id === Number(form.profesorId))
+      : null
+
     onSave({
       canchaId: cancha.id,
+      canchaNombre: cancha.nombre,
       inicio: franja.inicio,
       fin: franja.fin,
-      tipo: form.tipo,
+      tipo: esClase ? 'clase' : form.tipo,
       recurrencia: form.tipo === 'fijo' && form.recurrenciaHasta
         ? { dia: new Date().toLocaleDateString('es-AR', { weekday: 'long' }), hasta: form.recurrenciaHasta }
         : null,
-      jugadores,
+      jugadores: esClase ? [] : jugadores,
       estado: 'confirmada',
-      pago: form.pago,
-      monto: Number(form.monto),
+      pago: esClase ? null : form.pago,
+      monto: esClase ? 0 : Number(form.monto),
       notas: form.notas,
+      // Datos de clase
+      ...(esClase && {
+        creadoPor: 'admin',
+        profesorId: profesor?.id ?? null,
+        profesorNombre: profesor ? `${profesor.nombre} ${profesor.apellido}` : null,
+        nota: form.notas,
+      }),
     })
   }
 
@@ -406,10 +442,11 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
         {/* Tipo */}
         <div>
           <FieldLabel>Tipo de reserva</FieldLabel>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {[
-              { key: 'eventual', label: 'Eventual', icon: CalendarDays },
-              { key: 'fijo', label: 'Turno fijo', icon: Repeat },
+              { key: 'eventual',  label: 'Eventual',   icon: CalendarDays  },
+              { key: 'fijo',      label: 'Turno fijo', icon: Repeat        },
+              { key: 'clase',     label: 'Clase',      icon: GraduationCap },
             ].map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -418,7 +455,9 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
                 className={[
                   'flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all',
                   form.tipo === key
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                    ? key === 'clase'
+                      ? 'bg-orange-50 border-orange-300 text-orange-700'
+                      : 'bg-emerald-50 border-emerald-300 text-emerald-700'
                     : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300',
                 ].join(' ')}
               >
@@ -439,48 +478,71 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
           />
         )}
 
-        {/* Jugadores */}
-        <div>
-          <FieldLabel>Jugadores <span className="text-slate-300">(hasta 4)</span></FieldLabel>
-          <div className="flex flex-col gap-2">
-            {form.jugadores.map((j, i) => (
-              <input
-                key={i}
-                type="text"
-                placeholder={`Jugador ${i + 1}${i === 0 ? ' *' : ''}`}
-                value={j}
-                onChange={(e) => setJugador(i, e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/10 transition-all placeholder:text-slate-300"
-              />
-            ))}
+        {/* Selector de profesor (solo si clase) */}
+        {form.tipo === 'clase' && (
+          <div>
+            <FieldLabel>Profesor <span className="text-slate-300">(opcional)</span></FieldLabel>
+            <select
+              value={form.profesorId}
+              onChange={(e) => set('profesorId', e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 appearance-none bg-white transition-all"
+            >
+              <option value="">— Sin asignar —</option>
+              {profesoresActivos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre} {p.apellido}{p.especialidad ? ` · ${p.especialidad}` : ''}
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
+        )}
 
-        {/* Monto */}
-        <Input
-          label="Monto (ARS)"
-          type="number"
-          value={form.monto}
-          onChange={(e) => set('monto', e.target.value)}
-        />
+        {/* Jugadores (no aplica a clases) */}
+        {form.tipo !== 'clase' && (
+          <div>
+            <FieldLabel>Jugadores <span className="text-slate-300">(hasta 4)</span></FieldLabel>
+            <div className="flex flex-col gap-2">
+              {form.jugadores.map((j, i) => (
+                <input
+                  key={i}
+                  type="text"
+                  placeholder={`Jugador ${i + 1}${i === 0 ? ' *' : ''}`}
+                  value={j}
+                  onChange={(e) => setJugador(i, e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/10 transition-all placeholder:text-slate-300"
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
-        {/* Pago */}
-        <div className="grid grid-cols-2 gap-3">
-          <Select label="Estado de pago" value={form.pago} onChange={(e) => set('pago', e.target.value)}>
-            <option value="pagado">Pagado</option>
-            <option value="pendiente">Pendiente</option>
-          </Select>
-          <Select label="Método de pago" value={form.metodoPago} onChange={(e) => set('metodoPago', e.target.value)}>
-            {METODOS_PAGO.map((m) => <option key={m}>{m}</option>)}
-          </Select>
-        </div>
+        {/* Monto + pago (no aplica a clases) */}
+        {form.tipo !== 'clase' && (
+          <>
+            <Input
+              label="Monto (ARS)"
+              type="number"
+              value={form.monto}
+              onChange={(e) => set('monto', e.target.value)}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <Select label="Estado de pago" value={form.pago} onChange={(e) => set('pago', e.target.value)}>
+                <option value="pagado">Pagado</option>
+                <option value="pendiente">Pendiente</option>
+              </Select>
+              <Select label="Método de pago" value={form.metodoPago} onChange={(e) => set('metodoPago', e.target.value)}>
+                {METODOS_PAGO.map((m) => <option key={m}>{m}</option>)}
+              </Select>
+            </div>
+          </>
+        )}
 
-        {/* Notas */}
+        {/* Notas / descripción */}
         <div>
-          <FieldLabel>Notas</FieldLabel>
+          <FieldLabel>{form.tipo === 'clase' ? 'Descripción' : 'Notas'}</FieldLabel>
           <textarea
             rows={2}
-            placeholder="Observaciones..."
+            placeholder={form.tipo === 'clase' ? 'Ej: Clase de iniciación...' : 'Observaciones...'}
             value={form.notas}
             onChange={(e) => set('notas', e.target.value)}
             className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/10 transition-all resize-none placeholder:text-slate-300"
@@ -632,14 +694,42 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose }) => {
           )}
         </div>
 
+        {/* Clase del profesor */}
+        {reserva.tipo === 'clase' && (
+          <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <GraduationCap size={14} className="text-orange-500 shrink-0" />
+              <span className="text-orange-700 font-semibold text-sm">
+                {reserva.creadoPor === 'profesor' ? 'Clase del profesor' : 'Clase'}
+              </span>
+            </div>
+            {reserva.profesorNombre && (
+              <p className="text-orange-600 text-sm">{reserva.profesorNombre}</p>
+            )}
+            {(reserva.nota || reserva.notas) && (
+              <p className="text-orange-500 text-xs">{reserva.nota || reserva.notas}</p>
+            )}
+          </div>
+        )}
+
         {/* Bloqueo */}
         {reserva.tipo === 'bloqueado' && (
-          <div className="bg-slate-100 border border-slate-200 rounded-xl p-4">
+          <div className={`border rounded-xl p-4 ${reserva.creadoPor === 'profesor' ? 'bg-red-50 border-red-100' : 'bg-slate-100 border-slate-200'}`}>
             <div className="flex items-center gap-2 mb-1">
-              <Lock size={14} className="text-slate-500" />
-              <span className="text-slate-600 font-semibold text-sm">Motivo</span>
+              {reserva.creadoPor === 'profesor'
+                ? <GraduationCap size={14} className="text-red-500" />
+                : <Lock size={14} className="text-slate-500" />
+              }
+              <span className={`font-semibold text-sm ${reserva.creadoPor === 'profesor' ? 'text-red-700' : 'text-slate-600'}`}>
+                {reserva.creadoPor === 'profesor' ? 'No disponible — Profesor' : 'Motivo'}
+              </span>
             </div>
-            <p className="text-slate-500 text-sm">{reserva.notas || 'Sin especificar'}</p>
+            {reserva.creadoPor === 'profesor' && reserva.profesorNombre && (
+              <p className="text-red-500 text-sm mb-1">{reserva.profesorNombre}</p>
+            )}
+            <p className={`text-sm ${reserva.creadoPor === 'profesor' ? 'text-red-400' : 'text-slate-500'}`}>
+              {reserva.notas || 'Sin especificar'}
+            </p>
           </div>
         )}
 
@@ -688,8 +778,8 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose }) => {
         )}
       </div>
 
-      {/* Acciones */}
-      {reserva.tipo !== 'bloqueado' && reserva.estado !== 'cancelada' && (
+      {/* Acciones — reservas normales */}
+      {reserva.tipo !== 'bloqueado' && reserva.tipo !== 'clase' && reserva.estado !== 'cancelada' && (
         <div className="px-5 py-4 border-t border-slate-100 flex flex-col gap-2">
           {reserva.pago !== 'pagado' && (
             <button
@@ -710,7 +800,20 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose }) => {
         </div>
       )}
 
-      {/* Desbloquear */}
+      {/* Acciones — clase */}
+      {reserva.tipo === 'clase' && (
+        <div className="px-5 py-4 border-t border-slate-100">
+          <button
+            onClick={() => onCancelar(reserva.id)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors"
+          >
+            <Ban size={14} />
+            Cancelar clase
+          </button>
+        </div>
+      )}
+
+      {/* Desbloquear franja */}
       {reserva.tipo === 'bloqueado' && (
         <div className="px-5 py-4 border-t border-slate-100">
           <button
@@ -718,7 +821,7 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose }) => {
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 transition-colors"
           >
             <X size={14} />
-            Desbloquear franja
+            {reserva.creadoPor === 'profesor' ? 'Eliminar no-disponibilidad' : 'Desbloquear franja'}
           </button>
         </div>
       )}
@@ -1022,16 +1125,17 @@ const diaSemanaDeISO = (fechaISO) => {
   return dias[new Date(fechaISO + 'T12:00:00').getDay()]
 }
 
-const PanelAlertas = ({ notificaciones, onMarcarLeida, onMarcarTodas, onLiberacionAprobada }) => {
+const PanelAlertas = ({ notificaciones, onMarcarLeida, onEliminar, onMarcarTodas, onLiberacionAprobada }) => {
   const [modalNotif, setModalNotif] = useState(null)
   const confirmarReserva = useReservasStore((s) => s.confirmarReserva)
   const playerReservas = useReservasStore((s) => s.reservas)
   const addTurnoFijo = useTurnosFijosStore((s) => s.addTurnoFijo)
   const ausentarDia = useTurnosFijosStore((s) => s.ausentarDia)
   const { addReservaConfirmada, addSolicitudAprobada, addAusenciaConfirmada } = usePlayerNotificationsStore()
+  const deleteReservaAdmin = useReservasAdminStore((s) => s.deleteReserva)
 
-  if (!notificaciones.length) return null
   const sinLeer = notificaciones.filter((n) => !n.leida).length
+  if (!sinLeer && !notificaciones.length) return null
 
   const handleAprobar = (notifId) => {
     const notif = modalNotif
@@ -1050,18 +1154,26 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onMarcarTodas, onLiberaci
         // Navegar la grilla del admin a la fecha liberada para verla libre
         onLiberacionAprobada?.(notif.fecha)
       }
-      onMarcarLeida(notifId)
+      onEliminar(notifId)
       setModalNotif(null)
       return
     }
 
-    // Buscar la reserva pendiente que coincida
+    // Buscar la reserva pendiente que coincida — usar canchaId + hora + fecha + tipo
+    const esTurnoFijoNotif = notif?.tipo === 'solicitud_turno_fijo'
     const reserva = playerReservas.find(
       (r) => r.estado === 'pendiente' &&
              r.hora === notif?.inicio &&
-             r.fecha === notif?.fecha
+             r.fecha === notif?.fecha &&
+             r.esTurnoFijo === esTurnoFijoNotif &&
+             (notif?.canchaId == null || Number(r.canchaId) === Number(notif.canchaId))
     )
     if (reserva) {
+      // Limpiar el slot pendiente de la grilla del admin —
+      // playerReservasDia / turnosFijosDia toman el relevo tras la aprobación
+      if (reserva.adminSlotId) {
+        deleteReservaAdmin(reserva.adminSlotId)
+      }
       if (reserva.esTurnoFijo) {
         confirmarReserva(reserva.id)
         addTurnoFijo({
@@ -1091,12 +1203,12 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onMarcarTodas, onLiberaci
         })
       }
     }
-    onMarcarLeida(notifId)
+    onEliminar(notifId)
     setModalNotif(null)
   }
 
   const handleRechazar = (id) => {
-    onMarcarLeida(id)
+    onEliminar(id)
     setModalNotif(null)
   }
 
@@ -1122,7 +1234,11 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onMarcarTodas, onLiberaci
               </span>
             )}
           </div>
-          <button onClick={onMarcarTodas} className="text-amber-600 text-xs hover:underline">
+          <button
+            onClick={onMarcarTodas}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs font-semibold transition-colors border border-amber-200"
+          >
+            <CheckCircle size={13} />
             Marcar todas como vistas
           </button>
         </div>
@@ -1133,8 +1249,19 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onMarcarTodas, onLiberaci
             const esSolicitudFijo = n.tipo === 'solicitud_turno_fijo'
             const esLiberacion = n.tipo === 'liberacion_turno'
             const esCancelacion = n.tipo === 'cancelacion_reserva'
-            const dotColor = n.leida ? 'bg-slate-300' : esNuevaReserva ? 'bg-blue-500' : esSolicitudFijo ? 'bg-amber-500' : 'bg-red-500'
-            const rowBg = n.leida ? '' : esNuevaReserva ? 'bg-blue-50/40' : esSolicitudFijo ? 'bg-amber-50/40' : 'bg-red-50/30'
+            const esNuevaClaseProf = n.tipo === 'nueva_clase_profesor'
+            const esCancelClaseProf = n.tipo === 'cancelacion_clase_profesor'
+            const dotColor = n.leida ? 'bg-slate-300'
+              : esNuevaReserva ? 'bg-blue-500'
+              : esSolicitudFijo ? 'bg-amber-500'
+              : esNuevaClaseProf ? 'bg-orange-400'
+              : esCancelClaseProf ? 'bg-orange-600'
+              : 'bg-red-500'
+            const rowBg = n.leida ? ''
+              : esNuevaReserva ? 'bg-blue-50/40'
+              : esSolicitudFijo ? 'bg-amber-50/40'
+              : esNuevaClaseProf || esCancelClaseProf ? 'bg-orange-50/40'
+              : 'bg-red-50/30'
             const esClickeable = (esSolicitudFijo || esNuevaReserva || esLiberacion) && !n.leida
             const fechaReserva = n.fecha
               ? new Date(n.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -1212,13 +1339,40 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onMarcarTodas, onLiberaci
                       </p>
                     </>
                   )}
-                  {!esNuevaReserva && !esSolicitudFijo && !esLiberacion && !esCancelacion && (
+                  {esNuevaClaseProf && (
+                    <>
+                      <p className="text-slate-700 text-sm font-medium">
+                        <span className="text-orange-600 font-semibold">Nueva clase agendada</span>
+                        {n.profesorNombre && <span className="text-slate-700 font-semibold"> · {n.profesorNombre}</span>}
+                      </p>
+                      <p className="text-slate-400 text-xs mt-0.5">
+                        {n.cancha} · {n.inicio}–{n.fin} · {fechaReserva}
+                      </p>
+                    </>
+                  )}
+                  {esCancelClaseProf && (
+                    <>
+                      <p className="text-slate-700 text-sm font-medium">
+                        <span className="text-orange-700 font-semibold">Clase cancelada por profesor</span>
+                        {n.profesorNombre && <span className="text-slate-700 font-semibold"> · {n.profesorNombre}</span>}
+                      </p>
+                      <p className="text-slate-400 text-xs mt-0.5">
+                        {n.cancha} · {n.inicio}–{n.fin} · {fechaReserva}
+                      </p>
+                      <p className="text-orange-500 text-[10px] mt-1 font-medium">El slot quedó libre</p>
+                    </>
+                  )}
+                  {!esNuevaReserva && !esSolicitudFijo && !esLiberacion && !esCancelacion && !esNuevaClaseProf && !esCancelClaseProf && (
                     <p className="text-slate-500 text-sm">{n.jugador}</p>
                   )}
                 </div>
                 {!n.leida && !esClickeable && (
-                  <button onClick={() => onMarcarLeida(n.id)} className="text-xs text-slate-400 hover:text-emerald-600 transition-colors shrink-0 mt-0.5">
-                    <Check size={14} />
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onMarcarLeida(n.id) }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 text-xs font-semibold transition-colors border border-slate-200 hover:border-emerald-300 shadow-sm shrink-0"
+                  >
+                    <Check size={12} />
+                    Leído
                   </button>
                 )}
               </div>
@@ -1500,18 +1654,24 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase }) => {
 
 const ReservasPage = () => {
   const [fecha, setFecha] = useState(todayISO())
-  const [reservas, setReservas] = useState(RESERVAS_INICIALES)
   const [clases, setClases] = useState(CLASES_PROFESOR)
   const [seleccion, setSeleccion] = useState(null)
   const [editando, setEditando] = useState(null)
   const [tabActiva, setTabActiva] = useState('grilla') // 'grilla' | 'fijos'
 
-  const { notificaciones, marcarLeida, marcarTodasLeidas } = useNotificacionesStore()
+  const { notificaciones, marcarLeida, marcarTodasLeidas, eliminarNotificacion } = useNotificacionesStore()
   const playerReservas = useReservasStore((s) => s.reservas)
   const cancelarReservaStore = useReservasStore((s) => s.cancelarReserva)
   const turnosFijos = useTurnosFijosStore((s) => s.turnosFijos)
   const ausentarDiaStore = useTurnosFijosStore((s) => s.ausentarDia)
   const { addReservaCanceladaAdmin, addTurnoFijoLiberadoAdmin } = usePlayerNotificationsStore()
+
+  // Store compartido con el dashboard del profesor
+  const reservas = useReservasAdminStore((s) => s.reservas)
+  const addReservaAdmin = useReservasAdminStore((s) => s.addReserva)
+  const deleteReservaAdmin = useReservasAdminStore((s) => s.deleteReserva)
+  const pagarReservaAdmin = useReservasAdminStore((s) => s.pagarReserva)
+  const updateReservaAdmin = useReservasAdminStore((s) => s.updateReserva)
 
   // Mapea la hora del jugador (ej. '10:00') a la franja admin que la contiene
   const franjaParaHora = (hora) =>
@@ -1609,7 +1769,7 @@ const ReservasPage = () => {
   }
 
   const handleSave = (nueva) => {
-    setReservas((prev) => [...prev, nueva])
+    addReservaAdmin(nueva)
     setSeleccion(null)
   }
 
@@ -1648,14 +1808,14 @@ const ReservasPage = () => {
       return
     }
 
-    // Reserva admin (bloqueo, clase, reserva manual) → solo estado local
-    setReservas((prev) => prev.filter((r) => r.id !== id))
+    // Reserva admin (bloqueo, clase, reserva manual) → store compartido
+    deleteReservaAdmin(id)
     setSeleccion(null)
     setEditando(null)
   }
 
   const handlePago = (id) => {
-    setReservas((prev) => prev.map((r) => r.id === id ? { ...r, pago: 'pagado' } : r))
+    pagarReservaAdmin(id)
     setSeleccion(null)
   }
 
@@ -1665,14 +1825,14 @@ const ReservasPage = () => {
   }
 
   const handleGuardarEdicion = (id, data) => {
-    setReservas((prev) => prev.map((r) => r.id === id ? { ...r, ...data } : r))
+    updateReservaAdmin(id, data)
     setEditando(null)
   }
 
   const handleAddClase = (nueva) => setClases((prev) => [...prev, nueva])
   const handleDeleteClase = (id) => setClases((prev) => prev.filter((c) => c.id !== id))
 
-  const sinLeer = notificaciones.filter((n) => !n.leida).length
+  const sinLeer = notificaciones.filter((n) => !n.leida && n.tipo === 'solicitud_turno_fijo').length
 
   return (
     <div className="flex flex-col gap-5 h-full">
@@ -1706,11 +1866,12 @@ const ReservasPage = () => {
         </div>
       </div>
 
-      {/* Alertas de jugadores */}
-      {notificaciones.length > 0 && (
+      {/* Alertas de jugadores — solo si hay sin leer */}
+      {notificaciones.some((n) => !n.leida) && (
         <PanelAlertas
           notificaciones={notificaciones}
           onMarcarLeida={marcarLeida}
+          onEliminar={eliminarNotificacion}
           onMarcarTodas={marcarTodasLeidas}
           onLiberacionAprobada={setFecha}
         />
@@ -1764,7 +1925,7 @@ const ReservasPage = () => {
                       onClose={() => setSeleccion(null)}
                     />
                     {/* Botón editar en el detalle */}
-                    {seleccion.reserva.tipo !== 'bloqueado' && seleccion.reserva.estado !== 'cancelada' && (
+                    {seleccion.reserva.tipo !== 'bloqueado' && seleccion.reserva.tipo !== 'clase' && seleccion.reserva.estado !== 'cancelada' && (
                       <div className="px-5 pb-4">
                         <button
                           onClick={() => handleEditar(seleccion.reserva)}

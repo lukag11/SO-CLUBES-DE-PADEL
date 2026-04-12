@@ -46,12 +46,13 @@ const useNotificacionesStore = create((set, get) => ({
   },
 
   // Jugador confirma una reserva online → avisa al admin
-  nuevaReservaJugador: ({ jugador, canchaNombre, fecha, hora, horaFin, precio }) => {
+  nuevaReservaJugador: ({ jugador, canchaNombre, canchaId, fecha, hora, horaFin, precio }) => {
     const nueva = {
       id: Date.now(),
       tipo: 'nueva_reserva',
       jugador,
       cancha: canchaNombre,
+      canchaId: canchaId ?? null,
       fecha,
       inicio: hora,
       fin: horaFin || add90min(hora),
@@ -67,12 +68,13 @@ const useNotificacionesStore = create((set, get) => ({
   },
 
   // Jugador solicita turno fijo recurrente → admin debe aprobar
-  solicitudTurnoFijo: ({ jugador, canchaNombre, fecha, hora, horaFin, precio }) => {
+  solicitudTurnoFijo: ({ jugador, canchaNombre, canchaId, fecha, hora, horaFin, precio }) => {
     const nueva = {
       id: Date.now(),
       tipo: 'solicitud_turno_fijo',
       jugador,
       cancha: canchaNombre,
+      canchaId: canchaId ?? null,
       fecha,
       inicio: hora,
       fin: horaFin || add90min(hora),
@@ -107,6 +109,46 @@ const useNotificacionesStore = create((set, get) => ({
     })
   },
 
+  // Profesor crea una clase → avisa al admin
+  nuevaClaseProfesor: ({ profesorNombre, canchaNombre, fecha, inicio, fin }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'nueva_clase_profesor',
+      profesorNombre,
+      cancha: canchaNombre,
+      fecha,
+      inicio,
+      fin,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      saveNotificaciones(updated)
+      return { notificaciones: updated }
+    })
+  },
+
+  // Profesor cancela una clase → avisa al admin
+  cancelacionClaseProfesor: ({ profesorNombre, canchaNombre, fecha, inicio, fin }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'cancelacion_clase_profesor',
+      profesorNombre,
+      cancha: canchaNombre,
+      fecha,
+      inicio,
+      fin,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      saveNotificaciones(updated)
+      return { notificaciones: updated }
+    })
+  },
+
   marcarLeida: (id) => {
     set((state) => {
       const updated = state.notificaciones.map((n) =>
@@ -120,6 +162,15 @@ const useNotificacionesStore = create((set, get) => ({
   marcarTodasLeidas: () => {
     set((state) => {
       const updated = state.notificaciones.map((n) => ({ ...n, leida: true }))
+      saveNotificaciones(updated)
+      return { notificaciones: updated }
+    })
+  },
+
+  // Elimina permanentemente una notificación (usada al aprobar/rechazar — ya fue resuelta)
+  eliminarNotificacion: (id) => {
+    set((state) => {
+      const updated = state.notificaciones.filter((n) => n.id !== id)
       saveNotificaciones(updated)
       return { notificaciones: updated }
     })

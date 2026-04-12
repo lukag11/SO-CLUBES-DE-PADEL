@@ -3,9 +3,11 @@ import PublicLayout from '../layouts/PublicLayout'
 import AuthLayout from '../layouts/AuthLayout'
 import AdminDashboardLayout from '../layouts/AdminDashboardLayout'
 import PlayerLayout from '../layouts/PlayerLayout'
+import ProfesorLayout from '../layouts/ProfesorLayout'
 import LandingPage from '../pages/LandingPage'
 import LoginPage from '../pages/LoginPage'
 import PlayerAuthPage from '../pages/PlayerAuthPage'
+import ProfesorLoginPage from '../pages/ProfesorLoginPage'
 import AdminDashboardPage from '../pages/AdminDashboardPage'
 import ClubPage from '../pages/QuienesSomosPage'
 import ReservasPage from '../pages/ReservasPage'
@@ -20,6 +22,9 @@ import PlayerProfilePage from '../pages/PlayerProfilePage'
 import PlayerTurnosFijosPage from '../pages/PlayerTurnosFijosPage'
 import PlayerReservasPage from '../pages/PlayerReservasPage'
 import PlayerNotificacionesPage from '../pages/PlayerNotificacionesPage'
+import ProfesorDashboardPage from '../pages/ProfesorDashboardPage'
+import ProfesorAgendaPage from '../pages/ProfesorAgendaPage'
+import ProfesorDisponibilidadPage from '../pages/ProfesorDisponibilidadPage'
 import NotFoundPage from '../pages/NotFoundPage'
 
 const router = createBrowserRouter([
@@ -71,6 +76,22 @@ const router = createBrowserRouter([
       { path: 'reservas', element: <ReservasPage /> },
       { path: 'torneos', element: <TorneosPage /> },
       { path: 'pagos', element: <PagosPage /> },
+    ],
+  },
+  {
+    // Portal profesores
+    path: '/dashboardProfesor',
+    children: [
+      // /dashboardProfesor → login (público)
+      { index: true, element: <ProfesorLoginPage /> },
+      // /dashboardProfesor/* → área protegida
+      {
+        element: <ProfesorLayout />,
+        children: [
+          { path: 'agenda',          element: <ProfesorAgendaPage /> },
+          { path: 'disponibilidad',  element: <ProfesorDisponibilidadPage /> },
+        ],
+      },
     ],
   },
   // Redirects de rutas viejas → nuevas (compatibilidad)

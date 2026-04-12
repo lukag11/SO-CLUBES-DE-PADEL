@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import useNotificacionesStore from './notificacionesStore'
 import usePlayerStore from './playerStore'
+import useReservasAdminStore from './reservasAdminStore'
 
 const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
@@ -43,8 +44,11 @@ const useReservasStore = create((set, get) => ({
     const jugador = player
       ? `${player.nombre}${player.apellido ? ' ' + player.apellido : ''}`
       : 'Jugador'
+    const id = Date.now()
+    const adminSlotId = id + 1
     const nueva = {
-      id: Date.now(),
+      id,
+      adminSlotId, // referencia al slot en reservasAdminStore para limpiarlo al aprobar/cancelar
       canchaId,
       canchaNombre,
       canchaInfo,
@@ -63,12 +67,30 @@ const useReservasStore = create((set, get) => ({
       save(updated)
       return { reservas: updated }
     })
+    // Crear slot visible en la grilla del admin Y bloquear para otros jugadores.
+    // tipo 'online' = reserva eventual pendiente | 'solicitud_fijo' = turno fijo pendiente
+    useReservasAdminStore.getState().addReserva({
+      id: adminSlotId,
+      tipo: esTurnoFijo ? 'solicitud_fijo' : 'online',
+      canchaId,
+      canchaNombre,
+      fecha,
+      inicio: hora,
+      fin: horaFin,
+      jugadores: [jugador],
+      estado: 'pendiente',
+      pago: null,
+      monto: precio || 0,
+      notas: '',
+      creadoPor: 'jugador',
+      reservaStoreId: id,
+    })
     // Notifica al admin (siempre). El jugador solo se notifica al aprobar (admin).
     const notifStore = useNotificacionesStore.getState()
     if (esTurnoFijo) {
-      notifStore.solicitudTurnoFijo({ jugador, canchaNombre, fecha, hora, horaFin, precio })
+      notifStore.solicitudTurnoFijo({ jugador, canchaNombre, canchaId, fecha, hora, horaFin, precio })
     } else {
-      notifStore.nuevaReservaJugador({ jugador, canchaNombre, fecha, hora, horaFin, precio })
+      notifStore.nuevaReservaJugador({ jugador, canchaNombre, canchaId, fecha, hora, horaFin, precio })
     }
     return nueva
   },
@@ -93,6 +115,10 @@ const useReservasStore = create((set, get) => ({
       save(updated)
       return { reservas: updated }
     })
+    // Limpiar el slot pendiente del store del admin
+    if (reserva?.adminSlotId) {
+      useReservasAdminStore.getState().deleteReserva(reserva.adminSlotId)
+    }
     if (reserva && notificarAdmin) {
       const notifStore = useNotificacionesStore.getState()
       notifStore.cancelacionReserva({

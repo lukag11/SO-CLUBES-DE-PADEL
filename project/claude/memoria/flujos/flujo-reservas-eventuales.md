@@ -1,7 +1,7 @@
 # Flujo: Reservas Eventuales
 
 Reservas para una fecha puntual. No son recurrentes.  
-Store: `reservasStore` · Reglas aplicadas: RN-07 a RN-12.
+Store: `reservasStore` · Reglas aplicadas: RN-07 a RN-12, RN-52.
 
 ---
 
@@ -12,6 +12,7 @@ Store: `reservasStore` · Reglas aplicadas: RN-07 a RN-12.
 3. Selecciona una cancha activa (RN-03)
 4. La grilla genera los slots de 1.5h (RN-04, RN-05) y calcula el estado de cada uno:
    - **Libre**: disponible para reservar
+   - **Pasado**: slot cuya hora de inicio ya transcurrió hoy — no reservable (RN-52)
    - **Ocupado**: bloqueado por turno fijo activo o reserva de otro jugador
    - **Mi reserva confirmada**: ya tiene una reserva aprobada en ese slot
    - **Mi reserva pendiente**: tiene una solicitud pendiente de aprobación

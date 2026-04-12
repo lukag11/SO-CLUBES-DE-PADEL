@@ -1,4 +1,29 @@
-// Franjas horarias estándar de 1.5 hs
+// Franjas horarias del profesor: 1h cada una (incluye post-medianoche)
+export const FRANJAS_PROFESOR = [
+  { inicio: '07:00', fin: '08:00' },
+  { inicio: '08:00', fin: '09:00' },
+  { inicio: '09:00', fin: '10:00' },
+  { inicio: '10:00', fin: '11:00' },
+  { inicio: '11:00', fin: '12:00' },
+  { inicio: '12:00', fin: '13:00' },
+  { inicio: '13:00', fin: '14:00' },
+  { inicio: '14:00', fin: '15:00' },
+  { inicio: '15:00', fin: '16:00' },
+  { inicio: '16:00', fin: '17:00' },
+  { inicio: '17:00', fin: '18:00' },
+  { inicio: '18:00', fin: '19:00' },
+  { inicio: '19:00', fin: '20:00' },
+  { inicio: '20:00', fin: '21:00' },
+  { inicio: '21:00', fin: '22:00' },
+  { inicio: '22:00', fin: '23:00' },
+  { inicio: '23:00', fin: '00:00' }, // cross-midnight
+  { inicio: '00:00', fin: '01:00' },
+  { inicio: '01:00', fin: '02:00' },
+  { inicio: '02:00', fin: '03:00' },
+  { inicio: '03:00', fin: '04:00' },
+]
+
+// Franjas horarias estándar de 1.5 hs (incluye post-medianoche)
 export const FRANJAS = [
   { inicio: '07:00', fin: '08:30' },
   { inicio: '08:30', fin: '10:00' },
@@ -11,6 +36,9 @@ export const FRANJAS = [
   { inicio: '19:00', fin: '20:30' },
   { inicio: '20:30', fin: '22:00' },
   { inicio: '22:00', fin: '23:30' },
+  { inicio: '23:30', fin: '01:00' }, // cross-midnight
+  { inicio: '01:00', fin: '02:30' },
+  { inicio: '02:30', fin: '04:00' },
 ]
 
 export const CANCHAS_MOCK = [

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import {
-  Building2, Palette, LayoutGrid, Clock, BookOpen, Sparkles,
+  Building2, Palette, LayoutGrid, BookOpen, Sparkles,
   Upload, Save, CheckCircle, AtSign, Share2,
   Phone, Mail, MapPin, Sun, Moon,
   Pencil, Wifi, WifiOff, ChevronDown, ChevronUp,
@@ -10,20 +10,21 @@ import {
   Shield, Wind, Utensils, Music,
 } from 'lucide-react'
 import useClubStore from '../store/clubStore'
+import useProfesoresStore from '../store/profesoresStore'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: 'info',       label: 'Información',      icon: Building2 },
-  { key: 'canchas',    label: 'Canchas & Tarifas', icon: LayoutGrid },
-  { key: 'horarios',   label: 'Horarios',          icon: Clock },
-  { key: 'historia',   label: 'Historia',          icon: BookOpen },
-  { key: 'hero',       label: 'Hero',              icon: Sparkles },
-  { key: 'galeria',    label: 'Galería',           icon: Images },
-  { key: 'servicios',  label: 'Servicios',         icon: Wrench },
-  { key: 'staff',      label: 'Staff',             icon: Users },
-  { key: 'faq',        label: 'FAQ',               icon: HelpCircle },
-  { key: 'apariencia', label: 'Apariencia',        icon: Palette },
+  { key: 'info',        label: 'Información',      icon: Building2    },
+  { key: 'canchas',     label: 'Canchas y Horarios', icon: LayoutGrid  },
+  { key: 'historia',    label: 'Historia',          icon: BookOpen    },
+  { key: 'hero',        label: 'Hero',              icon: Sparkles    },
+  { key: 'galeria',     label: 'Galería',           icon: Images      },
+  { key: 'servicios',   label: 'Servicios',         icon: Wrench      },
+  { key: 'staff',       label: 'Staff',             icon: Users       },
+  { key: 'profesores',  label: 'Profesores',        icon: GraduationCap },
+  { key: 'faq',         label: 'FAQ',               icon: HelpCircle  },
+  { key: 'apariencia',  label: 'Apariencia',        icon: Palette     },
 ]
 
 const FONTS = [
@@ -768,7 +769,7 @@ const CanchaRow = ({ cancha, onUpdate }) => {
   )
 }
 
-const TabCanchas = ({ club, updateCancha, setCantidadCanchas, saveClub }) => {
+const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, saveClub }) => {
   const [saved, setSaved] = useState(false)
   const cantidad = club.canchas.length
 
@@ -857,24 +858,7 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, saveClub }) => {
         </div>
       </SectionCard>
 
-      <SaveButton onClick={handleSave} saved={saved} />
-    </div>
-  )
-}
-
-// ─── Tab: Horarios ───────────────────────────────────────────────────────────
-
-const TabHorarios = ({ club, updateHorario, saveClub }) => {
-  const [saved, setSaved] = useState(false)
-
-  const handleSave = () => {
-    saveClub()
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
+      {/* Horarios de apertura */}
       <SectionCard title="Horarios de apertura" subtitle="Configurá los horarios del club por día">
         <div className="flex flex-col gap-2">
           {DIAS.map((dia) => {
@@ -884,7 +868,6 @@ const TabHorarios = ({ club, updateHorario, saveClub }) => {
                 key={dia}
                 className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-colors ${h.activo ? 'bg-slate-50' : 'bg-slate-50/40 opacity-60'}`}
               >
-                {/* Toggle día */}
                 <button
                   onClick={() => updateHorario(dia, { activo: !h.activo })}
                   className={[
@@ -897,11 +880,7 @@ const TabHorarios = ({ club, updateHorario, saveClub }) => {
                     h.activo ? 'left-5' : 'left-0.5',
                   ].join(' ')} />
                 </button>
-
-                {/* Día */}
                 <span className="text-slate-700 font-medium text-sm w-24 shrink-0">{dia}</span>
-
-                {/* Horarios */}
                 {h.activo ? (
                   <div className="flex items-center gap-3 flex-1">
                     <div className="flex items-center gap-2">
@@ -923,9 +902,7 @@ const TabHorarios = ({ club, updateHorario, saveClub }) => {
                         className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
                       />
                     </div>
-                    <span className="text-xs text-slate-400 ml-auto">
-                      {h.apertura} a {h.cierre}
-                    </span>
+                    <span className="text-xs text-slate-400 ml-auto">{h.apertura} a {h.cierre}</span>
                   </div>
                 ) : (
                   <span className="text-slate-400 text-sm italic">Cerrado</span>
@@ -1538,6 +1515,360 @@ const TabStaff = ({ club, updateClub, saveClub }) => {
   )
 }
 
+// ─── Tab: Profesores ─────────────────────────────────────────────────────────
+
+const CANCHAS_DEFAULT = [
+  { id: 1, nombre: 'Cancha 1' },
+  { id: 2, nombre: 'Cancha 2' },
+  { id: 3, nombre: 'Cancha 3' },
+  { id: 4, nombre: 'Cancha 4' },
+]
+
+const ProfesorCard = ({ profesor, canchas, onUpdate, onDelete }) => {
+  const [editing, setEditing] = useState(false)
+  const [local, setLocal] = useState({ ...profesor })
+  const [showPass, setShowPass] = useState(false)
+
+  const handleSave = () => {
+    onUpdate(profesor.id, { ...local, email: local.email.trim().toLowerCase() })
+    setEditing(false)
+  }
+
+  const toggleCancha = (id) => {
+    setLocal((p) => ({
+      ...p,
+      canchasIds: p.canchasIds.includes(id)
+        ? p.canchasIds.filter((c) => c !== id)
+        : [...p.canchasIds, id],
+    }))
+  }
+
+  const inicial = `${profesor.nombre?.[0] ?? ''}${profesor.apellido?.[0] ?? ''}`.toUpperCase()
+
+  return (
+    <div className="border border-slate-100 rounded-xl overflow-hidden">
+      {/* Header de la card */}
+      <div className="flex items-center gap-4 px-5 py-3.5 bg-slate-50">
+        <div className="w-10 h-10 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center shrink-0">
+          <span className="text-orange-600 font-bold text-sm">{inicial || '?'}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-slate-700 font-semibold text-sm">
+            {profesor.nombre} {profesor.apellido}
+          </p>
+          <p className="text-slate-400 text-xs">{profesor.email} · {profesor.especialidad || 'Sin especialidad'}</p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${profesor.activo ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+            {profesor.activo ? 'Activo' : 'Inactivo'}
+          </span>
+          <button
+            onClick={() => { setEditing((v) => !v); setLocal({ ...profesor }) }}
+            className="text-xs font-medium text-slate-400 hover:text-emerald-600 transition-colors flex items-center gap-1"
+          >
+            <Pencil size={12} /> {editing ? 'Cancelar' : 'Editar'}
+          </button>
+          <button onClick={() => onDelete(profesor.id)} className="text-slate-300 hover:text-red-400 transition-colors">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Formulario de edición */}
+      {editing && (
+        <div className="px-5 py-5 border-t border-slate-100 bg-white flex flex-col gap-4">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-500 text-xs font-medium mb-1.5">Nombre</label>
+              <input
+                value={local.nombre}
+                onChange={(e) => setLocal((p) => ({ ...p, nombre: e.target.value }))}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-500 text-xs font-medium mb-1.5">Apellido</label>
+              <input
+                value={local.apellido}
+                onChange={(e) => setLocal((p) => ({ ...p, apellido: e.target.value }))}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-500 text-xs font-medium mb-1.5">Email (login)</label>
+              <input
+                type="email"
+                value={local.email}
+                onChange={(e) => setLocal((p) => ({ ...p, email: e.target.value }))}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-500 text-xs font-medium mb-1.5">Contraseña</label>
+              <div className="relative">
+                <input
+                  type={showPass ? 'text' : 'password'}
+                  value={local.password}
+                  onChange={(e) => setLocal((p) => ({ ...p, password: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-9 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass((v) => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
+                >
+                  {showPass ? <Moon size={14} /> : <Sun size={14} />}
+                </button>
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-slate-500 text-xs font-medium mb-1.5">Especialidad</label>
+              <input
+                value={local.especialidad}
+                onChange={(e) => setLocal((p) => ({ ...p, especialidad: e.target.value }))}
+                placeholder="Ej: Técnica, Iniciación, Competitivo..."
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Canchas habilitadas */}
+          <div>
+            <label className="block text-slate-500 text-xs font-medium mb-2">
+              Canchas habilitadas{' '}
+              <span className="text-slate-300 font-normal">(vacío = todas)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {canchas.map((c) => {
+                const sel = local.canchasIds.includes(c.id)
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => toggleCancha(c.id)}
+                    className={[
+                      'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                      sel
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                        : 'border-slate-200 text-slate-400 hover:border-slate-300',
+                    ].join(' ')}
+                  >
+                    {c.nombre}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Estado activo */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setLocal((p) => ({ ...p, activo: !p.activo }))}
+              className={`relative w-11 h-6 rounded-full transition-colors ${local.activo ? 'bg-emerald-500' : 'bg-slate-200'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${local.activo ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+            <span className="text-slate-500 text-sm">{local.activo ? 'Activo' : 'Inactivo'}</span>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={handleSave}
+              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+            >
+              <Save size={13} /> Guardar cambios
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const TabProfesores = ({ club }) => {
+  const { profesores, addProfesor, updateProfesor, toggleProfesor } = useProfesoresStore()
+  const [agregando, setAgregando] = useState(false)
+  const [nuevo, setNuevo] = useState({ nombre: '', apellido: '', email: '', password: '', especialidad: '', canchasIds: [] })
+  const [showPass, setShowPass] = useState(false)
+  const [error, setError] = useState('')
+
+  const canchas = club.canchas?.filter((c) => c.activa) ?? CANCHAS_DEFAULT
+
+  const handleAdd = () => {
+    setError('')
+    if (!nuevo.nombre.trim() || !nuevo.email.trim() || !nuevo.password.trim()) {
+      setError('Nombre, email y contraseña son obligatorios.')
+      return
+    }
+    const emailLower = nuevo.email.trim().toLowerCase()
+    if (profesores.some((p) => p.email === emailLower)) {
+      setError('Ya existe un profesor con ese email.')
+      return
+    }
+    addProfesor({ ...nuevo, email: emailLower })
+    setNuevo({ nombre: '', apellido: '', email: '', password: '', especialidad: '', canchasIds: [] })
+    setAgregando(false)
+  }
+
+  const handleUpdate = (id, data) => updateProfesor(id, data)
+  const handleDelete = (id) => toggleProfesor(id) // desactiva en lugar de eliminar
+
+  const toggleCanchaNew = (id) => {
+    setNuevo((p) => ({
+      ...p,
+      canchasIds: p.canchasIds.includes(id)
+        ? p.canchasIds.filter((c) => c !== id)
+        : [...p.canchasIds, id],
+    }))
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <SectionCard
+        title="Profesores del club"
+        subtitle="Los profesores pueden acceder a su portal en /dashboardProfesor para gestionar su agenda de clases"
+      >
+        {/* Lista */}
+        <div className="flex flex-col gap-3">
+          {profesores.length === 0 && !agregando && (
+            <p className="text-slate-400 text-sm text-center py-6">No hay profesores registrados todavía.</p>
+          )}
+          {profesores.map((p) => (
+            <ProfesorCard
+              key={p.id}
+              profesor={p}
+              canchas={canchas}
+              onUpdate={handleUpdate}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+
+        {/* Formulario nuevo profesor */}
+        {agregando && (
+          <div className="mt-4 border border-emerald-100 rounded-xl bg-emerald-50/40 p-5 flex flex-col gap-4">
+            <p className="text-slate-700 font-semibold text-sm">Nuevo profesor</p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-500 text-xs font-medium mb-1.5">Nombre *</label>
+                <input
+                  value={nuevo.nombre}
+                  onChange={(e) => setNuevo((p) => ({ ...p, nombre: e.target.value }))}
+                  placeholder="María"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 bg-white transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-500 text-xs font-medium mb-1.5">Apellido</label>
+                <input
+                  value={nuevo.apellido}
+                  onChange={(e) => setNuevo((p) => ({ ...p, apellido: e.target.value }))}
+                  placeholder="González"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 bg-white transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-500 text-xs font-medium mb-1.5">Email (login) *</label>
+                <input
+                  type="email"
+                  value={nuevo.email}
+                  onChange={(e) => setNuevo((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="maria@club.com"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 bg-white transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-500 text-xs font-medium mb-1.5">Contraseña *</label>
+                <div className="relative">
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    value={nuevo.password}
+                    onChange={(e) => setNuevo((p) => ({ ...p, password: e.target.value }))}
+                    placeholder="••••••••"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-9 text-sm text-slate-700 outline-none focus:border-emerald-400 bg-white transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass((v) => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
+                  >
+                    {showPass ? <Moon size={14} /> : <Sun size={14} />}
+                  </button>
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-slate-500 text-xs font-medium mb-1.5">Especialidad</label>
+                <input
+                  value={nuevo.especialidad}
+                  onChange={(e) => setNuevo((p) => ({ ...p, especialidad: e.target.value }))}
+                  placeholder="Ej: Técnica, Iniciación, Competitivo..."
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 bg-white transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Canchas */}
+            <div>
+              <label className="block text-slate-500 text-xs font-medium mb-2">
+                Canchas habilitadas <span className="text-slate-300 font-normal">(vacío = todas)</span>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {canchas.map((c) => {
+                  const sel = nuevo.canchasIds.includes(c.id)
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => toggleCanchaNew(c.id)}
+                      className={[
+                        'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                        sel
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                          : 'border-slate-200 text-slate-400 hover:border-slate-300 bg-white',
+                      ].join(' ')}
+                    >
+                      {c.nombre}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-red-500 text-xs bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
+            )}
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setAgregando(false); setError('') }}
+                className="text-sm text-slate-400 hover:text-slate-600 px-4 py-2 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAdd}
+                className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+              >
+                <CheckCircle size={13} /> Crear profesor
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!agregando && (
+          <button
+            onClick={() => setAgregando(true)}
+            className="flex items-center gap-2 mt-4 text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+          >
+            <Plus size={15} /> Agregar profesor
+          </button>
+        )}
+      </SectionCard>
+    </div>
+  )
+}
+
 // ─── Tab: FAQ + Política ─────────────────────────────────────────────────────
 
 const FaqItem = ({ item, onUpdate, onDelete }) => {
@@ -1660,14 +1991,14 @@ const QuienesSomosPage = () => {
 
       {/* Contenido */}
       {activeTab === 'info'       && <TabInfo       club={club} updateClub={updateClub} saveClub={saveClub} />}
-      {activeTab === 'canchas'    && <TabCanchas    club={club} updateCancha={updateCancha} setCantidadCanchas={setCantidadCanchas} saveClub={saveClub} />}
-      {activeTab === 'horarios'   && <TabHorarios   club={club} updateHorario={updateHorario} saveClub={saveClub} />}
+      {activeTab === 'canchas'    && <TabCanchas    club={club} updateCancha={updateCancha} setCantidadCanchas={setCantidadCanchas} updateHorario={updateHorario} saveClub={saveClub} />}
       {activeTab === 'historia'   && <TabHistoria   club={club} updateClub={updateClub} saveClub={saveClub} />}
       {activeTab === 'hero'       && <TabHero       club={club} updateClub={updateClub} saveClub={saveClub} />}
       {activeTab === 'galeria'    && <TabGaleria    club={club} updateClub={updateClub} saveClub={saveClub} />}
       {activeTab === 'servicios'  && <TabServicios  club={club} updateClub={updateClub} saveClub={saveClub} />}
-      {activeTab === 'staff'      && <TabStaff      club={club} updateClub={updateClub} saveClub={saveClub} />}
-      {activeTab === 'faq'        && <TabFaq        club={club} updateClub={updateClub} saveClub={saveClub} />}
+      {activeTab === 'staff'       && <TabStaff       club={club} updateClub={updateClub} saveClub={saveClub} />}
+      {activeTab === 'profesores'  && <TabProfesores  club={club} />}
+      {activeTab === 'faq'         && <TabFaq         club={club} updateClub={updateClub} saveClub={saveClub} />}
       {activeTab === 'apariencia' && <TabApariencia club={club} updateClub={updateClub} saveClub={saveClub} />}
     </div>
   )

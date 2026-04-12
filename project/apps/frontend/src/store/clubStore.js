@@ -68,6 +68,7 @@ const INITIAL_CLUB = {
   fontFamilia: 'Inter',
   modoOscuroJugadores: true,
   horarioPicoActivo: true,
+  permitirCruceMedianoche: false, // Si true, habilita reservas/clases que cruzan las 00:00
   canchas: [
     { id: 1, nombre: 'Cancha 1', tipo: 'Cristal', indoor: true,  activa: true, precioTurno: 12000, recargoPico: 20 },
     { id: 2, nombre: 'Cancha 2', tipo: 'Cristal', indoor: true,  activa: true, precioTurno: 12000, recargoPico: 20 },
@@ -101,6 +102,19 @@ const loadPersistedClub = () => {
     if (saved) {
       const parsed = JSON.parse(saved)
       const merged = { ...INITIAL_CLUB, ...parsed }
+
+      // Deep merge de horarios: garantiza que cada día tenga apertura, cierre y activo
+      // aunque el registro guardado sea de una versión anterior o incompleta
+      merged.horarios = Object.fromEntries(
+        DIAS_SEMANA.map((dia) => [
+          dia,
+          {
+            ...INITIAL_CLUB.horarios[dia],
+            ...(parsed.horarios?.[dia] ?? {}),
+          },
+        ])
+      )
+
       applyColorsToDOM(merged.colorPrimario, merged.colorSecundario, merged.fontFamilia)
       return merged
     }
@@ -127,15 +141,17 @@ const useClubStore = create((set, get) => ({
   },
 
   updateHorario: (dia, data) => {
-    set((state) => ({
-      club: {
+    set((state) => {
+      const updated = {
         ...state.club,
         horarios: {
           ...state.club.horarios,
           [dia]: { ...state.club.horarios[dia], ...data },
         },
-      },
-    }))
+      }
+      localStorage.setItem('club_config', JSON.stringify(updated))
+      return { club: updated }
+    })
   },
 
   setCantidadCanchas: (n) => {

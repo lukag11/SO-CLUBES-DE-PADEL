@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Zap, Menu, X } from 'lucide-react'
+import { Zap, Menu, X, GraduationCap } from 'lucide-react'
 import useClubStore from '../../store/clubStore'
 
 const navLinks = [
@@ -76,6 +76,13 @@ const PublicNavbar = () => {
           <Link to="/dashboardJugadores" className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-150 ${linkColor}`}>
             Jugadores
           </Link>
+          <Link
+            to="/dashboardProfesor"
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-150 ${linkColor}`}
+          >
+            <GraduationCap size={15} />
+            Profesores
+          </Link>
           {navbarEstilo === 'color-solido' && !isLight ? (
             <Link to="/login" className="px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg bg-black/15 hover:bg-black/25 text-black transition-all duration-150">
               Área Privada
@@ -115,6 +122,10 @@ const PublicNavbar = () => {
           ))}
           <Link to="/dashboardJugadores" onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium transition-colors ${linkColor}`}>
             Jugadores
+          </Link>
+          <Link to="/dashboardProfesor" onClick={() => setMenuOpen(false)} className={`flex items-center gap-2 py-2.5 text-sm font-medium transition-colors ${linkColor}`}>
+            <GraduationCap size={15} />
+            Profesores
           </Link>
           <Link to="/login" onClick={() => setMenuOpen(false)} className="mt-2 py-2.5 text-xs font-bold uppercase tracking-widest text-center rounded-lg border"
             style={navbarEstilo === 'color-solido' && !isLight

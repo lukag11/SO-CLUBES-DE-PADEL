@@ -39,10 +39,12 @@ Los flujos que las aplican están en `/memoria/flujos/`.
 
 ## Turnos fijos
 
-**RN-13** Un turno fijo es recurrente: se repite cada semana en el mismo día y horario.  
+**RN-13** Un turno fijo es recurrente: se repite cada semana en el mismo día y horario.
+**RN-51** Un jugador puede tener múltiples turnos fijos el mismo día de la semana, siempre que sean en canchas distintas. No puede tener más de un turno fijo activo en la misma cancha para el mismo día.  
 **RN-14** La solicitud de turno fijo se almacena en `reservasStore` con `esTurnoFijo: true` + estado `pendiente` hasta que el admin la apruebe.  
 **RN-15** Un turno fijo solo existe en `turnosFijosStore` cuando el admin lo aprueba explícitamente.  
 **RN-16** Al aprobar un turno fijo el admin debe ejecutar dos acciones: confirmar la reserva en `reservasStore` Y crear el turno en `turnosFijosStore`.  
+**RN-16b** La búsqueda de la reserva pendiente al aprobar usa tres criterios: `hora + fecha + tipo (esTurnoFijo)`. Una notificación de tipo `nueva_reserva` NUNCA puede aprobar una reserva con `esTurnoFijo: true`, y viceversa.  
 **RN-17** Un turno fijo activo bloquea ese slot en el calendario para todos los jugadores.  
 **RN-18b** El contador de turnos fijos en el panel admin muestra el total de turnos fijos activos para el día de semana, independientemente de si alguno tiene ausencia ese día específico.
 
@@ -109,3 +111,18 @@ Los flujos que las aplican están en `/memoria/flujos/`.
 **RN-39** Cada club tiene configuración editable: nombre, logo, horarios, canchas, servicios, staff, FAQ, colores de marca.  
 **RN-40** El club puede activar o desactivar secciones de la landing individualmente (galería, servicios, staff, FAQ, etc.).  
 **RN-41** Los colores de marca del club se aplican como variables CSS dinámicas (`--club-primary`, `--club-secondary`, `--club-font`) al DOM en tiempo de carga.
+
+---
+
+## Profesores
+
+**RN-42** El profesor puede crear, editar y cancelar sus propias clases directamente en la grilla global. No requiere aprobación del admin.  
+**RN-43** Una clase creada por el profesor entra con estado `confirmada` y campo `creadoPor: 'profesor'` para trazabilidad.  
+**RN-44** El profesor solo puede crear clases en las canchas asignadas en su perfil (`canchasIds`). Si el campo está vacío, puede usar todas las canchas activas. Si `profesorData` no se encuentra en `profesoresStore`, el acceso a canchas es cero (sin acceso).  
+**RN-45** El profesor puede marcar no-disponibilidad por franjas específicas o día completo. Esto crea slots `bloqueado` con `razon: 'Indisponibilidad - Profesor'` en la grilla global.  
+**RN-46** El profesor no puede marcar el día completo como no disponible si ya tiene clases agendadas en ese día. Debe gestionar el conflicto franja por franja.  
+**RN-47** El profesor no puede aprobar reservas de jugadores ni acceder a datos de jugadores.  
+**RN-48** El profesor está autenticado con `profesor_token` y `profesor_data` en localStorage. Mismo patrón que jugador y admin.  
+**RN-49** Un slot tipo `'clase'` tiene `profesorId` opcional. Sin `profesorId`, es una clase sin profesor asignado (gestión 100% admin).  
+**RN-50** Los slots de clase y no-disponibilidad del profesor se almacenan en `reservasAdminStore` — el mismo store compartido que usa la grilla del admin. No existe un store paralelo de clases.
+**RN-52** Un slot cuya hora de inicio es anterior a la hora actual del día no puede ser reservado. Se muestra en la grilla como bloqueado con etiqueta "Pasado" (distinto visualmente de "Ocupado"). Aplica solo a la fecha de hoy — en fechas futuras todos los slots del horario del club son visibles y reservables. El backend deberá validar esto también al recibir la solicitud.

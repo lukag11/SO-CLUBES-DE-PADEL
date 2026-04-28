@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estructura Carpeta /claude — SO Clubes de Pádel</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f8f9fb;
+      color: #1a1d23;
+      padding: 40px 48px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      background: linear-gradient(135deg, #1e3a5f 0%, #0d5c8c 100%);
+      color: #fff;
+      border-radius: 12px;
+      padding: 36px 40px;
+      margin-bottom: 36px;
+    }
+    .header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      margin-bottom: 6px;
+    }
+    .header p {
+      font-size: 14px;
+      opacity: 0.75;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 20px;
+      font-size: 12px;
+      padding: 3px 12px;
+      margin-top: 14px;
+    }
+
+    /* ── INTRO ── */
+    .intro {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 22px 28px;
+      margin-bottom: 32px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #4a5568;
+    }
+    .intro strong { color: #1a1d23; }
+
+    /* ── SECTION CARD ── */
+    .section {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 24px;
+      border-bottom: 1px solid #edf2f7;
+    }
+    .section-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .section-title h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1d23;
+    }
+    .section-title p {
+      font-size: 13px;
+      color: #718096;
+      margin-top: 2px;
+    }
+
+    /* ── FILE TABLE ── */
+    .file-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .file-table thead tr {
+      background: #f7fafc;
+    }
+    .file-table th {
+      font-size: 11px;
+      font-weight: 600;
+      color: #a0aec0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 10px 24px;
+      text-align: left;
+    }
+    .file-table td {
+      padding: 11px 24px;
+      font-size: 13px;
+      border-top: 1px solid #f0f4f8;
+      vertical-align: top;
+    }
+    .file-table tr:hover td { background: #fafbfc; }
+
+    /* ── FILE NAME + LINK ── */
+    .file-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .file-name a {
+      color: #2d6cdf;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: color 0.15s;
+    }
+    .file-name a:hover {
+      color: #1a4fa8;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .file-name a::before {
+      content: "↗";
+      font-size: 10px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .file-name a:hover::before {
+      opacity: 1;
+    }
+    .file-name .folder {
+      color: #718096;
+      font-size: 11px;
+    }
+    .file-desc {
+      color: #4a5568;
+      line-height: 1.5;
+    }
+
+    /* ── COLOR ACCENTS per section ── */
+    .accent-context .section-icon  { background: #ebf8ff; }
+    .accent-gov     .section-icon  { background: #f0fff4; }
+    .accent-memoria .section-icon  { background: #faf5ff; }
+    .accent-prompts .section-icon  { background: #fffaf0; }
+    .accent-tmpl    .section-icon  { background: #fff5f5; }
+    .accent-wf      .section-icon  { background: #f0f9ff; }
+
+    /* ── TREE VISUAL ── */
+    .tree-box {
+      background: #1a1d23;
+      border-radius: 10px;
+      padding: 28px 32px;
+      margin-bottom: 32px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.85;
+      color: #a0aec0;
+    }
+    .tree-box .dir   { color: #63b3ed; font-weight: 500; }
+    .tree-box .sub   { color: #f6ad55; }
+    .tree-box .root  { color: #fff; font-weight: 700; font-size: 14px; }
+    .tree-box a {
+      color: #68d391;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .tree-box a:hover {
+      color: #9ae6b4;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    /* ── ASSESSMENT BOX ── */
+    .assessment {
+      background: #fff;
+      border: 1px solid #c6f6d5;
+      border-left: 4px solid #38a169;
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 28px;
+    }
+    .assessment h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #276749;
+      margin-bottom: 14px;
+    }
+    .assessment ul { list-style: none; padding: 0; }
+    .assessment ul li {
+      font-size: 13.5px;
+      color: #4a5568;
+      padding: 5px 0;
+      padding-left: 22px;
+      position: relative;
+      line-height: 1.5;
+    }
+    .assessment ul li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #38a169;
+      font-weight: 700;
+    }
+
+    .suggestion {
+      background: #fff;
+      border: 1px solid #feebc8;
+      border-left: 4px solid #dd6b20;
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 28px;
+    }
+    .suggestion h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #c05621;
+      margin-bottom: 14px;
+    }
+    .suggestion ul { list-style: none; padding: 0; }
+    .suggestion ul li {
+      font-size: 13.5px;
+      color: #4a5568;
+      padding: 5px 0;
+      padding-left: 22px;
+      position: relative;
+      line-height: 1.5;
+    }
+    .suggestion ul li::before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: #dd6b20;
+      font-weight: 700;
+    }
+
+    /* ── FOOTER ── */
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      color: #a0aec0;
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    /* ── PRINT ── */
+    @media print {
+      body { background: #fff; padding: 20px 30px; }
+      .header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .tree-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .section { break-inside: avoid; }
+      .file-name a::before { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>Estructura de la Carpeta <code style="font-family:monospace;background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:5px;">/claude</code></h1>
+    <p>Sistema de Gestión de Contexto para el Agente IA — SaaS Clubes de Pádel</p>
+    <span class="badge">Proyecto SO Clubes de Pádel · Abril 2026</span>
+  </div>
+
+  <!-- INTRO -->
+  <div class="intro">
+    La carpeta <strong>/claude</strong> es el <strong>sistema nervioso del agente IA</strong> del proyecto.
+    Contiene todo lo que Claude necesita para comportarse correctamente:
+    el contexto del producto, las reglas de trabajo, la memoria del proyecto,
+    los prompts de operación, las plantillas y los flujos de desarrollo.
+    Es independiente del código fuente y puede evolucionar sin afectar la app.
+    <br><br>
+    <strong>Hacé click en cualquier archivo</strong> para ver su contenido.
+  </div>
+
+  <!-- ÁRBOL VISUAL -->
+  <div class="tree-box">
+    <span class="root">claude/</span><br>
+    <span>├── </span><span class="dir">context/</span><br>
+    <span>│   ├── </span><a href="context/arquitectura.md" target="_blank">arquitectura.md</a><br>
+    <span>│   ├── </span><a href="context/funcionalidades.md" target="_blank">funcionalidades.md</a><br>
+    <span>│   ├── </span><a href="context/modo_trabajo.md" target="_blank">modo_trabajo.md</a><br>
+    <span>│   ├── </span><a href="context/monetizacion.md" target="_blank">monetizacion.md</a><br>
+    <span>│   ├── </span><a href="context/producto.md" target="_blank">producto.md</a><br>
+    <span>│   ├── </span><a href="context/reglas.md" target="_blank">reglas.md</a><br>
+    <span>│   ├── </span><a href="context/roadmap.md" target="_blank">roadmap.md</a><br>
+    <span>│   ├── </span><a href="context/usuarios.md" target="_blank">usuarios.md</a><br>
+    <span>│   ├── </span><a href="context/vision.md" target="_blank">vision.md</a><br>
+    <span>│   └── </span><span class="sub">governance/</span><br>
+    <span>│       ├── </span><a href="context/governance/estandares_codigo.md" target="_blank">estandares_codigo.md</a><br>
+    <span>│       ├── </span><a href="context/governance/flujo_desarrollo.md" target="_blank">flujo_desarrollo.md</a><br>
+    <span>│       ├── </span><a href="context/governance/protocolo_agente.md" target="_blank">protocolo_agente.md</a><br>
+    <span>│       └── </span><a href="context/governance/reglas_decision.md" target="_blank">reglas_decision.md</a><br>
+    <span>├── </span><span class="dir">memoria/</span><br>
+    <span>│   ├── </span><a href="memoria/bugs.md" target="_blank">bugs.md</a><br>
+    <span>│   ├── </span><a href="memoria/decisiones.md" target="_blank">decisiones.md</a><br>
+    <span>│   ├── </span><a href="memoria/features.md" target="_blank">features.md</a><br>
+    <span>│   ├── </span><a href="memoria/ideas.md" target="_blank">ideas.md</a><br>
+    <span>│   ├── </span><a href="memoria/progreso.md" target="_blank">progreso.md</a><br>
+    <span>│   ├── </span><a href="memoria/proyecto_torneo_plan.md" target="_blank">proyecto_torneo_plan.md</a><br>
+    <span>│   ├── </span><a href="memoria/reglas-negocio.md" target="_blank">reglas-negocio.md</a><br>
+    <span>│   └── </span><span class="sub">flujos/</span><br>
+    <span>│       ├── </span><a href="memoria/flujos/flujo-admin.md" target="_blank">flujo-admin.md</a><br>
+    <span>│       ├── </span><a href="memoria/flujos/flujo-ausencias.md" target="_blank">flujo-ausencias.md</a><br>
+    <span>│       ├── </span><a href="memoria/flujos/flujo-jugador.md" target="_blank">flujo-jugador.md</a><br>
+    <span>│       ├── </span><a href="memoria/flujos/flujo-profesor.md" target="_blank">flujo-profesor.md</a><br>
+    <span>│       ├── </span><a href="memoria/flujos/flujo-reservas-eventuales.md" target="_blank">flujo-reservas-eventuales.md</a><br>
+    <span>│       ├── </span><a href="memoria/flujos/flujo-torneos.md" target="_blank">flujo-torneos.md</a><br>
+    <span>│       ├── </span><a href="memoria/flujos/flujo-turnos-fijos.md" target="_blank">flujo-turnos-fijos.md</a><br>
+    <span>│       └── </span><a href="memoria/flujos/inconsistencias.md" target="_blank">inconsistencias.md</a><br>
+    <span>├── </span><span class="dir">prompts/</span><br>
+    <span>│   ├── </span><a href="prompts/actualizar_memoria.md" target="_blank">actualizar_memoria.md</a><br>
+    <span>│   ├── </span><a href="prompts/cerrar_tarea.md" target="_blank">cerrar_tarea.md</a><br>
+    <span>│   ├── </span><a href="prompts/continuar_tarea.md" target="_blank">continuar_tarea.md</a><br>
+    <span>│   ├── </span><a href="prompts/iniciar_tarea.md" target="_blank">iniciar_tarea.md</a><br>
+    <span>│   └── </span><a href="prompts/master_prompt.md" target="_blank">master_prompt.md</a><br>
+    <span>├── </span><span class="dir">templates/</span><br>
+    <span>│   ├── </span><a href="templates/plantilla_bug.md" target="_blank">plantilla_bug.md</a><br>
+    <span>│   ├── </span><a href="templates/plantilla_decisiones.md" target="_blank">plantilla_decisiones.md</a><br>
+    <span>│   ├── </span><a href="templates/plantilla_endpoint_api.md" target="_blank">plantilla_endpoint_api.md</a><br>
+    <span>│   ├── </span><a href="templates/plantilla_feature.md" target="_blank">plantilla_feature.md</a><br>
+    <span>│   ├── </span><a href="templates/plantilla_modelo_datos.md" target="_blank">plantilla_modelo_datos.md</a><br>
+    <span>│   └── </span><a href="templates/plantilla_tarea.md" target="_blank">plantilla_tarea.md</a><br>
+    └── <span class="dir">workflows/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;├── <a href="workflows/workflow_actualizacion_memoria.md" target="_blank">workflow_actualizacion_memoria.md</a><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;├── <a href="workflows/workflow_cierre.md" target="_blank">workflow_cierre.md</a><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;├── <a href="workflows/workflow_desarrollo.md" target="_blank">workflow_desarrollo.md</a><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;├── <a href="workflows/workflow_fix_bugs.md" target="_blank">workflow_fix_bugs.md</a><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;└── <a href="workflows/workflow_nueva_feature.md" target="_blank">workflow_nueva_feature.md</a>
+  </div>
+
+  <!-- SECTION: context/ -->
+  <div class="section accent-context">
+    <div class="section-header">
+      <div class="section-icon">📄</div>
+      <div class="section-title">
+        <h2>context/ — Contexto del Producto</h2>
+        <p>Todo lo que el agente necesita saber sobre el negocio, el producto y las reglas</p>
+      </div>
+    </div>
+    <table class="file-table">
+      <thead>
+        <tr>
+          <th style="width:220px">Archivo</th>
+          <th>Descripción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="file-name"><a href="context/vision.md" target="_blank">vision.md</a></span></td>
+          <td class="file-desc">Visión general del producto SaaS. Qué problema resuelve, para quién y cómo.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="context/producto.md" target="_blank">producto.md</a></span></td>
+          <td class="file-desc">Descripción funcional del producto: módulos, pantallas y objetivos de cada uno.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="context/arquitectura.md" target="_blank">arquitectura.md</a></span></td>
+          <td class="file-desc">Stack técnico, estructura de carpetas del frontend/backend y decisiones arquitectónicas.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="context/funcionalidades.md" target="_blank">funcionalidades.md</a></span></td>
+          <td class="file-desc">Catálogo de funcionalidades implementadas y pendientes por rol (admin, jugador, profesor).</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="context/usuarios.md" target="_blank">usuarios.md</a></span></td>
+          <td class="file-desc">Definición de los roles del sistema: Admin, Jugador y Profesor. Permisos y responsabilidades.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="context/roadmap.md" target="_blank">roadmap.md</a></span></td>
+          <td class="file-desc">Hoja de ruta del proyecto: bloques completados y próximos pasos priorizados.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="context/monetizacion.md" target="_blank">monetizacion.md</a></span></td>
+          <td class="file-desc">Modelo de negocio SaaS: planes, precios y feature gating por nivel.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="context/modo_trabajo.md" target="_blank">modo_trabajo.md</a></span></td>
+          <td class="file-desc">Cómo trabaja el agente: metodología, pasos y restricciones de ejecución.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="context/reglas.md" target="_blank">reglas.md</a></span></td>
+          <td class="file-desc">Reglas de negocio generales del sistema (turnos, reservas, canchas, etc.).</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION: context/governance/ -->
+  <div class="section accent-gov">
+    <div class="section-header">
+      <div class="section-icon">⚖️</div>
+      <div class="section-title">
+        <h2>context/governance/ — Gobernanza del Agente</h2>
+        <p>Reglas de comportamiento obligatorio: cómo debe actuar y tomar decisiones el agente</p>
+      </div>
+    </div>
+    <table class="file-table">
+      <thead>
+        <tr>
+          <th style="width:220px">Archivo</th>
+          <th>Descripción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="file-name"><a href="context/governance/protocolo_agente.md" target="_blank">protocolo_agente.md</a></span></td>
+          <td class="file-desc">Rol del agente, forma de trabajo incremental y regla obligatoria de proponer antes de ejecutar.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="context/governance/flujo_desarrollo.md" target="_blank">flujo_desarrollo.md</a></span></td>
+          <td class="file-desc">Ciclo de desarrollo paso a paso: análisis → propuesta → confirmación → implementación → prueba.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="context/governance/estandares_codigo.md" target="_blank">estandares_codigo.md</a></span></td>
+          <td class="file-desc">Convenciones de código: nombres, estructura de componentes, Zustand stores, estilos, etc.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="context/governance/reglas_decision.md" target="_blank">reglas_decision.md</a></span></td>
+          <td class="file-desc">Criterios para tomar decisiones técnicas y cuándo escalar al desarrollador.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION: memoria/ -->
+  <div class="section accent-memoria">
+    <div class="section-header">
+      <div class="section-icon">🧠</div>
+      <div class="section-title">
+        <h2>memoria/ — Memoria Viva del Proyecto</h2>
+        <p>Estado actual del proyecto, decisiones tomadas y flujos por rol. Se actualiza constantemente.</p>
+      </div>
+    </div>
+    <table class="file-table">
+      <thead>
+        <tr>
+          <th style="width:220px">Archivo</th>
+          <th>Descripción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="file-name"><a href="memoria/progreso.md" target="_blank">progreso.md</a></span></td>
+          <td class="file-desc">Registro del estado de avance por módulo. Qué está hecho, en progreso y pendiente.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="memoria/decisiones.md" target="_blank">decisiones.md</a></span></td>
+          <td class="file-desc">Log de decisiones técnicas importantes: qué se eligió, por qué y qué alternativas se descartaron.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="memoria/features.md" target="_blank">features.md</a></span></td>
+          <td class="file-desc">Features implementadas con su descripción técnica y estado.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="memoria/bugs.md" target="_blank">bugs.md</a></span></td>
+          <td class="file-desc">Registro de bugs detectados: descripción, causa, solución aplicada y estado.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="memoria/reglas-negocio.md" target="_blank">reglas-negocio.md</a></span></td>
+          <td class="file-desc">Reglas de negocio específicas que surgieron durante el desarrollo (ej: slots 1.5h, precio fijo).</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="memoria/ideas.md" target="_blank">ideas.md</a></span></td>
+          <td class="file-desc">Ideas de mejora o features futuras que no están en el roadmap formal todavía.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="memoria/proyecto_torneo_plan.md" target="_blank">proyecto_torneo_plan.md</a></span></td>
+          <td class="file-desc">Plan detallado del módulo de torneos: bloques, modelos de datos y estados.</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="file-name">
+              <span class="folder">flujos/</span><br>
+              <a href="memoria/flujos/flujo-admin.md" target="_blank">flujo-admin.md</a>
+            </span>
+          </td>
+          <td class="file-desc">Flujo completo del rol Administrador: gestión de canchas, turnos, reservas y jugadores.</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="file-name">
+              <span class="folder">flujos/</span><br>
+              <a href="memoria/flujos/flujo-jugador.md" target="_blank">flujo-jugador.md</a>
+            </span>
+          </td>
+          <td class="file-desc">Flujo del Jugador: registro, reservas eventuales, turnos fijos e inscripción a torneos.</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="file-name">
+              <span class="folder">flujos/</span><br>
+              <a href="memoria/flujos/flujo-profesor.md" target="_blank">flujo-profesor.md</a>
+            </span>
+          </td>
+          <td class="file-desc">Flujo del Profesor: visualización de su agenda y reservas asignadas.</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="file-name">
+              <span class="folder">flujos/</span><br>
+              <a href="memoria/flujos/flujo-reservas-eventuales.md" target="_blank">flujo-reservas-eventuales.md</a>
+            </span>
+          </td>
+          <td class="file-desc">Flujo detallado del ciclo de vida de una reserva eventual: solicitud → aprobación → cancelación.</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="file-name">
+              <span class="folder">flujos/</span><br>
+              <a href="memoria/flujos/flujo-turnos-fijos.md" target="_blank">flujo-turnos-fijos.md</a>
+            </span>
+          </td>
+          <td class="file-desc">Flujo de turnos fijos semanales recurrentes: solicitud, aprobación y gestión de ausencias.</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="file-name">
+              <span class="folder">flujos/</span><br>
+              <a href="memoria/flujos/flujo-torneos.md" target="_blank">flujo-torneos.md</a>
+            </span>
+          </td>
+          <td class="file-desc">Flujo del módulo de torneos: fases, inscripción de parejas, grupos y eliminatorias.</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="file-name">
+              <span class="folder">flujos/</span><br>
+              <a href="memoria/flujos/flujo-ausencias.md" target="_blank">flujo-ausencias.md</a>
+            </span>
+          </td>
+          <td class="file-desc">Gestión de ausencias en turnos fijos: cómo el jugador avisa y el admin libera el turno.</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="file-name">
+              <span class="folder">flujos/</span><br>
+              <a href="memoria/flujos/inconsistencias.md" target="_blank">inconsistencias.md</a>
+            </span>
+          </td>
+          <td class="file-desc">Registro de inconsistencias detectadas entre módulos o entre lógica esperada y real.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION: prompts/ -->
+  <div class="section accent-prompts">
+    <div class="section-header">
+      <div class="section-icon">💬</div>
+      <div class="section-title">
+        <h2>prompts/ — Prompts Operacionales</h2>
+        <p>Instrucciones listas para iniciar, continuar, cerrar tareas y actualizar la memoria</p>
+      </div>
+    </div>
+    <table class="file-table">
+      <thead>
+        <tr>
+          <th style="width:220px">Archivo</th>
+          <th>Descripción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="file-name"><a href="prompts/master_prompt.md" target="_blank">master_prompt.md</a></span></td>
+          <td class="file-desc">Prompt maestro que el agente lee antes de cualquier acción. Carga todo el contexto y establece comportamiento.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="prompts/iniciar_tarea.md" target="_blank">iniciar_tarea.md</a></span></td>
+          <td class="file-desc">Prompt para comenzar una nueva tarea: lee contexto, propone plan y espera confirmación.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="prompts/continuar_tarea.md" target="_blank">continuar_tarea.md</a></span></td>
+          <td class="file-desc">Prompt para retomar una tarea en progreso desde donde se dejó.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="prompts/cerrar_tarea.md" target="_blank">cerrar_tarea.md</a></span></td>
+          <td class="file-desc">Prompt para cerrar una tarea: verifica que todo esté funcionando y actualiza la memoria.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="prompts/actualizar_memoria.md" target="_blank">actualizar_memoria.md</a></span></td>
+          <td class="file-desc">Prompt específico para actualizar los archivos de memoria después de un cambio importante.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION: templates/ -->
+  <div class="section accent-tmpl">
+    <div class="section-header">
+      <div class="section-icon">📋</div>
+      <div class="section-title">
+        <h2>templates/ — Plantillas Estandarizadas</h2>
+        <p>Formatos reutilizables para documentar tareas, bugs, features, endpoints y modelos</p>
+      </div>
+    </div>
+    <table class="file-table">
+      <thead>
+        <tr>
+          <th style="width:220px">Archivo</th>
+          <th>Descripción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="file-name"><a href="templates/plantilla_tarea.md" target="_blank">plantilla_tarea.md</a></span></td>
+          <td class="file-desc">Estructura estándar para definir una tarea: objetivo, contexto, criterios de aceptación y pasos.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="templates/plantilla_feature.md" target="_blank">plantilla_feature.md</a></span></td>
+          <td class="file-desc">Plantilla para documentar una nueva funcionalidad: descripción, impacto, stores y componentes afectados.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="templates/plantilla_bug.md" target="_blank">plantilla_bug.md</a></span></td>
+          <td class="file-desc">Plantilla para registrar un bug: síntoma, causa raíz, solución aplicada y cómo reproducirlo.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="templates/plantilla_decisiones.md" target="_blank">plantilla_decisiones.md</a></span></td>
+          <td class="file-desc">Plantilla para decisiones técnicas (ADR): contexto, opciones evaluadas, decisión final y consecuencias.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="templates/plantilla_endpoint_api.md" target="_blank">plantilla_endpoint_api.md</a></span></td>
+          <td class="file-desc">Plantilla para documentar endpoints REST: ruta, método, auth, body, respuestas y errores.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="templates/plantilla_modelo_datos.md" target="_blank">plantilla_modelo_datos.md</a></span></td>
+          <td class="file-desc">Plantilla para modelos de datos: campos, tipos, relaciones y validaciones.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION: workflows/ -->
+  <div class="section accent-wf">
+    <div class="section-header">
+      <div class="section-icon">⚙️</div>
+      <div class="section-title">
+        <h2>workflows/ — Flujos de Trabajo Automatizados</h2>
+        <p>Secuencias paso a paso que el agente sigue para tareas recurrentes y complejas</p>
+      </div>
+    </div>
+    <table class="file-table">
+      <thead>
+        <tr>
+          <th style="width:220px">Archivo</th>
+          <th>Descripción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="file-name"><a href="workflows/workflow_desarrollo.md" target="_blank">workflow_desarrollo.md</a></span></td>
+          <td class="file-desc">Flujo general de desarrollo: desde recibir el pedido hasta cerrar la tarea con tests y memoria actualizada.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="workflows/workflow_nueva_feature.md" target="_blank">workflow_nueva_feature.md</a></span></td>
+          <td class="file-desc">Pasos específicos para implementar una feature nueva: diseño, stores, componentes y documentación.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="workflows/workflow_fix_bugs.md" target="_blank">workflow_fix_bugs.md</a></span></td>
+          <td class="file-desc">Proceso de análisis y corrección de bugs: diagnóstico, fix, validación y registro en memoria.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="workflows/workflow_actualizacion_memoria.md" target="_blank">workflow_actualizacion_memoria.md</a></span></td>
+          <td class="file-desc">Cuándo y cómo actualizar cada archivo de memoria después de cada sesión de trabajo.</td>
+        </tr>
+        <tr>
+          <td><span class="file-name"><a href="workflows/workflow_cierre.md" target="_blank">workflow_cierre.md</a></span></td>
+          <td class="file-desc">Checklist de cierre de sesión: qué verificar, qué actualizar y cómo dejar el proyecto listo para la próxima sesión.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- EVALUACIÓN -->
+  <div class="assessment">
+    <h3>✅ La estructura está muy bien planteada</h3>
+    <ul>
+      <li>La separación entre <strong>context</strong> (qué es el producto) y <strong>memoria</strong> (qué pasó durante el desarrollo) es correcta y escalable.</li>
+      <li>La subcarpeta <strong>governance/</strong> dentro de context es una buena práctica: separa las reglas de comportamiento del agente del conocimiento del negocio.</li>
+      <li>Los <strong>flujos por rol</strong> dentro de memoria son muy valiosos para mantener al agente orientado al usuario correcto en cada momento.</li>
+      <li>Tener <strong>prompts operacionales</strong> como archivos separados permite que cualquier miembro del equipo sepa exactamente cómo iniciar/cerrar una sesión con el agente.</li>
+      <li>Las <strong>plantillas estandarizadas</strong> garantizan que la documentación generada siempre tenga el mismo formato, facilitando el onboarding de nuevos miembros.</li>
+      <li>Los <strong>workflows</strong> dan autonomía al agente para tareas recurrentes sin depender de instrucciones ad-hoc en cada sesión.</li>
+    </ul>
+  </div>
+
+  <div class="suggestion">
+    <h3>→ Sugerencias menores para mejorarla</h3>
+    <ul>
+      <li>El archivo <strong>inconsistencias.md</strong> podría moverse a la raíz de <code>memoria/</code> (está en <code>flujos/</code> pero no es un flujo, es un registro de problemas).</li>
+      <li>Considerar una carpeta <strong>decisions/</strong> separada para los ADRs (Architecture Decision Records) a medida que el proyecto crezca.</li>
+    </ul>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <p>Generado el 17 de abril de 2026 · SO Clubes de Pádel — Sistema SaaS Multi-tenant</p>
+    <p style="margin-top:4px;">Para imprimir como PDF: <strong>Ctrl+P → Guardar como PDF → Sin márgenes</strong></p>
+  </div>
+
+</body>
+</html>

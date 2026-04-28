@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { CalendarDays, Clock, MapPin, CheckCircle, XCircle, ChevronLeft, ChevronRight, Info, Repeat, X } from 'lucide-react'
+import { CalendarDays, Clock, MapPin, CheckCircle, XCircle, ChevronLeft, ChevronRight, Info, Repeat, X, Trophy } from 'lucide-react'
 import useClubStore from '../store/clubStore'
 import useReservasStore from '../store/reservasStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
 import useReservasAdminStore from '../store/reservasAdminStore'
 import usePlayerNotificationsStore from '../store/playerNotificationsStore'
+import useTorneosStore from '../store/torneosStore'
 
 import { FRANJAS } from '../features/admin/reservasMockData'
 import { inRange, overlaps, reservaBloquea, offsetFecha } from '../utils/timeUtils'
@@ -146,6 +147,7 @@ const PlayerReservasPage = () => {
   const addSolicitudEnviada = usePlayerNotificationsStore((s) => s.addSolicitudEnviada)
   const turnosFijos = useTurnosFijosStore((s) => s.turnosFijos)
   const reservasAdmin = useReservasAdminStore((s) => s.reservas)
+  const torneos = useTorneosStore((s) => s.torneos)
 
   const canchasActivas = useMemo(() => club.canchas.filter((c) => c.activa), [club.canchas])
 
@@ -181,6 +183,20 @@ const PlayerReservasPage = () => {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fechaSeleccionada = fmtDate(addDays(hoy, fechaOffset))
+
+  const torneoActivo = useMemo(
+    () => torneos.find((t) => t.estado === 'in_progress' && fechaSeleccionada >= t.fechaInicio && fechaSeleccionada <= t.fechaFin),
+    [torneos, fechaSeleccionada]
+  )
+
+  const canchasBloquedas = useMemo(() => {
+    if (!torneoActivo) return []
+    if (torneoActivo.canchasAsignadas?.length) return torneoActivo.canchasAsignadas
+    return canchasActivas.map((c) => c.id)
+  }, [torneoActivo, canchasActivas])
+
+  const todasBloqueadas = canchasBloquedas.length === canchasActivas.length
+
   const dayObj = addDays(hoy, fechaOffset)
   const diaNombre = DIAS_LARGOS[dayObj.getDay()]
   const horarioDia = club.horarios?.[diaNombre]
@@ -391,23 +407,33 @@ const PlayerReservasPage = () => {
               <span className="text-white/50 text-xs font-medium uppercase tracking-wider">Cancha</span>
             </div>
             <div className="flex gap-2 flex-wrap">
-              {canchasActivas.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => { setCanchaId(c.id); setSlotSeleccionado(null) }}
-                  className={[
-                    'flex flex-col items-start px-4 py-2.5 rounded-xl border transition-all text-left',
-                    canchaId === c.id
-                      ? 'bg-[#afca0b]/10 border-[#afca0b]/35 text-[#afca0b]'
-                      : 'border-white/6 text-white/50 hover:text-white hover:border-white/15 hover:bg-white/4',
-                  ].join(' ')}
-                >
-                  <span className="text-sm font-semibold">{c.nombre}</span>
-                  <span className={`text-[10px] mt-0.5 ${canchaId === c.id ? 'text-[#afca0b]/60' : 'text-white/25'}`}>
-                    {c.tipo} · {c.indoor ? 'Indoor' : 'Outdoor'} · ${c.precioTurno.toLocaleString('es-AR')}
-                  </span>
-                </button>
-              ))}
+              {canchasActivas.map((c) => {
+                const bloqueada = canchasBloquedas.includes(c.id)
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => { setCanchaId(c.id); setSlotSeleccionado(null) }}
+                    className={[
+                      'flex flex-col items-start px-4 py-2.5 rounded-xl border transition-all text-left',
+                      bloqueada
+                        ? canchaId === c.id
+                          ? 'bg-[#afca0b]/8 border-[#afca0b]/25 text-[#afca0b]/60'
+                          : 'border-white/6 text-white/30 opacity-60'
+                        : canchaId === c.id
+                          ? 'bg-[#afca0b]/10 border-[#afca0b]/35 text-[#afca0b]'
+                          : 'border-white/6 text-white/50 hover:text-white hover:border-white/15 hover:bg-white/4',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-semibold">{c.nombre}</span>
+                      {bloqueada && <Trophy size={10} className="text-[#afca0b]/50 shrink-0" />}
+                    </div>
+                    <span className={`text-[10px] mt-0.5 ${canchaId === c.id ? 'text-[#afca0b]/60' : 'text-white/25'}`}>
+                      {bloqueada ? 'Reservada · torneo' : `${c.tipo} · ${c.indoor ? 'Indoor' : 'Outdoor'} · $${c.precioTurno.toLocaleString('es-AR')}`}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -427,7 +453,20 @@ const PlayerReservasPage = () => {
               </div>
             </div>
 
-            {!horarioDia?.activo ? (
+            {canchasBloquedas.includes(canchaId) ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+                <div className="w-14 h-14 rounded-2xl bg-[#afca0b]/10 border border-[#afca0b]/20 flex items-center justify-center">
+                  <Trophy size={26} className="text-[#afca0b]" />
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-sm">{torneoActivo.nombre}</p>
+                  <p className="text-white/40 text-xs mt-1">Esta cancha está reservada para el torneo este día.</p>
+                </div>
+                {!todasBloqueadas && (
+                  <p className="text-[10px] text-[#afca0b]/40">Las demás canchas están disponibles normalmente.</p>
+                )}
+              </div>
+            ) : !horarioDia?.activo ? (
               <div className="flex flex-col items-center justify-center py-16 text-white/25">
                 <XCircle size={32} className="mb-3 opacity-40" />
                 <p className="text-sm font-medium">El club no abre este día</p>

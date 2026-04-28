@@ -11,6 +11,7 @@ const INITIAL_STATE = {
   // Paso 1 — Datos básicos
   nombre: '',
   apellido: '',
+  genero: '',
   apodo: '',
   dni: '',
   email: '',
@@ -35,6 +36,7 @@ const INITIAL_STATE = {
 
 // Reglas de validación por campo
 const validators = {
+  genero: (v) => !v ? 'Seleccioná el género' : '',
   nombre: (v) => !v.trim() ? 'El nombre es requerido' : v.trim().length < 2 ? 'Mínimo 2 caracteres' : '',
   apellido: (v) => !v.trim() ? 'El apellido es requerido' : v.trim().length < 2 ? 'Mínimo 2 caracteres' : '',
   dni: (v) => {
@@ -81,7 +83,7 @@ const validators = {
 
 // Campos requeridos por paso
 const STEP_FIELDS = {
-  1: ['nombre', 'apellido', 'dni', 'email', 'provincia', 'ciudad', 'fechaNacimiento'],
+  1: ['genero', 'nombre', 'apellido', 'dni', 'email', 'provincia', 'ciudad', 'fechaNacimiento'],
   2: ['posicion', 'mano', 'categoria'],
   3: ['frecuencia', 'diasDisponibles', 'horariosDisponibles', 'password', 'confirmarPassword'],
 }

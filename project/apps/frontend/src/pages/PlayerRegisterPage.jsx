@@ -148,6 +148,7 @@ const PlayerRegisterPage = () => {
         {
           nombre:              form.nombre,
           apellido:            form.apellido,
+          genero:              form.genero,
           apodo:               form.apodo,
           dni:                 form.dni,
           email:               form.email,

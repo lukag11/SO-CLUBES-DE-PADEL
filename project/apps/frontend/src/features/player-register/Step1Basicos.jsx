@@ -70,6 +70,30 @@ const Step1Basicos = ({ form, errors, handleChange, handleBlur, setValue }) => {
     <div className="flex flex-col gap-5">
       <AvatarUpload onChange={(e) => handleChange({ target: { name: 'avatar', value: e.target.files[0] } })} />
 
+      {/* Género */}
+      <div>
+        <label className="block text-white/50 text-xs font-medium mb-2">Género *</label>
+        <div className="grid grid-cols-2 gap-3">
+          {['Masculino', 'Femenino'].map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setValue('genero', g)}
+              className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                form.genero === g
+                  ? g === 'Femenino'
+                    ? 'bg-pink-500/15 border-pink-400/40 text-pink-400'
+                    : 'bg-sky-500/15 border-sky-400/40 text-sky-400'
+                  : 'bg-white/4 border-white/10 text-white/40 hover:border-white/25 hover:text-white/70'
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+        {errors.genero && <p className="text-red-400 text-xs mt-1">{errors.genero}</p>}
+      </div>
+
       {/* Nombre + Apellido */}
       <div className="grid grid-cols-2 gap-3">
         <Input

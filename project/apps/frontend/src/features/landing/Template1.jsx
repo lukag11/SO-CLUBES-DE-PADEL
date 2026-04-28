@@ -2,7 +2,7 @@
 // Split hero, glows, dark cards. Moderno y deportivo.
 
 import { Zap, CalendarDays, Trophy, Users, ArrowRight, CheckCircle, ImageOff, Star } from 'lucide-react'
-import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles } from './LandingSections'
+import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection } from './LandingSections'
 
 const CourtLines = () => (
   <svg className="absolute inset-0 w-full h-full opacity-[0.04]" viewBox="0 0 800 600" fill="none" preserveAspectRatio="xMidYMid slice">
@@ -136,6 +136,9 @@ const Template1 = ({ club, onCta }) => {
           </div>
         </div>
       </section>
+
+      {/* TORNEOS */}
+      <TorneosSection colorPrimario={colorPrimario} dark={true} onCta={onCta} />
 
       {/* TURNOS DISPONIBLES */}
       {(seccionesVisibles?.reservas ?? true) && (

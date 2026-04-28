@@ -40,7 +40,7 @@ const PlayerAuthPage = () => {
     // TODO: reemplazar con llamada real a la API
     setTimeout(() => {
       if (form.dni === '12345678' && form.password === '123456') {
-        login({ nombre: 'Lucas', apellido: 'Romero', dni: form.dni }, 'player-demo-token')
+        login({ nombre: 'Lucas', apellido: 'Romero', dni: form.dni, genero: 'Masculino' }, 'player-demo-token')
         navigate('/dashboardJugadores/dashboard')
       } else {
         setError('DNI o contraseña incorrectos')

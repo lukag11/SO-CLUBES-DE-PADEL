@@ -12,6 +12,7 @@ import AdminDashboardPage from '../pages/AdminDashboardPage'
 import ClubPage from '../pages/QuienesSomosPage'
 import ReservasPage from '../pages/ReservasPage'
 import TorneosPage from '../pages/TorneosPage'
+import TorneoDetallePage from '../pages/TorneoDetallePage'
 import PagosPage from '../pages/PagosPage'
 import PlayerDashboardPage from '../pages/PlayerDashboardPage'
 import PlayerRegisterPage from '../pages/PlayerRegisterPage'
@@ -25,6 +26,7 @@ import PlayerNotificacionesPage from '../pages/PlayerNotificacionesPage'
 import ProfesorDashboardPage from '../pages/ProfesorDashboardPage'
 import ProfesorAgendaPage from '../pages/ProfesorAgendaPage'
 import ProfesorDisponibilidadPage from '../pages/ProfesorDisponibilidadPage'
+import TorneoPublicoPage from '../pages/TorneoPublicoPage'
 import NotFoundPage from '../pages/NotFoundPage'
 
 const router = createBrowserRouter([
@@ -75,6 +77,7 @@ const router = createBrowserRouter([
       { path: 'club', element: <ClubPage /> },
       { path: 'reservas', element: <ReservasPage /> },
       { path: 'torneos', element: <TorneosPage /> },
+      { path: 'torneos/:id', element: <TorneoDetallePage /> },
       { path: 'pagos', element: <PagosPage /> },
     ],
   },
@@ -94,6 +97,9 @@ const router = createBrowserRouter([
       },
     ],
   },
+  // Ruta pública del torneo (seguimiento sin login)
+  { path: '/torneos/:id', element: <TorneoPublicoPage /> },
+
   // Redirects de rutas viejas → nuevas (compatibilidad)
   { path: '/jugadores',           element: <Navigate to="/dashboardJugadores" replace /> },
   { path: '/jugadores/*',         element: <Navigate to="/dashboardJugadores" replace /> },

@@ -509,21 +509,14 @@ export const getAllClasificados = (grupos) => {
 
 // ── Auto-scheduling fase de grupos ────────────────────────────────────────────
 
-// Horas disponibles dentro de cada franja (pasos de 1 hora)
-const FRANJAS_HORAS = {
-  'Mañana (8-12)': ['08:00', '09:00', '10:00', '11:00'],
-  'Tarde (12-17)': ['12:00', '13:00', '14:00', '15:00', '16:00'],
-  'Noche (17-22)': ['17:00', '18:00', '19:00', '20:00', '21:00'],
-}
-
 /**
  * autoScheduleGroups(grupos, canchas)
  *
  * Asigna automáticamente cancha y hora exacta a cada partido.
- * Para cada franja donde ambas parejas coinciden, prueba hora a hora
- * hasta encontrar una cancha libre en ese horario exacto.
+ * Para cada día donde ambas parejas tienen disponibilidad, la hora mínima
+ * es max(p1.horaDesde, p2.horaDesde). Prueba hora a hora hasta las 23:00.
  *
- * slot resultado: { dia, franja, hora }  (hora = 'HH:MM')
+ * slot resultado: { dia, hora }  (hora = 'HH:MM')
  *
  * Inmutable — retorna nuevos grupos sin modificar el original.
  */
@@ -531,7 +524,6 @@ export const autoScheduleGroups = (grupos, canchas) => {
   const newGrupos = JSON.parse(JSON.stringify(grupos))
   const activas   = canchas.filter((c) => c.activa)
 
-  // slotCanchas: Map<'dia||HH:MM', Set<canchaId>> — canchas ocupadas por hora exacta
   const slotCanchas = new Map()
   const slotKey     = (dia, hora) => `${dia}||${hora}`
 
@@ -542,21 +534,27 @@ export const autoScheduleGroups = (grupos, canchas) => {
       const p1Slots = partido.pareja1?.disponibilidad ?? []
       const p2Slots = partido.pareja2?.disponibilidad ?? []
 
-      // Franjas donde ambas parejas coinciden
-      const overlaps = p1Slots.filter((s1) =>
-        p2Slots.some((s2) => s1.dia === s2.dia && s1.franja === s2.franja)
-      )
+      // Días donde ambas parejas tienen disponibilidad
+      const diasEnComun = [...new Set(
+        p1Slots
+          .filter((s1) => p2Slots.some((s2) => s2.dia === s1.dia))
+          .map((s1) => s1.dia)
+      )]
 
       let assigned = false
-      for (const slot of overlaps) {
-        const horas = FRANJAS_HORAS[slot.franja] ?? []
-        for (const hora of horas) {
-          const key = slotKey(slot.dia, hora)
+      for (const dia of diasEnComun) {
+        const h1 = parseInt(p1Slots.find((s) => s.dia === dia).horaDesde.split(':')[0])
+        const h2 = parseInt(p2Slots.find((s) => s.dia === dia).horaDesde.split(':')[0])
+        const horaInicio = Math.max(h1, h2)
+
+        for (let h = horaInicio; h <= 23; h++) {
+          const hora = `${String(h).padStart(2, '0')}:00`
+          const key  = slotKey(dia, hora)
           if (!slotCanchas.has(key)) slotCanchas.set(key, new Set())
           const ocupadas = slotCanchas.get(key)
           const libre = activas.find((c) => !ocupadas.has(c.id))
           if (libre) {
-            partido.slot       = { dia: slot.dia, franja: slot.franja, hora }
+            partido.slot       = { dia, hora }
             partido.cancha     = libre.id
             partido.sinHorario = false
             ocupadas.add(libre.id)
@@ -585,47 +583,41 @@ export const autoScheduleGroups = (grupos, canchas) => {
 
 const DIAS_ORDEN = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
-const _getFranjaStartHour = (franja) => {
-  const m = franja.match(/(\d+)/)
-  return m ? parseInt(m[1]) : 0
-}
-
 /**
- * esSlotDeGrupos(dia, franja, diaInicioEliminatoria, horaInicioEliminatoria)
- * Retorna true si el slot {dia, franja} pertenece al bloque de fase de grupos.
+ * esSlotDeGrupos(dia, hora, diaInicioEliminatoria, horaInicioEliminatoria)
+ * Retorna true si el slot {dia, hora} pertenece al bloque de fase de grupos.
+ * hora = 'HH:MM' (horaDesde del jugador)
  */
-export const esSlotDeGrupos = (dia, franja, diaInicioEliminatoria, horaInicioEliminatoria) => {
+export const esSlotDeGrupos = (dia, hora, diaInicioEliminatoria, horaInicioEliminatoria) => {
   if (!diaInicioEliminatoria) return true
 
   const idxDia  = DIAS_ORDEN.indexOf(dia)
   const idxElim = DIAS_ORDEN.indexOf(diaInicioEliminatoria)
 
-  if (idxDia < idxElim)  return true   // días anteriores al corte → grupos completos
-  if (idxDia > idxElim)  return false  // días posteriores → eliminatoria
+  if (idxDia < idxElim) return true
+  if (idxDia > idxElim) return false
 
-  // mismo día que el inicio de eliminatoria → depende de la hora
   if (!horaInicioEliminatoria) return false
   const corte = parseInt(horaInicioEliminatoria.split(':')[0])
-  return _getFranjaStartHour(franja) < corte
+  return parseInt(hora.split(':')[0]) < corte
 }
 
 /**
- * esSlotDeEliminatoria(dia, franja, diaInicioEliminatoria, horaInicioEliminatoria)
- * Retorna true si el slot {dia, franja} pertenece al bloque de eliminatoria.
+ * esSlotDeEliminatoria(dia, hora, diaInicioEliminatoria, horaInicioEliminatoria)
+ * Retorna true si el slot {dia, hora} pertenece al bloque de eliminatoria.
  */
-export const esSlotDeEliminatoria = (dia, franja, diaInicioEliminatoria, horaInicioEliminatoria) => {
+export const esSlotDeEliminatoria = (dia, hora, diaInicioEliminatoria, horaInicioEliminatoria) => {
   if (!diaInicioEliminatoria) return true
 
   const idxDia  = DIAS_ORDEN.indexOf(dia)
   const idxElim = DIAS_ORDEN.indexOf(diaInicioEliminatoria)
 
-  if (idxDia > idxElim)  return true   // días posteriores → eliminatoria completa
-  if (idxDia < idxElim)  return false  // días anteriores → grupos
+  if (idxDia > idxElim) return true
+  if (idxDia < idxElim) return false
 
-  // mismo día → depende de la hora
   if (!horaInicioEliminatoria) return true
   const corte = parseInt(horaInicioEliminatoria.split(':')[0])
-  return _getFranjaStartHour(franja) >= corte
+  return parseInt(hora.split(':')[0]) >= corte
 }
 
 /**

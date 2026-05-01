@@ -313,7 +313,7 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick }) => {
 const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick }) => (
   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full min-w-[540px] border-collapse text-sm">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="text-left px-4 py-3 text-slate-400 font-medium text-xs w-28 shrink-0">Horario</th>
@@ -1838,9 +1838,9 @@ const ReservasPage = () => {
     <div className="flex flex-col gap-5 h-full">
 
       {/* Header + navegación de fecha */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Reservas</h2>
+          <h2 className="text-xl md:text-2xl font-bold text-slate-800">Reservas</h2>
           <p className="text-slate-400 text-sm mt-0.5 capitalize">{formatFecha(fecha)}</p>
         </div>
 
@@ -1862,7 +1862,7 @@ const ReservasPage = () => {
             <ChevronRight size={18} />
           </button>
           <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
-            className="border border-slate-200 rounded-xl px-3 h-9 text-sm text-slate-600 outline-none focus:border-emerald-400 transition-colors bg-white" />
+            className="hidden sm:block border border-slate-200 rounded-xl px-3 h-9 text-sm text-slate-600 outline-none focus:border-emerald-400 transition-colors bg-white" />
         </div>
       </div>
 
@@ -1908,6 +1908,15 @@ const ReservasPage = () => {
       {tabActiva === 'grilla' && (
         <>
           <Leyenda />
+
+          {/* Overlay mobile cuando hay panel abierto */}
+          {(seleccion || editando) && (
+            <div
+              className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+              onClick={() => { setSeleccion(null); setEditando(null) }}
+            />
+          )}
+
           <div className="flex gap-4 flex-1 min-h-0">
             <div className="flex-1 overflow-auto">
               <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} />
@@ -1915,16 +1924,15 @@ const ReservasPage = () => {
 
             {/* Panel detalle / nueva reserva */}
             {seleccion && !editando && (
-              <aside className="w-80 shrink-0 bg-white border-l border-slate-100 shadow-sm flex flex-col h-full overflow-hidden">
+              <aside className="fixed bottom-0 inset-x-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white shadow-2xl lg:static lg:inset-auto lg:z-auto lg:rounded-none lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:shadow-sm lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">
                 {seleccion.tipo === 'detalle' ? (
-                  <div className="flex flex-col h-full">
+                  <div className="flex flex-col">
                     <DetalleReserva
                       reserva={seleccion.reserva}
                       onCancelar={handleCancelar}
                       onPago={handlePago}
                       onClose={() => setSeleccion(null)}
                     />
-                    {/* Botón editar en el detalle */}
                     {seleccion.reserva.tipo !== 'bloqueado' && seleccion.reserva.tipo !== 'clase' && seleccion.reserva.estado !== 'cancelada' && (
                       <div className="px-5 pb-4">
                         <button
@@ -1953,7 +1961,7 @@ const ReservasPage = () => {
 
             {/* Panel edición */}
             {editando && (
-              <aside className="w-80 shrink-0 bg-white border-l border-slate-100 shadow-sm flex flex-col h-full overflow-hidden">
+              <aside className="fixed bottom-0 inset-x-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white shadow-2xl lg:static lg:inset-auto lg:z-auto lg:rounded-none lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:shadow-sm lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">
                 <EditarReserva
                   reserva={editando}
                   onSave={handleGuardarEdicion}

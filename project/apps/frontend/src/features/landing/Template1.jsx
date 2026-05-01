@@ -50,7 +50,7 @@ const Template1 = ({ club, onCta }) => {
           </>
         )}
 
-        <div className="relative z-10 max-w-6xl mx-auto w-full grid md:grid-cols-2 gap-16 items-center py-32">
+        <div className="relative z-10 max-w-6xl mx-auto w-full grid md:grid-cols-2 gap-16 items-center py-16 md:py-32">
 
           <div className="flex flex-col gap-6">
             {heroBadge && (
@@ -59,12 +59,12 @@ const Template1 = ({ club, onCta }) => {
                 <span className="text-xs text-white/60 font-medium">{heroBadge}</span>
               </div>
             )}
-            <h1 className="text-5xl md:text-6xl font-bold text-white leading-[1.1] tracking-tight">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold text-white leading-[1.1] tracking-tight">
               {heroTitulo && <span>{heroTitulo}<br /></span>}
               {heroTituloDestacado && <span style={{ color: colorPrimario }}>{heroTituloDestacado}</span>}
             </h1>
             {heroSubtitulo && <p className="text-lg text-white/50 leading-relaxed max-w-md">{heroSubtitulo}</p>}
-            <div className="flex items-center gap-4 mt-2">
+            <div className="flex flex-wrap items-center gap-4 mt-2">
               <button onClick={onCta} className="inline-flex items-center gap-2 font-bold text-sm px-6 py-3.5 rounded-xl transition-all duration-200" style={{ backgroundColor: colorPrimario, color: '#0d1117', boxShadow: `0 8px 24px ${colorPrimario}30` }}>
                 {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={16} />
               </button>
@@ -72,7 +72,7 @@ const Template1 = ({ club, onCta }) => {
                 {heroCtaSecundarioTexto || 'Ver torneos'}
               </button>
             </div>
-            <div className="flex items-center gap-6 pt-2 border-t border-white/5 mt-2">
+            <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-white/5 mt-2">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="text-white/40 text-xs">{canchasActivas.length} canchas disponibles</span>
@@ -228,7 +228,7 @@ const Template1 = ({ club, onCta }) => {
           <button onClick={onCta} className="inline-flex items-center gap-2 font-bold text-sm px-8 py-4 rounded-xl transition-all mt-8" style={{ backgroundColor: colorPrimario, color: '#0d1117', boxShadow: `0 8px 32px ${colorPrimario}30` }}>
             {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={16} />
           </button>
-          <div className="flex items-center justify-center gap-6 mt-8">
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-8">
             {['Sin costo de registro','Reserva en 30 segundos','Cancelación gratuita'].map((t) => (
               <div key={t} className="flex items-center gap-2 text-white/35 text-xs"><CheckCircle size={13} style={{ color: colorPrimario }} />{t}</div>
             ))}

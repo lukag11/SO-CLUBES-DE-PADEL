@@ -30,13 +30,13 @@ const _mk4 = (id, j1, j2, disp, prefMD = false) => ({
   prefiereMismoDia: prefMD,
 })
 
-const LNMN = [{ dia: 'Lunes', franja: 'Noche (17-22)' }, { dia: 'Miércoles', franja: 'Noche (17-22)' }]
-const JNVN = [{ dia: 'Jueves', franja: 'Noche (17-22)' }, { dia: 'Viernes', franja: 'Noche (17-22)' }]
-const MN   = [{ dia: 'Miércoles', franja: 'Noche (17-22)' }]
-const VN   = [{ dia: 'Viernes',   franja: 'Noche (17-22)' }]
-const SM   = [{ dia: 'Sábado',    franja: 'Mañana (8-12)' }]
-const ST   = [{ dia: 'Sábado',    franja: 'Tarde (12-17)' }]
-const DM   = [{ dia: 'Domingo',   franja: 'Mañana (8-12)' }]
+const LNMN = [{ dia: 'Lunes', horaDesde: '18:00' }, { dia: 'Miércoles', horaDesde: '18:00' }]
+const JNVN = [{ dia: 'Jueves', horaDesde: '18:00' }, { dia: 'Viernes', horaDesde: '18:00' }]
+const MN   = [{ dia: 'Miércoles', horaDesde: '18:00' }]
+const VN   = [{ dia: 'Viernes',   horaDesde: '18:00' }]
+const SM   = [{ dia: 'Sábado',    horaDesde: '08:00' }]
+const ST   = [{ dia: 'Sábado',    horaDesde: '12:00' }]
+const DM   = [{ dia: 'Domingo',   horaDesde: '08:00' }]
 
 // Zona A
 const t99p1  = _mk4(1,  'Martín Gómez',        'Diego Torres',        LNMN, true)
@@ -80,17 +80,16 @@ const _rrm = (id, pareja1, pareja2, ganador, extra = {}) => ({
   ...extra,
 })
 
-const _sl = (dia, hora, franja) => ({ dia, franja, hora })
-const N = 'Noche (17-22)'; const M = 'Mañana (8-12)'; const T = 'Tarde (12-17)'
+const _sl = (dia, hora) => ({ dia, hora })
 
 const grupos99 = [
   {
     nombre: 'Zona A', categoria: '4° Categoría', capacidad: 3,
     parejas: [t99p1, t99p2, t99p3],
     partidos: [
-      _rrm('c0za_m0', t99p1, t99p2, t99p1, { resultado: [{p1:6,p2:3},{p1:6,p2:4}],          slot: _sl('Lunes','20:00',N),      cancha: 1 }),
-      _rrm('c0za_m1', t99p1, t99p3, t99p1, { resultado: [{p1:6,p2:2},{p1:6,p2:1}],          slot: _sl('Lunes','21:30',N),      cancha: 2 }),
-      _rrm('c0za_m2', t99p2, t99p3, t99p2, { resultado: [{p1:6,p2:4},{p1:4,p2:6},{p1:6,p2:3}], slot: _sl('Miércoles','20:00',N), cancha: 1 }),
+      _rrm('c0za_m0', t99p1, t99p2, t99p1, { resultado: [{p1:6,p2:3},{p1:6,p2:4}],          slot: _sl('Lunes','20:00'),      cancha: 1 }),
+      _rrm('c0za_m1', t99p1, t99p3, t99p1, { resultado: [{p1:6,p2:2},{p1:6,p2:1}],          slot: _sl('Lunes','21:30'),      cancha: 2 }),
+      _rrm('c0za_m2', t99p2, t99p3, t99p2, { resultado: [{p1:6,p2:4},{p1:4,p2:6},{p1:6,p2:3}], slot: _sl('Miércoles','20:00'), cancha: 1 }),
     ],
     clasificados: [t99p1, t99p2], necesitaDesempate: false,
   },
@@ -98,9 +97,9 @@ const grupos99 = [
     nombre: 'Zona B', categoria: '4° Categoría', capacidad: 3,
     parejas: [t99p4, t99p5, t99p6],
     partidos: [
-      _rrm('c0zb_m0', t99p4, t99p5, t99p4, { resultado: [{p1:6,p2:4},{p1:7,p2:5}],          slot: _sl('Jueves','20:00',N),     cancha: 1 }),
-      _rrm('c0zb_m1', t99p4, t99p6, t99p4, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],          slot: _sl('Jueves','21:30',N),     cancha: 2 }),
-      _rrm('c0zb_m2', t99p5, t99p6, t99p5, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],          slot: _sl('Viernes','20:00',N),    cancha: 1 }),
+      _rrm('c0zb_m0', t99p4, t99p5, t99p4, { resultado: [{p1:6,p2:4},{p1:7,p2:5}],          slot: _sl('Jueves','20:00'),     cancha: 1 }),
+      _rrm('c0zb_m1', t99p4, t99p6, t99p4, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],          slot: _sl('Jueves','21:30'),     cancha: 2 }),
+      _rrm('c0zb_m2', t99p5, t99p6, t99p5, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],          slot: _sl('Viernes','20:00'),    cancha: 1 }),
     ],
     clasificados: [t99p4, t99p5], necesitaDesempate: false,
   },
@@ -108,9 +107,9 @@ const grupos99 = [
     nombre: 'Zona C', categoria: '4° Categoría', capacidad: 3,
     parejas: [t99p7, t99p8, t99p9],
     partidos: [
-      _rrm('c0zc_m0', t99p7, t99p8, t99p7, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],          slot: _sl('Sábado','10:00',M),     cancha: 1 }),
-      _rrm('c0zc_m1', t99p7, t99p9, t99p7, { resultado: [{p1:6,p2:1},{p1:6,p2:3}],          slot: _sl('Sábado','11:30',M),     cancha: 2 }),
-      _rrm('c0zc_m2', t99p8, t99p9, t99p8, { resultado: [{p1:6,p2:4},{p1:3,p2:6},{p1:6,p2:3}], slot: _sl('Sábado','13:00',M), cancha: 1 }),
+      _rrm('c0zc_m0', t99p7, t99p8, t99p7, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],          slot: _sl('Sábado','10:00'),     cancha: 1 }),
+      _rrm('c0zc_m1', t99p7, t99p9, t99p7, { resultado: [{p1:6,p2:1},{p1:6,p2:3}],          slot: _sl('Sábado','11:30'),     cancha: 2 }),
+      _rrm('c0zc_m2', t99p8, t99p9, t99p8, { resultado: [{p1:6,p2:4},{p1:3,p2:6},{p1:6,p2:3}], slot: _sl('Sábado','13:00'), cancha: 1 }),
     ],
     clasificados: [t99p7, t99p8], necesitaDesempate: false,
   },
@@ -118,9 +117,9 @@ const grupos99 = [
     nombre: 'Zona D', categoria: '4° Categoría', capacidad: 3,
     parejas: [t99p10, t99p11, t99p12],
     partidos: [
-      _rrm('c0zd_m0', t99p10, t99p11, t99p10, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],       slot: _sl('Domingo','10:00',M),    cancha: 1 }),
-      _rrm('c0zd_m1', t99p10, t99p12, t99p10, { resultado: [{p1:6,p2:3},{p1:6,p2:1}],       slot: _sl('Domingo','11:30',M),    cancha: 2 }),
-      _rrm('c0zd_m2', t99p11, t99p12, t99p11, { resultado: [{p1:7,p2:5},{p1:6,p2:4}],       slot: _sl('Domingo','13:00',M),    cancha: 1 }),
+      _rrm('c0zd_m0', t99p10, t99p11, t99p10, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],       slot: _sl('Domingo','10:00'),    cancha: 1 }),
+      _rrm('c0zd_m1', t99p10, t99p12, t99p10, { resultado: [{p1:6,p2:3},{p1:6,p2:1}],       slot: _sl('Domingo','11:30'),    cancha: 2 }),
+      _rrm('c0zd_m2', t99p11, t99p12, t99p11, { resultado: [{p1:7,p2:5},{p1:6,p2:4}],       slot: _sl('Domingo','13:00'),    cancha: 1 }),
     ],
     clasificados: [t99p10, t99p11], necesitaDesempate: false,
   },
@@ -128,9 +127,9 @@ const grupos99 = [
     nombre: 'Zona E', categoria: '4° Categoría', capacidad: 3,
     parejas: [t99p13, t99p14, t99p15],
     partidos: [
-      _rrm('c0ze_m0', t99p13, t99p14, t99p13, { resultado: [{p1:6,p2:4},{p1:7,p2:5}],       slot: _sl('Lunes','20:00',N),      cancha: 2 }),
-      _rrm('c0ze_m1', t99p13, t99p15, t99p13, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],       slot: _sl('Lunes','21:30',N),      cancha: 1 }),
-      _rrm('c0ze_m2', t99p14, t99p15, t99p14, { resultado: [{p1:6,p2:1},{p1:3,p2:6},{p1:6,p2:4}], slot: _sl('Miércoles','20:00',N), cancha: 2 }),
+      _rrm('c0ze_m0', t99p13, t99p14, t99p13, { resultado: [{p1:6,p2:4},{p1:7,p2:5}],       slot: _sl('Lunes','20:00'),      cancha: 2 }),
+      _rrm('c0ze_m1', t99p13, t99p15, t99p13, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],       slot: _sl('Lunes','21:30'),      cancha: 1 }),
+      _rrm('c0ze_m2', t99p14, t99p15, t99p14, { resultado: [{p1:6,p2:1},{p1:3,p2:6},{p1:6,p2:4}], slot: _sl('Miércoles','20:00'), cancha: 2 }),
     ],
     clasificados: [t99p13, t99p14], necesitaDesempate: false,
   },
@@ -138,9 +137,9 @@ const grupos99 = [
     nombre: 'Zona F', categoria: '4° Categoría', capacidad: 3,
     parejas: [t99p16, t99p17, t99p18],
     partidos: [
-      _rrm('c0zf_m0', t99p16, t99p17, t99p16, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],       slot: _sl('Jueves','20:00',N),     cancha: 2 }),
-      _rrm('c0zf_m1', t99p16, t99p18, t99p16, { resultado: [{p1:6,p2:3},{p1:6,p2:1}],       slot: _sl('Jueves','21:30',N),     cancha: 1 }),
-      _rrm('c0zf_m2', t99p17, t99p18, t99p17, { resultado: [{p1:7,p2:5},{p1:6,p2:3}],       slot: _sl('Viernes','20:00',N),    cancha: 2 }),
+      _rrm('c0zf_m0', t99p16, t99p17, t99p16, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],       slot: _sl('Jueves','20:00'),     cancha: 2 }),
+      _rrm('c0zf_m1', t99p16, t99p18, t99p16, { resultado: [{p1:6,p2:3},{p1:6,p2:1}],       slot: _sl('Jueves','21:30'),     cancha: 1 }),
+      _rrm('c0zf_m2', t99p17, t99p18, t99p17, { resultado: [{p1:7,p2:5},{p1:6,p2:3}],       slot: _sl('Viernes','20:00'),    cancha: 2 }),
     ],
     clasificados: [t99p16, t99p17], necesitaDesempate: false,
   },
@@ -148,9 +147,9 @@ const grupos99 = [
     nombre: 'Zona G', categoria: '4° Categoría', capacidad: 3,
     parejas: [t99p19, t99p20, t99p21],
     partidos: [
-      _rrm('c0zg_m0', t99p19, t99p20, t99p19, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],       slot: _sl('Sábado','10:00',M),     cancha: 2 }),
-      _rrm('c0zg_m1', t99p19, t99p21, t99p19, { resultado: [{p1:6,p2:2},{p1:6,p2:1}],       slot: _sl('Sábado','11:30',M),     cancha: 1 }),
-      _rrm('c0zg_m2', t99p20, t99p21, t99p20, { resultado: [{p1:6,p2:4},{p1:6,p2:3}],       slot: _sl('Sábado','13:00',M),     cancha: 2 }),
+      _rrm('c0zg_m0', t99p19, t99p20, t99p19, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],       slot: _sl('Sábado','10:00'),     cancha: 2 }),
+      _rrm('c0zg_m1', t99p19, t99p21, t99p19, { resultado: [{p1:6,p2:2},{p1:6,p2:1}],       slot: _sl('Sábado','11:30'),     cancha: 1 }),
+      _rrm('c0zg_m2', t99p20, t99p21, t99p20, { resultado: [{p1:6,p2:4},{p1:6,p2:3}],       slot: _sl('Sábado','13:00'),     cancha: 2 }),
     ],
     clasificados: [t99p19, t99p20], necesitaDesempate: false,
   },
@@ -158,9 +157,9 @@ const grupos99 = [
     nombre: 'Zona H', categoria: '4° Categoría', capacidad: 3,
     parejas: [t99p22, t99p23, t99p24],
     partidos: [
-      _rrm('c0zh_m0', t99p22, t99p23, t99p22, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],       slot: _sl('Domingo','10:00',M),    cancha: 2 }),
-      _rrm('c0zh_m1', t99p22, t99p24, t99p22, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],       slot: _sl('Domingo','11:30',M),    cancha: 1 }),
-      _rrm('c0zh_m2', t99p23, t99p24, t99p23, { resultado: [{p1:4,p2:6},{p1:6,p2:3},{p1:6,p2:4}], slot: _sl('Domingo','13:00',M), cancha: 2 }),
+      _rrm('c0zh_m0', t99p22, t99p23, t99p22, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],       slot: _sl('Domingo','10:00'),    cancha: 2 }),
+      _rrm('c0zh_m1', t99p22, t99p24, t99p22, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],       slot: _sl('Domingo','11:30'),    cancha: 1 }),
+      _rrm('c0zh_m2', t99p23, t99p24, t99p23, { resultado: [{p1:4,p2:6},{p1:6,p2:3},{p1:6,p2:4}], slot: _sl('Domingo','13:00'), cancha: 2 }),
     ],
     clasificados: [t99p22, t99p23], necesitaDesempate: false,
   },
@@ -268,38 +267,38 @@ const _mk6 = (id, j1, j2, disp) => ({
 })
 
 // Zona A
-const t99q1  = _mk6(25, 'Nicolás Gómez',    'Luciano Torres',    [{ dia: 'Lunes', franja: T }, { dia: 'Miércoles', franja: T }])
-const t99q2  = _mk6(26, 'Rodrigo Méndez',   'Diego Ríos',        [{ dia: 'Lunes', franja: T }, { dia: 'Miércoles', franja: T }])
-const t99q3  = _mk6(27, 'Agustín Pérez',    'Ezequiel López',    [{ dia: 'Miércoles', franja: T }])
+const t99q1  = _mk6(25, 'Nicolás Gómez',    'Luciano Torres',    [{ dia: 'Lunes', horaDesde: '12:00' }, { dia: 'Miércoles', horaDesde: '12:00' }])
+const t99q2  = _mk6(26, 'Rodrigo Méndez',   'Diego Ríos',        [{ dia: 'Lunes', horaDesde: '12:00' }, { dia: 'Miércoles', horaDesde: '12:00' }])
+const t99q3  = _mk6(27, 'Agustín Pérez',    'Ezequiel López',    [{ dia: 'Miércoles', horaDesde: '12:00' }])
 // Zona B
-const t99q4  = _mk6(28, 'Iván Fernández',   'Julián Ruiz',       [{ dia: 'Jueves', franja: T }, { dia: 'Viernes', franja: T }])
-const t99q5  = _mk6(29, 'Cristian Díaz',    'Sebastián Herrera', [{ dia: 'Jueves', franja: T }, { dia: 'Viernes', franja: T }])
-const t99q6  = _mk6(30, 'Marcelo Suárez',   'Pablo Ramírez',     [{ dia: 'Viernes', franja: T }])
+const t99q4  = _mk6(28, 'Iván Fernández',   'Julián Ruiz',       [{ dia: 'Jueves', horaDesde: '12:00' }, { dia: 'Viernes', horaDesde: '12:00' }])
+const t99q5  = _mk6(29, 'Cristian Díaz',    'Sebastián Herrera', [{ dia: 'Jueves', horaDesde: '12:00' }, { dia: 'Viernes', horaDesde: '12:00' }])
+const t99q6  = _mk6(30, 'Marcelo Suárez',   'Pablo Ramírez',     [{ dia: 'Viernes', horaDesde: '12:00' }])
 // Zona C
-const t99q7  = _mk6(31, 'Gustavo Flores',   'Hernán Medina',     [{ dia: 'Sábado', franja: T }])
-const t99q8  = _mk6(32, 'Roberto Castro',   'Ignacio Muñoz',     [{ dia: 'Sábado', franja: T }])
-const t99q9  = _mk6(33, 'Andrés Sosa',      'Eduardo Ortiz',     [{ dia: 'Sábado', franja: T }])
+const t99q7  = _mk6(31, 'Gustavo Flores',   'Hernán Medina',     [{ dia: 'Sábado', horaDesde: '12:00' }])
+const t99q8  = _mk6(32, 'Roberto Castro',   'Ignacio Muñoz',     [{ dia: 'Sábado', horaDesde: '12:00' }])
+const t99q9  = _mk6(33, 'Andrés Sosa',      'Eduardo Ortiz',     [{ dia: 'Sábado', horaDesde: '12:00' }])
 // Zona D
-const t99q10 = _mk6(34, 'Walter Vega',      'Ramón Molina',      [{ dia: 'Domingo', franja: T }])
-const t99q11 = _mk6(35, 'Ricardo Vargas',   'Carlos Moreno',     [{ dia: 'Domingo', franja: T }])
-const t99q12 = _mk6(36, 'Alfredo Romero',   'Sergio Aguirre',    [{ dia: 'Sábado',  franja: T }])
+const t99q10 = _mk6(34, 'Walter Vega',      'Ramón Molina',      [{ dia: 'Domingo', horaDesde: '12:00' }])
+const t99q11 = _mk6(35, 'Ricardo Vargas',   'Carlos Moreno',     [{ dia: 'Domingo', horaDesde: '12:00' }])
+const t99q12 = _mk6(36, 'Alfredo Romero',   'Sergio Aguirre',    [{ dia: 'Sábado',  horaDesde: '12:00' }])
 // Zona E
-const t99q13 = _mk6(37, 'Fernando Silva',   'Claudio Ramos',     [{ dia: 'Lunes', franja: T }, { dia: 'Miércoles', franja: T }])
-const t99q14 = _mk6(38, 'Alejandro Torres', 'Osvaldo Reyes',     [{ dia: 'Lunes', franja: T }, { dia: 'Miércoles', franja: T }])
-const t99q15 = _mk6(39, 'Horacio Méndez',   'Ernesto Blanco',    [{ dia: 'Miércoles', franja: T }])
+const t99q13 = _mk6(37, 'Fernando Silva',   'Claudio Ramos',     [{ dia: 'Lunes', horaDesde: '12:00' }, { dia: 'Miércoles', horaDesde: '12:00' }])
+const t99q14 = _mk6(38, 'Alejandro Torres', 'Osvaldo Reyes',     [{ dia: 'Lunes', horaDesde: '12:00' }, { dia: 'Miércoles', horaDesde: '12:00' }])
+const t99q15 = _mk6(39, 'Horacio Méndez',   'Ernesto Blanco',    [{ dia: 'Miércoles', horaDesde: '12:00' }])
 // Zona F
-const t99q16 = _mk6(40, 'Daniel Peralta',   'Eduardo Ibáñez',    [{ dia: 'Jueves', franja: T }, { dia: 'Viernes', franja: T }])
-const t99q17 = _mk6(41, 'Jorge Ríos',       'Miguel Guzmán',     [{ dia: 'Jueves', franja: T }, { dia: 'Viernes', franja: T }])
-const t99q18 = _mk6(42, 'Abel Castro',      'Néstor Morales',    [{ dia: 'Viernes', franja: T }])
+const t99q16 = _mk6(40, 'Daniel Peralta',   'Eduardo Ibáñez',    [{ dia: 'Jueves', horaDesde: '12:00' }, { dia: 'Viernes', horaDesde: '12:00' }])
+const t99q17 = _mk6(41, 'Jorge Ríos',       'Miguel Guzmán',     [{ dia: 'Jueves', horaDesde: '12:00' }, { dia: 'Viernes', horaDesde: '12:00' }])
+const t99q18 = _mk6(42, 'Abel Castro',      'Néstor Morales',    [{ dia: 'Viernes', horaDesde: '12:00' }])
 
 const grupos99_6ta = [
   {
     nombre: 'Zona A', categoria: '6° Categoría', capacidad: 3,
     parejas: [t99q1, t99q2, t99q3],
     partidos: [
-      _rrm('c1za_m0', t99q1, t99q2, t99q1, { resultado: [{p1:6,p2:3},{p1:6,p2:4}],           slot: _sl('Lunes','14:00',T),      cancha: 1 }),
-      _rrm('c1za_m1', t99q1, t99q3, t99q1, { resultado: [{p1:6,p2:2},{p1:6,p2:1}],           slot: _sl('Lunes','15:30',T),      cancha: 2 }),
-      _rrm('c1za_m2', t99q2, t99q3, t99q2, { resultado: [{p1:6,p2:4},{p1:4,p2:6},{p1:6,p2:3}], slot: _sl('Miércoles','14:00',T), cancha: 1 }),
+      _rrm('c1za_m0', t99q1, t99q2, t99q1, { resultado: [{p1:6,p2:3},{p1:6,p2:4}],           slot: _sl('Lunes','14:00'),      cancha: 1 }),
+      _rrm('c1za_m1', t99q1, t99q3, t99q1, { resultado: [{p1:6,p2:2},{p1:6,p2:1}],           slot: _sl('Lunes','15:30'),      cancha: 2 }),
+      _rrm('c1za_m2', t99q2, t99q3, t99q2, { resultado: [{p1:6,p2:4},{p1:4,p2:6},{p1:6,p2:3}], slot: _sl('Miércoles','14:00'), cancha: 1 }),
     ],
     clasificados: [t99q1, t99q2], necesitaDesempate: false,
   },
@@ -307,9 +306,9 @@ const grupos99_6ta = [
     nombre: 'Zona B', categoria: '6° Categoría', capacidad: 3,
     parejas: [t99q4, t99q5, t99q6],
     partidos: [
-      _rrm('c1zb_m0', t99q4, t99q5, t99q4, { resultado: [{p1:6,p2:4},{p1:7,p2:5}],           slot: _sl('Jueves','14:00',T),     cancha: 1 }),
-      _rrm('c1zb_m1', t99q4, t99q6, t99q4, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],           slot: _sl('Jueves','15:30',T),     cancha: 2 }),
-      _rrm('c1zb_m2', t99q5, t99q6, t99q5, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],           slot: _sl('Viernes','14:00',T),    cancha: 1 }),
+      _rrm('c1zb_m0', t99q4, t99q5, t99q4, { resultado: [{p1:6,p2:4},{p1:7,p2:5}],           slot: _sl('Jueves','14:00'),     cancha: 1 }),
+      _rrm('c1zb_m1', t99q4, t99q6, t99q4, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],           slot: _sl('Jueves','15:30'),     cancha: 2 }),
+      _rrm('c1zb_m2', t99q5, t99q6, t99q5, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],           slot: _sl('Viernes','14:00'),    cancha: 1 }),
     ],
     clasificados: [t99q4, t99q5], necesitaDesempate: false,
   },
@@ -317,9 +316,9 @@ const grupos99_6ta = [
     nombre: 'Zona C', categoria: '6° Categoría', capacidad: 3,
     parejas: [t99q7, t99q8, t99q9],
     partidos: [
-      _rrm('c1zc_m0', t99q7, t99q8, t99q7, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],           slot: _sl('Sábado','14:00',T),     cancha: 1 }),
-      _rrm('c1zc_m1', t99q7, t99q9, t99q7, { resultado: [{p1:6,p2:1},{p1:6,p2:3}],           slot: _sl('Sábado','15:30',T),     cancha: 2 }),
-      _rrm('c1zc_m2', t99q8, t99q9, t99q8, { resultado: [{p1:6,p2:4},{p1:3,p2:6},{p1:6,p2:3}], slot: _sl('Sábado','17:00',T), cancha: 1 }),
+      _rrm('c1zc_m0', t99q7, t99q8, t99q7, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],           slot: _sl('Sábado','14:00'),     cancha: 1 }),
+      _rrm('c1zc_m1', t99q7, t99q9, t99q7, { resultado: [{p1:6,p2:1},{p1:6,p2:3}],           slot: _sl('Sábado','15:30'),     cancha: 2 }),
+      _rrm('c1zc_m2', t99q8, t99q9, t99q8, { resultado: [{p1:6,p2:4},{p1:3,p2:6},{p1:6,p2:3}], slot: _sl('Sábado','17:00'), cancha: 1 }),
     ],
     clasificados: [t99q7, t99q8], necesitaDesempate: false,
   },
@@ -327,9 +326,9 @@ const grupos99_6ta = [
     nombre: 'Zona D', categoria: '6° Categoría', capacidad: 3,
     parejas: [t99q10, t99q11, t99q12],
     partidos: [
-      _rrm('c1zd_m0', t99q10, t99q11, t99q10, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],        slot: _sl('Domingo','14:00',T),    cancha: 1 }),
-      _rrm('c1zd_m1', t99q10, t99q12, t99q10, { resultado: [{p1:6,p2:3},{p1:6,p2:1}],        slot: _sl('Domingo','15:30',T),    cancha: 2 }),
-      _rrm('c1zd_m2', t99q11, t99q12, t99q11, { resultado: [{p1:7,p2:5},{p1:6,p2:4}],        slot: _sl('Sábado','14:00',T),     cancha: 2 }),
+      _rrm('c1zd_m0', t99q10, t99q11, t99q10, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],        slot: _sl('Domingo','14:00'),    cancha: 1 }),
+      _rrm('c1zd_m1', t99q10, t99q12, t99q10, { resultado: [{p1:6,p2:3},{p1:6,p2:1}],        slot: _sl('Domingo','15:30'),    cancha: 2 }),
+      _rrm('c1zd_m2', t99q11, t99q12, t99q11, { resultado: [{p1:7,p2:5},{p1:6,p2:4}],        slot: _sl('Sábado','14:00'),     cancha: 2 }),
     ],
     clasificados: [t99q10, t99q11], necesitaDesempate: false,
   },
@@ -337,9 +336,9 @@ const grupos99_6ta = [
     nombre: 'Zona E', categoria: '6° Categoría', capacidad: 3,
     parejas: [t99q13, t99q14, t99q15],
     partidos: [
-      _rrm('c1ze_m0', t99q13, t99q14, t99q13, { resultado: [{p1:6,p2:4},{p1:7,p2:5}],        slot: _sl('Lunes','14:00',T),      cancha: 2 }),
-      _rrm('c1ze_m1', t99q13, t99q15, t99q13, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],        slot: _sl('Lunes','15:30',T),      cancha: 1 }),
-      _rrm('c1ze_m2', t99q14, t99q15, t99q14, { resultado: [{p1:6,p2:1},{p1:3,p2:6},{p1:6,p2:4}], slot: _sl('Miércoles','14:00',T), cancha: 2 }),
+      _rrm('c1ze_m0', t99q13, t99q14, t99q13, { resultado: [{p1:6,p2:4},{p1:7,p2:5}],        slot: _sl('Lunes','14:00'),      cancha: 2 }),
+      _rrm('c1ze_m1', t99q13, t99q15, t99q13, { resultado: [{p1:6,p2:3},{p1:6,p2:2}],        slot: _sl('Lunes','15:30'),      cancha: 1 }),
+      _rrm('c1ze_m2', t99q14, t99q15, t99q14, { resultado: [{p1:6,p2:1},{p1:3,p2:6},{p1:6,p2:4}], slot: _sl('Miércoles','14:00'), cancha: 2 }),
     ],
     clasificados: [t99q13, t99q14], necesitaDesempate: false,
   },
@@ -347,9 +346,9 @@ const grupos99_6ta = [
     nombre: 'Zona F', categoria: '6° Categoría', capacidad: 3,
     parejas: [t99q16, t99q17, t99q18],
     partidos: [
-      _rrm('c1zf_m0', t99q16, t99q17, t99q16, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],        slot: _sl('Jueves','14:00',T),     cancha: 2 }),
-      _rrm('c1zf_m1', t99q16, t99q18, t99q16, { resultado: [{p1:6,p2:3},{p1:6,p2:1}],        slot: _sl('Jueves','15:30',T),     cancha: 1 }),
-      _rrm('c1zf_m2', t99q17, t99q18, t99q17, { resultado: [{p1:7,p2:5},{p1:6,p2:3}],        slot: _sl('Viernes','14:00',T),    cancha: 2 }),
+      _rrm('c1zf_m0', t99q16, t99q17, t99q16, { resultado: [{p1:6,p2:2},{p1:6,p2:4}],        slot: _sl('Jueves','14:00'),     cancha: 2 }),
+      _rrm('c1zf_m1', t99q16, t99q18, t99q16, { resultado: [{p1:6,p2:3},{p1:6,p2:1}],        slot: _sl('Jueves','15:30'),     cancha: 1 }),
+      _rrm('c1zf_m2', t99q17, t99q18, t99q17, { resultado: [{p1:7,p2:5},{p1:6,p2:3}],        slot: _sl('Viernes','14:00'),    cancha: 2 }),
     ],
     clasificados: [t99q16, t99q17], necesitaDesempate: false,
   },

@@ -141,6 +141,57 @@ const usePlayerNotificationsStore = create((set, get) => ({
     })
   },
 
+  // Admin da de baja a una pareja inscripta en un torneo
+  addBajaInscripcionTorneo: ({ torneoNombre, categoria, jugador1, jugador2 }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'baja_inscripcion_torneo',
+      titulo: 'Baja de inscripción al torneo',
+      cuerpo: `${torneoNombre} · ${categoria} · ${jugador1} / ${jugador2} · El club dio de baja la inscripción`,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      save(updated)
+      return { notificaciones: updated }
+    })
+  },
+
+  // Jugador se inscribió pero quedó en lista de espera
+  addInscripcionEnEspera: ({ torneoNombre, categoria }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'inscripcion_en_espera',
+      titulo: 'Quedaste en lista de espera',
+      cuerpo: `${torneoNombre} · ${categoria} · Te avisaremos si se libera un lugar`,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      save(updated)
+      return { notificaciones: updated }
+    })
+  },
+
+  // Jugador fue promovido de lista de espera a inscripto
+  addPromovido: ({ torneoNombre, categoria }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'promovido_de_espera',
+      titulo: '¡Te inscribiste al torneo!',
+      cuerpo: `${torneoNombre} · ${categoria} · Se liberó un lugar y quedaste confirmado/a`,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      save(updated)
+      return { notificaciones: updated }
+    })
+  },
+
   marcarLeida: (id) => {
     set((state) => {
       const updated = state.notificaciones.map((n) =>

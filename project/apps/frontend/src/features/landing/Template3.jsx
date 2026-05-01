@@ -36,7 +36,7 @@ const Template3 = ({ club, onCta }) => {
                 {heroBadge}
               </span>
             )}
-            <h1 className="text-5xl md:text-6xl font-black text-slate-900 leading-[1.05] tracking-tight">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-slate-900 leading-[1.05] tracking-tight">
               {heroTitulo && <span className="block">{heroTitulo}</span>}
               {heroTituloDestacado && <span style={{ color: colorPrimario }}>{heroTituloDestacado}</span>}
             </h1>
@@ -45,7 +45,7 @@ const Template3 = ({ club, onCta }) => {
             {heroSubtitulo && (
               <p className="text-lg text-slate-500 leading-relaxed max-w-md">{heroSubtitulo}</p>
             )}
-            <div className="flex items-center gap-4 mt-2">
+            <div className="flex flex-wrap items-center gap-4 mt-2">
               <button onClick={onCta} className="inline-flex items-center gap-2 font-bold text-sm px-6 py-3.5 rounded-xl transition-all duration-200 text-white" style={{ backgroundColor: colorPrimario }}>
                 {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={16} />
               </button>
@@ -53,7 +53,7 @@ const Template3 = ({ club, onCta }) => {
                 {heroCtaSecundarioTexto || 'Ver torneos'} →
               </button>
             </div>
-            <div className="flex items-center gap-6 pt-4 border-t border-slate-200">
+            <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-slate-200">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 <span className="text-slate-400 text-xs">{canchasActivas.length} canchas disponibles</span>
@@ -199,7 +199,7 @@ const Template3 = ({ club, onCta }) => {
           <button onClick={onCta} className="inline-flex items-center gap-2 font-bold text-sm px-8 py-4 rounded-xl text-white transition-all" style={{ backgroundColor: colorPrimario }}>
             {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={16} />
           </button>
-          <div className="flex items-center justify-center gap-6 mt-8">
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-8">
             {['Sin costo de registro','Reserva en 30 segundos','Cancelación gratuita'].map((t) => (
               <div key={t} className="flex items-center gap-2 text-white/30 text-xs"><CheckCircle size={13} style={{ color: colorPrimario }} />{t}</div>
             ))}

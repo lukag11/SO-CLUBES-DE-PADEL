@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
 import usePlayerStore from '../store/playerStore'
+import useTorneosNotif from '../store/playerNotificationsStore'
 import { esSlotDeGrupos } from '../services/torneoService'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -24,7 +25,7 @@ const ESTADO_CONFIG = {
 }
 
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
-const FRANJAS_HORARIAS = ['Mañana (8-12)', 'Tarde (12-17)', 'Noche (17-22)']
+const HORAS_DISPONIBLES = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00']
 
 // Retorna solo los nombres de día que existen dentro del rango fechaInicio-fechaFin
 const getDiasValidos = (fechaInicio, fechaFin) => {
@@ -54,10 +55,13 @@ const estaInscripto = (torneo, playerName) =>
   )
 
 // Resultado del jugador en el torneo (solo si finished y tiene bracket)
+const esDePareja = (pareja, playerName) =>
+  pareja?.jugador1 === playerName || pareja?.jugador2 === playerName
+
 const getResultado = (torneo, playerName) => {
-  if (torneo.ganador?.includes(playerName))    return { label: 'Campeón',    icon: '🏆', color: 'text-[#afca0b]' }
-  if (torneo.subcampeon?.includes(playerName)) return { label: 'Finalista',  icon: '🥈', color: 'text-blue-400' }
-  if (torneo.estado === 'finished')            return { label: 'Eliminado',  icon: '⚡', color: 'text-white/40' }
+  if (esDePareja(torneo.ganador, playerName))    return { label: 'Campeón',   icon: '🏆', color: 'text-[#afca0b]' }
+  if (esDePareja(torneo.subcampeon, playerName)) return { label: 'Finalista', icon: '🥈', color: 'text-blue-400' }
+  if (torneo.estado === 'finished')              return { label: 'Eliminado', icon: '⚡', color: 'text-white/40' }
   return null
 }
 
@@ -211,7 +215,7 @@ const PartidoZonaReadOnly = ({ partido, miParejaId, parejas = [] }) => {
       <div className="flex items-center justify-between px-3 py-1.5 border-t border-white/5 bg-white/[0.02]">
         {slot ? (
           <span className="text-[11px] font-medium text-sky-400/70">
-            {slot.dia} · {slot.hora ?? slot.franja.split('(')[0].trim()}
+            {slot.dia} · {slot.hora ?? ''}
           </span>
         ) : (
           <span className="text-[10px] text-white/20">Sin horario</span>
@@ -446,9 +450,12 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
   const resultado    = getResultado(torneo, playerName)
   const editable     = puedeEditar(torneo) && !!miPareja
   const tieneGrupos  = torneo.grupos !== null && torneo.formato === 'Fase de grupos + Eliminación'
-  const miBracket    = miBrackets?.[miPareja?.categoria]
-                    ?? Object.values(miBrackets ?? {})[0]
-                    ?? null
+  const miBracket    = (() => {
+    const cat = miPareja?.categoria
+    if (cat && torneo.brackets?.[cat]?.rondas) return torneo.brackets[cat]
+    const first = Object.values(torneo.brackets ?? {}).find((b) => b?.rondas)
+    return first ?? null
+  })()
 
   return (
     <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden hover:border-white/15 transition-colors">
@@ -483,6 +490,11 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
             {miPareja && (
               <span className="text-xs text-white/40 bg-white/5 border border-white/8 px-2 py-0.5 rounded-lg">
                 {miPareja.jugador1} / {miPareja.jugador2}
+              </span>
+            )}
+            {miPareja?.estado === 'espera' && (
+              <span className="text-[10px] font-semibold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg">
+                En lista de espera
               </span>
             )}
             <span className="text-xs text-white/30">{torneo.categorias.join(', ')}</span>
@@ -588,10 +600,14 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
 // ── Card torneo disponible ────────────────────────────────────────────────────
 
 const TorneoDisponibleCard = ({ torneo, onInscribirse }) => {
-  const cupo = totalCupo(torneo)
-  const inscriptos = torneo.inscriptos.length
-  const lleno = cupo !== null && inscriptos >= cupo
-  const pct = cupo ? Math.round((inscriptos / cupo) * 100) : 0
+  const cupo        = totalCupo(torneo)
+  const inscriptos  = torneo.inscriptos.filter((i) => i.estado !== 'espera').length
+  const enEspera    = torneo.inscriptos.filter((i) => i.estado === 'espera').length
+  const cupoEspera  = torneo.cupoEspera ?? 5
+  const lleno       = cupo !== null && inscriptos >= cupo
+  const hayEspera   = lleno && enEspera < cupoEspera
+  const totalLleno  = lleno && enEspera >= cupoEspera
+  const pct         = cupo ? Math.round((inscriptos / cupo) * 100) : 0
 
   return (
     <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5 flex flex-col gap-4 hover:border-white/15 transition-colors">
@@ -632,7 +648,7 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse }) => {
               <InfinityIcon size={11} /> Sin límite
             </span>
           ) : (
-            <span className={`text-xs font-semibold ${lleno ? 'text-red-400' : 'text-white/60'}`}>
+            <span className={`text-xs font-semibold ${totalLleno ? 'text-red-400' : lleno ? 'text-amber-400' : 'text-white/60'}`}>
               {inscriptos} / {cupo}
             </span>
           )}
@@ -640,24 +656,31 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse }) => {
         {!torneo.cupoLibre && (
           <div className="h-1 bg-white/8 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-500 ${lleno ? 'bg-red-500' : 'bg-[#afca0b]'}`}
+              className={`h-full rounded-full transition-all duration-500 ${totalLleno ? 'bg-red-500' : lleno ? 'bg-amber-400' : 'bg-[#afca0b]'}`}
               style={{ width: `${Math.min(pct, 100)}%` }}
             />
           </div>
+        )}
+        {hayEspera && (
+          <p className="text-[11px] text-amber-400 mt-1.5">
+            Cupo completo · quedan {cupoEspera - enEspera} lugar{cupoEspera - enEspera !== 1 ? 'es' : ''} en lista de espera
+          </p>
         )}
       </div>
 
       <button
         onClick={() => onInscribirse(torneo)}
-        disabled={lleno}
+        disabled={totalLleno}
         className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${
-          lleno
+          totalLleno
             ? 'bg-white/5 text-white/25 cursor-not-allowed'
-            : 'bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117]'
+            : hayEspera
+              ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30'
+              : 'bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117]'
         }`}
       >
         <Plus size={15} />
-        {lleno ? 'Cupo completo' : 'Inscribirme'}
+        {totalLleno ? 'Sin lugares' : hayEspera ? 'Anotarme en lista de espera' : 'Inscribirme'}
       </button>
     </div>
   )
@@ -665,7 +688,7 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse }) => {
 
 // ── Modal inscripción ─────────────────────────────────────────────────────────
 
-const ModalInscripcion = ({ torneo, jugador1, parejaExistente, onClose, onConfirmar }) => {
+const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onClose, onConfirmar }) => {
   const isEdit = !!parejaExistente
   const diaCorte  = torneo.diaInicioEliminatoria  ?? null
   const horaCorte = torneo.horaInicioEliminatoria ?? null
@@ -674,20 +697,35 @@ const ModalInscripcion = ({ torneo, jugador1, parejaExistente, onClose, onConfir
   const diasValidos = getDiasValidos(torneo.fechaInicio, torneo.fechaFin)
     .filter((dia) => esSlotDeGrupos(dia, '00:00', diaCorte, horaCorte))
 
-  // Franjas disponibles según el día seleccionado
-  const franjasParaDia = (dia) =>
-    FRANJAS_HORARIAS.filter((f) => esSlotDeGrupos(dia, f, diaCorte, horaCorte))
+  // Horas disponibles según el día (filtra por corte de eliminatoria)
+  const horasParaDia = (dia) =>
+    HORAS_DISPONIBLES.filter((h) => esSlotDeGrupos(dia, h, diaCorte, horaCorte))
 
-  const [jugador2, setJugador2]       = useState(parejaExistente?.jugador2 ?? '')
+  const [jugador2, setJugador2]         = useState(parejaExistente?.jugador2 ?? '')
+  const [jugador2Dni, setJugador2Dni]   = useState(parejaExistente?.jugador2Dni ?? '')
   const [categoria, setCategoria]     = useState(parejaExistente?.categoria ?? torneo.categorias[0] ?? '')
-  const [slots, setSlots]                 = useState(parejaExistente?.disponibilidad ?? [])
+  const [slots, setSlots]             = useState(parejaExistente?.disponibilidad ?? [])
   const [prefiereMismoDia, setPrefiereMismoDia] = useState(parejaExistente?.prefiereMismoDia ?? false)
-  const [pendingDia, setPendingDia]       = useState(diasValidos[0] ?? DIAS_SEMANA[0])
+  const [pendingDia, setPendingDia]   = useState(diasValidos[0] ?? DIAS_SEMANA[0])
+  const [pendingHora, setPendingHora] = useState(horasParaDia(diasValidos[0] ?? DIAS_SEMANA[0])[0] ?? '18:00')
+  const [errors, setErrors]           = useState({})
+
+  // Días que aún no tienen slot agregado
+  const diasLibres = diasValidos.filter((d) => !slots.some((s) => s.dia === d))
 
   const soloUnDia = [...new Set(slots.map((s) => s.dia))].length <= 1
   useEffect(() => { if (!soloUnDia) setPrefiereMismoDia(false) }, [soloUnDia])
-  const [pendingFranja, setPendingFranja] = useState(franjasParaDia(diasValidos[0] ?? DIAS_SEMANA[0])[1] ?? franjasParaDia(diasValidos[0] ?? DIAS_SEMANA[0])[0] ?? FRANJAS_HORARIAS[0])
-  const [errors, setErrors]               = useState({})
+
+  // Si el día seleccionado ya fue agregado, mover al primer día libre
+  useEffect(() => {
+    if (!diasLibres.includes(pendingDia)) {
+      const primerLibre = diasLibres[0]
+      if (primerLibre) {
+        setPendingDia(primerLibre)
+        setPendingHora(horasParaDia(primerLibre)[0] ?? '18:00')
+      }
+    }
+  }, [slots]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const MAX_SLOTS = 2
 
@@ -696,12 +734,7 @@ const ModalInscripcion = ({ torneo, jugador1, parejaExistente, onClose, onConfir
       setErrors((prev) => ({ ...prev, slots: `Máximo ${MAX_SLOTS} horarios por pareja` }))
       return
     }
-    const yaExiste = slots.some((s) => s.dia === pendingDia && s.franja === pendingFranja)
-    if (yaExiste) {
-      setErrors((prev) => ({ ...prev, slots: 'Ya agregaste ese día y horario' }))
-      return
-    }
-    setSlots((prev) => [...prev, { dia: pendingDia, franja: pendingFranja }])
+    setSlots((prev) => [...prev, { dia: pendingDia, horaDesde: pendingHora }])
     setErrors((prev) => ({ ...prev, slots: '' }))
   }
 
@@ -709,8 +742,9 @@ const ModalInscripcion = ({ torneo, jugador1, parejaExistente, onClose, onConfir
 
   const validate = () => {
     const e = {}
-    if (!jugador2.trim())  e.jugador2 = 'Completá el nombre de tu compañero/a'
-    if (slots.length === 0) e.slots   = 'Agregá al menos un horario disponible'
+    if (!jugador2.trim())    e.jugador2    = 'Completá el nombre de tu compañero/a'
+    if (!jugador2Dni.trim()) e.jugador2Dni = 'Completá el DNI de tu compañero/a'
+    if (slots.length === 0)  e.slots       = 'Agregá al menos un horario disponible'
     return e
   }
 
@@ -719,7 +753,9 @@ const ModalInscripcion = ({ torneo, jugador1, parejaExistente, onClose, onConfir
     if (Object.keys(e).length) { setErrors(e); return }
     onConfirmar({
       jugador1,
+      jugador1Dni: jugador1Dni ?? '',
       jugador2: jugador2.trim(),
+      jugador2Dni: jugador2Dni.trim(),
       categoria,
       fecha: new Date().toISOString().split('T')[0],
       disponibilidad: slots,
@@ -733,52 +769,75 @@ const ModalInscripcion = ({ torneo, jugador1, parejaExistente, onClose, onConfir
       <div className="relative bg-[#0d1117] border border-white/12 rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
 
         {/* Header */}
-        <div className="px-6 py-5 border-b border-white/8 flex items-start justify-between gap-4">
+        <div className="px-5 py-3 border-b border-white/8 flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-white font-bold text-base">
+            <h2 className="text-white font-bold text-sm">
               {isEdit ? 'Editar inscripción' : 'Inscripción al torneo'}
             </h2>
-            <p className="text-white/40 text-xs mt-0.5">{torneo.nombre}</p>
+            <p className="text-white/40 text-[11px] mt-0.5 leading-none">{torneo.nombre}</p>
           </div>
-          <button onClick={onClose} className="text-white/30 hover:text-white hover:bg-white/8 p-1.5 rounded-lg transition-all">
-            <X size={17} />
+          <button onClick={onClose} className="text-white/30 hover:text-white hover:bg-white/8 p-1.5 rounded-lg transition-all shrink-0">
+            <X size={16} />
           </button>
         </div>
 
         {/* Form */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
+        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
 
-          {/* Jugador 1 */}
-          <div>
-            <label className="text-xs font-medium text-white/50 block mb-1.5">Jugador 1 (vos)</label>
-            <div className="bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white/40">
-              {jugador1}
+          {/* Jugadores */}
+          <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+            {/* J1 nombre */}
+            <div>
+              <label className="text-[10px] font-medium text-white/40 block mb-1">Jugador 1 (vos)</label>
+              <div className="bg-white/5 border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white/40 truncate">
+                {jugador1}
+              </div>
             </div>
-          </div>
-
-          {/* Jugador 2 */}
-          <div>
-            <label className="text-xs font-medium text-white/50 block mb-1.5">Jugador 2 (compañero/a)</label>
-            <input
-              type="text"
-              value={jugador2}
-              onChange={(e) => setJugador2(e.target.value)}
-              placeholder="Nombre y apellido"
-              className={`w-full bg-white/5 border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 ${
-                errors.jugador2 ? 'border-red-500/50' : 'border-white/10'
-              }`}
-            />
-            {errors.jugador2 && <p className="text-red-400 text-xs mt-1">{errors.jugador2}</p>}
+            {/* J2 nombre */}
+            <div>
+              <label className="text-[10px] font-medium text-white/40 block mb-1">Compañero/a</label>
+              <input
+                type="text"
+                value={jugador2}
+                onChange={(e) => setJugador2(e.target.value)}
+                placeholder="Nombre y apellido"
+                className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 ${
+                  errors.jugador2 ? 'border-red-500/50' : 'border-white/10'
+                }`}
+              />
+              {errors.jugador2 && <p className="text-red-400 text-[10px] mt-0.5">{errors.jugador2}</p>}
+            </div>
+            {/* J1 DNI */}
+            <div>
+              <label className="text-[10px] font-medium text-white/40 block mb-1">DNI</label>
+              <div className="bg-white/5 border border-white/8 rounded-xl px-2.5 py-2 text-xs text-white/40 truncate">
+                {jugador1Dni || <span className="text-white/20 italic">Sin DNI en perfil</span>}
+              </div>
+            </div>
+            {/* J2 DNI */}
+            <div>
+              <label className="text-[10px] font-medium text-white/40 block mb-1">DNI compañero/a</label>
+              <input
+                type="text"
+                value={jugador2Dni}
+                onChange={(e) => setJugador2Dni(e.target.value)}
+                placeholder="12345678"
+                className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 ${
+                  errors.jugador2Dni ? 'border-red-500/50' : 'border-white/10'
+                }`}
+              />
+              {errors.jugador2Dni && <p className="text-red-400 text-[10px] mt-0.5">{errors.jugador2Dni}</p>}
+            </div>
           </div>
 
           {/* Categoría */}
           {torneo.categorias.length > 1 && (
             <div>
-              <label className="text-xs font-medium text-white/50 block mb-1.5">Categoría</label>
+              <label className="text-[10px] font-medium text-white/40 block mb-1">Categoría</label>
               <select
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all"
                 style={{ backgroundColor: '#0d1117' }}
               >
                 {torneo.categorias.map((c) => <option key={c} value={c} style={{ backgroundColor: '#0d1117' }}>{c}</option>)}
@@ -788,28 +847,75 @@ const ModalInscripcion = ({ torneo, jugador1, parejaExistente, onClose, onConfir
 
           {/* Disponibilidad */}
           <div>
-            <label className="text-xs font-medium text-white/50 block mb-1.5">
+            <label className="text-[10px] font-medium text-white/40 flex items-center gap-1.5 mb-2">
               Disponibilidad horaria
-              <span className="text-white/25 font-normal ml-1">(coordinada con tu pareja)</span>
-              <span className={`ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
+              <span className="text-white/25 font-normal">(coordinada con tu pareja)</span>
+              <span className={`ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
                 slots.length >= MAX_SLOTS ? 'text-amber-400 bg-amber-400/10' : 'text-white/20 bg-white/5'
               }`}>
                 {slots.length}/{MAX_SLOTS}
               </span>
             </label>
 
+            {/* Selector de nuevo slot — oculto si ya no hay días disponibles */}
+            <div className={`flex flex-col gap-2 ${diasLibres.length === 0 ? 'hidden' : ''}`}>
+              {/* Día + Agregar en fila */}
+              <div className="flex gap-2">
+                <select
+                  value={pendingDia}
+                  onChange={(e) => {
+                    const d = e.target.value
+                    setPendingDia(d)
+                    setPendingHora(horasParaDia(d)[0] ?? '18:00')
+                  }}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:border-[#afca0b]/50 transition-all"
+                  style={{ backgroundColor: '#0d1117' }}
+                >
+                  {diasLibres.map((d) => (
+                    <option key={d} value={d} style={{ backgroundColor: '#0d1117' }}>{d}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={agregarSlot}
+                  disabled={slots.length >= MAX_SLOTS}
+                  className="flex items-center gap-1 bg-[#afca0b]/15 hover:bg-[#afca0b]/25 border border-[#afca0b]/30 text-[#afca0b] text-xs font-semibold px-3 py-2 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                >
+                  <Plus size={12} />
+                  Agregar
+                </button>
+              </div>
+              {/* Grid de horas */}
+              <div className="grid grid-cols-5 gap-1">
+                {horasParaDia(pendingDia).map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setPendingHora(h)}
+                    className={`py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                      pendingHora === h
+                        ? 'bg-[#afca0b] border-[#afca0b] text-[#0d1117]'
+                        : 'bg-white/5 border-white/10 text-white/50 hover:border-white/25 hover:text-white/80'
+                    }`}
+                  >
+                    {h}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Slots agregados */}
             {slots.length > 0 && (
-              <div className="flex flex-col gap-1.5 mb-3">
+              <div className="flex flex-col gap-1.5 mt-2">
                 {slots.map((s, i) => (
                   <div
                     key={i}
-                    className="flex items-center justify-between bg-[#afca0b]/8 border border-[#afca0b]/20 rounded-xl px-3 py-2"
+                    className="flex items-center justify-between bg-[#afca0b]/8 border border-[#afca0b]/20 rounded-xl px-3 py-1.5"
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-[#afca0b] text-xs font-semibold">{s.dia}</span>
                       <span className="text-white/25 text-xs">·</span>
-                      <span className="text-white/60 text-xs">{s.franja}</span>
+                      <span className="text-white/60 text-xs">desde las {s.horaDesde}</span>
                     </div>
                     <button
                       type="button"
@@ -823,107 +929,48 @@ const ModalInscripcion = ({ torneo, jugador1, parejaExistente, onClose, onConfir
               </div>
             )}
 
-            {/* Selector de nuevo slot */}
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <p className="text-white/30 text-[10px] mb-1">Día</p>
-                <select
-                  value={pendingDia}
-                  onChange={(e) => {
-                    const d = e.target.value
-                    setPendingDia(d)
-                    const franjas = franjasParaDia(d)
-                    setPendingFranja(franjas[1] ?? franjas[0] ?? FRANJAS_HORARIAS[0])
-                  }}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:border-[#afca0b]/50 transition-all"
-                  style={{ backgroundColor: '#0d1117' }}
-                >
-                  {diasValidos.map((d) => (
-                    <option key={d} value={d} style={{ backgroundColor: '#0d1117' }}>{d}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex-1">
-                <p className="text-white/30 text-[10px] mb-1">Franja</p>
-                <select
-                  value={pendingFranja}
-                  onChange={(e) => setPendingFranja(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:border-[#afca0b]/50 transition-all"
-                  style={{ backgroundColor: '#0d1117' }}
-                >
-                  {franjasParaDia(pendingDia).map((f) => (
-                    <option key={f} value={f} style={{ backgroundColor: '#0d1117' }}>{f}</option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                onClick={agregarSlot}
-                disabled={slots.length >= MAX_SLOTS}
-                className="flex items-center gap-1 bg-[#afca0b]/15 hover:bg-[#afca0b]/25 border border-[#afca0b]/30 text-[#afca0b] text-xs font-semibold px-3 py-2 rounded-xl transition-all whitespace-nowrap disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <Plus size={13} />
-                Agregar
-              </button>
-            </div>
+            {errors.slots && <p className="text-red-400 text-xs mt-1">{errors.slots}</p>}
 
-            {errors.slots && <p className="text-red-400 text-xs mt-1.5">{errors.slots}</p>}
-            <p className="text-white/20 text-[10px] mt-2">
-              Máximo 2 horarios — uno por cada partido de la fase de grupos.
-            </p>
-
-            {/* Preferencia mismo día */}
-            <div className="flex flex-col gap-1 mt-3">
-              <button
-                type="button"
-                onClick={() => soloUnDia && setPrefiereMismoDia((v) => !v)}
-                disabled={!soloUnDia}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left ${
-                  !soloUnDia
-                    ? 'border-white/5 bg-white/2 opacity-40 cursor-not-allowed'
-                    : prefiereMismoDia
-                      ? 'border-[#afca0b]/30 bg-[#afca0b]/8'
-                      : 'border-white/8 bg-white/3 hover:bg-white/5'
-                }`}
-              >
-                <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${
-                  prefiereMismoDia && soloUnDia ? 'bg-[#afca0b] border-[#afca0b]' : 'border-white/20 bg-transparent'
-                }`}>
-                  {prefiereMismoDia && soloUnDia && (
-                    <svg viewBox="0 0 10 8" className="w-2.5 h-2.5">
-                      <path d="M1 4l2.5 2.5L9 1" stroke="#0d1117" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                    </svg>
-                  )}
-                </div>
-                <div>
-                  <p className={`text-xs font-medium ${prefiereMismoDia && soloUnDia ? 'text-[#afca0b]' : 'text-white/50'}`}>
-                    Preferimos jugar los 2 partidos el mismo día
-                  </p>
-                  <p className="text-white/20 text-[10px] mt-0.5">
-                    El sistema lo tendrá en cuenta si la disponibilidad de canchas lo permite.
-                  </p>
-                </div>
-              </button>
-              {!soloUnDia && slots.length > 0 && (
-                <p className="text-white/25 text-[10px] px-1">
-                  Disponible solo si todos los horarios son del mismo día.
-                </p>
-              )}
-            </div>
+            {/* Preferencia mismo día — fila compacta */}
+            <button
+              type="button"
+              onClick={() => soloUnDia && setPrefiereMismoDia((v) => !v)}
+              disabled={!soloUnDia}
+              className={`mt-2 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all text-left ${
+                !soloUnDia
+                  ? 'border-white/5 bg-white/2 opacity-40 cursor-not-allowed'
+                  : prefiereMismoDia
+                    ? 'border-[#afca0b]/30 bg-[#afca0b]/8'
+                    : 'border-white/8 bg-white/3 hover:bg-white/5'
+              }`}
+            >
+              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
+                prefiereMismoDia && soloUnDia ? 'bg-[#afca0b] border-[#afca0b]' : 'border-white/20 bg-transparent'
+              }`}>
+                {prefiereMismoDia && soloUnDia && (
+                  <svg viewBox="0 0 10 8" className="w-2 h-2">
+                    <path d="M1 4l2.5 2.5L9 1" stroke="#0d1117" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                  </svg>
+                )}
+              </div>
+              <span className={`text-[11px] font-medium ${prefiereMismoDia && soloUnDia ? 'text-[#afca0b]' : 'text-white/45'}`}>
+                Preferimos jugar los 2 partidos el mismo día
+              </span>
+            </button>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/8 flex gap-3 justify-end">
+        <div className="px-5 py-3 border-t border-white/8 flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-white/40 hover:text-white hover:bg-white/6 rounded-xl transition-all"
+            className="px-4 py-2 text-xs font-medium text-white/40 hover:text-white hover:bg-white/6 rounded-xl transition-all"
           >
             Cancelar
           </button>
           <button
             onClick={handleConfirmar}
-            className="px-5 py-2 text-sm font-bold bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117] rounded-xl transition-all"
+            className="px-5 py-2 text-xs font-bold bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117] rounded-xl transition-all"
           >
             {isEdit ? 'Guardar cambios' : 'Confirmar inscripción'}
           </button>
@@ -938,12 +985,15 @@ const ModalInscripcion = ({ torneo, jugador1, parejaExistente, onClose, onConfir
 const PlayerTournamentsPage = () => {
   const { torneos, addPareja, updatePareja, bajaInscripto } = useTorneosStore()
   const { player } = usePlayerStore()
+  const addInscripcionEnEspera = useTorneosNotif((s) => s.addInscripcionEnEspera)
   const [modalTorneo, setModalTorneo]   = useState(null)
   const [modalEdicion, setModalEdicion] = useState(null) // { torneo, pareja }
+  const [toastEspera, setToastEspera]   = useState(null) // nombre del torneo
 
   const playerName = player
     ? `${player.nombre}${player.apellido ? ' ' + player.apellido : ''}`
     : ''
+  const playerDni = player?.dni ?? ''
 
   const puedeInscribirse = (torneo) => {
     if (!player?.genero) return true
@@ -958,18 +1008,32 @@ const PlayerTournamentsPage = () => {
     t.estado === 'open' && !estaInscripto(t, playerName) && puedeInscribirse(t)
   )
 
-  const titulos = misTorneos.filter((t) => t.ganador?.includes(playerName)).length
-  const finales  = misTorneos.filter((t) => t.subcampeon?.includes(playerName)).length
+  const titulos = misTorneos.filter((t) => esDePareja(t.ganador, playerName)).length
+  const finales  = misTorneos.filter((t) => esDePareja(t.subcampeon, playerName)).length
 
   const handleConfirmarInscripcion = (pareja) => {
     if (!modalTorneo) return
-    addPareja(modalTorneo.id, pareja)
+    const cat        = pareja.categoria
+    const cupoMax    = modalTorneo.cupoLibre ? null : (modalTorneo.cuposPorCategoria?.[cat] ?? null)
+    const confirmados = modalTorneo.inscriptos.filter(
+      (i) => i.categoria === cat && i.estado !== 'espera'
+    ).length
+    const enEsperaCat = modalTorneo.inscriptos.filter(
+      (i) => i.categoria === cat && i.estado === 'espera'
+    ).length
+    const cupoEspera  = modalTorneo.cupoEspera ?? 5
+    const vaAEspera   = cupoMax !== null && confirmados >= cupoMax && enEsperaCat < cupoEspera
+    addPareja(modalTorneo.id, { ...pareja, estado: vaAEspera ? 'espera' : 'inscripto' })
+    if (vaAEspera) {
+      addInscripcionEnEspera({ torneoNombre: modalTorneo.nombre, categoria: cat })
+      setToastEspera(modalTorneo.nombre)
+    }
     setModalTorneo(null)
   }
 
-  const handleConfirmarEdicion = ({ jugador2, categoria, disponibilidad }) => {
+  const handleConfirmarEdicion = ({ jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia }) => {
     if (!modalEdicion) return
-    updatePareja(modalEdicion.torneo.id, modalEdicion.pareja.id, { jugador2, categoria, disponibilidad })
+    updatePareja(modalEdicion.torneo.id, modalEdicion.pareja.id, { jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia })
     setModalEdicion(null)
   }
 
@@ -979,6 +1043,14 @@ const PlayerTournamentsPage = () => {
 
   return (
     <div className="flex flex-col gap-8">
+
+      {/* Toast lista de espera */}
+      {toastEspera && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-amber-500 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl shadow-amber-500/30 animate-fade-in">
+          <span>⏳ Quedaste en lista de espera en <em className="not-italic font-bold">{toastEspera}</em>. Te avisamos si se libera un lugar.</span>
+          <button onClick={() => setToastEspera(null)} className="ml-2 text-white/70 hover:text-white transition-colors">✕</button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-start justify-between">
@@ -1060,6 +1132,7 @@ const PlayerTournamentsPage = () => {
         <ModalInscripcion
           torneo={modalTorneo}
           jugador1={playerName}
+          jugador1Dni={playerDni}
           onClose={() => setModalTorneo(null)}
           onConfirmar={handleConfirmarInscripcion}
         />
@@ -1070,6 +1143,7 @@ const PlayerTournamentsPage = () => {
         <ModalInscripcion
           torneo={modalEdicion.torneo}
           jugador1={playerName}
+          jugador1Dni={playerDni}
           parejaExistente={modalEdicion.pareja}
           onClose={() => setModalEdicion(null)}
           onConfirmar={handleConfirmarEdicion}

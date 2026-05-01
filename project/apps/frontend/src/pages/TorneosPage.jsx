@@ -5,7 +5,7 @@ import {
   CheckCircle, Clock, Archive, ToggleLeft, ToggleRight, Infinity,
   Lock, Pencil, Trash2, AlertTriangle,
 } from 'lucide-react'
-import { CATEGORIAS, GENEROS, FORMATOS } from '../features/admin/torneosMockData'
+import { GENEROS, FORMATOS } from '../features/admin/torneosMockData'
 import useTorneosStore from '../store/torneosStore'
 import useClubStore from '../store/clubStore'
 
@@ -40,12 +40,234 @@ const GENERO_CONFIG = {
   Mixto:     { color: 'text-violet-600 bg-violet-50 border-violet-200' },
 }
 
+// ── Selector de categorías ────────────────────────────────────────────────────
+
+const BASES_CATEGORIAS = [
+  { num: 1, label: '1° Categoría' },
+  { num: 2, label: '2° Categoría' },
+  { num: 3, label: '3° Categoría' },
+  { num: 4, label: '4° Categoría' },
+  { num: 5, label: '5° Categoría' },
+  { num: 6, label: '6° Categoría' },
+  { num: 7, label: '7° Categoría' },
+  { num: 8, label: '8° Categoría' },
+]
+
+const CHECK = ({ size = 2 }) => (
+  <svg viewBox="0 0 10 8" className={`w-${size} h-${size}`}>
+    <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+  </svg>
+)
+
+// Normaliza una categoría para comparación: elimina palabras comunes,
+// símbolos y espacios → solo número + letras/números del sufijo.
+// "4° Categoría B +35" → "4b35"   "4°catb+35" → "4b35"   "Elite" → "elite"
+const normalizeCategoria = (str) =>
+  str.toLowerCase()
+    .replace(/categor[ií]as?/g, '')
+    .replace(/\bcat\.?\b/g, '')
+    .replace(/[^a-z0-9]/g, '')
+
+const CategoriasSelector = ({ value, onToggle, historicas = [], onSave, onDelete, onRename }) => {
+  const [varInputs, setVarInputs]   = useState({})   // { num: string }
+  const [varErrors, setVarErrors]   = useState({})   // { num: string } — mensajes de error
+  const [expanded, setExpanded]     = useState({})   // { num: bool }
+  const [editando, setEditando]     = useState(null)
+  const [editVal, setEditVal]       = useState('')
+  const [customInput, setCustomInput] = useState('')
+  const [customError, setCustomError] = useState('')
+
+  // Variantes guardadas + históricas, agrupadas por base
+  const varPorBase = useMemo(() => {
+    const map = {}
+    historicas.forEach((cat) => {
+      const base = BASES_CATEGORIAS.find((b) => cat.startsWith(b.label + ' '))
+      if (base) {
+        if (!map[base.num]) map[base.num] = []
+        if (!map[base.num].includes(cat)) map[base.num].push(cat)
+      }
+    })
+    return map
+  }, [historicas])
+
+  const otrasHistoricas = useMemo(() =>
+    historicas.filter((cat) =>
+      !BASES_CATEGORIAS.some((b) => cat === b.label || cat.startsWith(b.label + ' '))
+    ),
+    [historicas]
+  )
+
+  const addVariant = (base) => {
+    const suffix = (varInputs[base.num] ?? '').trim()
+    if (!suffix) return
+    const nueva = `${base.label} ${suffix}`
+    const normNueva = normalizeCategoria(nueva)
+    const duplicada = historicas.find((c) => normalizeCategoria(c) === normNueva)
+    if (duplicada) {
+      setVarErrors((p) => ({ ...p, [base.num]: `Ya existe como "${duplicada}"` }))
+      return
+    }
+    setVarErrors((p) => ({ ...p, [base.num]: '' }))
+    onToggle(nueva)
+    onSave(nueva)
+    setVarInputs((p) => ({ ...p, [base.num]: '' }))
+  }
+
+  const addCustom = () => {
+    const val = customInput.trim()
+    if (!val) return
+    const normVal = normalizeCategoria(val)
+    const duplicada = historicas.find((c) => normalizeCategoria(c) === normVal)
+    if (duplicada) {
+      setCustomError(`Ya existe como "${duplicada}"`)
+      return
+    }
+    setCustomError('')
+    onToggle(val)
+    onSave(val)
+    setCustomInput('')
+  }
+
+  const confirmarEdicion = (oldCat) => {
+    const nueva = editVal.trim()
+    if (!nueva || nueva === oldCat) { setEditando(null); return }
+    const normNueva = normalizeCategoria(nueva)
+    const duplicada = historicas.find((c) => c !== oldCat && normalizeCategoria(c) === normNueva)
+    if (duplicada) { setEditando(null); return } // silencioso — no reemplaza
+    onRename(oldCat, nueva)
+    if (value.includes(oldCat)) { onToggle(oldCat); onToggle(nueva) }
+    setEditando(null)
+  }
+
+  const VariantRow = ({ v, onCheck }) => {
+    const sel  = value.includes(v)
+    const isEd = editando === v
+    return (
+      <div className="flex items-center gap-1.5 pl-6">
+        {isEd ? (
+          <>
+            <input
+              autoFocus
+              type="text"
+              value={editVal}
+              onChange={(e) => setEditVal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmarEdicion(v); if (e.key === 'Escape') setEditando(null) }}
+              className="flex-1 min-w-0 text-xs bg-white border border-brand-400 rounded-lg px-2 py-0.5 outline-none"
+            />
+            <button type="button" onClick={() => confirmarEdicion(v)} className="text-[10px] text-brand-500 font-semibold hover:text-brand-700">✓</button>
+            <button type="button" onClick={() => setEditando(null)} className="text-[10px] text-slate-400 hover:text-slate-600">✕</button>
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={onCheck} className="flex items-center gap-1.5 flex-1 text-left">
+              <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${sel ? 'bg-brand-500 border-brand-500' : 'border-slate-300 bg-white'}`}>
+                {sel && <CHECK />}
+              </span>
+              <span className={`text-xs ${sel ? 'text-brand-600 font-semibold' : 'text-slate-600'}`}>{v}</span>
+              <span className="text-amber-400 text-[10px]">★</span>
+            </button>
+            <button type="button" title="Editar"
+              onClick={() => { setEditando(v); setEditVal(v) }}
+              className="text-[10px] text-slate-300 hover:text-brand-400 transition-colors px-0.5"
+            ><Pencil size={11} /></button>
+            <button type="button" title="Eliminar"
+              onClick={() => { onDelete(v); if (sel) onToggle(v) }}
+              className="text-[10px] text-slate-300 hover:text-red-400 transition-colors px-0.5"
+            ><Trash2 size={11} /></button>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {/* Bases 1ra–8va */}
+      {BASES_CATEGORIAS.map((base) => {
+        const baseSelec = value.includes(base.label)
+        const varDisp   = varPorBase[base.num] ?? []
+        const anyActive = baseSelec || value.some((v) => v.startsWith(base.label + ' '))
+        const showSub   = varDisp.length > 0 || !!expanded[base.num]
+
+        return (
+          <div key={base.num} className={`rounded-xl border transition-all ${anyActive ? 'border-brand-200 bg-brand-50/30' : 'border-slate-200 bg-slate-50/60'}`}>
+            {/* Fila base */}
+            <div className="flex items-center">
+              <button type="button" onClick={() => onToggle(base.label)} className="flex-1 flex items-center gap-2.5 px-3 py-2 text-left">
+                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${baseSelec ? 'bg-brand-500 border-brand-500' : 'border-slate-300 bg-white'}`}>
+                  {baseSelec && <CHECK />}
+                </span>
+                <span className={`text-sm font-medium flex-1 ${anyActive ? 'text-brand-700' : 'text-slate-700'}`}>{base.label}</span>
+              </button>
+              <button type="button" title={showSub ? 'Cerrar variantes' : 'Agregar variante'}
+                onClick={() => setExpanded((p) => ({ ...p, [base.num]: !p[base.num] }))}
+                className={`mr-2 text-xs w-5 h-5 flex items-center justify-center rounded-md border transition-all ${
+                  showSub ? 'text-brand-500 border-brand-200 bg-brand-50' : 'text-slate-400 border-slate-200 hover:text-brand-500 hover:border-brand-200'
+                }`}
+              >{showSub ? '−' : '+'}</button>
+            </div>
+
+            {/* Sub-sección variantes */}
+            {showSub && (
+              <div className="border-t border-slate-100 px-3 pt-2 pb-2.5 flex flex-col gap-1.5">
+                {varDisp.map((v) => <VariantRow key={v} v={v} onCheck={() => onToggle(v)} />)}
+                {/* Input nueva variante */}
+                <div className="flex flex-col gap-1 pl-6 pt-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-slate-400 shrink-0">{base.label}</span>
+                    <input type="text" value={varInputs[base.num] ?? ''}
+                      onChange={(e) => {
+                        setVarInputs((p) => ({ ...p, [base.num]: e.target.value }))
+                        setVarErrors((p) => ({ ...p, [base.num]: '' }))
+                      }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') addVariant(base) }}
+                      placeholder="B +35, A..."
+                      className={`flex-1 min-w-0 text-xs bg-white border rounded-lg px-2 py-1 outline-none focus:border-brand-400 placeholder-slate-300 ${varErrors[base.num] ? 'border-red-400' : 'border-slate-200'}`}
+                    />
+                    <button type="button" onClick={() => addVariant(base)}
+                      className="shrink-0 text-xs text-brand-500 hover:text-white hover:bg-brand-500 font-semibold px-2 py-1 rounded-lg border border-brand-200 hover:border-brand-500 transition-all"
+                    >+</button>
+                  </div>
+                  {varErrors[base.num] && (
+                    <p className="text-red-500 text-[10px]">{varErrors[base.num]}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Otras (no-standard) */}
+      <div className="rounded-xl border border-dashed border-slate-200 px-3 py-2.5 flex flex-col gap-1.5">
+        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Otras</p>
+        {otrasHistoricas.map((cat) => <VariantRow key={cat} v={cat} onCheck={() => onToggle(cat)} />)}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5">
+            <input type="text" value={customInput}
+              onChange={(e) => { setCustomInput(e.target.value); setCustomError('') }}
+              onKeyDown={(e) => { if (e.key === 'Enter') addCustom() }}
+              placeholder="Ej: Intermedia, +40 Open..."
+              className={`flex-1 text-xs bg-white border rounded-lg px-2 py-1 outline-none focus:border-brand-400 placeholder-slate-300 ${customError ? 'border-red-400' : 'border-slate-200'}`}
+            />
+            <button type="button" onClick={addCustom}
+              className="shrink-0 text-xs text-slate-500 hover:text-white hover:bg-slate-500 font-semibold px-2 py-1 rounded-lg border border-slate-200 hover:border-slate-500 transition-all"
+            >+</button>
+          </div>
+          {customError && <p className="text-red-500 text-[10px]">{customError}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const EMPTY_FORM = {
   nombre: '',
   categorias: [],
   genero: 'Masculino',
   cupoLibre: false,
   cuposPorCategoria: {},
+  cupoEspera: 5,
   formato: FORMATOS[0],
   canchasAsignadas: [],
   fechaInicio: '',
@@ -66,10 +288,26 @@ const toggleEstado = (estado) => {
 
 // ── Sub-componentes ───────────────────────────────────────────────────────────
 
+const ACENTO = {
+  draft:       'bg-slate-300',
+  open:        'bg-emerald-500',
+  closed:      'bg-amber-400',
+  in_progress: 'bg-sky-500',
+  finished:    'bg-slate-200',
+}
+
+const HOVER_BG = {
+  draft:       'hover:bg-slate-50',
+  open:        'hover:bg-emerald-50/60',
+  closed:      'hover:bg-amber-50/60',
+  in_progress: 'hover:bg-sky-50/60',
+  finished:    'hover:bg-slate-50',
+}
+
 const Badge = ({ estado }) => {
   const cfg = ESTADO_CONFIG[estado] ?? ESTADO_CONFIG.draft
   return (
-    <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${cfg.color}`}>
+    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border whitespace-nowrap ${cfg.color}`}>
       {cfg.label}
     </span>
   )
@@ -77,151 +315,154 @@ const Badge = ({ estado }) => {
 
 const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar }) => {
   const [confirmarEliminar, setConfirmarEliminar] = useState(false)
-  const cupo = totalCupo(torneo)
+  const cupo     = totalCupo(torneo)
   const cupoLleno = !torneo.cupoLibre && torneo.inscriptos.length >= cupo
-  const pct = cupo ? Math.round((torneo.inscriptos.length / cupo) * 100) : 0
-  const puedeToggle = ['draft', 'open', 'closed'].includes(torneo.estado)
-  const puedeEditarEliminar = ['draft', 'open', 'closed'].includes(torneo.estado)
+  const pct      = cupo ? Math.round((torneo.inscriptos.length / cupo) * 100) : 0
+  const puedeToggle          = ['draft', 'open', 'closed'].includes(torneo.estado)
+  const puedeEditarEliminar  = ['draft', 'open', 'closed'].includes(torneo.estado)
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col gap-4 hover:shadow-md transition-shadow">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-slate-800 font-semibold text-base truncate">{torneo.nombre}</h3>
-          <p className="text-slate-400 text-xs mt-0.5">
-            {torneo.categorias.join(', ')} · {torneo.formato}
-          </p>
+    <div onClick={() => onVerDetalle(torneo)} className={`group relative bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col hover:border-slate-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer ${HOVER_BG[torneo.estado] ?? HOVER_BG.draft}`}>
+
+      {/* Acento lateral de color por estado */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${ACENTO[torneo.estado] ?? ACENTO.draft} transition-all duration-200`} />
+
+      <div className="pl-5 pr-4 pt-4 pb-3 flex flex-col gap-3 flex-1">
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-slate-800 font-semibold text-sm leading-snug truncate">{torneo.nombre}</h3>
+            {torneo.descripcion && (
+              <p className="text-slate-400 text-xs mt-0.5 line-clamp-1">{torneo.descripcion}</p>
+            )}
+          </div>
+          <Badge estado={torneo.estado} />
+        </div>
+
+        {/* Meta row */}
+        <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
+          <div className="flex items-center gap-1 text-slate-400 text-xs">
+            <Calendar size={10} className="shrink-0" />
+            <span>{fmtFecha(torneo.fechaInicio)} → {fmtFecha(torneo.fechaFin)}</span>
+          </div>
+          <span className="text-slate-200 text-xs">·</span>
+          <span className="text-xs text-slate-400">{torneo.formato}</span>
           {torneo.genero && (
-            <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-md border ${(GENERO_CONFIG[torneo.genero] ?? GENERO_CONFIG.Masculino).color}`}>
-              {torneo.genero}
+            <>
+              <span className="text-slate-200 text-xs">·</span>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${(GENERO_CONFIG[torneo.genero] ?? GENERO_CONFIG.Masculino).color}`}>
+                {torneo.genero}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Categorías chips */}
+        <div className="flex flex-wrap gap-1">
+          {torneo.categorias.slice(0, 3).map((cat) => (
+            <span key={cat} className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+              {cat}
+            </span>
+          ))}
+          {torneo.categorias.length > 3 && (
+            <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+              +{torneo.categorias.length - 3} más
             </span>
           )}
         </div>
-        <Badge estado={torneo.estado} />
-      </div>
 
-      {/* Fechas */}
-      <div className="flex items-center gap-2 text-slate-500 text-xs">
-        <Calendar size={13} className="shrink-0" />
-        <span>{fmtFecha(torneo.fechaInicio)} → {fmtFecha(torneo.fechaFin)}</span>
-      </div>
-
-      {/* Descripción */}
-      {torneo.descripcion && (
-        <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">{torneo.descripcion}</p>
-      )}
-
-      {/* Cupo */}
-      <div>
-        <div className="flex justify-between items-center mb-1.5">
-          <span className="text-slate-500 text-xs">Parejas inscriptas</span>
-          {torneo.cupoLibre ? (
-            <span className="flex items-center gap-1 text-xs font-semibold text-sky-500">
-              <Infinity size={12} /> Libre
-            </span>
-          ) : (
-            <span className={`text-xs font-semibold ${cupoLleno ? 'text-red-500' : 'text-slate-700'}`}>
-              {torneo.inscriptos.length} / {cupo}
-            </span>
+        {/* Cupo */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Inscriptos</span>
+            {torneo.cupoLibre ? (
+              <span className="flex items-center gap-1 text-xs font-semibold text-sky-500">
+                <Infinity size={11} /> Sin límite
+              </span>
+            ) : (
+              <span className={`text-xs font-semibold tabular-nums ${cupoLleno ? 'text-red-500' : 'text-slate-600'}`}>
+                {torneo.inscriptos.length}
+                <span className="text-slate-400 font-normal"> / {cupo}</span>
+                <span className="text-slate-300 font-normal ml-1">({pct}%)</span>
+              </span>
+            )}
+          </div>
+          {!torneo.cupoLibre && (
+            <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${cupoLleno ? 'bg-red-400' : 'bg-brand-500'}`}
+                style={{ width: `${Math.min(pct, 100)}%` }}
+              />
+            </div>
           )}
         </div>
-        {!torneo.cupoLibre && (
-          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${cupoLleno ? 'bg-red-400' : 'bg-brand-500'}`}
-              style={{ width: `${Math.min(pct, 100)}%` }}
-            />
-          </div>
-        )}
-        {/* Desglose por categoría si hay más de una */}
-        {!torneo.cupoLibre && torneo.categorias.length > 1 && (
-          <div className="mt-2 flex flex-col gap-1">
-            {torneo.categorias.map((cat) => {
-              const max = torneo.cuposPorCategoria[cat] || 0
-              const inscCat = torneo.inscriptos.filter(i => i.categoria === cat).length
-              return (
-                <div key={cat} className="flex justify-between text-xs text-slate-400">
-                  <span>{cat}</span>
-                  <span>{inscCat}/{max}</span>
-                </div>
-              )
-            })}
-          </div>
-        )}
+
       </div>
 
       {/* Confirm eliminar */}
       {confirmarEliminar && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex flex-col gap-2">
+        <div className="mx-4 mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 flex flex-col gap-2">
           {torneo.inscriptos.length > 0 && (
             <div className="flex items-center gap-1.5 text-red-500 text-xs">
-              <AlertTriangle size={12} />
-              Hay {torneo.inscriptos.length} pareja{torneo.inscriptos.length !== 1 ? 's' : ''} inscripta{torneo.inscriptos.length !== 1 ? 's' : ''}. Se perderán todos los datos.
+              <AlertTriangle size={11} />
+              {torneo.inscriptos.length} pareja{torneo.inscriptos.length !== 1 ? 's' : ''} inscripta{torneo.inscriptos.length !== 1 ? 's' : ''}. Se perderán los datos.
             </div>
           )}
           <div className="flex items-center gap-2">
-            <p className="text-red-700 text-xs font-medium flex-1">¿Confirmás la eliminación?</p>
-            <button
-              onClick={() => setConfirmarEliminar(false)}
-              className="text-xs text-slate-500 hover:text-slate-700 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-all"
-            >
-              Cancelar
+            <p className="text-red-700 text-xs font-medium flex-1">¿Confirmás?</p>
+            <button onClick={() => setConfirmarEliminar(false)} className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded-lg hover:bg-slate-100 transition-all">
+              No
             </button>
-            <button
-              onClick={() => onEliminar(torneo.id)}
-              className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-3 py-1 rounded-lg transition-all"
-            >
-              Sí, eliminar
+            <button onClick={() => onEliminar(torneo.id)} className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-2.5 py-1 rounded-lg transition-all">
+              Eliminar
             </button>
           </div>
         </div>
       )}
 
       {/* Acciones */}
-      <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-        <button
-          onClick={() => onVerDetalle(torneo)}
-          className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-all flex-1 justify-center"
-        >
-          <Users size={13} />
-          Ver detalle ({torneo.inscriptos.length})
-        </button>
-        {puedeEditarEliminar && (
-          <>
+      <div className="px-4 py-2.5 border-t border-slate-100 flex items-center justify-between">
+        <span className="flex items-center gap-1 text-xs text-slate-400">
+          <Users size={11} />
+          {torneo.inscriptos.length} inscripto{torneo.inscriptos.length !== 1 ? 's' : ''}
+        </span>
+
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {puedeEditarEliminar && (
+            <>
+              <button onClick={() => onEditar(torneo)} title="Editar"
+                className="text-slate-300 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-lg transition-all">
+                <Pencil size={13} />
+              </button>
+              <button onClick={() => setConfirmarEliminar(true)} title="Eliminar"
+                className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all">
+                <Trash2 size={13} />
+              </button>
+            </>
+          )}
+
+          {puedeToggle && (
             <button
-              onClick={() => onEditar(torneo)}
-              className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-all"
-              title="Editar torneo"
+              onClick={() => onToggleEstado(torneo.id)}
+              title={torneo.estado === 'open' ? 'Cerrar inscripción' : 'Abrir inscripción'}
+              className={`p-1.5 rounded-lg transition-all ${
+                torneo.estado === 'open'
+                  ? 'text-emerald-500 hover:bg-emerald-50'
+                  : torneo.estado === 'closed'
+                    ? 'text-amber-400 hover:bg-amber-50'
+                    : 'text-slate-300 hover:text-slate-600 hover:bg-slate-100'
+              }`}
             >
-              <Pencil size={13} />
+              {torneo.estado === 'open'
+                ? <ToggleRight size={15} />
+                : torneo.estado === 'closed'
+                  ? <Lock size={13} />
+                  : <ToggleLeft size={15} />
+              }
             </button>
-            <button
-              onClick={() => setConfirmarEliminar(true)}
-              className="flex items-center gap-1.5 text-xs font-medium text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-all"
-              title="Eliminar torneo"
-            >
-              <Trash2 size={13} />
-            </button>
-          </>
-        )}
-        {puedeToggle && (
-          <button
-            onClick={() => onToggleEstado(torneo.id)}
-            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
-              torneo.estado === 'open'
-                ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
-                : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
-            }`}
-          >
-            {torneo.estado === 'open'
-              ? <><ToggleRight size={14} /> Insc. abierta</>
-              : torneo.estado === 'closed'
-                ? <><Lock size={14} /> Insc. cerrada</>
-                : <><ToggleLeft size={14} /> Abrir insc.</>
-            }
-          </button>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )
@@ -233,12 +474,19 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
   const esEdicion = torneoEditar !== null
   const todasCanchas = useClubStore((s) => s.club.canchas)
   const canchasClub = useMemo(() => todasCanchas.filter((c) => c.activa), [todasCanchas])
+  const { torneos, categoriasGuardadas, saveCategoria, deleteCategoria, renameCategoria } = useTorneosStore()
+  // Unión de variantes guardadas + usadas en torneos anteriores, sin duplicados
+  const historicas = useMemo(() =>
+    [...new Set([...categoriasGuardadas, ...torneos.flatMap((t) => t.categorias)])],
+    [torneos, categoriasGuardadas]
+  )
   const [form, setForm] = useState(() => esEdicion ? {
     nombre: torneoEditar.nombre,
     categorias: torneoEditar.categorias,
     genero: torneoEditar.genero ?? 'Masculino',
     cupoLibre: torneoEditar.cupoLibre,
     cuposPorCategoria: torneoEditar.cuposPorCategoria ?? {},
+    cupoEspera: torneoEditar.cupoEspera ?? 5,
     formato: torneoEditar.formato,
     canchasAsignadas: torneoEditar.canchasAsignadas ?? [],
     fechaInicio: torneoEditar.fechaInicio,
@@ -327,38 +575,15 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
 
           {/* Categorías */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-slate-600">Categorías</label>
-              <span className="text-xs text-slate-400">Podés seleccionar más de una</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {CATEGORIAS.map((cat) => {
-                const seleccionada = form.categorias.includes(cat)
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => toggleCategoria(cat)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left ${
-                      seleccionada
-                        ? 'border-brand-500 bg-brand-500/8 text-brand-700'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                      seleccionada ? 'bg-brand-500 border-brand-500' : 'border-slate-300 bg-white'
-                    }`}>
-                      {seleccionada && (
-                        <svg viewBox="0 0 10 8" className="w-2.5 h-2.5 fill-white">
-                          <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                        </svg>
-                      )}
-                    </span>
-                    {cat}
-                  </button>
-                )
-              })}
-            </div>
+            <label className="text-xs font-medium text-slate-600 block mb-2">Categorías</label>
+            <CategoriasSelector
+              value={form.categorias}
+              onToggle={toggleCategoria}
+              historicas={historicas}
+              onSave={saveCategoria}
+              onDelete={deleteCategoria}
+              onRename={renameCategoria}
+            />
             {errors.categorias && <p className="text-red-500 text-xs mt-1.5">{errors.categorias}</p>}
           </div>
 
@@ -428,18 +653,29 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
           {/* Cupo */}
           {form.categorias.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="text-xs font-medium text-slate-600">Cupo de inscripción</label>
+              <label className="text-xs font-medium text-slate-600 block mb-2">Cupo de inscripción</label>
+              <div className="flex gap-2 mb-3">
                 <button
                   type="button"
-                  onClick={() => set('cupoLibre', !form.cupoLibre)}
-                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
-                    form.cupoLibre
-                      ? 'text-sky-600 bg-sky-50 border-sky-200'
-                      : 'text-slate-500 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                  onClick={() => set('cupoLibre', false)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-sm font-medium transition-all ${
+                    !form.cupoLibre
+                      ? 'border-brand-500 bg-brand-500/8 text-brand-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
                   }`}
                 >
-                  {form.cupoLibre ? <><Infinity size={13} /> Cupo libre</> : <><ToggleLeft size={13} /> Cupo máximo</>}
+                  <ToggleLeft size={14} /> Cupo máximo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set('cupoLibre', true)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-sm font-medium transition-all ${
+                    form.cupoLibre
+                      ? 'border-sky-400 bg-sky-50 text-sky-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
+                  }`}
+                >
+                  <Infinity size={14} /> Cupo libre
                 </button>
               </div>
 
@@ -467,13 +703,40 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
                   {form.categorias.some(cat => errors[`cupo_${cat}`]) && (
                     <p className="text-red-500 text-xs">Todos los cupos deben ser mínimo 2</p>
                   )}
+                  {/* Lista de espera */}
+                  <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mt-1">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-amber-700">Lista de espera</p>
+                      <p className="text-xs text-amber-500 mt-0.5">Lugares extra si se baja alguna pareja</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        value={form.cupoEspera}
+                        onChange={(e) => set('cupoEspera', Math.max(0, Number(e.target.value)))}
+                        className="w-20 text-center bg-white border border-amber-200 rounded-lg px-2 py-1 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all"
+                      />
+                      <span className="text-xs text-amber-600 whitespace-nowrap">parejas</span>
+                    </div>
+                  </div>
                 </div>
               )}
 
               {form.cupoLibre && (
-                <p className="text-xs text-slate-400 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2.5">
-                  Sin límite de inscriptos. Podés cerrar la inscripción manualmente cuando lo necesites.
-                </p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {form.categorias.map((cat) => (
+                      <span key={cat} className="text-xs font-medium text-sky-600 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-lg">
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-400 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2.5">
+                    Sin límite de inscriptos. Podés cerrar la inscripción manualmente cuando lo necesites.
+                  </p>
+                </div>
               )}
             </div>
           )}
@@ -491,7 +754,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
           </div>
 
           {/* Fechas */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-slate-600 block mb-1">Fecha de inicio</label>
               <input
@@ -537,7 +800,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
               <label className="text-xs font-medium text-slate-600 block">
                 Inicio de fase eliminatoria <span className="text-slate-400">(opcional)</span>
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-slate-400 mb-1">Día</p>
                   <select
@@ -668,14 +931,14 @@ const TorneosPage = () => {
     <div className="flex flex-col gap-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-slate-800 text-2xl font-bold">Torneos</h1>
+          <h1 className="text-slate-800 text-xl md:text-2xl font-bold">Torneos</h1>
           <p className="text-slate-400 text-sm mt-0.5">Gestión y organización de torneos del club</p>
         </div>
         <button
           onClick={() => setModalNuevo(true)}
-          className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm shadow-brand-500/20"
+          className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm shadow-brand-500/20 w-fit"
         >
           <Plus size={16} />
           Nuevo torneo
@@ -740,7 +1003,7 @@ const TorneosPage = () => {
             </div>
           ) : tabActiva === 'finalizados' ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-100">
                     <th className="text-left text-xs font-semibold text-slate-500 pb-3 pr-4">Torneo</th>

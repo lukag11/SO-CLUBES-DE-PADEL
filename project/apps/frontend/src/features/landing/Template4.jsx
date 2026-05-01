@@ -42,7 +42,7 @@ const Template4 = ({ club, onCta }) => {
         {/* Glow background */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-3xl opacity-[0.07]" style={{ backgroundColor: colorPrimario }} />
 
-        <div className="relative z-10 max-w-6xl mx-auto w-full py-32 pl-8">
+        <div className="relative z-10 max-w-6xl mx-auto w-full py-16 md:py-32 pl-4 md:pl-8">
           {heroBadge && (
             <div className="flex items-center gap-3 mb-8">
               <div className="h-px w-12" style={{ backgroundColor: colorPrimario }} />
@@ -50,7 +50,7 @@ const Template4 = ({ club, onCta }) => {
             </div>
           )}
 
-          <h1 className="text-6xl md:text-8xl font-black text-white leading-none tracking-tighter mb-6">
+          <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-black text-white leading-none tracking-tighter mb-6">
             {heroTitulo && <span className="block">{heroTitulo}</span>}
             {heroTituloDestacado && (
               <span className="block" style={{
@@ -66,7 +66,7 @@ const Template4 = ({ club, onCta }) => {
             <p className="text-lg text-white/45 max-w-lg mb-10 leading-relaxed">{heroSubtitulo}</p>
           )}
 
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-4">
             <button onClick={onCta} className="inline-flex items-center gap-3 font-black text-base px-8 py-4 rounded-xl transition-all duration-200 border-2" style={{ backgroundColor: colorPrimario, borderColor: colorPrimario, color: '#080808' }}>
               {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={18} />
             </button>
@@ -76,7 +76,7 @@ const Template4 = ({ club, onCta }) => {
           </div>
 
           {/* Stats row */}
-          <div className="flex items-center gap-10 mt-16 pt-8 border-t border-white/5">
+          <div className="flex flex-wrap items-center gap-6 md:gap-10 mt-12 md:mt-16 pt-8 border-t border-white/5">
             <div>
               <p className="text-4xl font-black" style={{ color: colorPrimario }}>{canchasActivas.length}</p>
               <p className="text-white/30 text-xs uppercase tracking-widest mt-0.5">Canchas</p>

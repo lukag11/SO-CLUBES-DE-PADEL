@@ -50,17 +50,17 @@ const Template5 = ({ club, onCta }) => {
         {/* Línea vertical divisoria */}
         <div className="absolute left-[50%] top-16 bottom-16 w-px hidden md:block opacity-20" style={{ backgroundColor: colorPrimario }} />
 
-        <div className="relative z-10 max-w-6xl mx-auto w-full px-6 py-32 grid md:grid-cols-[1fr_auto_1fr] gap-0 items-center">
+        <div className="relative z-10 max-w-6xl mx-auto w-full px-6 py-16 md:py-32 grid md:grid-cols-[1fr_auto_1fr] gap-0 items-center">
 
           {/* Texto izquierda */}
-          <div className="flex flex-col gap-7 pr-12">
+          <div className="flex flex-col gap-7 md:pr-12">
             {heroBadge && (
               <div className="flex items-center gap-3">
                 <div className="w-6 h-px" style={{ backgroundColor: colorPrimario }} />
                 <span className="text-xs font-medium tracking-[0.15em] uppercase" style={{ color: colorPrimario }}>{heroBadge}</span>
               </div>
             )}
-            <h1 className="text-5xl md:text-[3.75rem] font-black text-white leading-[1.05] tracking-tight">
+            <h1 className="text-3xl sm:text-5xl md:text-[3.75rem] font-black text-white leading-[1.05] tracking-tight">
               {heroTitulo && <span className="block">{heroTitulo}</span>}
               {heroTituloDestacado && (
                 <span className="italic" style={{ color: colorPrimario }}>{heroTituloDestacado}</span>

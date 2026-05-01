@@ -236,11 +236,13 @@ const BracketView = ({
   onCargarResultado = null,
   onEditarHorario = null,
   hideHeader = false,
+  accentColorOverride = null,
+  colorCardOverride = null,
 }) => {
   const { rondas }   = bracket
-  const accentColor  = torneo.colorAcento  || '#afca0b'
+  const accentColor  = accentColorOverride || torneo.colorAcento || '#afca0b'
   const cardStyle    = torneo.estiloCard   ?? 'oscura'
-  const colorCard    = torneo.colorCard    ?? null
+  const colorCard    = colorCardOverride ?? torneo.colorCard ?? null
   const fontScale    = torneo.fontScale    ?? 'normal'
   const sponsorScale = torneo.sponsorScale ?? 'normal'
   const canchaName   = (canchaId) => club?.canchas?.find((c) => c.id === Number(canchaId))?.nombre ?? null

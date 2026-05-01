@@ -1,10 +1,10 @@
-import { useState, useEffect, Fragment, useMemo } from 'react'
+import { useState, useEffect, useRef, Fragment, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Trophy, Medal, Users, Calendar, Zap, Trash2,
   ToggleLeft, ToggleRight, Lock, CheckCircle, Clock, Archive,
   AlertTriangle, Shuffle, CheckCheck, GitMerge, UserPlus, Plus, X, Pencil, Swords,
-  Palette,
+  Palette, ChevronDown, Maximize2, Minimize2, Share2,
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
 import {
@@ -22,7 +22,8 @@ import {
   calcularGanadorDesdeResultado,
 } from '../services/torneoService'
 import useClubStore from '../store/clubStore'
-import BracketView from '../components/BracketView'
+import usePlayerNotificationsStore from '../store/playerNotificationsStore'
+import BracketView, { BracketCard } from '../components/BracketView'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ const toggleEstado = (estado) => {
 
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
-const FRANJAS_HORARIAS = ['Mañana (8-12)', 'Tarde (12-17)', 'Noche (17-22)']
+const HORAS_DISPONIBLES = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00']
 
 const MAX_SLOTS_ADMIN = 2
 
@@ -69,7 +70,7 @@ const getDiasValidos = (fechaInicio, fechaFin) => {
 const tieneOverlap = (p1, p2) => {
   if (!p1?.disponibilidad?.length || !p2?.disponibilidad?.length) return true
   return p1.disponibilidad.some((s1) =>
-    p2.disponibilidad.some((s2) => s1.dia === s2.dia && s1.franja === s2.franja)
+    p2.disponibilidad.some((s2) => s1.dia === s2.dia)
   )
 }
 
@@ -319,7 +320,7 @@ const ZonaSetupCard = ({ zona, zonaIdx, swapSource, onSelectPair }) => {
                           ? 'text-amber-600 bg-amber-50 border border-amber-100'
                           : 'text-slate-400 bg-slate-100'
                       }`}>
-                        {s.dia.slice(0, 3)} · {s.franja.split('(')[0].trim()}
+                        {s.dia.slice(0, 3)} · {s.horaDesde}
                       </span>
                     ))}
                   </div>
@@ -338,6 +339,110 @@ const ZonaSetupCard = ({ zona, zonaIdx, swapSource, onSelectPair }) => {
 }
 
 // ── Tabla de zona — modo juego confirmado ─────────────────────────────────────
+const computeWins = (zona) => {
+  const w = {}
+  zona.parejas.forEach((p) => { w[p.id] = 0 })
+  zona.partidos.forEach((p) => { if (p.ganador) w[p.ganador.id] = (w[p.ganador.id] || 0) + 1 })
+  return w
+}
+
+const ZonaCardCompact = ({ zona, onClick }) => {
+  const wins      = computeWins(zona)
+  const jugados   = zona.partidos.filter((p) => p.estado === 'finalizado').length
+  const total     = zona.partidos.length
+  const completada = !!zona.clasificados
+  const pct       = total ? Math.round((jugados / total) * 100) : 0
+
+  return (
+    <div
+      onClick={onClick}
+      className="group bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 cursor-pointer hover:border-brand-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-brand-500/10 flex items-center justify-center shrink-0">
+            <span className="text-brand-600 text-xs font-black">{zona.nombre.replace('Zona ', '')}</span>
+          </div>
+          <div className="min-w-0">
+            <span className="text-sm font-bold text-slate-800">{zona.nombre}</span>
+            {zona.categoria && (
+              <span className="ml-1.5 text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md font-medium">{zona.categoria}</span>
+            )}
+          </div>
+        </div>
+        {completada ? (
+          <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-lg shrink-0">
+            <CheckCheck size={10} /> Completa
+          </span>
+        ) : (
+          <span className="text-[10px] font-semibold text-amber-500 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg shrink-0">
+            En juego
+          </span>
+        )}
+      </div>
+
+      {/* Equipos */}
+      <div className="flex flex-col gap-1">
+        {zona.parejas.map((pareja, idx) => {
+          const esC1     = zona.clasificados?.[0]?.id === pareja.id
+          const esC2     = zona.clasificados?.[1]?.id === pareja.id
+          const eliminado = zona.clasificados && !esC1 && !esC2
+          const w        = zona.capacidad === 3 ? (wins[pareja.id] ?? 0) : null
+          return (
+            <div key={pareja.id} className="flex items-center gap-2">
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                esC1 ? 'bg-amber-400 text-white' : esC2 ? 'bg-slate-400 text-white' : 'bg-slate-100 text-slate-500'
+              }`}>{idx + 1}</span>
+              <span className={`text-xs flex-1 truncate ${eliminado ? 'text-slate-300 line-through' : 'text-slate-600'}`}>
+                {pareja.jugador1} / {pareja.jugador2}
+              </span>
+              {w !== null && <span className="text-[10px] text-slate-400 shrink-0">{w}V</span>}
+              {esC1 && <span className="text-[10px] font-black text-amber-500 shrink-0">1°</span>}
+              {esC2 && <span className="text-[10px] font-black text-slate-400 shrink-0">2°</span>}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Progreso */}
+      <div className="flex flex-col gap-1 pt-2 border-t border-slate-100">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">Partidos</span>
+          <span className="text-[10px] font-semibold text-slate-500">{jugados}/{total} jugados</span>
+        </div>
+        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${completada ? 'bg-emerald-500' : 'bg-brand-500'}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div className="flex items-center justify-center gap-1 text-xs text-brand-500 group-hover:text-brand-600 font-medium">
+        Ver partidos <ChevronDown size={11} />
+      </div>
+    </div>
+  )
+}
+
+const ZonaDetailModal = ({ zona, zonaIdx, onClose, onResultado, onResolveTie, canchaName }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+    <div className="relative bg-slate-50 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
+      <div className="flex items-center justify-end px-4 py-2.5 bg-white border-b border-slate-100">
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-lg transition-all">
+          <X size={18} />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        <ZonaTable zona={zona} zonaIdx={zonaIdx} onResultado={onResultado} onResolveTie={onResolveTie} canchaName={canchaName} />
+      </div>
+    </div>
+  </div>
+)
+
 const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName }) => {
   const [expandedId, setExpandedId] = useState(null)
 
@@ -347,12 +452,7 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName }) => 
     return idx >= 0 ? idx + 1 : null
   }
 
-  const wins = (() => {
-    const w = {}
-    zona.parejas.forEach((p) => { w[p.id] = 0 })
-    zona.partidos.forEach((p) => { if (p.ganador) w[p.ganador.id] = (w[p.ganador.id] || 0) + 1 })
-    return w
-  })()
+  const wins = computeWins(zona)
 
   const jugados = zona.partidos.filter((p) => p.estado === 'finalizado').length
 
@@ -419,12 +519,9 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName }) => 
                   {partido.slot.dia}
                   {partido.slot.hora
                     ? <span className="text-slate-400 font-normal"> · <span className="font-bold text-slate-800">{partido.slot.hora} hs</span></span>
-                    : <span className="font-normal text-slate-400"> · {partido.slot.franja}</span>
+                    : <span className="font-normal text-slate-400"> · sin hora exacta</span>
                   }
                 </p>
-                {partido.slot.hora && (
-                  <p className="text-[10px] text-slate-400 mt-0.5">{partido.slot.franja}</p>
-                )}
                 {partido.cancha && (
                   <p className="text-brand-600 font-semibold mt-0.5">{canchaName(partido.cancha)}</p>
                 )}
@@ -531,11 +628,11 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName }) => 
         </div>
         <div className="flex items-center gap-3">
           <span className="text-slate-400 text-xs">{jugados}/{zona.partidos.length} jugados</span>
-          {zona.clasificados ? (
+          {zona.clasificados && (
             <span className="flex items-center gap-1.5 text-emerald-600 text-xs font-semibold bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
               <CheckCheck size={12} /> Completada
             </span>
-          ) : null}
+          )}
         </div>
       </div>
 
@@ -599,16 +696,407 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName }) => 
   )
 }
 
+// ── Pareja card compacta ──────────────────────────────────────────────────────
+
+const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
+  const [confirmando, setConfirmando] = useState(false)
+  const slots = ins.disponibilidad ?? []
+  const diaAbrev = (dia) => dia?.slice(0, 2) ?? '?'
+
+  return (
+    <div className={`bg-white border rounded-xl p-2.5 flex flex-col gap-1.5 transition-all ${confirmando ? 'border-red-200 bg-red-50/40' : 'border-slate-100 hover:border-slate-200 hover:shadow-sm'}`}>
+      {/* Fila 1: número + categoría + acciones */}
+      <div className="flex items-center gap-1.5">
+        <span className="w-5 h-5 bg-slate-100 rounded-md flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0">
+          {idx + 1}
+        </span>
+        <span className="flex-1 text-[9px] font-semibold text-slate-400 uppercase tracking-wide truncate">
+          {ins.categoria}
+        </span>
+        {estadoTorneo === 'open' && !confirmando && (
+          <button onClick={() => onEditar(ins)} className="text-slate-300 hover:text-brand-500 p-0.5 rounded transition-colors" title="Editar disponibilidad">
+            <Pencil size={11} />
+          </button>
+        )}
+        {estadoTorneo !== 'finished' && !confirmando && (
+          <button onClick={() => setConfirmando(true)} className="text-red-300 hover:text-red-500 p-0.5 rounded transition-colors" title="Dar de baja">
+            <Trash2 size={11} />
+          </button>
+        )}
+      </div>
+
+      {/* Fila 2: nombres */}
+      <p className="text-slate-800 text-xs font-semibold leading-snug truncate">
+        {ins.jugador1} / {ins.jugador2}
+      </p>
+
+      {/* Chip mismo día */}
+      {ins.prefiereMismoDia && (
+        <span className="inline-flex items-center gap-1 text-[9px] font-medium text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded self-start">
+          <Swords size={8} />
+          Mismo día
+        </span>
+      )}
+
+      {/* Fila 3: horarios */}
+      {slots.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {slots.map((s, i) => (
+            <span key={i} className="inline-flex items-center gap-0.5 text-[9px] font-medium text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
+              {diaAbrev(s.dia)} {s.horaDesde}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="text-[9px] text-slate-300">Sin horarios</span>
+      )}
+
+      {/* Confirmación de baja */}
+      {confirmando && (
+        <div className="flex items-center gap-1.5 pt-1 border-t border-red-100">
+          <span className="flex-1 text-[9px] text-red-500 font-medium">¿Dar de baja?</span>
+          <button
+            onClick={() => { onBaja(ins.id, ins); setConfirmando(false) }}
+            className="text-[9px] font-semibold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded transition-colors"
+          >
+            Sí
+          </button>
+          <button
+            onClick={() => setConfirmando(false)}
+            className="text-[9px] font-semibold text-slate-500 hover:text-slate-700 px-2 py-0.5 rounded border border-slate-200 transition-colors"
+          >
+            No
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Pareja en lista de espera ─────────────────────────────────────────────────
+
+const EsperaCard = ({ ins, estadoTorneo, onPromover, onBaja }) => {
+  const [confirmando, setConfirmando] = useState(false)
+
+  return (
+    <div className={`bg-amber-50 border rounded-xl p-2.5 flex flex-col gap-1.5 transition-all ${confirmando ? 'border-red-200 bg-red-50/40' : 'border-amber-200 hover:border-amber-300'}`}>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[9px] font-semibold text-amber-600 uppercase tracking-wide flex-1 truncate">
+          {ins.categoria}
+        </span>
+        {estadoTorneo !== 'finished' && !confirmando && (
+          <button
+            onClick={onPromover}
+            title="Promover a inscripto"
+            className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 px-1.5 py-0.5 rounded transition-colors"
+          >
+            Promover
+          </button>
+        )}
+        {estadoTorneo !== 'finished' && !confirmando && (
+          <button onClick={() => setConfirmando(true)} className="text-red-300 hover:text-red-500 p-0.5 rounded transition-colors" title="Eliminar de espera">
+            <Trash2 size={11} />
+          </button>
+        )}
+      </div>
+      <p className="text-slate-800 text-xs font-semibold leading-snug truncate">
+        {ins.jugador1} / {ins.jugador2}
+      </p>
+      {confirmando && (
+        <div className="flex items-center gap-1.5 pt-1 border-t border-red-100">
+          <span className="flex-1 text-[9px] text-red-500 font-medium">¿Eliminar?</span>
+          <button
+            onClick={() => { onBaja(); setConfirmando(false) }}
+            className="text-[9px] font-semibold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded transition-colors"
+          >
+            Sí
+          </button>
+          <button
+            onClick={() => setConfirmando(false)}
+            className="text-[9px] font-semibold text-slate-500 hover:text-slate-700 px-2 py-0.5 rounded border border-slate-200 transition-colors"
+          >
+            No
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Modal publicar bracket en redes ──────────────────────────────────────────
+
+const FORMATOS = [
+  { key: '1:1',  label: 'Cuadrado',  w: 1080, h: 1080, desc: 'Instagram feed' },
+  { key: '4:5',  label: 'Vertical',  w: 1080, h: 1350, desc: 'Instagram retrato' },
+  { key: '16:9', label: 'Apaisado',  w: 1920, h: 1080, desc: 'Twitter / Facebook' },
+]
+
+// ── Preview de una ronda para publicar ───────────────────────────────────────
+
+const RondaPreview = ({ torneo, club, ronda, seedingMap, accentColor, colorCard, cardStyle, selectedCat, isLandscape }) => {
+  const partidos = ronda?.partidos ?? []
+  const cols = partidos.length <= 1
+    ? 1
+    : partidos.length <= 2
+      ? (isLandscape ? 2 : 1)
+      : partidos.length <= 4
+        ? 2
+        : isLandscape ? 4 : 2
+
+  return (
+    <div className="w-full h-full flex flex-col" style={{ background: '#0d1117' }}>
+
+      {/* Branding header */}
+      <div
+        className="flex items-center gap-5 px-8 py-5 shrink-0"
+        style={{ borderBottom: `2px solid ${accentColor}35` }}
+      >
+        {club?.logoUrl && (
+          <img src={club.logoUrl} alt="" className="h-14 w-14 object-contain rounded-xl shrink-0 opacity-90" />
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-white/35 text-[10px] font-semibold uppercase tracking-[0.2em] truncate">{selectedCat}</p>
+          <p className="text-white font-bold text-xl leading-tight truncate">{torneo.nombre}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-sm font-bold uppercase tracking-widest" style={{ color: accentColor }}>
+            {ronda?.nombre}
+          </p>
+          {torneo.fechaInicio && (
+            <p className="text-white/30 text-xs mt-0.5">{fmtFecha(torneo.fechaInicio)}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Matches grid */}
+      <div className="flex-1 flex items-center justify-center px-6 py-4">
+        <div
+          className="grid gap-3 w-full"
+          style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}
+        >
+          {partidos.map((partido) => (
+            <BracketCard
+              key={partido.id}
+              partido={partido}
+              seedingMap={seedingMap}
+              accentColor={accentColor}
+              cardStyle={cardStyle}
+              colorCard={colorCard}
+              isLarge={partidos.length <= 2}
+              fontScale={partidos.length <= 2 ? 'grande' : 'normal'}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Club footer */}
+      <div className="flex items-center justify-center gap-2 py-3 shrink-0">
+        <span className="inline-block w-1 h-1 rounded-full" style={{ background: accentColor }} />
+        <p className="text-white/25 text-[10px] font-medium tracking-[0.18em] uppercase">
+          {club?.nombre ?? 'Club'}
+        </p>
+        <span className="inline-block w-1 h-1 rounded-full" style={{ background: accentColor }} />
+      </div>
+
+    </div>
+  )
+}
+
+// ── Modal publicar en redes (por ronda) ──────────────────────────────────────
+
+const PublicarBracketModal = ({ torneo, club, activeBracket, seedingMap, selectedCat, onClose }) => {
+  const rondas                  = activeBracket?.rondas ?? []
+  const [formato, setFormato]   = useState('16:9')
+  const [rondaIdx, setRondaIdx] = useState(() => Math.max(0, rondas.length - 1))
+  const [vista, setVista]       = useState('ronda') // 'ronda' | 'completo'
+
+  const fmt         = FORMATOS.find((f) => f.key === formato) ?? FORMATOS[0]
+  const isLandscape = fmt.key === '16:9'
+  const rondaActual = rondas[rondaIdx] ?? null
+
+  const accentColor = torneo.bracketColores?.[selectedCat]  || torneo.colorAcento   || '#afca0b'
+  const colorCard   = torneo.bracketColorCards?.[selectedCat] || torneo.colorCard   || null
+  const cardStyle   = torneo.estiloCardFixture ?? 'oscura'
+
+  const maxH = typeof window !== 'undefined' ? window.innerHeight * 0.65 : 620
+  const maxW = 580
+  const scale    = Math.min(maxH / fmt.h, maxW / fmt.w, 1)
+  const previewW = fmt.w * scale
+  const previewH = fmt.h * scale
+
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden w-full max-w-4xl max-h-[95vh]">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 shrink-0">
+          <Share2 size={15} className="text-brand-500 shrink-0" />
+          <span className="text-slate-800 font-semibold text-sm">Publicar en redes</span>
+
+          {/* Toggle vista */}
+          <div className="flex items-center gap-0.5 bg-slate-100 rounded-xl p-0.5 ml-2">
+            <button
+              onClick={() => setVista('ronda')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                vista === 'ronda' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              Por ronda
+            </button>
+            <button
+              onClick={() => setVista('completo')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                vista === 'completo' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              Cuadro completo
+            </button>
+          </div>
+
+          <div className="flex-1" />
+
+          {/* Selector de formato — solo en vista ronda */}
+          {vista === 'ronda' && (
+            <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-0.5">
+              {FORMATOS.map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setFormato(f.key)}
+                  className={`flex flex-col items-center px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all leading-tight ${
+                    formato === f.key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <span>{f.label}</span>
+                  <span className={`font-normal ${formato === f.key ? 'text-slate-400' : 'text-slate-300'}`}>{f.desc}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-600 p-1.5 rounded-lg transition-colors ml-1">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Selector de ronda — solo en vista ronda */}
+        {vista === 'ronda' && (
+          <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-slate-100 bg-slate-50/60 shrink-0 overflow-x-auto">
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mr-1 shrink-0">Ronda:</span>
+            {rondas.map((ronda, idx) => (
+              <button
+                key={idx}
+                onClick={() => setRondaIdx(idx)}
+                className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  rondaIdx === idx
+                    ? 'bg-brand-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {ronda.nombre}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Preview — por ronda */}
+        {vista === 'ronda' && (
+          <div className="flex-1 overflow-auto flex items-center justify-center bg-slate-100 p-6">
+            <div
+              className="relative shrink-0 rounded-xl shadow-2xl ring-1 ring-black/10 overflow-hidden"
+              style={{ width: previewW, height: previewH }}
+            >
+              <div
+                style={{
+                  width:           fmt.w,
+                  height:          fmt.h,
+                  transform:       `scale(${scale})`,
+                  transformOrigin: 'top left',
+                  position:        'absolute',
+                  top:             0,
+                  left:            0,
+                }}
+              >
+                <RondaPreview
+                  torneo={torneo}
+                  club={club}
+                  ronda={rondaActual}
+                  seedingMap={seedingMap}
+                  accentColor={accentColor}
+                  colorCard={colorCard}
+                  cardStyle={cardStyle}
+                  selectedCat={selectedCat}
+                  isLandscape={isLandscape}
+                />
+              </div>
+              <div className="absolute bottom-2 right-2 bg-black/50 text-white/50 text-[9px] font-mono px-2 py-0.5 rounded-md pointer-events-none">
+                {fmt.w} × {fmt.h}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Preview — cuadro completo */}
+        {vista === 'completo' && (
+          <div className="flex-1 overflow-auto bg-[#0d1117] p-4">
+            <BracketView
+              bracket={activeBracket}
+              torneo={torneo}
+              club={club}
+              seedingMap={seedingMap}
+              selectedCat={selectedCat}
+              accentColorOverride={accentColor}
+              colorCardOverride={colorCard}
+              hideHeader={false}
+            />
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="flex items-center gap-3 px-5 py-3.5 border-t border-slate-100 shrink-0 bg-white">
+          <p className="flex-1 text-xs text-slate-400">
+            {vista === 'ronda'
+              ? 'Seleccioná la ronda y el formato antes de publicar.'
+              : 'Vista completa del cuadro — scroll horizontal para ver todas las rondas.'}
+          </p>
+          <button
+            onClick={onClose}
+            className="text-sm font-medium text-slate-500 hover:text-slate-700 px-4 py-2 rounded-xl transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            disabled
+            title="Disponible cuando se conecte el backend"
+            className="flex items-center gap-2 text-sm font-semibold text-white bg-brand-400 px-5 py-2 rounded-xl opacity-50 cursor-not-allowed"
+          >
+            <Share2 size={14} />
+            Publicar
+          </button>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
 // ── Modal agregar pareja (admin — carga manual) ───────────────────────────────
 
 const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
   const [jugador1, setJugador1]                 = useState('')
+  const [jugador1Dni, setJugador1Dni]           = useState('')
   const [jugador2, setJugador2]                 = useState('')
+  const [jugador2Dni, setJugador2Dni]           = useState('')
   const [categoria, setCategoria]               = useState(torneo.categorias[0] ?? '')
   const [slots, setSlots]                       = useState([])
   const [prefiereMismoDia, setPrefiereMismoDia] = useState(false)
   const [diaSelec, setDiaSelec]                 = useState('')
-  const [franjaSelec, setFranjaSelec]           = useState('')
+  const [horaSelec, setHoraSelec]               = useState('')
   const [slotError, setSlotError]               = useState('')
   const [formError, setFormError]               = useState('')
 
@@ -619,25 +1107,32 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
   const horaCorte    = torneo.horaInicioEliminatoria ?? null
   const diasValidos  = getDiasValidos(torneo.fechaInicio, torneo.fechaFin)
     .filter((dia) => esSlotDeGrupos(dia, '00:00', diaCorte, horaCorte))
-  const franjasParaDia = (dia) =>
-    FRANJAS_HORARIAS.filter((f) => esSlotDeGrupos(dia, f, diaCorte, horaCorte))
+  const horasParaDia = (dia) =>
+    HORAS_DISPONIBLES.filter((h) => esSlotDeGrupos(dia, h, diaCorte, horaCorte))
 
-  // Validación de cupo
+  const diasLibres = diasValidos.filter((d) => !slots.some((s) => s.dia === d))
+
+  // Si el día seleccionado ya fue agregado, mover al primer día libre
+  useEffect(() => {
+    if (!diasLibres.includes(diaSelec)) {
+      const primerLibre = diasLibres[0] ?? ''
+      setDiaSelec(primerLibre)
+      setHoraSelec(primerLibre ? (horasParaDia(primerLibre)[0] ?? '') : '')
+    }
+  }, [slots]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Validación de cupo (no cuenta los que están en lista de espera)
   const cupoCategoria  = torneo.cupoLibre ? null : (torneo.cuposPorCategoria?.[categoria] ?? null)
-  const inscriptosEnCat = torneo.inscriptos.filter((i) => i.categoria === categoria).length
+  const inscriptosEnCat = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado !== 'espera').length
   const cupoLleno      = cupoCategoria !== null && inscriptosEnCat >= cupoCategoria
 
   const handleAddSlot = () => {
-    if (!diaSelec || !franjaSelec) return
+    if (!diaSelec || !horaSelec) return
     if (slots.length >= MAX_SLOTS_ADMIN) {
       setSlotError(`Máximo ${MAX_SLOTS_ADMIN} horarios por pareja.`)
       return
     }
-    if (slots.some((s) => s.dia === diaSelec && s.franja === franjaSelec)) {
-      setSlotError('Ese horario ya fue agregado.')
-      return
-    }
-    setSlots([...slots, { dia: diaSelec, franja: franjaSelec }])
+    setSlots([...slots, { dia: diaSelec, horaDesde: horaSelec }])
     setSlotError('')
   }
 
@@ -651,7 +1146,9 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
     }
     onConfirmar({
       jugador1: jugador1.trim(),
+      jugador1Dni: jugador1Dni.trim(),
       jugador2: jugador2.trim(),
+      jugador2Dni: jugador2Dni.trim(),
       categoria,
       disponibilidad: slots,
       prefiereMismoDia,
@@ -666,10 +1163,10 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
 
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
           <div>
-            <h2 className="text-slate-800 font-bold text-base">Agregar pareja</h2>
-            <p className="text-slate-400 text-xs mt-0.5">Carga manual — admin</p>
+            <h2 className="text-slate-800 font-bold text-sm">Agregar pareja</h2>
+            <p className="text-slate-400 text-[11px] mt-0.5 leading-none">Carga manual — admin</p>
           </div>
           <button
             onClick={onClose}
@@ -680,36 +1177,61 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
 
-          {/* Jugadores */}
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Jugadores</label>
-            <input
-              type="text"
-              placeholder="Jugador 1"
-              value={jugador1}
-              onChange={(e) => { setJugador1(e.target.value); setFormError('') }}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
-            />
-            <input
-              type="text"
-              placeholder="Jugador 2"
-              value={jugador2}
-              onChange={(e) => { setJugador2(e.target.value); setFormError('') }}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
-            />
-            {formError && <p className="text-red-500 text-xs">{formError}</p>}
+          {/* Jugadores — grilla 2x2: nombre | DNI para cada uno */}
+          <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 1</label>
+              <input
+                type="text"
+                placeholder="Nombre y apellido"
+                value={jugador1}
+                onChange={(e) => { setJugador1(e.target.value); setFormError('') }}
+                className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 2</label>
+              <input
+                type="text"
+                placeholder="Nombre y apellido"
+                value={jugador2}
+                onChange={(e) => { setJugador2(e.target.value); setFormError('') }}
+                className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">DNI J1</label>
+              <input
+                type="text"
+                placeholder="12345678"
+                value={jugador1Dni}
+                onChange={(e) => setJugador1Dni(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">DNI J2</label>
+              <input
+                type="text"
+                placeholder="12345678"
+                value={jugador2Dni}
+                onChange={(e) => setJugador2Dni(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
+              />
+            </div>
           </div>
+          {formError && <p className="text-red-500 text-xs -mt-1">{formError}</p>}
 
           {/* Categoría */}
           {torneo.categorias.length > 1 && (
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Categoría</label>
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Categoría</label>
               <select
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 bg-white"
+                className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 bg-white"
               >
                 {torneo.categorias.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -719,10 +1241,10 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
           {/* Disponibilidad */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                 Disponibilidad horaria
               </label>
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
                 slots.length >= MAX_SLOTS_ADMIN
                   ? 'bg-amber-100 text-amber-600'
                   : 'bg-slate-100 text-slate-500'
@@ -731,110 +1253,109 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
               </span>
             </div>
 
-            <div className="flex gap-2">
-              <select
-                value={diaSelec}
-                onChange={(e) => {
-                  const d = e.target.value
-                  setDiaSelec(d)
-                  const franjas = franjasParaDia(d)
-                  setFranjaSelec(franjas[1] ?? franjas[0] ?? '')
-                }}
-                className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
-              >
-                <option value="">Día</option>
-                {diasValidos.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
-              <select
-                value={franjaSelec}
-                onChange={(e) => setFranjaSelec(e.target.value)}
-                className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
-              >
-                <option value="">Horario</option>
-                {franjasParaDia(diaSelec || diasValidos[0] || '').map((f) => <option key={f} value={f}>{f}</option>)}
-              </select>
-              <button
-                onClick={handleAddSlot}
-                disabled={!diaSelec || !franjaSelec || slots.length >= MAX_SLOTS_ADMIN}
-                className="px-3 py-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white rounded-xl transition-all"
-              >
-                <Plus size={16} />
-              </button>
+            {/* Día + botón Agregar en fila — oculto si no hay días libres */}
+            <div className={diasLibres.length === 0 ? 'hidden' : 'flex flex-col gap-2'}>
+              <div className="flex gap-2">
+                <select
+                  value={diaSelec}
+                  onChange={(e) => {
+                    const d = e.target.value
+                    setDiaSelec(d)
+                    setHoraSelec(horasParaDia(d)[0] ?? '')
+                  }}
+                  className="flex-1 border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
+                >
+                  {diasLibres.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <button
+                  onClick={handleAddSlot}
+                  disabled={!diaSelec || !horaSelec || slots.length >= MAX_SLOTS_ADMIN}
+                  className="flex items-center gap-1 px-3 py-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white rounded-xl transition-all text-xs font-medium shrink-0"
+                >
+                  <Plus size={12} /> Agregar
+                </button>
+              </div>
+              {/* Grid horas */}
+              {diaSelec && (
+                <div className="grid grid-cols-5 gap-1">
+                  {horasParaDia(diaSelec).map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setHoraSelec(h)}
+                      className={`py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                        horaSelec === h
+                          ? 'bg-brand-500 border-brand-500 text-white'
+                          : 'bg-white border-slate-200 text-slate-500 hover:border-brand-300 hover:text-brand-600'
+                      }`}
+                    >
+                      {h}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {slotError && <p className="text-red-500 text-xs">{slotError}</p>}
 
+            {/* Slots agregados */}
             {slots.length > 0 && (
               <div className="flex flex-col gap-1.5">
                 {slots.map((s, i) => (
-                  <div key={i} className="flex items-center justify-between bg-brand-50 border border-brand-100 rounded-lg px-3 py-2 text-xs">
-                    <span className="text-brand-700 font-medium">{s.dia} · {s.franja}</span>
-                    <button
-                      onClick={() => handleRemoveSlot(i)}
-                      className="text-brand-300 hover:text-red-500 transition-colors"
-                    >
+                  <div key={i} className="flex items-center justify-between bg-brand-50 border border-brand-100 rounded-lg px-3 py-1.5 text-xs">
+                    <span className="text-brand-700 font-medium">{s.dia} · desde las {s.horaDesde}</span>
+                    <button onClick={() => handleRemoveSlot(i)} className="text-brand-300 hover:text-red-500 transition-colors">
                       <X size={13} />
                     </button>
                   </div>
                 ))}
               </div>
             )}
-
-            <p className="text-slate-400 text-xs">
-              Opcional. Indicá hasta {MAX_SLOTS_ADMIN} horarios en que la pareja puede jugar.
-            </p>
           </div>
 
-          {/* Prefiere mismo día */}
-          <div className="flex flex-col gap-1">
-            <button
-              onClick={() => soloUnDia && setPrefiereMismoDia((v) => !v)}
-              disabled={!soloUnDia}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
-                !soloUnDia
-                  ? 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
-                  : prefiereMismoDia
-                    ? 'border-[#afca0b]/30 bg-[#afca0b]/8 text-slate-700'
-                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
-              }`}
-            >
-              <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 border transition-all ${
-                prefiereMismoDia && soloUnDia ? 'bg-[#afca0b] border-[#afca0b]' : 'border-slate-300'
-              }`}>
-                {prefiereMismoDia && soloUnDia && <span className="text-white text-[10px] font-bold">✓</span>}
-              </div>
-              <span className="text-sm">Prefieren jugar los 2 partidos el mismo día</span>
-            </button>
-            {!soloUnDia && slots.length > 0 && (
-              <p className="text-xs text-slate-400 px-1">
-                Disponible solo si todos los horarios son del mismo día.
-              </p>
-            )}
-          </div>
+          {/* Prefiere mismo día — compacto */}
+          <button
+            onClick={() => soloUnDia && setPrefiereMismoDia((v) => !v)}
+            disabled={!soloUnDia}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all ${
+              !soloUnDia
+                ? 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
+                : prefiereMismoDia
+                  ? 'border-[#afca0b]/30 bg-[#afca0b]/8 text-slate-700'
+                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
+              prefiereMismoDia && soloUnDia ? 'bg-[#afca0b] border-[#afca0b]' : 'border-slate-300'
+            }`}>
+              {prefiereMismoDia && soloUnDia && <span className="text-white text-[9px] font-bold">✓</span>}
+            </div>
+            <span className="text-xs">Prefieren jugar los 2 partidos el mismo día</span>
+          </button>
         </div>
 
         {/* Alerta cupo lleno */}
         {cupoLleno && (
-          <div className="mx-6 mb-2 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
-            <AlertTriangle size={14} className="text-red-500 shrink-0" />
+          <div className="mx-5 mb-2 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+            <AlertTriangle size={13} className="text-red-500 shrink-0" />
             <p className="text-red-600 text-xs font-medium">
-              Cupo de <strong>{categoria}</strong> completo ({inscriptosEnCat}/{cupoCategoria} parejas). No podés agregar más.
+              Cupo de <strong>{categoria}</strong> completo ({inscriptosEnCat}/{cupoCategoria} parejas).
             </p>
           </div>
         )}
 
         {/* Footer */}
-        <div className="flex gap-2 px-6 py-4 border-t border-slate-100">
+        <div className="flex gap-2 px-5 py-3 border-t border-slate-100">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
+            className="flex-1 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
           >
             Cancelar
           </button>
           <button
             onClick={handleConfirmar}
             disabled={cupoLleno}
-            className="flex-1 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-sm shadow-brand-500/20"
+            className="flex-1 py-2 text-xs font-semibold text-white bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-sm shadow-brand-500/20"
           >
             Agregar pareja
           </button>
@@ -848,22 +1369,22 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
 
 const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) => {
   const [slots, setSlots]           = useState(inscripto.disponibilidad ? [...inscripto.disponibilidad] : [])
-  const [diaSelec, setDiaSelec]     = useState('')
-  const [franjaSelec, setFranjaSelec] = useState('')
-  const [slotError, setSlotError]   = useState('')
+  const [diaSelec, setDiaSelec]   = useState('')
+  const [horaSelec, setHoraSelec] = useState('')
+  const [slotError, setSlotError] = useState('')
 
   const diaCorte    = torneo.diaInicioEliminatoria  ?? null
   const horaCorte   = torneo.horaInicioEliminatoria ?? null
   const diasValidos = getDiasValidos(torneo.fechaInicio, torneo.fechaFin)
     .filter((dia) => esSlotDeGrupos(dia, '00:00', diaCorte, horaCorte))
-  const franjasParaDia = (dia) =>
-    FRANJAS_HORARIAS.filter((f) => esSlotDeGrupos(dia, f, diaCorte, horaCorte))
+  const horasParaDia = (dia) =>
+    HORAS_DISPONIBLES.filter((h) => esSlotDeGrupos(dia, h, diaCorte, horaCorte))
 
   const handleAddSlot = () => {
-    if (!diaSelec || !franjaSelec) return
+    if (!diaSelec || !horaSelec) return
     if (slots.length >= MAX_SLOTS_ADMIN) { setSlotError(`Máximo ${MAX_SLOTS_ADMIN} horarios.`); return }
-    if (slots.some((s) => s.dia === diaSelec && s.franja === franjaSelec)) { setSlotError('Ese horario ya fue agregado.'); return }
-    setSlots([...slots, { dia: diaSelec, franja: franjaSelec }])
+    if (slots.some((s) => s.dia === diaSelec && s.horaDesde === horaSelec)) { setSlotError('Ese horario ya fue agregado.'); return }
+    setSlots([...slots, { dia: diaSelec, horaDesde: horaSelec }])
     setSlotError('')
   }
 
@@ -886,40 +1407,52 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Franjas horarias</label>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Disponibilidad horaria</label>
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${slots.length >= MAX_SLOTS_ADMIN ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'}`}>
               {slots.length}/{MAX_SLOTS_ADMIN}
             </span>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-3">
             <select
               value={diaSelec}
               onChange={(e) => {
                 const d = e.target.value
                 setDiaSelec(d)
-                const franjas = franjasParaDia(d)
-                setFranjaSelec(franjas[0] ?? '')
+                setHoraSelec(horasParaDia(d)[0] ?? '')
               }}
-              className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
             >
-              <option value="">Día</option>
+              <option value="">Seleccioná un día</option>
               {diasValidos.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
-            <select
-              value={franjaSelec}
-              onChange={(e) => setFranjaSelec(e.target.value)}
-              className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
-            >
-              <option value="">Horario</option>
-              {franjasParaDia(diaSelec || diasValidos[0] || '').map((f) => <option key={f} value={f}>{f}</option>)}
-            </select>
+            {diaSelec && (
+              <div>
+                <p className="text-xs text-slate-400 mb-1.5">Desde las</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {horasParaDia(diaSelec).map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setHoraSelec(h)}
+                      className={`py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                        horaSelec === h
+                          ? 'bg-brand-500 border-brand-500 text-white'
+                          : 'bg-white border-slate-200 text-slate-500 hover:border-brand-300 hover:text-brand-600'
+                      }`}
+                    >
+                      {h}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <button
               onClick={handleAddSlot}
-              disabled={!diaSelec || !franjaSelec || slots.length >= MAX_SLOTS_ADMIN}
-              className="px-3 py-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white rounded-xl transition-all"
+              disabled={!diaSelec || !horaSelec || slots.length >= MAX_SLOTS_ADMIN}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white rounded-xl transition-all text-sm font-medium"
             >
-              <Plus size={16} />
+              <Plus size={14} /> Agregar disponibilidad
             </button>
           </div>
 
@@ -929,7 +1462,7 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
             <div className="flex flex-col gap-1.5">
               {slots.map((s, i) => (
                 <div key={i} className="flex items-center justify-between bg-brand-50 border border-brand-100 rounded-lg px-3 py-2 text-xs">
-                  <span className="text-brand-700 font-medium">{s.dia} · {s.franja}</span>
+                  <span className="text-brand-700 font-medium">{s.dia} · desde las {s.horaDesde}</span>
                   <button onClick={() => setSlots(slots.filter((_, j) => j !== i))} className="text-brand-300 hover:text-red-500 transition-colors">
                     <X size={13} />
                   </button>
@@ -938,7 +1471,7 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
             </div>
           ) : (
             <p className="text-slate-400 text-xs text-center py-4 bg-slate-50 rounded-xl">
-              Sin horarios — la pareja puede jugar cualquier franja disponible.
+              Sin horarios — la pareja puede jugar cualquier horario disponible.
             </p>
           )}
         </div>
@@ -1123,6 +1656,8 @@ const TorneoDetallePage = () => {
   const { torneos, setEstado, setBracket, updateBracket, bajaInscripto, setGanadores,
           setGrupos, updateGrupos, resolveGroupTie, addPareja, updatePareja,
           updatePersonalizacion } = useTorneosStore()
+  const addBajaInscripcionTorneo = usePlayerNotificationsStore((s) => s.addBajaInscripcionTorneo)
+  const addPromovido             = usePlayerNotificationsStore((s) => s.addPromovido)
   const club           = useClubStore((s) => s.club)
   const canchas        = club.canchas
   const canchasActivas = canchas.filter((c) => c.activa)
@@ -1131,9 +1666,13 @@ const TorneoDetallePage = () => {
   const [catTab, setCatTab]             = useState(() => torneos.find((x) => x.id === Number(id))?.categorias?.[0] ?? null)
   const [swapSource, setSwapSource]     = useState(null)
   const [modalAgregarAdmin, setModalAgregarAdmin] = useState(false)
+  const [zonaDetalleIdx, setZonaDetalleIdx]       = useState(null)
   const [editando, setEditando]         = useState(null)
   const [modalResultado, setModalResultado]       = useState(null)
   const [modalHorario,   setModalHorario]         = useState(null)
+  const [bracketFullscreen, setBracketFullscreen] = useState(false)
+  const [bracketPublicar,   setBracketPublicar]   = useState(false)
+  const [vistaParalela,     setVistaParalela]     = useState(false)
   const [persona, setPersona] = useState(() => {
     const t = torneos.find((x) => x.id === Number(id))
     return {
@@ -1163,6 +1702,8 @@ const TorneoDetallePage = () => {
       drawMostrarFechas:     t?.drawMostrarFechas     ?? true,
       drawMostrarCategorias: t?.drawMostrarCategorias ?? true,
       drawColorTitulo:       t?.drawColorTitulo       ?? '',
+      bracketColores:        t?.bracketColores        ?? {},
+      bracketColorCards:     t?.bracketColorCards     ?? {},
     }
   })
   const [selectedBracketCat, setSelectedBracketCat] = useState(() => {
@@ -1288,8 +1829,39 @@ const TorneoDetallePage = () => {
     setModalHorario(null)
   }
 
-  const handleBajaInscripto = (inscriptoId) => {
+  // ── Bracket fullscreen: Escape para cerrar ───────────────────────────────────
+  useEffect(() => {
+    if (!bracketFullscreen) return
+    const handleKey = (e) => { if (e.key === 'Escape') setBracketFullscreen(false) }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [bracketFullscreen])
+
+  const handleBajaInscripto = (inscriptoId, ins) => {
     bajaInscripto(torneo.id, inscriptoId)
+    // Si era inscripto confirmado, promover automáticamente el primero en espera (misma categoría)
+    if (ins?.estado !== 'espera') {
+      const primerEspera = torneo.inscriptos.find(
+        (i) => i.id !== inscriptoId && i.estado === 'espera' && i.categoria === ins?.categoria
+      )
+      if (primerEspera) {
+        updatePareja(torneo.id, primerEspera.id, { estado: 'inscripto' })
+        addPromovido({ torneoNombre: torneo.nombre, categoria: primerEspera.categoria })
+      }
+    }
+    if (ins) {
+      addBajaInscripcionTorneo({
+        torneoNombre: torneo.nombre,
+        categoria:    ins.categoria,
+        jugador1:     ins.jugador1,
+        jugador2:     ins.jugador2,
+      })
+    }
+  }
+
+  const handlePromoverEspera = (ins) => {
+    updatePareja(torneo.id, ins.id, { estado: 'inscripto' })
+    addPromovido({ torneoNombre: torneo.nombre, categoria: ins.categoria })
   }
 
   const handleAgregarAdmin = (datos) => {
@@ -1425,7 +1997,7 @@ const TorneoDetallePage = () => {
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-slate-800 text-2xl font-bold leading-tight">{torneo.nombre}</h1>
+            <h1 className="text-slate-800 text-xl md:text-2xl font-bold leading-tight">{torneo.nombre}</h1>
             <Badge estado={torneo.estado} />
           </div>
           <div className="flex items-center gap-4 mt-1.5 text-slate-400 text-xs flex-wrap">
@@ -1502,7 +2074,7 @@ const TorneoDetallePage = () => {
 
       {/* Tabs */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="flex border-b border-slate-100">
+        <div className="flex border-b border-slate-100 overflow-x-auto">
           {[
             { key: 'inscriptos', label: 'Parejas inscriptas', icon: Users,     count: torneo.inscriptos.length },
             ...(esFormatoGrupos ? [{ key: 'grupos',   label: 'Grupos',          icon: GitMerge, count: torneo.grupos ? torneo.grupos.length : null }] : []),
@@ -1513,7 +2085,7 @@ const TorneoDetallePage = () => {
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all border-b-2 -mb-px ${
+              className={`flex items-center gap-2 px-4 md:px-6 py-4 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap shrink-0 ${
                 tab === key
                   ? 'border-brand-500 text-brand-600 bg-brand-500/3'
                   : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
@@ -1554,72 +2126,54 @@ const TorneoDetallePage = () => {
               const lista = multiCat
                 ? torneo.inscriptos.filter((i) => i.categoria === catTab)
                 : torneo.inscriptos
-              return lista.length === 0 ? (
+              const confirmados = lista.filter((i) => i.estado !== 'espera')
+              const enEspera    = lista.filter((i) => i.estado === 'espera')
+
+              return confirmados.length === 0 && enEspera.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
                   <Users size={40} strokeWidth={1.2} />
                   <p className="text-sm">Todavía no hay parejas inscriptas{multiCat ? ` en ${catTab}` : ''}</p>
                 </div>
               ) : (
-              <div className="flex flex-col gap-2">
-                {lista.map((ins, idx) => (
-                  <div
-                    key={ins.id}
-                    className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3"
-                  >
-                    <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center shrink-0">
-                      <span className="text-slate-500 text-xs font-bold">#{idx + 1}</span>
+                <>
+                  {confirmados.length > 0 && (
+                    <div className="grid grid-cols-3 xl:grid-cols-4 gap-2">
+                      {confirmados.map((ins, idx) => (
+                        <ParejaCard
+                          key={ins.id}
+                          ins={ins}
+                          idx={idx}
+                          estadoTorneo={torneo.estado}
+                          onEditar={setEditando}
+                          onBaja={handleBajaInscripto}
+                        />
+                      ))}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-slate-800 text-sm font-semibold truncate">
-                        {ins.jugador1} / {ins.jugador2}
-                      </p>
-                      <p className="text-slate-400 text-xs mt-0.5">
-                        {ins.categoria} · Inscripta {fmtFecha(ins.fecha)}
-                      </p>
-                      {ins.disponibilidad?.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {ins.disponibilidad.map((s, i) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center gap-1 text-[10px] font-medium text-brand-600 bg-brand-50 border border-brand-100 px-2 py-0.5 rounded-md"
-                            >
-                              <Clock size={9} />
-                              {s.dia} · {s.franja}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {(!ins.disponibilidad || ins.disponibilidad.length === 0) && (
-                        <p className="text-[10px] text-slate-300 mt-1">Sin disponibilidad cargada</p>
-                      )}
-                      {ins.prefiereMismoDia && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-md mt-1.5">
-                          <Swords size={9} />
-                          Prefieren jugar los 2 partidos el mismo día
+                  )}
+                  {enEspera.length > 0 && (
+                    <div className="mt-5 flex flex-col gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-px bg-amber-100" />
+                        <span className="text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                          <Clock size={11} />
+                          Lista de espera ({enEspera.length})
                         </span>
-                      )}
+                        <div className="flex-1 h-px bg-amber-100" />
+                      </div>
+                      <div className="grid grid-cols-3 xl:grid-cols-4 gap-2">
+                        {enEspera.map((ins) => (
+                          <EsperaCard
+                            key={ins.id}
+                            ins={ins}
+                            estadoTorneo={torneo.estado}
+                            onPromover={() => handlePromoverEspera(ins)}
+                            onBaja={() => handleBajaInscripto(ins.id, ins)}
+                          />
+                        ))}
+                      </div>
                     </div>
-                    {torneo.estado === 'open' && (
-                      <button
-                        onClick={() => setEditando(ins)}
-                        className="text-slate-400 hover:text-brand-600 hover:bg-brand-50 p-1.5 rounded-lg transition-all shrink-0"
-                        title="Editar disponibilidad"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                    )}
-                    {torneo.estado !== 'finished' && (
-                      <button
-                        onClick={() => handleBajaInscripto(ins.id)}
-                        className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-all shrink-0"
-                        title="Dar de baja"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  )}
+                </>
               )
             })()}
           </div>
@@ -1713,14 +2267,29 @@ const TorneoDetallePage = () => {
 
                 {renderCatTabs()}
 
-                <div className="grid gap-5">
+                <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
                   {torneo.grupos
                     .map((z, i) => ({ z, i }))
                     .filter(({ z }) => !multiCat || z.categoria === catTab)
                     .map(({ z, i }) => (
-                      <ZonaTable key={z.nombre + (z.categoria ?? '')} zona={z} zonaIdx={i} onResultado={handleResultadoGrupo} onResolveTie={handleResolveTie} canchaName={canchaName} />
+                      <ZonaCardCompact
+                        key={z.nombre + (z.categoria ?? '')}
+                        zona={z}
+                        onClick={() => setZonaDetalleIdx(i)}
+                      />
                     ))}
                 </div>
+
+                {zonaDetalleIdx !== null && torneo.grupos?.[zonaDetalleIdx] && (
+                  <ZonaDetailModal
+                    zona={torneo.grupos[zonaDetalleIdx]}
+                    zonaIdx={zonaDetalleIdx}
+                    onClose={() => setZonaDetalleIdx(null)}
+                    onResultado={handleResultadoGrupo}
+                    onResolveTie={handleResolveTie}
+                    canchaName={canchaName}
+                  />
+                )}
               </div>
             )}
 
@@ -1742,11 +2311,11 @@ const TorneoDetallePage = () => {
               const sinHorario    = todosPartidos.filter((p) => p.sinHorario)
               const sinAsignar    = todosPartidos.filter((p) => !p.slot && !p.sinHorario)
 
-              // Agrupar los asignados por hora exacta (o franja si no hay hora)
+              // Agrupar los asignados por hora exacta
               const porSlot = conHorario.reduce((acc, p) => {
                 const hora = p.slot.hora ?? null
-                const key  = hora ? `${p.slot.dia}||${hora}` : `${p.slot.dia}||${p.slot.franja}`
-                if (!acc[key]) acc[key] = { dia: p.slot.dia, franja: p.slot.franja, hora, partidos: [] }
+                const key  = `${p.slot.dia}||${hora ?? 'sin-hora'}`
+                if (!acc[key]) acc[key] = { dia: p.slot.dia, hora, partidos: [] }
                 acc[key].partidos.push(p)
                 return acc
               }, {})
@@ -1785,14 +2354,14 @@ const TorneoDetallePage = () => {
                   )}
 
                   {/* Partidos asignados agrupados por slot */}
-                  {Object.values(porSlot).map(({ dia, franja, hora, partidos: ps }) => (
-                    <div key={`${dia}${hora ?? franja}`}>
+                  {Object.values(porSlot).map(({ dia, hora, partidos: ps }) => (
+                    <div key={`${dia}${hora ?? 'sin-hora'}`}>
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-xs font-bold text-slate-700">{dia}</span>
                         <span className="text-xs text-slate-400">·</span>
                         {hora
-                          ? <span className="text-xs font-bold text-slate-800">{hora} hs <span className="text-slate-400 font-normal">({franja})</span></span>
-                          : <span className="text-xs text-slate-500">{franja}</span>
+                          ? <span className="text-xs font-bold text-slate-800">{hora} hs</span>
+                          : <span className="text-xs text-slate-500">sin hora exacta</span>
                         }
                         <span className="ml-auto text-xs text-slate-400">{ps.length}/{activas.length} cancha{ps.length !== 1 ? 's' : ''}</span>
                       </div>
@@ -1834,7 +2403,7 @@ const TorneoDetallePage = () => {
                         ))}
                       </div>
                       <p className="text-slate-400 text-xs mt-2">
-                        Estas parejas no tienen franjas horarias compatibles. Coordiná el horario manualmente y actualizá su disponibilidad.
+                        Estas parejas no tienen días en común. Coordiná el horario manualmente y actualizá su disponibilidad.
                       </p>
                     </div>
                   )}
@@ -1846,7 +2415,98 @@ const TorneoDetallePage = () => {
 
         {/* ── Tab Fixture ── */}
         {tab === 'fixture' && (
-          <div className="p-5">
+          <div className="p-5 flex flex-col gap-5">
+
+            {/* ── Colores del bracket por categoría ── */}
+            {torneo.categorias?.length > 0 && (
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Palette size={13} className="text-slate-400 shrink-0" />
+                  <span className="text-xs font-semibold text-slate-600 flex-1">Colores del bracket por categoría</span>
+                  <span className="text-[10px] font-medium text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-md">No afecta la landing</span>
+                  {Object.values(persona.bracketColores ?? {}).some(Boolean) && (
+                    <button
+                      onClick={() => {
+                        setPersona(p => ({ ...p, bracketColores: {} }))
+                        updatePersonalizacion(torneo.id, { bracketColores: {} })
+                      }}
+                      className="text-[10px] text-slate-400 hover:text-red-400 transition-colors"
+                    >
+                      Limpiar todo
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {torneo.categorias.map((cat) => {
+                    const color = persona.bracketColores?.[cat] || ''
+                    return (
+                      <div key={cat} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5">
+                        <input
+                          type="color"
+                          value={color || '#afca0b'}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setPersona(p => ({ ...p, bracketColores: { ...p.bracketColores, [cat]: val } }))
+                            updatePersonalizacion(torneo.id, { bracketColores: { ...(torneo.bracketColores ?? {}), [cat]: val } })
+                          }}
+                          className="w-6 h-6 rounded-md border-0 cursor-pointer p-0 bg-transparent shrink-0"
+                        />
+                        <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">{cat}</span>
+                        {color && (
+                          <button
+                            onClick={() => {
+                              setPersona(p => { const bc = { ...p.bracketColores }; delete bc[cat]; return { ...p, bracketColores: bc } })
+                              const bc = { ...(torneo.bracketColores ?? {}) }; delete bc[cat]
+                              updatePersonalizacion(torneo.id, { bracketColores: bc })
+                            }}
+                            className="text-slate-300 hover:text-red-400 transition-colors ml-0.5"
+                            title="Quitar color"
+                          >
+                            <X size={11} />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Fondo del draw por categoría */}
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+                  <span className="text-[10px] font-semibold text-slate-400 w-full">Color de card por categoría</span>
+                  {torneo.categorias.map((cat) => {
+                    const fondo = persona.bracketColorCards?.[cat] || ''
+                    return (
+                      <div key={cat} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5">
+                        <input
+                          type="color"
+                          value={fondo || '#0d1117'}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setPersona(p => ({ ...p, bracketColorCards: { ...p.bracketColorCards, [cat]: val } }))
+                            updatePersonalizacion(torneo.id, { bracketColorCards: { ...(torneo.bracketColorCards ?? {}), [cat]: val } })
+                          }}
+                          className="w-6 h-6 rounded-md border-0 cursor-pointer p-0 bg-transparent shrink-0"
+                        />
+                        <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">{cat}</span>
+                        {fondo && (
+                          <button
+                            onClick={() => {
+                              setPersona(p => { const bf = { ...p.bracketColorCards }; delete bf[cat]; return { ...p, bracketColorCards: bf } })
+                              const bf = { ...(torneo.bracketColorCards ?? {}) }; delete bf[cat]
+                              updatePersonalizacion(torneo.id, { bracketColorCards: bf })
+                            }}
+                            className="text-slate-300 hover:text-red-400 transition-colors ml-0.5"
+                            title="Quitar color de card"
+                          >
+                            <X size={11} />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Sin bracket todavía */}
             {!activeBracket && (
@@ -1884,16 +2544,130 @@ const TorneoDetallePage = () => {
 
             {/* Bracket generado */}
             {activeBracket && (
-              <BracketView
-                bracket={activeBracket}
+              <>
+                {/* Barra de acciones */}
+                <div className="flex items-center flex-wrap gap-2 px-1 -mb-2">
+                  {/* Vista paralela — solo si hay 2+ categorías con bracket */}
+                  {Object.keys(torneo.brackets ?? {}).length >= 2 && (
+                    <button
+                      onClick={() => setVistaParalela(v => !v)}
+                      className={`flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all border shadow-sm ${
+                        vistaParalela
+                          ? 'text-brand-700 bg-brand-100 border-brand-300'
+                          : 'text-slate-500 bg-slate-50 hover:bg-slate-100 border-slate-200'
+                      }`}
+                    >
+                      <span className="flex gap-0.5">
+                        <span className="w-2.5 h-3.5 rounded-sm bg-current opacity-60" />
+                        <span className="w-2.5 h-3.5 rounded-sm bg-current opacity-60" />
+                      </span>
+                      Vista paralela
+                    </button>
+                  )}
+                  <div className="flex-1" />
+                  {/* Publicar en redes */}
+                  <button
+                    onClick={() => setBracketPublicar(true)}
+                    className="group flex items-center gap-2 text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-xl transition-all border border-brand-200 hover:border-brand-300 shadow-sm"
+                  >
+                    <Share2 size={12} />
+                    Publicar en redes
+                  </button>
+                  {/* Pantalla completa */}
+                  <button
+                    onClick={() => setBracketFullscreen(true)}
+                    className="group flex items-center gap-2 text-xs font-semibold text-white bg-[#0d1117] hover:bg-[#161b27] px-3 py-1.5 rounded-xl transition-all border border-white/10 hover:border-white/20 shadow-sm"
+                  >
+                    <Maximize2 size={12} className="text-white/50 group-hover:text-white/80 transition-colors" />
+                    <span className="text-white/60 group-hover:text-white/90 transition-colors">Pantalla completa</span>
+                  </button>
+                </div>
+
+                {/* Vista paralela — dos brackets lado a lado */}
+                {vistaParalela ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {Object.keys(torneo.brackets).map((cat) => {
+                      const bracketCat = torneo.brackets[cat]
+                      const color = torneo.bracketColores?.[cat] || torneo.colorAcento || '#afca0b'
+                      return (
+                        <div key={cat} className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-2 px-1">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
+                            <span className="text-xs font-semibold text-slate-700">{cat}</span>
+                          </div>
+                          <BracketView
+                            bracket={bracketCat}
+                            torneo={torneo}
+                            club={club}
+                            seedingMap={seedingMap}
+                            selectedCat={cat}
+                            onCargarResultado={setModalResultado}
+                            onEditarHorario={setModalHorario}
+                            accentColorOverride={color}
+                            colorCardOverride={torneo.bracketColorCards?.[cat] || null}
+                            hideHeader
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <BracketView
+                    bracket={activeBracket}
+                    torneo={torneo}
+                    club={club}
+                    seedingMap={seedingMap}
+                    selectedCat={selectedBracketCat}
+                    onSelectCat={(cat) => setSelectedBracketCat(cat)}
+                    onCargarResultado={setModalResultado}
+                    onEditarHorario={setModalHorario}
+                    accentColorOverride={torneo.bracketColores?.[selectedBracketCat] || null}
+                    colorCardOverride={torneo.bracketColorCards?.[selectedBracketCat] || null}
+                    hideHeader
+                  />
+                )}
+              </>
+            )}
+
+            {/* Overlay fullscreen */}
+            {bracketFullscreen && activeBracket && (
+              <div className="fixed inset-0 z-[60] bg-[#0d1117] flex flex-col overflow-hidden">
+                {/* Botón salir flotante */}
+                <button
+                  onClick={() => setBracketFullscreen(false)}
+                  className="absolute top-4 right-4 z-10 flex items-center gap-1.5 text-xs font-semibold text-white/60 hover:text-white bg-white/8 hover:bg-white/15 border border-white/10 hover:border-white/25 px-3 py-1.5 rounded-xl transition-all backdrop-blur-sm"
+                >
+                  <Minimize2 size={12} />
+                  Salir
+                </button>
+
+                {/* Bracket a tamaño natural con header visible — scroll horizontal si hay muchas rondas */}
+                <div className="flex-1 overflow-auto">
+                  <BracketView
+                    bracket={activeBracket}
+                    torneo={torneo}
+                    club={club}
+                    seedingMap={seedingMap}
+                    selectedCat={selectedBracketCat}
+                    onSelectCat={(cat) => setSelectedBracketCat(cat)}
+                    onCargarResultado={setModalResultado}
+                    onEditarHorario={setModalHorario}
+                    accentColorOverride={torneo.bracketColores?.[selectedBracketCat] || null}
+                    colorCardOverride={torneo.bracketColorCards?.[selectedBracketCat] || null}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Modal publicar en redes */}
+            {bracketPublicar && activeBracket && (
+              <PublicarBracketModal
                 torneo={torneo}
                 club={club}
+                activeBracket={activeBracket}
                 seedingMap={seedingMap}
                 selectedCat={selectedBracketCat}
-                onSelectCat={(cat) => setSelectedBracketCat(cat)}
-                onCargarResultado={setModalResultado}
-                onEditarHorario={setModalHorario}
-                hideHeader
+                onClose={() => setBracketPublicar(false)}
               />
             )}
 
@@ -2159,6 +2933,7 @@ const TorneoDetallePage = () => {
                     drawMostrarFechas:     persona.drawMostrarFechas,
                     drawMostrarCategorias: persona.drawMostrarCategorias,
                     drawColorTitulo:       persona.drawColorTitulo       || null,
+                    bracketColores:        persona.bracketColores,
                   })
                   setSavedOk(true)
                   setTimeout(() => setSavedOk(false), 2500)

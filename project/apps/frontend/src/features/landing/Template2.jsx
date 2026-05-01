@@ -44,14 +44,14 @@ const Template2 = ({ club, onCta }) => {
               {heroBadge}
             </span>
           )}
-          <h1 className="text-6xl md:text-8xl font-black text-white leading-none tracking-tighter">
+          <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-black text-white leading-none tracking-tighter">
             {heroTitulo && <span className="block">{heroTitulo}</span>}
             {heroTituloDestacado && <span style={{ color: colorPrimario }}>{heroTituloDestacado}</span>}
           </h1>
           {heroSubtitulo && (
             <p className="text-lg md:text-xl text-white/60 max-w-xl leading-relaxed">{heroSubtitulo}</p>
           )}
-          <div className="flex items-center gap-4 mt-2">
+          <div className="flex flex-wrap items-center gap-4 mt-2">
             <button onClick={onCta} className="inline-flex items-center gap-2 font-black text-base px-8 py-4 rounded-2xl transition-all duration-200" style={{ backgroundColor: colorPrimario, color: '#0a0a0a', boxShadow: `0 12px 40px ${colorPrimario}40` }}>
               {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={18} />
             </button>
@@ -61,7 +61,7 @@ const Template2 = ({ club, onCta }) => {
           </div>
 
           {/* Stats rápidos */}
-          <div className="flex items-center gap-8 mt-6 pt-6 border-t border-white/10">
+          <div className="flex flex-wrap items-center gap-6 mt-6 pt-6 border-t border-white/10">
             <div className="text-center">
               <p className="text-2xl font-black" style={{ color: colorPrimario }}>{canchasActivas.length}</p>
               <p className="text-white/40 text-xs mt-0.5">Canchas</p>
@@ -189,10 +189,10 @@ const Template2 = ({ club, onCta }) => {
       )}
 
       {/* CTA FINAL */}
-      <section className="relative py-32 px-6 overflow-hidden text-center">
+      <section className="relative py-16 md:py-32 px-6 overflow-hidden text-center">
         <div className="absolute inset-0 opacity-5" style={{ backgroundImage: `radial-gradient(circle, ${colorPrimario} 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
         <div className="relative z-10 max-w-2xl mx-auto">
-          <h2 className="text-5xl font-black text-white mb-4">¿Listo para<br /><span style={{ color: colorPrimario }}>jugar?</span></h2>
+          <h2 className="text-3xl md:text-5xl font-black text-white mb-4">¿Listo para<br /><span style={{ color: colorPrimario }}>jugar?</span></h2>
           <p className="text-white/40 mb-10 text-lg">Creá tu cuenta gratis y empezá a reservar hoy mismo.</p>
           <button onClick={onCta} className="inline-flex items-center gap-3 font-black text-lg px-10 py-5 rounded-2xl transition-all duration-200" style={{ backgroundColor: colorPrimario, color: '#0a0a0a', boxShadow: `0 16px 48px ${colorPrimario}40` }}>
             {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={20} />

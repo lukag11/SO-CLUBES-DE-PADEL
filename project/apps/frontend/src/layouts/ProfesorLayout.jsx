@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate } from 'react-router-dom'
-import { Zap, CalendarDays, Clock, LayoutDashboard, LogOut, GraduationCap } from 'lucide-react'
+import { Zap, CalendarDays, Clock, LogOut, Menu, X } from 'lucide-react'
 import useAuthProfesorStore from '../store/authProfesorStore'
 
 const navItems = [
@@ -10,6 +11,7 @@ const navItems = [
 const ProfesorLayout = () => {
   const { isAuthenticated, profesor, logout } = useAuthProfesorStore()
   const navigate = useNavigate()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   if (!isAuthenticated) {
     return <Navigate to="/dashboardProfesor" replace />
@@ -27,8 +29,24 @@ const ProfesorLayout = () => {
   return (
     <div className="min-h-screen bg-[#0a0e1a] flex">
 
+      {/* Overlay mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="fixed top-0 left-0 h-screen w-60 bg-[#0d1117] border-r border-white/5 flex flex-col z-20">
+      <aside className={`fixed top-0 left-0 h-screen w-60 bg-[#0d1117] border-r border-white/5 flex flex-col z-40 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+
+        {/* Botón cerrar (solo mobile) */}
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="lg:hidden absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-all"
+        >
+          <X size={16} />
+        </button>
 
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-white/5">
@@ -95,8 +113,18 @@ const ProfesorLayout = () => {
       </aside>
 
       {/* Contenido */}
-      <div className="flex-1 flex flex-col ml-60">
-        <main className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 flex flex-col lg:ml-60">
+        {/* Navbar mobile profesor */}
+        <header className="lg:hidden h-14 bg-[#0d1117] border-b border-white/5 flex items-center px-4 gap-3 shrink-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-all"
+          >
+            <Menu size={18} />
+          </button>
+          <span className="text-white font-bold text-sm tracking-tight">PadelOS</span>
+        </header>
+        <main className="flex-1 p-4 md:p-6 overflow-y-auto">
           <Outlet />
         </main>
       </div>

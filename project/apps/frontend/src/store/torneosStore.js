@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { TORNEOS_INICIALES } from '../features/admin/torneosMockData'
 
-const CACHE_KEY = 'torneos_v1'
+const CACHE_KEY      = 'torneos_v1'
+const CATS_CACHE_KEY = 'torneos_categorias_v1'
 
 const loadTorneos = () => {
   try {
@@ -14,12 +15,48 @@ const loadTorneos = () => {
   return TORNEOS_INICIALES
 }
 
-const save = (torneos) => {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(torneos)) } catch { /* ignore */ }
+const loadCategorias = () => {
+  try {
+    const saved = localStorage.getItem(CATS_CACHE_KEY)
+    if (saved) return JSON.parse(saved)
+  } catch { /* ignore */ }
+  return []
 }
+
+const save      = (torneos)    => { try { localStorage.setItem(CACHE_KEY,      JSON.stringify(torneos))    } catch { /* ignore */ } }
+const saveCats  = (categorias) => { try { localStorage.setItem(CATS_CACHE_KEY, JSON.stringify(categorias)) } catch { /* ignore */ } }
 
 const useTorneosStore = create((set, get) => ({
   torneos: loadTorneos(),
+  categoriasGuardadas: loadCategorias(), // variantes persistidas por el club
+
+  // Guarda una variante de categoría (ej: "4° Categoría B +35")
+  saveCategoria: (cat) => {
+    set((state) => {
+      if (state.categoriasGuardadas.includes(cat)) return state
+      const updated = [...state.categoriasGuardadas, cat]
+      saveCats(updated)
+      return { categoriasGuardadas: updated }
+    })
+  },
+
+  // Elimina una variante guardada
+  deleteCategoria: (cat) => {
+    set((state) => {
+      const updated = state.categoriasGuardadas.filter((c) => c !== cat)
+      saveCats(updated)
+      return { categoriasGuardadas: updated }
+    })
+  },
+
+  // Renombra una variante guardada
+  renameCategoria: (oldCat, newCat) => {
+    set((state) => {
+      const updated = state.categoriasGuardadas.map((c) => c === oldCat ? newCat : c)
+      saveCats(updated)
+      return { categoriasGuardadas: updated }
+    })
+  },
 
   // Agrega un nuevo torneo (siempre arranca en draft)
   addTorneo: (form) => {
@@ -64,6 +101,9 @@ const useTorneosStore = create((set, get) => ({
       drawMostrarFechas: true,
       drawMostrarCategorias: true,
       drawColorTitulo: null,
+      bracketColores: {},
+      bracketColorCards: {},
+      cupoEspera: form.cupoLibre ? 0 : (form.cupoEspera ?? 5),
       estado: 'draft',
       inscriptos: [],
       grupos: null,
@@ -217,6 +257,7 @@ const useTorneosStore = create((set, get) => ({
           genero: form.genero,
           cupoLibre: form.cupoLibre,
           cuposPorCategoria: form.cupoLibre ? {} : form.cuposPorCategoria,
+          cupoEspera: form.cupoLibre ? 0 : (form.cupoEspera ?? 5),
           formato: form.formato,
           canchasAsignadas: form.canchasAsignadas ?? [],
           fechaInicio: form.fechaInicio,
@@ -226,6 +267,19 @@ const useTorneosStore = create((set, get) => ({
           horaInicioEliminatoria: form.horaInicioEliminatoria ?? null,
           descripcion: form.descripcion,
         }
+      )
+      save(updated)
+      return { torneos: updated }
+    })
+  },
+
+  // Actualiza el color de bracket de una categoría específica
+  updateBracketColor: (torneoId, categoria, color) => {
+    set((state) => {
+      const updated = state.torneos.map((t) =>
+        t.id === torneoId
+          ? { ...t, bracketColores: { ...(t.bracketColores ?? {}), [categoria]: color } }
+          : t
       )
       save(updated)
       return { torneos: updated }

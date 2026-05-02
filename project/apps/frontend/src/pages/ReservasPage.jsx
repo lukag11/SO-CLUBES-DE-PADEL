@@ -148,13 +148,13 @@ const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos }) => {
   return (
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
       {stats.map(({ label, value, icon: Icon, color, bg }) => (
-        <div key={label} className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3.5 flex items-center gap-3">
-          <div className={`${bg} p-2.5 rounded-xl shrink-0`}>
-            <Icon size={18} className={color} />
+        <div key={label} className="bg-white rounded-2xl border border-slate-100 shadow-sm px-3 py-3 md:px-4 md:py-3.5 flex items-center gap-2.5">
+          <div className={`${bg} p-2 md:p-2.5 rounded-xl shrink-0`}>
+            <Icon size={16} className={color} />
           </div>
-          <div>
-            <p className="text-xs text-slate-400 font-medium">{label}</p>
-            <p className="text-lg font-bold text-slate-800 leading-tight">{value}</p>
+          <div className="min-w-0">
+            <p className="text-xs text-slate-400 font-medium truncate">{label}</p>
+            <p className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{value}</p>
           </div>
         </div>
       ))}

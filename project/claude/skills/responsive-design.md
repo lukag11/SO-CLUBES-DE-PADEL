@@ -1,7 +1,106 @@
-# Skill: Responsive Design
+# Skill: Responsive Design — Pro Rules
 
 Guía de referencia para implementar responsive design en este proyecto.
 Basada en los patrones reales del codebase. Leer antes de tocar cualquier layout.
+
+---
+
+## Prioridades de corrección (Responsive-Design-Pro)
+
+Siempre aplicar en este orden:
+
+### 1. Eliminar overflow horizontal
+
+El overflow horizontal es el bug más visible en mobile. Causas frecuentes:
+
+```jsx
+// PROBLEMA: texto largo en flex sin truncar
+<div className="flex items-center justify-between">
+  <p>Texto muy largo que no tiene límite</p>
+  <span className="shrink-0">Label</span>
+</div>
+
+// SOLUCIÓN: min-w-0 en el flex child de texto
+<div className="flex items-center justify-between">
+  <p className="min-w-0 truncate">Texto muy largo que no tiene límite</p>
+  <span className="shrink-0 ml-3">Label</span>
+</div>
+```
+
+Reglas clave:
+- **Todo flex child con texto variable** debe tener `min-w-0`
+- **Textos que pueden ser largos** deben tener `truncate` o `break-words`
+- **Padding horizontal en mobile**: nunca más de `px-4`, usar `px-4 md:px-6`
+- **Tablas**: siempre `overflow-x-auto` en el wrapper + `min-w-[Npx]` en la tabla
+- **No usar `w-screen`** sin `overflow-hidden` en el padre
+
+```jsx
+// Wrapper universal para tablas
+<div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+  <table className="min-w-[600px] w-full">
+```
+
+### 2. Evitar elementos superpuestos
+
+Causas frecuentes de superposición en mobile:
+
+```jsx
+// PROBLEMA: elemento absolute sin contexto correcto en mobile
+<div className="relative">
+  <div className="absolute top-0 right-0 w-64">  {/* sale del viewport en mobile */}
+
+// SOLUCIÓN: cambiar a static en mobile
+<div className="static sm:relative">
+  <div className="w-full sm:absolute sm:top-0 sm:right-0 sm:w-64">
+```
+
+Reglas clave:
+- **Sidebars y overlays**: siempre `z-40` para sidebar, `z-30` para overlay, `z-50` para modales
+- **Dropdowns/popovers en mobile**: preferir `fixed` en vez de `absolute` para evitar clipping
+- **Grid con muchas columnas**: nunca `grid-cols-N` sin breakpoint — siempre `grid-cols-1 sm:grid-cols-2 lg:grid-cols-N`
+- **Stacks**: usar `flex flex-col sm:flex-row` en vez de `flex gap-X` cuando los items pueden no caber
+
+### 3. Mejorar legibilidad en mobile
+
+```jsx
+// Títulos de página — nunca text-2xl fijo en mobile
+<h1 className="text-xl md:text-2xl font-bold">
+
+// Títulos de sección
+<h2 className="text-base md:text-lg font-semibold">
+
+// Padding de contenedores (nunca p-6 fijo)
+<div className="p-4 md:p-6">
+
+// Padding de cards internas
+<div className="p-4 md:p-5">
+
+// Texto de dos columnas en mobile: romper el flex-row
+<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+  <p className="text-sm font-medium">Label</p>
+  <span className="text-xs text-slate-400">Meta</span>
+</div>
+```
+
+Reglas de legibilidad:
+- Mínimo `text-sm` para texto de body (nunca `text-xs` como texto principal)
+- Line-height `leading-snug` o `leading-relaxed` para párrafos
+- Contraste mínimo: `text-slate-600` sobre `bg-white`, nunca `text-slate-300` como texto de contenido
+- Botones: mínimo `py-2.5 px-4` en mobile, area táctil mínima 44px
+
+---
+
+## Checklist Responsive-Design-Pro
+
+Antes de dar por completo cualquier componente mobile:
+
+- [ ] `overflow-x: hidden` verificado: ningún elemento expande el viewport
+- [ ] Todos los `flex` con texto tienen `min-w-0` en el child de texto
+- [ ] Todas las tablas tienen `overflow-x-auto` en el wrapper
+- [ ] Ningún `grid-cols-N` sin `grid-cols-1` base
+- [ ] Títulos usan `text-xl md:text-2xl` (nunca `text-2xl` fijo)
+- [ ] Padding usa `p-4 md:p-6` (nunca `p-6` fijo en contenedores grandes)
+- [ ] Elementos superpuestos: z-index correcto y sin clipping
 
 ---
 

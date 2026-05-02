@@ -59,13 +59,13 @@ const stats = [
 ]
 
 const StatCard = ({ label, value, sub, icon: Icon, color, bg }) => (
-  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-start gap-4 hover:shadow-md transition-shadow duration-200">
-    <div className={`${bg} rounded-xl p-3 shrink-0`}>
-      <Icon size={22} className={color} />
+  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-5 flex items-start gap-3 md:gap-4 hover:shadow-md transition-shadow duration-200">
+    <div className={`${bg} rounded-xl p-2.5 md:p-3 shrink-0`}>
+      <Icon size={20} className={color} />
     </div>
     <div className="flex-1 min-w-0">
-      <p className="text-sm text-slate-500 font-medium">{label}</p>
-      <p className="text-2xl font-bold text-slate-800 mt-0.5 leading-tight">{value}</p>
+      <p className="text-xs md:text-sm text-slate-500 font-medium truncate">{label}</p>
+      <p className="text-xl md:text-2xl font-bold text-slate-800 mt-0.5 leading-tight truncate">{value}</p>
       <p className="text-xs text-slate-400 mt-1">{sub}</p>
     </div>
   </div>
@@ -84,7 +84,7 @@ const DashboardPage = () => {
 
       {/* Encabezado */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">Resumen del club</h2>
+        <h2 className="text-xl md:text-2xl font-bold text-slate-800">Resumen del club</h2>
         <p className="text-sm text-slate-400 mt-1 capitalize">{today}</p>
       </div>
 
@@ -96,7 +96,7 @@ const DashboardPage = () => {
       </div>
 
       {/* Actividad reciente */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-6">
         <h3 className="text-base font-semibold text-slate-800 mb-4">Actividad reciente</h3>
         <div className="flex flex-col gap-3">
           {[
@@ -105,9 +105,9 @@ const DashboardPage = () => {
             { text: 'Pago recibido: $12.000 — Turno tarde', time: 'hace 28 min' },
             { text: 'Torneo "Copa Verano" — inscripción abierta', time: 'hace 1 h' },
           ].map((item, i) => (
-            <div key={i} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-              <p className="text-sm text-slate-600">{item.text}</p>
-              <span className="text-xs text-slate-400 shrink-0 ml-4">{item.time}</span>
+            <div key={i} className="flex items-start justify-between gap-3 py-2 border-b border-slate-50 last:border-0">
+              <p className="text-sm text-slate-600 min-w-0 break-words">{item.text}</p>
+              <span className="text-xs text-slate-400 shrink-0 mt-0.5">{item.time}</span>
             </div>
           ))}
         </div>

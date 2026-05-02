@@ -550,15 +550,15 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
 
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-slate-800 font-bold text-lg">{esEdicion ? 'Editar torneo' : 'Nuevo torneo'}</h2>
+        <div className="px-4 py-4 md:px-6 md:py-5 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-slate-800 font-bold text-base md:text-lg">{esEdicion ? 'Editar torneo' : 'Nuevo torneo'}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-lg transition-all">
             <X size={18} />
           </button>
         </div>
 
         {/* Form */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
+        <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 flex flex-col gap-4 md:gap-5">
 
           {/* Nombre */}
           <div>
@@ -859,7 +859,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
+        <div className="px-4 py-3.5 md:px-6 md:py-4 border-t border-slate-100 flex gap-3 justify-end">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
@@ -948,13 +948,13 @@ const TorneosPage = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         {stats.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-white border border-slate-200 rounded-2xl px-5 py-4 flex items-center gap-4">
-            <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0">
-              <Icon size={20} className={color} />
+          <div key={label} className="bg-white border border-slate-200 rounded-2xl px-4 py-3.5 md:px-5 md:py-4 flex items-center gap-3">
+            <div className="w-9 h-9 md:w-10 md:h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0">
+              <Icon size={18} className={color} />
             </div>
-            <div>
-              <p className="text-slate-800 text-2xl font-bold leading-none">{value}</p>
-              <p className="text-slate-400 text-xs mt-1">{label}</p>
+            <div className="min-w-0">
+              <p className="text-slate-800 text-xl md:text-2xl font-bold leading-none truncate">{value}</p>
+              <p className="text-slate-400 text-xs mt-1 truncate">{label}</p>
             </div>
           </div>
         ))}
@@ -962,21 +962,21 @@ const TorneosPage = () => {
 
       {/* Tabs */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="flex border-b border-slate-100">
+        <div className="flex border-b border-slate-100 overflow-x-auto">
           {tabs.map(({ key, label, icon: Icon }) => {
             const count = torneos.filter(t => (TAB_ESTADOS[key] ?? []).includes(t.estado)).length
             return (
               <button
                 key={key}
                 onClick={() => setTabActiva(key)}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all border-b-2 -mb-px ${
+                className={`flex items-center gap-2 px-3 md:px-6 py-3.5 md:py-4 text-sm font-medium transition-all border-b-2 -mb-px shrink-0 whitespace-nowrap ${
                   tabActiva === key
                     ? 'border-brand-500 text-brand-600 bg-brand-500/3'
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 <Icon size={15} />
-                {label}
+                <span className="hidden sm:inline">{label}</span>
                 <span className={`text-xs px-1.5 py-0.5 rounded-md font-semibold ${
                   tabActiva === key ? 'bg-brand-500/10 text-brand-600' : 'bg-slate-100 text-slate-500'
                 }`}>
@@ -987,7 +987,7 @@ const TorneosPage = () => {
           })}
         </div>
 
-        <div className="p-5">
+        <div className="p-4 md:p-5">
           {torneosTab.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
               <Trophy size={40} strokeWidth={1.2} />

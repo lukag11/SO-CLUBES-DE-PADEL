@@ -1,11 +1,11 @@
 import { useState, useRef } from 'react'
 import {
   Building2, Palette, LayoutGrid, BookOpen, Sparkles,
-  Upload, Save, CheckCircle, AtSign, Share2,
+  Upload, Save, CheckCircle,
   Phone, Mail, MapPin, Sun, Moon,
   Pencil, Wifi, WifiOff, ChevronDown, ChevronUp,
   Images, Wrench, Users, HelpCircle, CalendarDays,
-  Plus, Trash2, User,
+  Plus, Trash2, User, Check,
   ShowerHead, Car, GraduationCap, Coffee, Dumbbell,
   Shield, Wind, Utensils, Music,
 } from 'lucide-react'
@@ -42,12 +42,30 @@ const formatPrice = (n) =>
 
 // ─── Sub-componentes ─────────────────────────────────────────────────────────
 
-const Field = ({ label, name, value, onChange, type = 'text', placeholder, icon: Icon, textarea = false }) => (
+const WhatsAppIcon = ({ size = 15, className }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+  </svg>
+)
+
+const InstagramIcon = ({ size = 15, className }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+  </svg>
+)
+
+const FacebookIcon = ({ size = 15, className }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+  </svg>
+)
+
+const Field = ({ label, name, value, onChange, type = 'text', placeholder, icon: Icon, iconColor = 'text-slate-300', textarea = false }) => (
   <div>
     <label className="block text-slate-500 text-xs font-medium mb-1.5">{label}</label>
     <div className="relative">
       {Icon && (
-        <Icon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
+        <Icon size={15} className={`absolute left-3 top-1/2 -translate-y-1/2 ${iconColor} pointer-events-none`} />
       )}
       {textarea ? (
         <textarea
@@ -180,18 +198,18 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
       {/* Contacto */}
       <SectionCard title="Datos de contacto">
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Dirección" name="direccion" value={form.direccion} onChange={handleChange} placeholder="Av. Libertador 1234" icon={MapPin} />
-          <Field label="Teléfono" name="telefono" value={form.telefono} onChange={handleChange} placeholder="+54 11 ..." icon={Phone} />
-          <Field label="Email" name="email" type="email" value={form.email} onChange={handleChange} placeholder="info@club.com" icon={Mail} />
-          <Field label="WhatsApp" name="whatsapp" value={form.whatsapp} onChange={handleChange} placeholder="+54 9 11 ..." icon={Phone} />
+          <Field label="Dirección" name="direccion" value={form.direccion} onChange={handleChange} placeholder="Av. Libertador 1234" icon={MapPin} iconColor="text-red-500" />
+          <Field label="Teléfono" name="telefono" value={form.telefono} onChange={handleChange} placeholder="+54 11 ..." icon={Phone} iconColor="text-emerald-500" />
+          <Field label="Email" name="email" type="email" value={form.email} onChange={handleChange} placeholder="info@club.com" icon={Mail} iconColor="text-blue-500" />
+          <Field label="WhatsApp" name="whatsapp" value={form.whatsapp} onChange={handleChange} placeholder="+54 9 11 ..." icon={WhatsAppIcon} iconColor="text-[#25D366]" />
         </div>
       </SectionCard>
 
       {/* Redes sociales */}
       <SectionCard title="Redes sociales">
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Instagram" name="instagram" value={form.instagram} onChange={handleChange} placeholder="@clubpadel" icon={AtSign} />
-          <Field label="Facebook" name="facebook" value={form.facebook} onChange={handleChange} placeholder="clubpadel" icon={Share2} />
+          <Field label="Instagram" name="instagram" value={form.instagram} onChange={handleChange} placeholder="@clubpadel" icon={InstagramIcon} iconColor="text-[#E1306C]" />
+          <Field label="Facebook" name="facebook" value={form.facebook} onChange={handleChange} placeholder="clubpadel" icon={FacebookIcon} iconColor="text-[#1877F2]" />
         </div>
       </SectionCard>
 
@@ -829,8 +847,8 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
 
       {/* Resumen tarifas */}
       <SectionCard title="Resumen de tarifas">
-        <div className="overflow-hidden rounded-xl border border-slate-100">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-xl border border-slate-100">
+          <table className="w-full min-w-[360px] text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="text-left text-slate-500 font-medium text-xs px-4 py-3">Cancha</th>
@@ -866,24 +884,27 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
             return (
               <div
                 key={dia}
-                className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-colors ${h.activo ? 'bg-slate-50' : 'bg-slate-50/40 opacity-60'}`}
+                className={`rounded-xl transition-colors ${h.activo ? 'bg-slate-50' : 'bg-slate-50/40 opacity-60'}`}
               >
-                <button
-                  onClick={() => updateHorario(dia, { activo: !h.activo })}
-                  className={[
-                    'relative w-10 h-5 rounded-full transition-all duration-300 shrink-0',
-                    h.activo ? 'bg-emerald-500' : 'bg-slate-200',
-                  ].join(' ')}
-                >
-                  <div className={[
-                    'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300',
-                    h.activo ? 'left-5' : 'left-0.5',
-                  ].join(' ')} />
-                </button>
-                <span className="text-slate-700 font-medium text-sm w-24 shrink-0">{dia}</span>
-                {h.activo ? (
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="flex items-center gap-2">
+                {/* Fila 1: toggle + nombre día (siempre visible) */}
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <button
+                    onClick={() => updateHorario(dia, { activo: !h.activo })}
+                    className={[
+                      'relative w-10 h-5 rounded-full transition-all duration-300 shrink-0',
+                      h.activo ? 'bg-emerald-500' : 'bg-slate-200',
+                    ].join(' ')}
+                  >
+                    <div className={[
+                      'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300',
+                      h.activo ? 'left-5' : 'left-0.5',
+                    ].join(' ')} />
+                  </button>
+                  <span className="text-slate-700 font-medium text-sm w-24 shrink-0">{dia}</span>
+
+                  {/* Desktop: inputs en la misma fila */}
+                  {h.activo ? (
+                    <div className="hidden sm:flex items-center gap-3 flex-1">
                       <span className="text-slate-400 text-xs">Apertura</span>
                       <input
                         type="time"
@@ -891,9 +912,7 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
                         onChange={(e) => updateHorario(dia, { apertura: e.target.value })}
                         className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
                       />
-                    </div>
-                    <span className="text-slate-200">—</span>
-                    <div className="flex items-center gap-2">
+                      <span className="text-slate-200">—</span>
                       <span className="text-slate-400 text-xs">Cierre</span>
                       <input
                         type="time"
@@ -901,11 +920,30 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
                         onChange={(e) => updateHorario(dia, { cierre: e.target.value })}
                         className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
                       />
+                      <span className="text-xs text-slate-400 ml-auto">{h.apertura} a {h.cierre}</span>
                     </div>
-                    <span className="text-xs text-slate-400 ml-auto">{h.apertura} a {h.cierre}</span>
+                  ) : (
+                    <span className="text-slate-400 text-sm italic">Cerrado</span>
+                  )}
+                </div>
+
+                {/* Fila 2 mobile: inputs debajo (solo cuando activo) */}
+                {h.activo && (
+                  <div className="sm:hidden flex items-center gap-2 px-4 pb-3">
+                    <input
+                      type="time"
+                      value={h.apertura}
+                      onChange={(e) => updateHorario(dia, { apertura: e.target.value })}
+                      className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
+                    />
+                    <span className="text-slate-300 shrink-0">—</span>
+                    <input
+                      type="time"
+                      value={h.cierre}
+                      onChange={(e) => updateHorario(dia, { cierre: e.target.value })}
+                      className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
+                    />
                   </div>
-                ) : (
-                  <span className="text-slate-400 text-sm italic">Cerrado</span>
                 )}
               </div>
             )
@@ -1959,6 +1997,7 @@ const TabFaq = ({ club, updateClub, saveClub }) => {
 
 const QuienesSomosPage = () => {
   const [activeTab, setActiveTab] = useState('info')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const { club, updateClub, updateCancha, updateHorario, setCantidadCanchas, saveClub } = useClubStore()
 
   return (
@@ -1970,8 +2009,54 @@ const QuienesSomosPage = () => {
         <p className="text-slate-400 text-sm mt-1">Información pública, apariencia y configuración general</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+      {/* Tabs — mobile: dropdown custom / desktop: pills */}
+      <div className="sm:hidden relative z-50">
+        {/* Overlay con blur */}
+        {dropdownOpen && (
+          <div
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
+            onClick={() => setDropdownOpen(false)}
+          />
+        )}
+        {/* Trigger */}
+        <button
+          onClick={() => setDropdownOpen(!dropdownOpen)}
+          className="relative z-50 w-full flex items-center justify-between gap-3 bg-slate-100 rounded-xl px-4 py-3 text-sm font-medium text-slate-700"
+        >
+          <div className="flex items-center gap-2.5">
+            {(() => {
+              const current = TABS.find(t => t.key === activeTab)
+              const CurrentIcon = current?.icon
+              return CurrentIcon ? <><CurrentIcon size={15} className="text-brand-500" /><span>{current.label}</span></> : null
+            })()}
+          </div>
+          <ChevronDown
+            size={15}
+            className={`text-slate-400 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+        {/* Panel */}
+        {dropdownOpen && (
+          <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50">
+            {TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => { setActiveTab(key); setDropdownOpen(false) }}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                  activeTab === key
+                    ? 'bg-brand-500/5 text-brand-600 font-semibold'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Icon size={15} className={activeTab === key ? 'text-brand-500' : 'text-slate-400'} />
+                {label}
+                {activeTab === key && <Check size={13} className="ml-auto text-brand-500" />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="hidden sm:flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}

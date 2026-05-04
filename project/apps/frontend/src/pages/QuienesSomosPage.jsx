@@ -94,8 +94,8 @@ const Field = ({ label, name, value, onChange, type = 'text', placeholder, icon:
 )
 
 const SectionCard = ({ title, subtitle, children }) => (
-  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-    <div className="mb-5 pb-4 border-b border-slate-50">
+  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-6">
+    <div className="mb-4 md:mb-5 pb-4 border-b border-slate-50">
       <h3 className="text-slate-800 font-semibold">{title}</h3>
       {subtitle && <p className="text-slate-400 text-xs mt-0.5">{subtitle}</p>}
     </div>
@@ -156,13 +156,13 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
 
       {/* Logo + datos básicos */}
       <SectionCard title="Logo del club" subtitle="Se mostrará en la página principal y en el área de jugadores">
-        <div className="flex items-start gap-6">
+        <div className="flex flex-col sm:flex-row items-start gap-4">
 
           {/* Upload zone */}
-          <div className="shrink-0">
+          <div className="shrink-0 w-full sm:w-auto">
             <div
               onClick={() => fileRef.current.click()}
-              className="w-28 h-28 rounded-2xl border-2 border-dashed border-slate-200 hover:border-emerald-400 flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden group"
+              className="w-full sm:w-28 h-28 rounded-2xl border-2 border-dashed border-slate-200 hover:border-emerald-400 flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden group"
             >
               {preview ? (
                 <img src={preview} alt="Logo" className="w-full h-full object-contain p-2" />
@@ -689,11 +689,11 @@ const CanchaRow = ({ cancha, onUpdate }) => {
     <div className="border border-slate-100 rounded-xl overflow-hidden">
 
       {/* Cabecera */}
-      <div className="flex items-center gap-4 px-5 py-3.5 bg-slate-50">
+      <div className="flex items-center gap-3 px-4 py-3 bg-slate-50">
         <div className={`w-2 h-2 rounded-full shrink-0 ${cancha.activa ? 'bg-emerald-400' : 'bg-slate-300'}`} />
-        <div className="flex-1">
-          <p className="text-slate-700 font-semibold text-sm">{cancha.nombre}</p>
-          <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex-1 min-w-0">
+          <p className="text-slate-700 font-semibold text-sm truncate">{cancha.nombre}</p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
             <span className="text-slate-400 text-xs">{cancha.tipo}</span>
             <span className="text-slate-200">·</span>
             <span className="text-slate-400 text-xs">{cancha.indoor ? 'Indoor' : 'Outdoor'}</span>
@@ -712,16 +712,16 @@ const CanchaRow = ({ cancha, onUpdate }) => {
 
         <button
           onClick={() => { setEditing((v) => !v); setLocal({ ...cancha }) }}
-          className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-emerald-600 transition-colors ml-2"
+          className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors shrink-0 ml-1 ${editing ? 'bg-slate-100 text-slate-600' : 'text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'}`}
+          title={editing ? 'Cancelar' : 'Editar'}
         >
-          <Pencil size={13} />
-          {editing ? 'Cancelar' : 'Editar'}
+          <Pencil size={14} />
         </button>
       </div>
 
       {/* Formulario edición */}
       {editing && (
-        <div className="px-5 py-4 border-t border-slate-100 bg-white">
+        <div className="px-4 py-4 border-t border-slate-100 bg-white">
           <div className="grid sm:grid-cols-3 gap-4">
 
             <div>
@@ -762,7 +762,7 @@ const CanchaRow = ({ cancha, onUpdate }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-6 mt-4">
+          <div className="flex flex-wrap items-center gap-4 mt-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" name="indoor" checked={local.indoor} onChange={handleChange} className="rounded accent-emerald-500" />
               <span className="text-sm text-slate-600">Indoor</span>
@@ -805,7 +805,7 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
         <div className="flex flex-col gap-4">
 
           {/* Cantidad de canchas */}
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+          <div className="flex items-center justify-between p-3 md:p-4 bg-slate-50 rounded-xl">
             <div>
               <p className="text-slate-700 font-medium text-sm">Cantidad de canchas</p>
               <p className="text-slate-400 text-xs mt-0.5">
@@ -845,10 +845,11 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
         </div>
       </SectionCard>
 
-      {/* Resumen tarifas */}
+      {/* Resumen tarifas — solo desktop (en mobile la info ya está en cada CanchaRow) */}
+      <div className="hidden sm:block">
       <SectionCard title="Resumen de tarifas">
-        <div className="overflow-x-auto rounded-xl border border-slate-100">
-          <table className="w-full min-w-[360px] text-sm">
+        <div className="overflow-x-auto w-full rounded-xl border border-slate-100">
+          <table className="w-full min-w-[320px] text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="text-left text-slate-500 font-medium text-xs px-4 py-3">Cancha</th>
@@ -875,6 +876,7 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
           </table>
         </div>
       </SectionCard>
+      </div>
 
       {/* Horarios de apertura */}
       <SectionCard title="Horarios de apertura" subtitle="Configurá los horarios del club por día">
@@ -1065,11 +1067,11 @@ const TabHero = ({ club, updateClub, saveClub }) => {
 
       {/* Imagen de fondo */}
       <SectionCard title="Imagen de fondo" subtitle="Opcional — se superpone con overlay oscuro sobre el hero">
-        <div className="flex items-start gap-6">
-          <div className="shrink-0">
+        <div className="flex flex-col sm:flex-row items-start gap-4">
+          <div className="shrink-0 w-full sm:w-auto">
             <div
               onClick={() => fileRef.current.click()}
-              className="w-48 h-28 rounded-2xl border-2 border-dashed border-slate-200 hover:border-emerald-400 flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden group"
+              className="w-full sm:w-48 h-28 rounded-2xl border-2 border-dashed border-slate-200 hover:border-emerald-400 flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden group"
             >
               {form.heroImagen ? (
                 <img src={form.heroImagen} alt="Hero" className="w-full h-full object-cover" />
@@ -1341,14 +1343,14 @@ const ServicioRow = ({ servicio, onUpdate, onDelete }) => {
 
   return (
     <div className="border border-slate-100 rounded-xl overflow-hidden">
-      <div className="flex items-center gap-4 px-5 py-3.5 bg-slate-50">
+      <div className="flex items-center gap-2 px-4 py-3 bg-slate-50">
         <div className={`w-2 h-2 rounded-full shrink-0 ${servicio.activo ? 'bg-emerald-400' : 'bg-slate-300'}`} />
-        <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
-          <Icon size={16} className="text-slate-500" />
+        <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+          <Icon size={14} className="text-slate-500" />
         </div>
-        <div className="flex-1">
-          <p className="text-slate-700 font-semibold text-sm">{servicio.titulo}</p>
-          <p className="text-slate-400 text-xs mt-0.5 line-clamp-1">{servicio.descripcion}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-slate-700 font-semibold text-sm truncate">{servicio.titulo}</p>
+          <p className="hidden sm:block text-slate-400 text-xs mt-0.5 truncate">{servicio.descripcion}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
@@ -1357,8 +1359,8 @@ const ServicioRow = ({ servicio, onUpdate, onDelete }) => {
           >
             <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300 ${servicio.activo ? 'left-4' : 'left-0.5'}`} />
           </button>
-          <button onClick={() => { setEditing((v) => !v); setLocal({ ...servicio }) }} className="text-xs font-medium text-slate-400 hover:text-emerald-600 transition-colors flex items-center gap-1">
-            <Pencil size={12} /> {editing ? 'Cancelar' : 'Editar'}
+          <button onClick={() => { setEditing((v) => !v); setLocal({ ...servicio }) }} title={editing ? 'Cancelar' : 'Editar'} className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${editing ? 'bg-slate-100 text-slate-600' : 'text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'}`}>
+            <Pencil size={13} />
           </button>
           <button onClick={() => onDelete(servicio.id)} className="text-slate-300 hover:text-red-400 transition-colors ml-1">
             <Trash2 size={14} />
@@ -1367,7 +1369,7 @@ const ServicioRow = ({ servicio, onUpdate, onDelete }) => {
       </div>
 
       {editing && (
-        <div className="px-5 py-4 border-t border-slate-100 bg-white flex flex-col gap-4">
+        <div className="px-4 py-4 border-t border-slate-100 bg-white flex flex-col gap-4">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-slate-500 text-xs font-medium mb-1.5">Título</label>
@@ -1459,13 +1461,13 @@ const StaffCard = ({ miembro, onUpdate, onDelete }) => {
         <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center bg-slate-100 text-slate-500 font-bold text-sm">
           {miembro.foto ? <img src={miembro.foto} alt={miembro.nombre} className="w-full h-full object-cover" /> : inicial}
         </div>
-        <div className="flex-1">
-          <p className="text-slate-700 font-semibold text-sm">{miembro.nombre}</p>
-          <p className="text-slate-400 text-xs">{miembro.rol}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-slate-700 font-semibold text-sm truncate">{miembro.nombre}</p>
+          <p className="text-slate-400 text-xs truncate">{miembro.rol}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button onClick={() => { setEditing((v) => !v); setLocal({ ...miembro }) }} className="text-xs font-medium text-slate-400 hover:text-emerald-600 transition-colors flex items-center gap-1">
-            <Pencil size={12} /> {editing ? 'Cancelar' : 'Editar'}
+          <button onClick={() => { setEditing((v) => !v); setLocal({ ...miembro }) }} title={editing ? 'Cancelar' : 'Editar'} className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${editing ? 'bg-slate-100 text-slate-600' : 'text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'}`}>
+            <Pencil size={13} />
           </button>
           <button onClick={() => onDelete(miembro.id)} className="text-slate-300 hover:text-red-400 transition-colors ml-1">
             <Trash2 size={14} />
@@ -1474,7 +1476,7 @@ const StaffCard = ({ miembro, onUpdate, onDelete }) => {
       </div>
 
       {editing && (
-        <div className="px-5 py-4 border-t border-slate-100 bg-white flex flex-col gap-4">
+        <div className="px-4 py-4 border-t border-slate-100 bg-white flex flex-col gap-4">
           <div className="flex items-start gap-4">
             {/* Upload foto */}
             <div className="shrink-0">
@@ -1586,25 +1588,27 @@ const ProfesorCard = ({ profesor, canchas, onUpdate, onDelete }) => {
   return (
     <div className="border border-slate-100 rounded-xl overflow-hidden">
       {/* Header de la card */}
-      <div className="flex items-center gap-4 px-5 py-3.5 bg-slate-50">
+      <div className="flex items-center gap-3 px-4 py-3 bg-slate-50">
         <div className="w-10 h-10 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center shrink-0">
           <span className="text-orange-600 font-bold text-sm">{inicial || '?'}</span>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-slate-700 font-semibold text-sm">
+          <p className="text-slate-700 font-semibold text-sm truncate">
             {profesor.nombre} {profesor.apellido}
           </p>
-          <p className="text-slate-400 text-xs">{profesor.email} · {profesor.especialidad || 'Sin especialidad'}</p>
+          <p className="text-slate-400 text-xs truncate hidden sm:block">{profesor.email} · {profesor.especialidad || 'Sin especialidad'}</p>
+          <p className="text-slate-400 text-xs truncate sm:hidden">{profesor.especialidad || 'Sin especialidad'}</p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${profesor.activo ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`hidden sm:inline-flex text-xs font-semibold px-2 py-0.5 rounded-full border ${profesor.activo ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
             {profesor.activo ? 'Activo' : 'Inactivo'}
           </span>
           <button
             onClick={() => { setEditing((v) => !v); setLocal({ ...profesor }) }}
-            className="text-xs font-medium text-slate-400 hover:text-emerald-600 transition-colors flex items-center gap-1"
+            title={editing ? 'Cancelar' : 'Editar'}
+            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${editing ? 'bg-slate-100 text-slate-600' : 'text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'}`}
           >
-            <Pencil size={12} /> {editing ? 'Cancelar' : 'Editar'}
+            <Pencil size={13} />
           </button>
           <button onClick={() => onDelete(profesor.id)} className="text-slate-300 hover:text-red-400 transition-colors">
             <Trash2 size={14} />
@@ -1614,7 +1618,7 @@ const ProfesorCard = ({ profesor, canchas, onUpdate, onDelete }) => {
 
       {/* Formulario de edición */}
       {editing && (
-        <div className="px-5 py-5 border-t border-slate-100 bg-white flex flex-col gap-4">
+        <div className="px-4 py-4 border-t border-slate-100 bg-white flex flex-col gap-4">
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-slate-500 text-xs font-medium mb-1.5">Nombre</label>
@@ -2009,9 +2013,9 @@ const QuienesSomosPage = () => {
         <p className="text-slate-400 text-sm mt-1">Información pública, apariencia y configuración general</p>
       </div>
 
-      {/* Tabs — mobile: dropdown custom / desktop: pills */}
-      <div className="sm:hidden relative z-50">
-        {/* Overlay con blur */}
+      {/* Tabs — mobile: bottom sheet / desktop: pills */}
+      <div className="sm:hidden">
+        {/* Overlay */}
         {dropdownOpen && (
           <div
             className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
@@ -2021,7 +2025,7 @@ const QuienesSomosPage = () => {
         {/* Trigger */}
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="relative z-50 w-full flex items-center justify-between gap-3 bg-slate-100 rounded-xl px-4 py-3 text-sm font-medium text-slate-700"
+          className="w-full flex items-center justify-between gap-3 bg-slate-100 rounded-xl px-4 py-3 text-sm font-medium text-slate-700"
         >
           <div className="flex items-center gap-2.5">
             {(() => {
@@ -2035,24 +2039,32 @@ const QuienesSomosPage = () => {
             className={`text-slate-400 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}
           />
         </button>
-        {/* Panel */}
+        {/* Bottom sheet */}
         {dropdownOpen && (
-          <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50">
-            {TABS.map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                onClick={() => { setActiveTab(key); setDropdownOpen(false) }}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
-                  activeTab === key
-                    ? 'bg-brand-500/5 text-brand-600 font-semibold'
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <Icon size={15} className={activeTab === key ? 'text-brand-500' : 'text-slate-400'} />
-                {label}
-                {activeTab === key && <Check size={13} className="ml-auto text-brand-500" />}
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl border-t border-slate-100">
+            <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
+              <span className="text-sm font-semibold text-slate-700">Sección del club</span>
+              <button onClick={() => setDropdownOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <ChevronDown size={18} />
               </button>
-            ))}
+            </div>
+            <div className="overflow-y-auto max-h-[60vh] pb-4">
+              {TABS.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => { setActiveTab(key); setDropdownOpen(false) }}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm transition-colors ${
+                    activeTab === key
+                      ? 'bg-brand-500/5 text-brand-600 font-semibold'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Icon size={15} className={activeTab === key ? 'text-brand-500' : 'text-slate-400'} />
+                  {label}
+                  {activeTab === key && <Check size={13} className="ml-auto text-brand-500" />}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

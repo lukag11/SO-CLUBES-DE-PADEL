@@ -475,7 +475,7 @@ const ProfesorAgendaPage = () => {
       </div>
 
       {/* Selector de día */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         <button
           onClick={() => setFecha((f) => addDays(f, -1))}
           disabled={fecha <= hoy}

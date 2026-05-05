@@ -146,15 +146,15 @@ const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos }) => {
   ]
 
   return (
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 xl:grid-cols-4 gap-2 md:gap-3">
       {stats.map(({ label, value, icon: Icon, color, bg }) => (
-        <div key={label} className="bg-white rounded-2xl border border-slate-100 shadow-sm px-3 py-3 md:px-4 md:py-3.5 flex items-center gap-2.5">
-          <div className={`${bg} p-2 md:p-2.5 rounded-xl shrink-0`}>
-            <Icon size={16} className={color} />
+        <div key={label} className="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm px-2 py-2 md:px-4 md:py-3.5 flex items-center gap-2 md:gap-2.5">
+          <div className={`${bg} p-1.5 md:p-2.5 rounded-lg md:rounded-xl shrink-0`}>
+            <Icon size={13} className={color} />
           </div>
           <div className="min-w-0">
-            <p className="text-xs text-slate-400 font-medium truncate">{label}</p>
-            <p className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{value}</p>
+            <p className="text-[10px] md:text-xs text-slate-400 font-medium leading-tight truncate">{label}</p>
+            <p className="text-xs md:text-lg font-bold text-slate-800 leading-tight truncate">{value}</p>
           </div>
         </div>
       ))}
@@ -368,10 +368,131 @@ const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick }) => (
   </div>
 )
 
+// ─── Grilla mobile (2 canchas por página) ────────────────────────────────────
+
+const CeldaMobile = ({ reserva, franja, cancha, onClick, pasado }) => {
+  if (!reserva) {
+    return (
+      <div
+        onClick={() => !pasado && onClick({ tipo: 'libre', franja, cancha })}
+        className={[
+          'flex-1 border-l border-slate-100 flex items-center justify-center min-h-[44px] transition-colors',
+          pasado ? 'bg-slate-50/60 cursor-not-allowed' : 'hover:bg-emerald-50/60 cursor-pointer group',
+        ].join(' ')}
+      >
+        {!pasado && <Plus size={11} className="text-slate-200 group-hover:text-emerald-400 transition-colors" />}
+      </div>
+    )
+  }
+
+  const cfgMap = {
+    clase:         { bg: 'bg-orange-50',  text: 'text-orange-600',  dot: 'bg-orange-400',  label: 'Clase'     },
+    bloqueado:     { bg: 'bg-slate-100',  text: 'text-slate-500',   dot: 'bg-slate-400',   label: 'Bloq.'     },
+    online:        { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Online'    },
+    solicitud_fijo:{ bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-500',   label: 'Solicitud' },
+    fijo:          { bg: 'bg-violet-50',  text: 'text-violet-700',  dot: 'bg-violet-500',  label: 'Fijo'      },
+    eventual:      { bg: 'bg-blue-50',    text: 'text-blue-700',    dot: 'bg-blue-500',    label: 'Eventual'  },
+  }
+  const cfg = cfgMap[reserva.tipo] ?? { bg: 'bg-slate-50', text: 'text-slate-600', dot: 'bg-slate-400', label: reserva.tipo }
+  const pagoCfg = reserva.pago ? PAGO_CONFIG[reserva.pago] : null
+
+  return (
+    <div
+      onClick={() => onClick({ tipo: 'detalle', reserva, franja, cancha })}
+      className={`flex-1 border-l border-slate-100 cursor-pointer min-h-[44px] p-1.5 flex flex-col gap-0.5 ${cfg.bg} hover:brightness-95 transition-all`}
+    >
+      <div className="flex items-center gap-1">
+        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+        <span className={`text-[10px] font-semibold truncate ${cfg.text}`}>{cfg.label}</span>
+      </div>
+      {reserva.jugadores?.[0] && (
+        <span className="text-[9px] text-slate-500 truncate leading-none">{reserva.jugadores[0]}</span>
+      )}
+      {pagoCfg && (
+        <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full border ${pagoCfg.cls} self-start leading-none mt-auto`}>
+          {pagoCfg.label}
+        </span>
+      )}
+    </div>
+  )
+}
+
+const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick }) => {
+  const [page, setPage] = useState(0)
+  const totalPages = Math.ceil(CANCHAS_MOCK.length / 2)
+  const canchasVisible = CANCHAS_MOCK.slice(page * 2, page * 2 + 2)
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-white disabled:opacity-25 transition-all"
+          >
+            <ChevronLeft size={15} />
+          </button>
+          <span className="text-xs text-slate-500 font-medium">
+            {canchasVisible.map((c) => c.nombre).join(' · ')}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page === totalPages - 1}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-white disabled:opacity-25 transition-all"
+          >
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      )}
+
+      {/* Header canchas */}
+      <div className="flex border-b border-slate-100 bg-slate-50">
+        <div className="w-14 shrink-0 px-2 py-2" />
+        {canchasVisible.map((c) => (
+          <div key={c.id} className="flex-1 px-1 py-2 text-center border-l border-slate-100">
+            <p className="text-slate-700 font-semibold text-xs">{c.nombre}</p>
+            <p className="text-slate-400 text-[9px]">{c.tipo} · {c.indoor ? 'In' : 'Out'}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filas por franja */}
+      {FRANJAS.map((franja) => {
+        const pasado = esPasado(fecha, franja.fin)
+        return (
+          <div key={franja.inicio} className={`flex border-b border-slate-50 last:border-0 ${pasado ? 'opacity-50' : ''}`}>
+            <div className="w-14 shrink-0 px-2 py-1.5 bg-slate-50/50 flex flex-col justify-center border-r border-slate-100">
+              <span className="text-slate-500 text-[10px] font-mono leading-none">{franja.inicio}</span>
+              <span className="text-slate-300 text-[9px] font-mono leading-none mt-0.5">{franja.fin}</span>
+            </div>
+            {canchasVisible.map((cancha) => {
+              const clase = getReserva(clasesDia, cancha.id, franja)
+              const reserva = clase || getReserva(reservas, cancha.id, franja)
+              return (
+                <CeldaMobile
+                  key={cancha.id}
+                  reserva={reserva}
+                  franja={franja}
+                  cancha={cancha}
+                  fecha={fecha}
+                  onClick={onCeldaClick}
+                  pasado={pasado}
+                />
+              )
+            })}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Panel lateral — Formulario nueva reserva ─────────────────────────────────
 
 const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
-  const profesoresActivos = useProfesoresStore((s) => s.profesores.filter((p) => p.activo))
+  const todosLosProfesores = useProfesoresStore((s) => s.profesores)
+  const profesoresActivos = todosLosProfesores.filter((p) => p.activo)
   const [form, setForm] = useState({
     tipo: 'eventual',
     jugadores: ['', '', '', ''],
@@ -831,8 +952,8 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose }) => {
 
 // ─── Panel lateral contenedor ─────────────────────────────────────────────────
 
-const Panel = ({ seleccion, fecha, onSave, onBloquear, onCancelar, onPago, onClose }) => {
-  const [modo, setModo] = useState('reserva') // 'reserva' | 'bloqueo'
+const PanelContent = ({ seleccion, fecha, onSave, onBloquear, onCancelar, onPago, onClose }) => {
+  const [modo, setModo] = useState('reserva')
 
   if (!seleccion) return null
   const { tipo, reserva, franja, cancha } = seleccion
@@ -840,42 +961,43 @@ const Panel = ({ seleccion, fecha, onSave, onBloquear, onCancelar, onPago, onClo
   const handleSaveReserva = (data) => { onSave({ id: Date.now(), fecha, ...data }) }
   const handleSaveBloqueo = (data) => { onBloquear({ id: Date.now(), fecha, ...data }) }
 
+  if (tipo === 'detalle') {
+    return <DetalleReserva reserva={reserva} onCancelar={onCancelar} onPago={onPago} onClose={onClose} />
+  }
+
   return (
-    <aside className="w-80 shrink-0 bg-white border-l border-slate-100 shadow-sm flex flex-col h-full overflow-hidden">
-      {tipo === 'detalle' ? (
-        <DetalleReserva reserva={reserva} onCancelar={onCancelar} onPago={onPago} onClose={onClose} />
-      ) : (
-        <>
-          {/* Tabs reserva / bloqueo */}
-          <div className="flex border-b border-slate-100">
-            {[
-              { key: 'reserva', label: 'Reserva',  icon: CalendarDays },
-              { key: 'bloqueo', label: 'Bloquear', icon: Lock },
-            ].map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                onClick={() => setModo(key)}
-                className={[
-                  'flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium border-b-2 transition-all',
-                  modo === key
-                    ? 'border-emerald-500 text-emerald-600'
-                    : 'border-transparent text-slate-400 hover:text-slate-600',
-                ].join(' ')}
-              >
-                <Icon size={14} />
-                {label}
-              </button>
-            ))}
-          </div>
-          {modo === 'reserva'
-            ? <FormNuevaReserva franja={franja} cancha={cancha} onSave={handleSaveReserva} onCancel={onClose} />
-            : <FormBloqueo franja={franja} cancha={cancha} onSave={handleSaveBloqueo} onCancel={onClose} />
-          }
-        </>
-      )}
-    </aside>
+    <>
+      <div className="flex border-b border-slate-100">
+        {[
+          { key: 'reserva', label: 'Reserva',  icon: CalendarDays },
+          { key: 'bloqueo', label: 'Bloquear', icon: Lock },
+        ].map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setModo(key)}
+            className={[
+              'flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium border-b-2 transition-all',
+              modo === key ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-600',
+            ].join(' ')}
+          >
+            <Icon size={14} />
+            {label}
+          </button>
+        ))}
+      </div>
+      {modo === 'reserva'
+        ? <FormNuevaReserva franja={franja} cancha={cancha} onSave={handleSaveReserva} onCancel={onClose} />
+        : <FormBloqueo franja={franja} cancha={cancha} onSave={handleSaveBloqueo} onCancel={onClose} />
+      }
+    </>
   )
 }
+
+const Panel = (props) => (
+  <aside className="w-80 shrink-0 bg-white border-l border-slate-100 shadow-sm flex flex-col h-full overflow-hidden">
+    <PanelContent {...props} />
+  </aside>
+)
 
 // ─── Leyenda ──────────────────────────────────────────────────────────────────
 
@@ -1500,10 +1622,10 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase }) => {
           </div>
           <button
             onClick={() => { setMostrarForm((v) => !v); setErrorForm('') }}
-            className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg transition-all"
+            className="flex items-center gap-1 text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-2 py-1 rounded-lg transition-all"
           >
-            <Plus size={13} />
-            Agregar clase
+            <Plus size={12} />
+            <span className="hidden sm:inline">Agregar clase</span>
           </button>
         </div>
 
@@ -1917,59 +2039,67 @@ const ReservasPage = () => {
             />
           )}
 
-          <div className="flex gap-4 flex-1 min-h-0">
-            <div className="flex-1 overflow-auto">
+          {/* Vista mobile: 2 canchas por página */}
+          <div className="md:hidden">
+            <GrillaMobile reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} />
+          </div>
+
+          {/* Vista desktop: tabla completa + panel lateral */}
+          <div className="hidden md:flex gap-4 flex-1 min-h-0">
+            <div className="flex-1 overflow-auto min-w-0">
               <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} />
             </div>
-
-            {/* Panel detalle / nueva reserva */}
             {seleccion && !editando && (
-              <aside className="fixed bottom-0 inset-x-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white shadow-2xl lg:static lg:inset-auto lg:z-auto lg:rounded-none lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:shadow-sm lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">
+              <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">
                 {seleccion.tipo === 'detalle' ? (
                   <div className="flex flex-col">
-                    <DetalleReserva
-                      reserva={seleccion.reserva}
-                      onCancelar={handleCancelar}
-                      onPago={handlePago}
-                      onClose={() => setSeleccion(null)}
-                    />
+                    <DetalleReserva reserva={seleccion.reserva} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} />
                     {seleccion.reserva.tipo !== 'bloqueado' && seleccion.reserva.tipo !== 'clase' && seleccion.reserva.estado !== 'cancelada' && (
                       <div className="px-5 pb-4">
-                        <button
-                          onClick={() => handleEditar(seleccion.reserva)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 transition-colors"
-                        >
-                          <Pencil size={14} />
-                          Editar reserva
+                        <button onClick={() => handleEditar(seleccion.reserva)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 transition-colors">
+                          <Pencil size={14} /> Editar reserva
                         </button>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <Panel
-                    seleccion={seleccion}
-                    fecha={fecha}
-                    onSave={handleSave}
-                    onBloquear={handleSave}
-                    onCancelar={handleCancelar}
-                    onPago={handlePago}
-                    onClose={() => setSeleccion(null)}
-                  />
+                  <Panel seleccion={seleccion} fecha={fecha} onSave={handleSave} onBloquear={handleSave} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} />
                 )}
               </aside>
             )}
-
-            {/* Panel edición */}
             {editando && (
-              <aside className="fixed bottom-0 inset-x-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white shadow-2xl lg:static lg:inset-auto lg:z-auto lg:rounded-none lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:shadow-sm lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">
-                <EditarReserva
-                  reserva={editando}
-                  onSave={handleGuardarEdicion}
-                  onCancel={() => setEditando(null)}
-                />
+              <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">
+                <EditarReserva reserva={editando} onSave={handleGuardarEdicion} onCancel={() => setEditando(null)} />
               </aside>
             )}
           </div>
+
+          {/* Panels mobile (fixed bottom sheet, fuera del hidden parent) */}
+          {seleccion && !editando && (
+            <aside className="fixed bottom-0 inset-x-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white shadow-2xl md:hidden">
+              <PanelContent
+                seleccion={seleccion}
+                fecha={fecha}
+                onSave={handleSave}
+                onBloquear={handleSave}
+                onCancelar={handleCancelar}
+                onPago={handlePago}
+                onClose={() => setSeleccion(null)}
+              />
+              {seleccion.tipo === 'detalle' && seleccion.reserva.tipo !== 'bloqueado' && seleccion.reserva.tipo !== 'clase' && seleccion.reserva.estado !== 'cancelada' && (
+                <div className="px-5 pb-4">
+                  <button onClick={() => handleEditar(seleccion.reserva)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 transition-colors">
+                    <Pencil size={14} /> Editar reserva
+                  </button>
+                </div>
+              )}
+            </aside>
+          )}
+          {editando && (
+            <aside className="fixed bottom-0 inset-x-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white shadow-2xl md:hidden">
+              <EditarReserva reserva={editando} onSave={handleGuardarEdicion} onCancel={() => setEditando(null)} />
+            </aside>
+          )}
         </>
       )}
 

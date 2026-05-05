@@ -1,59 +1,66 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-04-17
+**Última actualización:** 2026-05-04
 
 ---
 
 ## Estado general
 
-| Módulo | Estado |
-|---|---|
-| Base frontend + design system | ✅ |
-| Login admin | ✅ |
-| Landing pública (5 templates) | ✅ |
-| Dashboard admin completo | ✅ |
-| Gestión reservas (admin) | ✅ |
-| Gestión pagos (admin) | ✅ |
-| Edición del club / Quiénes Somos | ✅ |
-| Registro jugador (stepper 3 pasos) | ✅ |
-| Dashboard jugador completo | ✅ |
-| Reservas jugador (grilla + modal) | ✅ |
-| Turnos fijos (pendiente → aprobación admin) | ✅ |
-| Notificaciones admin + jugador | ✅ |
-| Dashboard profesor (agenda + disponibilidad) | ✅ |
-| **Módulo torneos admin** | ✅ |
-| **Módulo torneos jugador** | ✅ |
-| Responsive design | 🔲 pendiente |
-| Backend real | 🔲 futuro |
-| WhatsApp notificaciones | 🔲 futuro |
+| Módulo | Estado | Notas |
+|---|---|---|
+| Base frontend + design system | ✅ Completo | Tailwind, componentes UI, dark/light themes |
+| Login admin | ✅ Completo | Mock con admin@club.com / 123456 — conectar a backend |
+| Landing pública (5 templates) | ✅ Completo | Personalizable desde panel admin |
+| Dashboard admin completo | ✅ Completo | Stats, navegación, sidebar colapsable |
+| Gestión reservas (admin) | ✅ Completo | Grilla semanal, aprobación, turnos fijos, profesores |
+| Gestión pagos (admin) | ✅ Completo | Registro de pagos por turno |
+| Edición del club / Quiénes Somos | ✅ Completo | Logo, colores, plantillas, horarios, canchas |
+| Registro jugador (stepper 3 pasos) | ✅ Completo | DNI, nombre, email, contraseña |
+| Dashboard jugador completo | ✅ Completo | Resumen, reservas, turnos fijos, stats, torneos, perfil |
+| Reservas jugador (grilla + modal) | ✅ Completo | Slots 1.5h, grilla por fecha/cancha, confirmación |
+| Turnos fijos (pendiente → aprobación) | ✅ Completo | Flujo completo con notificación |
+| Notificaciones admin + jugador | ✅ Completo | Badge, centro de notificaciones |
+| Dashboard profesor (agenda + disponibilidad) | ✅ Completo | Portal separado `/dashboardProfesor` |
+| Módulo torneos admin | ✅ Completo | CRUD, grupos, bracket, horarios, personalización |
+| Módulo torneos jugador | ✅ Completo | Inscripción, historial, vista pública |
+| Responsive design mobile | 🔄 En progreso | Admin ~80%, Jugador ~70%, Profesor ~70% |
+| Backend real | 🔲 Pendiente | Stack decidido: Express + Prisma + Supabase |
+| Multi-tenancy (club_id) | 🔲 Pendiente | Diseñar schema con Prisma |
+| WhatsApp notificaciones | 🔲 Futuro | Pendiente para fase backend |
+| Landing SaaS empresa | 🔲 Futuro | Cuando haya primer cliente real |
+| Registro self-service de clubes | 🔲 Futuro | MVP: alta manual por el equipo |
 
 ---
 
-## Módulo Torneos — Estado detallado
+## Responsive design — Detalle por área
 
-### Completado ✅
+### Admin (`/dashboardAdmin`)
+- [x] Layout base: `h-screen overflow-hidden`, `min-w-0`
+- [x] Bottom nav mobile con auto-hide on scroll
+- [x] Hamburger + overlay sidebar como drawer
+- [x] Sidebar: colapso solo en desktop, oculto en mobile
+- [x] Stats cards (ReservasPage): `grid-cols-2` en mobile
+- [x] Grilla reservas: GrillaMobile (2 canchas por página)
+- [x] Stat cards móvil en ReservasPage
+- [x] Torneos — ParejaCard: lista vertical en mobile
+- [x] Torneos — ZonaCardCompact: 1 columna en mobile
+- [x] Personalización torneo: file inputs (reemplaza URLs https)
+- [ ] Revisar PagosPage mobile
+- [ ] Revisar AdminDashboardPage (stats principales) mobile
 
-**Admin:**
-- `TorneosPage` — CRUD de torneos, tabs (En curso / Próximos / Finalizados), toggle inscripción
-- `TorneoDetallePage` — vista de detalle con 4 tabs:
-  - **Inscriptos**: lista de parejas, alta manual, editar disponibilidad, dar de baja
-  - **Grupos**: generación automática de zonas, swap de parejas, confirmación, registro de ganadores por zona, resolución de empates
-  - **Horarios**: auto-scheduling por disponibilidad (greedy), vista de partidos por slot/cancha
-  - **Fixture/Bracket**: generación de eliminación directa con BYEs, registro de ganadores, propagación automática, campeón + subcampeón
-- `torneoService.js` — lógica pura: bracket eliminación, fase de grupos (zonas 2/3/4), advanceWinner, advanceGroupMatch, autoScheduleGroups, esSlotDeGrupos/Eliminatoria
-- `torneosStore.js` — Zustand + localStorage (`torneos_v1`), todos los métodos
-- `torneosMockData.js` — formato pareja actualizado, estados del ciclo formal
+### Jugador (`/dashboardJugadores`)
+- [x] Layout base: `min-w-0`, `overflow-x-hidden`
+- [x] Selector de fecha en ReservasPage: `min-w-0` fix
+- [ ] PlayerDashboardPage mobile
+- [ ] PlayerTurnosFijosPage mobile
+- [ ] PlayerStatsPage mobile
+- [ ] PlayerTournamentsPage mobile
 
-**Jugador:**
-- `PlayerTournamentsPage` — conectada a `torneosStore`, muestra torneos disponibles, inscripción desde el dashboard
-
-### Ciclo de estados del torneo
-`draft → open → closed → in_progress → finished`
-
-### Formatos soportados
-- `Round Robin`
-- `Eliminación directa`
-- `Fase de grupos + Eliminación`
+### Profesor (`/dashboardProfesor`)
+- [x] Layout base: `min-w-0`, `overflow-x-hidden`
+- [x] Selector de días en Agenda: `min-w-0` fix
+- [x] Selector de días en Disponibilidad: `min-w-0` fix
+- [ ] Revisar layout general de agenda en mobile
 
 ---
 
@@ -65,21 +72,26 @@
 | `player_reservas` | reservasStore | Reservas del jugador |
 | `admin_notificaciones_v2` | notificacionesStore | Avisos para el admin |
 | `player_notificaciones` | playerNotificationsStore | Notificaciones del jugador |
-| `player_token` | playerStore | Token de sesión |
+| `player_token` | playerStore | Token de sesión jugador |
 | `player_data` | playerStore | Datos del jugador logueado |
 | `club_config` | clubStore | Configuración del club |
 | `token` | authStore | Token del admin |
+| `admin_sidebar_collapsed` | AdminDashboardLayout | Estado del sidebar desktop |
+
+> Para limpiar localStorage en pruebas: incrementar `APP_VERSION` en `main.jsx` (versión actual: 16.0).
 
 ---
 
 ## Reglas de negocio críticas
 
-- Turnos SIEMPRE 1.5h (10:00 a 11:30). Nunca calcular fin como +1h.
-- Turno fijo = `pendiente` hasta aprobación admin.
+- Turnos SIEMPRE 1.5h (10:00 → 11:30). Nunca calcular fin como +1h.
+- Turno fijo = `pendiente` hasta aprobación del admin.
 - Admin es el único que puede registrar ganadores y avanzar el bracket.
 - BYEs se auto-resuelven al generar el bracket.
 - Solo se puede generar fixture con estado `closed` o `in_progress` y mínimo 2 parejas.
-- Para limpiar localStorage en pruebas: incrementar `APP_VERSION` en `main.jsx` (versión actual: 16.0).
+- Máximo un turno fijo activo por cancha por día (RN-51).
+- Torneo `in_progress` bloquea todas las canchas en la grilla del jugador.
+- Precio siempre fijo por cancha — sin recargo pico.
 
 ---
 
@@ -112,9 +124,11 @@
 
 ---
 
-## Pendiente próximos pasos
+## Próximos pasos en orden
 
-1. Verificar `PlayerTournamentsPage` — funcionalidad de inscripción desde el lado jugador (flujo completo)
-2. Responsive design (bloque dedicado)
-3. Backend real (futuro)
-4. Notificaciones WhatsApp (futuro backend)
+1. **Terminar responsive** — revisar secciones pendientes (ver checklist arriba)
+2. **Arrancar backend** — Express + Prisma + Supabase (ver `arquitectura.md`)
+3. **Schema de base de datos** — todas las tablas con `club_id`
+4. **Auth real** — reemplazar mocks de login con JWT real
+5. **Conectar frontend al backend** — reemplazar localStorage store por store → API calls
+6. **Landing SaaS** — cuando haya primer cliente potencial

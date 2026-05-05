@@ -12,15 +12,12 @@ const Navbar = ({ title, onMenuClick }) => {
     <header className="h-14 md:h-16 bg-white border-b border-slate-100 flex items-center justify-between px-4 md:px-6">
 
       <div className="flex items-center gap-3">
-        {/* Hamburger (solo mobile) */}
         <button
           onClick={onMenuClick}
           className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
         >
           <Menu size={18} />
         </button>
-
-        {/* Título de la sección actual */}
         <h1 className="text-base font-semibold text-slate-800">{title}</h1>
       </div>
 

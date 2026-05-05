@@ -139,7 +139,7 @@ const PlayerLayout = () => {
       </aside>
 
       {/* Contenido */}
-      <div className="flex-1 flex flex-col lg:ml-60">
+      <div className="flex-1 min-w-0 flex flex-col lg:ml-60">
         {/* Navbar mobile jugador */}
         <header className="lg:hidden h-14 bg-[#0d1117] border-b border-white/5 flex items-center px-4 gap-3 shrink-0">
           <button
@@ -150,7 +150,7 @@ const PlayerLayout = () => {
           </button>
           <span className="text-white font-bold text-sm tracking-tight">PadelOS</span>
         </header>
-        <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+        <main className="flex-1 p-4 md:p-6 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>
       </div>

@@ -121,10 +121,10 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
         </button>
       </div>
 
-      {/* Botón toggle */}
+      {/* Botón toggle (solo desktop) */}
       <button
         onClick={onToggle}
-        className="absolute -right-3 top-[72px] w-6 h-6 bg-dark-900 border border-white/10 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:border-white/30 transition-all duration-150 shadow-md"
+        className="hidden lg:flex absolute -right-3 top-[72px] w-6 h-6 bg-dark-900 border border-white/10 rounded-full items-center justify-center text-white/40 hover:text-white hover:border-white/30 transition-all duration-150 shadow-md"
       >
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>

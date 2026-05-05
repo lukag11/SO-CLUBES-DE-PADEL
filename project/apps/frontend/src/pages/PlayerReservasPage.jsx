@@ -351,7 +351,7 @@ const PlayerReservasPage = () => {
           <CalendarDays size={15} className="text-[#afca0b]" />
           <span className="text-white/50 text-xs font-medium uppercase tracking-wider">Fecha</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => { setFechaOffset(Math.max(0, fechaOffset - 1)); setSlotSeleccionado(null) }}
             disabled={fechaOffset === 0}
@@ -360,7 +360,7 @@ const PlayerReservasPage = () => {
             <ChevronLeft size={16} />
           </button>
 
-          <div className="flex gap-2 overflow-x-auto flex-1 pb-0.5 scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto flex-1 min-w-0 pb-0.5 scrollbar-hide">
             {Array.from({ length: 14 }, (_, i) => {
               const d = addDays(hoy, i)
               const isSelected = i === fechaOffset
@@ -477,60 +477,54 @@ const PlayerReservasPage = () => {
                 <p className="text-sm font-medium">Sin turnos disponibles</p>
               </div>
             ) : (
-              <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              <div className="p-2 grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-1">
                 {slots.map((slot) => {
                   const isSelected = slotSeleccionado === slot.hora
 
                   if (slot.miReserva) {
                     return (
-                      <div key={slot.hora} className="flex flex-col gap-1 p-3 rounded-xl border bg-[#afca0b]/8 border-[#afca0b]/25 cursor-default">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#afca0b] font-bold text-xs">{slot.hora} a {slot.horaFin}</span>
-                          <CheckCircle size={12} className="text-[#afca0b]" />
-                        </div>
-                        <span className="text-[#afca0b]/50 text-[10px]">Confirmado</span>
+                      <div key={slot.hora} className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg border bg-[#afca0b]/8 border-[#afca0b]/25 cursor-default text-center">
+                        <CheckCircle size={10} className="text-[#afca0b] shrink-0" />
+                        <span className="text-[#afca0b] font-bold text-[10px] leading-none">{slot.hora}</span>
+                        <span className="text-[#afca0b]/50 text-[9px] leading-none">{slot.horaFin}</span>
                       </div>
                     )
                   }
 
                   if (slot.miTurnoFijoCancelacionPendiente) {
                     return (
-                      <div key={slot.hora} className="flex flex-col gap-1 p-3 rounded-xl border bg-red-500/8 border-red-500/25 cursor-default">
-                        <div className="flex items-center justify-between">
-                          <span className="text-red-400 font-bold text-xs">{slot.hora} a {slot.horaFin}</span>
-                          <Clock size={12} className="text-red-400 animate-pulse" />
-                        </div>
-                        <span className="text-red-400/60 text-[10px]">Baja pendiente de admin</span>
+                      <div key={slot.hora} className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg border bg-red-500/8 border-red-500/25 cursor-default text-center">
+                        <Clock size={10} className="text-red-400 animate-pulse shrink-0" />
+                        <span className="text-red-400 font-bold text-[10px] leading-none">{slot.hora}</span>
+                        <span className="text-red-400/50 text-[9px] leading-none">{slot.horaFin}</span>
                       </div>
                     )
                   }
 
                   if (slot.miReservaPendiente) {
                     return (
-                      <div key={slot.hora} className="flex flex-col gap-1 p-3 rounded-xl border bg-amber-500/8 border-amber-500/25 cursor-default">
-                        <div className="flex items-center justify-between">
-                          <span className="text-amber-400 font-bold text-xs">{slot.hora} a {slot.horaFin}</span>
-                          <Clock size={12} className="text-amber-400 animate-pulse" />
-                        </div>
-                        <span className="text-amber-400/60 text-[10px]">Pendiente aprobación</span>
+                      <div key={slot.hora} className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg border bg-amber-500/8 border-amber-500/25 cursor-default text-center">
+                        <Clock size={10} className="text-amber-400 animate-pulse shrink-0" />
+                        <span className="text-amber-400 font-bold text-[10px] leading-none">{slot.hora}</span>
+                        <span className="text-amber-400/50 text-[9px] leading-none">{slot.horaFin}</span>
                       </div>
                     )
                   }
 
                   if (slot.pasado) {
                     return (
-                      <div key={slot.hora} className="flex flex-col gap-1 p-3 rounded-xl border border-white/4 bg-white/2 cursor-not-allowed opacity-25">
-                        <span className="text-white/20 font-medium text-xs">{slot.hora} a {slot.horaFin}</span>
-                        <span className="text-white/15 text-[10px]">Pasado</span>
+                      <div key={slot.hora} className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg border border-white/4 bg-white/2 cursor-not-allowed opacity-25 text-center">
+                        <span className="text-white/20 font-bold text-[10px] leading-none">{slot.hora}</span>
+                        <span className="text-white/15 text-[9px] leading-none">{slot.horaFin}</span>
                       </div>
                     )
                   }
 
                   if (slot.ocupado) {
                     return (
-                      <div key={slot.hora} className="flex flex-col gap-1 p-3 rounded-xl border border-white/4 bg-white/2 cursor-not-allowed opacity-40">
-                        <span className="text-white/30 font-medium text-xs">{slot.hora} a {slot.horaFin}</span>
-                        <span className="text-white/20 text-[10px]">Ocupado</span>
+                      <div key={slot.hora} className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg border border-white/4 bg-white/2 cursor-not-allowed opacity-40 text-center">
+                        <span className="text-white/30 font-bold text-[10px] leading-none">{slot.hora}</span>
+                        <span className="text-white/20 text-[9px] leading-none">{slot.horaFin}</span>
                       </div>
                     )
                   }
@@ -540,17 +534,17 @@ const PlayerReservasPage = () => {
                       key={slot.hora}
                       onClick={() => handleSelectSlot(slot)}
                       className={[
-                        'flex flex-col gap-1 p-3 rounded-xl border transition-all duration-150 text-left',
+                        'flex flex-col items-center gap-0.5 p-1.5 rounded-lg border transition-all duration-150 text-center',
                         isSelected
                           ? 'bg-[#afca0b]/15 border-[#afca0b]/50 ring-1 ring-[#afca0b]/30'
                           : 'bg-white/4 border-white/8 hover:bg-white/8 hover:border-white/16',
                       ].join(' ')}
                     >
-                      <span className={`font-bold text-xs ${isSelected ? 'text-[#afca0b]' : 'text-white/80'}`}>
-                        {slot.hora} a {slot.horaFin}
+                      <span className={`font-bold text-[10px] leading-none ${isSelected ? 'text-[#afca0b]' : 'text-white/80'}`}>
+                        {slot.hora}
                       </span>
-                      <span className={`text-[10px] font-medium ${isSelected ? 'text-[#afca0b]/70' : 'text-white/30'}`}>
-                        ${precio.toLocaleString('es-AR')}
+                      <span className={`text-[9px] leading-none ${isSelected ? 'text-[#afca0b]/60' : 'text-white/25'}`}>
+                        {slot.horaFin}
                       </span>
                     </button>
                   )
@@ -708,13 +702,13 @@ const PlayerReservasPage = () => {
                 : 'text-[#afca0b]'
 
               return (
-                <div key={r.id} className={`px-5 py-4 flex items-center gap-4 transition-colors ${bloqueado ? 'opacity-60' : r.estado === 'pendiente' ? 'bg-amber-500/3 hover:bg-amber-500/6' : 'hover:bg-white/2'}`}>
+                <div key={r.id} className={`px-4 py-3.5 flex items-center gap-3 transition-colors ${bloqueado ? 'opacity-60' : r.estado === 'pendiente' ? 'bg-amber-500/3 hover:bg-amber-500/6' : 'hover:bg-white/2'}`}>
                   <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 ${dateBoxCls}`}>
                     <span className={`font-black text-base leading-none ${dateTextCls}`}>{r.fecha.slice(8)}</span>
                     <span className={`text-[9px] uppercase ${dateTextCls} opacity-50`}>{MESES[parseInt(r.fecha.slice(5, 7)) - 1]}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <p className={`font-semibold text-sm truncate ${bloqueado ? 'text-white/40' : 'text-white'}`}>{r.canchaNombre}</p>
                       {r.estado === 'pendiente' && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">

@@ -4,7 +4,7 @@ import {
   ArrowLeft, Trophy, Medal, Users, Calendar, Zap, Trash2,
   ToggleLeft, ToggleRight, Lock, CheckCircle, Clock, Archive,
   AlertTriangle, Shuffle, CheckCheck, GitMerge, UserPlus, Plus, X, Pencil, Swords,
-  Palette, ChevronDown, Maximize2, Minimize2, Share2,
+  Palette, ChevronDown, Maximize2, Minimize2, Share2, Upload,
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
 import {
@@ -307,7 +307,7 @@ const ZonaSetupCard = ({ zona, zonaIdx, swapSource, onSelectPair }) => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className={`text-sm truncate ${hasConflict ? 'text-amber-600' : 'text-slate-700'}`}>
+                  <span className={`text-sm ${hasConflict ? 'text-amber-600' : 'text-slate-700'}`}>
                     {pareja.jugador1} / {pareja.jugador2}
                   </span>
                   {hasConflict && <AlertTriangle size={10} className="text-amber-400 shrink-0" />}
@@ -394,7 +394,7 @@ const ZonaCardCompact = ({ zona, onClick }) => {
               <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                 esC1 ? 'bg-amber-400 text-white' : esC2 ? 'bg-slate-400 text-white' : 'bg-slate-100 text-slate-500'
               }`}>{idx + 1}</span>
-              <span className={`text-xs flex-1 truncate ${eliminado ? 'text-slate-300 line-through' : 'text-slate-600'}`}>
+              <span className={`text-sm md:text-xs flex-1 ${eliminado ? 'text-slate-300 line-through' : 'text-slate-600'}`}>
                 {pareja.jugador1} / {pareja.jugador2}
               </span>
               {w !== null && <span className="text-[10px] text-slate-400 shrink-0">{w}V</span>}
@@ -704,66 +704,105 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
   const diaAbrev = (dia) => dia?.slice(0, 2) ?? '?'
 
   return (
-    <div className={`bg-white border rounded-xl p-2.5 flex flex-col gap-1.5 transition-all ${confirmando ? 'border-red-200 bg-red-50/40' : 'border-slate-100 hover:border-slate-200 hover:shadow-sm'}`}>
-      {/* Fila 1: número + categoría + acciones */}
-      <div className="flex items-center gap-1.5">
-        <span className="w-5 h-5 bg-slate-100 rounded-md flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0">
+    <div className={`bg-white border rounded-xl transition-all ${confirmando ? 'border-red-200 bg-red-50/40' : 'border-slate-100 hover:border-slate-200 hover:shadow-sm'}`}>
+
+      {/* ── Mobile: fila horizontal ── */}
+      <div className="flex items-center gap-3 p-3 md:hidden">
+        <span className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
           {idx + 1}
         </span>
-        <span className="flex-1 text-[9px] font-semibold text-slate-400 uppercase tracking-wide truncate">
-          {ins.categoria}
-        </span>
-        {estadoTorneo === 'open' && !confirmando && (
-          <button onClick={() => onEditar(ins)} className="text-slate-300 hover:text-brand-500 p-0.5 rounded transition-colors" title="Editar disponibilidad">
-            <Pencil size={11} />
-          </button>
-        )}
-        {estadoTorneo !== 'finished' && !confirmando && (
-          <button onClick={() => setConfirmando(true)} className="text-red-300 hover:text-red-500 p-0.5 rounded transition-colors" title="Dar de baja">
-            <Trash2 size={11} />
-          </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-slate-800 leading-snug">
+            {ins.jugador1} / {ins.jugador2}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{ins.categoria}</span>
+            {ins.prefiereMismoDia && (
+              <span className="inline-flex items-center gap-1 text-[9px] font-medium text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">
+                <Swords size={8} /> Mismo día
+              </span>
+            )}
+          </div>
+          {slots.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {slots.map((s, i) => (
+                <span key={i} className="inline-flex items-center gap-0.5 text-[10px] font-medium text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
+                  {diaAbrev(s.dia)} {s.horaDesde}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        {!confirmando && (
+          <div className="flex items-center gap-0.5 shrink-0">
+            {estadoTorneo === 'open' && (
+              <button onClick={() => onEditar(ins)} className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-brand-500 rounded-lg hover:bg-brand-50 transition-colors">
+                <Pencil size={15} />
+              </button>
+            )}
+            {estadoTorneo !== 'finished' && (
+              <button onClick={() => setConfirmando(true)} className="w-8 h-8 flex items-center justify-center text-red-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
+                <Trash2 size={15} />
+              </button>
+            )}
+          </div>
         )}
       </div>
 
-      {/* Fila 2: nombres */}
-      <p className="text-slate-800 text-xs font-semibold leading-snug truncate">
-        {ins.jugador1} / {ins.jugador2}
-      </p>
-
-      {/* Chip mismo día */}
-      {ins.prefiereMismoDia && (
-        <span className="inline-flex items-center gap-1 text-[9px] font-medium text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded self-start">
-          <Swords size={8} />
-          Mismo día
-        </span>
-      )}
-
-      {/* Fila 3: horarios */}
-      {slots.length > 0 ? (
-        <div className="flex flex-wrap gap-1">
-          {slots.map((s, i) => (
-            <span key={i} className="inline-flex items-center gap-0.5 text-[9px] font-medium text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
-              {diaAbrev(s.dia)} {s.horaDesde}
-            </span>
-          ))}
+      {/* ── Desktop: tarjeta vertical (sin cambios) ── */}
+      <div className="hidden md:flex flex-col gap-1.5 p-2.5">
+        <div className="flex items-center gap-1.5">
+          <span className="w-5 h-5 bg-slate-100 rounded-md flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0">
+            {idx + 1}
+          </span>
+          <span className="flex-1 text-[9px] font-semibold text-slate-400 uppercase tracking-wide truncate">
+            {ins.categoria}
+          </span>
+          {estadoTorneo === 'open' && !confirmando && (
+            <button onClick={() => onEditar(ins)} className="text-slate-300 hover:text-brand-500 p-0.5 rounded transition-colors">
+              <Pencil size={11} />
+            </button>
+          )}
+          {estadoTorneo !== 'finished' && !confirmando && (
+            <button onClick={() => setConfirmando(true)} className="text-red-300 hover:text-red-500 p-0.5 rounded transition-colors">
+              <Trash2 size={11} />
+            </button>
+          )}
         </div>
-      ) : (
-        <span className="text-[9px] text-slate-300">Sin horarios</span>
-      )}
+        <p className="text-slate-800 text-xs font-semibold leading-snug truncate">
+          {ins.jugador1} / {ins.jugador2}
+        </p>
+        {ins.prefiereMismoDia && (
+          <span className="inline-flex items-center gap-1 text-[9px] font-medium text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded self-start">
+            <Swords size={8} /> Mismo día
+          </span>
+        )}
+        {slots.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {slots.map((s, i) => (
+              <span key={i} className="inline-flex items-center gap-0.5 text-[9px] font-medium text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
+                {diaAbrev(s.dia)} {s.horaDesde}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-[9px] text-slate-300">Sin horarios</span>
+        )}
+      </div>
 
-      {/* Confirmación de baja */}
+      {/* ── Confirmación de baja (compartida) ── */}
       {confirmando && (
-        <div className="flex items-center gap-1.5 pt-1 border-t border-red-100">
-          <span className="flex-1 text-[9px] text-red-500 font-medium">¿Dar de baja?</span>
+        <div className="flex items-center gap-2 px-3 py-2.5 border-t border-red-100">
+          <span className="flex-1 text-xs text-red-500 font-medium">¿Dar de baja?</span>
           <button
             onClick={() => { onBaja(ins.id, ins); setConfirmando(false) }}
-            className="text-[9px] font-semibold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded transition-colors"
+            className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-3 py-1 rounded-lg transition-colors"
           >
             Sí
           </button>
           <button
             onClick={() => setConfirmando(false)}
-            className="text-[9px] font-semibold text-slate-500 hover:text-slate-700 px-2 py-0.5 rounded border border-slate-200 transition-colors"
+            className="text-xs font-semibold text-slate-500 hover:text-slate-700 px-3 py-1 rounded-lg border border-slate-200 transition-colors"
           >
             No
           </button>
@@ -779,46 +818,123 @@ const EsperaCard = ({ ins, estadoTorneo, onPromover, onBaja }) => {
   const [confirmando, setConfirmando] = useState(false)
 
   return (
-    <div className={`bg-amber-50 border rounded-xl p-2.5 flex flex-col gap-1.5 transition-all ${confirmando ? 'border-red-200 bg-red-50/40' : 'border-amber-200 hover:border-amber-300'}`}>
-      <div className="flex items-center gap-1.5">
-        <span className="text-[9px] font-semibold text-amber-600 uppercase tracking-wide flex-1 truncate">
-          {ins.categoria}
-        </span>
+    <div className={`bg-amber-50 border rounded-xl transition-all ${confirmando ? 'border-red-200 bg-red-50/40' : 'border-amber-200 hover:border-amber-300'}`}>
+
+      {/* ── Mobile: fila horizontal ── */}
+      <div className="flex items-center gap-3 p-3 md:hidden">
+        <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center shrink-0">
+          <Clock size={15} className="text-amber-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-slate-800 leading-snug">
+            {ins.jugador1} / {ins.jugador2}
+          </p>
+          <span className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">{ins.categoria}</span>
+        </div>
         {estadoTorneo !== 'finished' && !confirmando && (
-          <button
-            onClick={onPromover}
-            title="Promover a inscripto"
-            className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 px-1.5 py-0.5 rounded transition-colors"
-          >
-            Promover
-          </button>
-        )}
-        {estadoTorneo !== 'finished' && !confirmando && (
-          <button onClick={() => setConfirmando(true)} className="text-red-300 hover:text-red-500 p-0.5 rounded transition-colors" title="Eliminar de espera">
-            <Trash2 size={11} />
-          </button>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={onPromover}
+              className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-colors"
+            >
+              Promover
+            </button>
+            <button onClick={() => setConfirmando(true)} className="w-8 h-8 flex items-center justify-center text-red-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
+              <Trash2 size={15} />
+            </button>
+          </div>
         )}
       </div>
-      <p className="text-slate-800 text-xs font-semibold leading-snug truncate">
-        {ins.jugador1} / {ins.jugador2}
-      </p>
+
+      {/* ── Desktop: tarjeta vertical (sin cambios) ── */}
+      <div className="hidden md:flex flex-col gap-1.5 p-2.5">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-semibold text-amber-600 uppercase tracking-wide flex-1 truncate">
+            {ins.categoria}
+          </span>
+          {estadoTorneo !== 'finished' && !confirmando && (
+            <button
+              onClick={onPromover}
+              className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 px-1.5 py-0.5 rounded transition-colors"
+            >
+              Promover
+            </button>
+          )}
+          {estadoTorneo !== 'finished' && !confirmando && (
+            <button onClick={() => setConfirmando(true)} className="text-red-300 hover:text-red-500 p-0.5 rounded transition-colors">
+              <Trash2 size={11} />
+            </button>
+          )}
+        </div>
+        <p className="text-slate-800 text-xs font-semibold leading-snug truncate">
+          {ins.jugador1} / {ins.jugador2}
+        </p>
+      </div>
+
+      {/* ── Confirmación (compartida) ── */}
       {confirmando && (
-        <div className="flex items-center gap-1.5 pt-1 border-t border-red-100">
-          <span className="flex-1 text-[9px] text-red-500 font-medium">¿Eliminar?</span>
+        <div className="flex items-center gap-2 px-3 py-2.5 border-t border-red-100">
+          <span className="flex-1 text-xs text-red-500 font-medium">¿Eliminar?</span>
           <button
             onClick={() => { onBaja(); setConfirmando(false) }}
-            className="text-[9px] font-semibold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded transition-colors"
+            className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-3 py-1 rounded-lg transition-colors"
           >
             Sí
           </button>
           <button
             onClick={() => setConfirmando(false)}
-            className="text-[9px] font-semibold text-slate-500 hover:text-slate-700 px-2 py-0.5 rounded border border-slate-200 transition-colors"
+            className="text-xs font-semibold text-slate-500 hover:text-slate-700 px-3 py-1 rounded-lg border border-slate-200 transition-colors"
           >
             No
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Input imagen desde archivo ────────────────────────────────────────────────
+
+const ImagenFileInput = ({ value, onChange, onImageLoad, hint, className = '' }) => {
+  const ref = useRef(null)
+  const handleFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result
+      onChange(dataUrl)
+      onImageLoad?.(dataUrl)
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+  return (
+    <div className={`flex flex-col gap-1.5 ${className}`}>
+      <div className="flex items-center gap-2 flex-wrap">
+        {value && (
+          <img src={value} alt="" className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0" />
+        )}
+        <button
+          type="button"
+          onClick={() => ref.current.click()}
+          className="flex items-center gap-1.5 text-xs font-medium text-brand-600 border border-brand-200 bg-brand-50 hover:bg-brand-100 px-3 py-2 rounded-xl transition-all"
+        >
+          <Upload size={12} />
+          {value ? 'Cambiar imagen' : 'Subir imagen'}
+        </button>
+        {value && (
+          <button
+            type="button"
+            onClick={() => { onChange(''); onImageLoad?.('') }}
+            className="text-xs text-red-400 hover:text-red-600 font-medium transition-colors"
+          >
+            Eliminar
+          </button>
+        )}
+      </div>
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      {hint && <p className="text-slate-400 text-xs">{hint}</p>}
     </div>
   )
 }
@@ -2137,7 +2253,7 @@ const TorneoDetallePage = () => {
               ) : (
                 <>
                   {confirmados.length > 0 && (
-                    <div className="grid grid-cols-3 xl:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-2">
                       {confirmados.map((ins, idx) => (
                         <ParejaCard
                           key={ins.id}
@@ -2160,7 +2276,7 @@ const TorneoDetallePage = () => {
                         </span>
                         <div className="flex-1 h-px bg-amber-100" />
                       </div>
-                      <div className="grid grid-cols-3 xl:grid-cols-4 gap-2">
+                      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-2">
                         {enEspera.map((ins) => (
                           <EsperaCard
                             key={ins.id}
@@ -2267,7 +2383,7 @@ const TorneoDetallePage = () => {
 
                 {renderCatTabs()}
 
-                <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {torneo.grupos
                     .map((z, i) => ({ z, i }))
                     .filter(({ z }) => !multiCat || z.categoria === catTab)
@@ -2696,9 +2812,12 @@ const TorneoDetallePage = () => {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">Imagen header sección (URL)</label>
-                <input type="url" value={persona.imagenFondoFixture} onChange={(e) => setP('imagenFondoFixture', e.target.value)} placeholder="https://..." className="w-full max-w-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
-                <p className="text-slate-400 text-xs mt-1">Banner único arriba del fixture.</p>
+                <label className="text-xs font-medium text-slate-600 block mb-1">Imagen header sección</label>
+                <ImagenFileInput
+                  value={persona.imagenFondoFixture}
+                  onChange={(v) => setP('imagenFondoFixture', v)}
+                  hint="Banner único arriba del fixture."
+                />
               </div>
 
               <div>
@@ -2722,8 +2841,12 @@ const TorneoDetallePage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[{ key: 'bannerLateral1Fixture', label: 'Banner lateral 1 (izquierda)' }, { key: 'bannerLateral2Fixture', label: 'Banner lateral 2 (derecha)' }].map(({ key, label }) => (
                   <div key={key}>
-                    <label className="text-xs font-medium text-slate-600 block mb-1">{label} (URL)</label>
-                    <input type="url" value={persona[key]} onChange={(e) => setP(key, e.target.value)} onBlur={(e) => checkBannerRatio(key, e.target.value)} placeholder="https://..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
+                    <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
+                    <ImagenFileInput
+                      value={persona[key]}
+                      onChange={(v) => setP(key, v)}
+                      onImageLoad={(v) => checkBannerRatio(key, v)}
+                    />
                     {bannerWarnings[key] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1">✓ Imagen vertical correcta</p>}
                     {bannerWarnings[key] === 'warn' && <p className="text-[11px] text-amber-500 mt-1 flex items-center gap-1">⚠ Imagen horizontal — se recomienda portrait (vertical)</p>}
                   </div>
@@ -2740,14 +2863,20 @@ const TorneoDetallePage = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-slate-600 block mb-1">Imagen header sección (URL)</label>
-                  <input type="url" value={persona.imagenHeaderGrupos} onChange={(e) => setP('imagenHeaderGrupos', e.target.value)} placeholder="https://..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
-                  <p className="text-slate-400 text-xs mt-1">Banner único arriba de todos los grupos.</p>
+                  <label className="text-xs font-medium text-slate-600 block mb-1">Imagen header sección</label>
+                  <ImagenFileInput
+                    value={persona.imagenHeaderGrupos}
+                    onChange={(v) => setP('imagenHeaderGrupos', v)}
+                    hint="Banner único arriba de todos los grupos."
+                  />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo cards (URL)</label>
-                  <input type="url" value={persona.imagenFondoGrupos} onChange={(e) => setP('imagenFondoGrupos', e.target.value)} placeholder="https://..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
-                  <p className="text-slate-400 text-xs mt-1">Aparece en el header de cada card de zona.</p>
+                  <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo cards</label>
+                  <ImagenFileInput
+                    value={persona.imagenFondoGrupos}
+                    onChange={(v) => setP('imagenFondoGrupos', v)}
+                    hint="Aparece en el header de cada card de zona."
+                  />
                 </div>
               </div>
 
@@ -2781,8 +2910,12 @@ const TorneoDetallePage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[{ key: 'bannerLateral1Grupos', label: 'Banner lateral 1 (izquierda)' }, { key: 'bannerLateral2Grupos', label: 'Banner lateral 2 (derecha)' }].map(({ key, label }) => (
                   <div key={key}>
-                    <label className="text-xs font-medium text-slate-600 block mb-1">{label} (URL)</label>
-                    <input type="url" value={persona[key]} onChange={(e) => setP(key, e.target.value)} onBlur={(e) => checkBannerRatio(key, e.target.value)} placeholder="https://..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
+                    <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
+                    <ImagenFileInput
+                      value={persona[key]}
+                      onChange={(v) => setP(key, v)}
+                      onImageLoad={(v) => checkBannerRatio(key, v)}
+                    />
                     {bannerWarnings[key] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1">✓ Imagen vertical correcta</p>}
                     {bannerWarnings[key] === 'warn' && <p className="text-[11px] text-amber-500 mt-1 flex items-center gap-1">⚠ Imagen horizontal — se recomienda portrait (vertical)</p>}
                   </div>
@@ -2800,8 +2933,11 @@ const TorneoDetallePage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[{ key: 'imagenFondoDraw', label: 'Imagen fondo header' }, { key: 'imagenFondoBracket', label: 'Imagen fondo llaves' }].map(({ key, label }) => (
                   <div key={key}>
-                    <label className="text-xs font-medium text-slate-600 block mb-1">{label} (URL)</label>
-                    <input type="url" value={persona[key]} onChange={(e) => setP(key, e.target.value)} placeholder="https://..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
+                    <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
+                    <ImagenFileInput
+                      value={persona[key]}
+                      onChange={(v) => setP(key, v)}
+                    />
                   </div>
                 ))}
               </div>
@@ -2839,19 +2975,23 @@ const TorneoDetallePage = () => {
                   <div className="flex flex-col gap-1.5 mb-3">
                     {persona.sponsors.map((s, i) => (
                       <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-700">{s.nombre}</p>
-                          {s.logo && <p className="text-xs text-slate-400 truncate mt-0.5">{s.logo}</p>}
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {s.logo && <img src={s.logo} alt={s.nombre} className="w-8 h-8 rounded object-contain border border-slate-200 shrink-0" />}
+                          <p className="text-sm font-medium text-slate-700 truncate">{s.nombre}</p>
                         </div>
                         <button type="button" onClick={() => setP('sponsors', persona.sponsors.filter((_, j) => j !== i))} className="text-slate-300 hover:text-red-400 transition-colors shrink-0 p-1"><X size={13} /></button>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
                   <input type="text" value={newSponsor.nombre} onChange={(e) => setNewSponsor((p) => ({ ...p, nombre: e.target.value }))} placeholder="Nombre del sponsor" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-brand-400 transition-all" />
-                  <input type="url"  value={newSponsor.logo}   onChange={(e) => setNewSponsor((p) => ({ ...p, logo:   e.target.value }))} placeholder="URL logo (opcional)" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-brand-400 transition-all" />
-                  <button type="button" onClick={() => { if (!newSponsor.nombre.trim()) return; setP('sponsors', [...persona.sponsors, { nombre: newSponsor.nombre.trim(), logo: newSponsor.logo.trim() }]); setNewSponsor({ nombre: '', logo: '' }) }} className="shrink-0 px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-all"><Plus size={13} /></button>
+                  <ImagenFileInput
+                    value={newSponsor.logo}
+                    onChange={(v) => setNewSponsor((p) => ({ ...p, logo: v }))}
+                    hint="Logo del sponsor (opcional)"
+                  />
+                  <button type="button" onClick={() => { if (!newSponsor.nombre.trim()) return; setP('sponsors', [...persona.sponsors, { nombre: newSponsor.nombre.trim(), logo: newSponsor.logo }]); setNewSponsor({ nombre: '', logo: '' }) }} className="flex items-center gap-1.5 px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold rounded-lg transition-all self-start"><Plus size={13} /> Agregar sponsor</button>
                 </div>
                 <div className="mt-3">
                   <label className="text-xs font-medium text-slate-600 block mb-2">Tamaño de logos</label>

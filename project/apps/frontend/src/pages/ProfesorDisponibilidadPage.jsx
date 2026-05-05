@@ -197,7 +197,7 @@ const ProfesorDisponibilidadPage = () => {
       {/* Selector de día */}
       <div>
         <p className="text-white/50 text-xs font-medium mb-3 uppercase tracking-wide">Seleccioná el día</p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => { setFecha((f) => addDays(f, -1)); setFranjasSeleccionadas([]) }}
             disabled={fecha <= hoy}

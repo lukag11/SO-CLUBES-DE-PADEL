@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { User, Lock, Save, Eye, EyeOff, CheckCircle, AlertCircle, ChevronDown, MapPin } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import { DIAS, HORARIOS, POSICIONES, MANOS, CATEGORIAS, FRECUENCIAS } from '../hooks/useRegisterForm'
-import { PROVINCIAS, getCiudades } from '../data/provinciasArgentina'
+import { useProvincias, useMunicipios } from '../hooks/useGeoref'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -17,7 +17,8 @@ const validateProfileForm = (form) => {
   if (!form.nombre.trim() || form.nombre.trim().length < 2) errs.nombre = 'Mínimo 2 caracteres'
   if (!form.apellido.trim() || form.apellido.trim().length < 2) errs.apellido = 'Mínimo 2 caracteres'
   if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = 'Email inválido'
-  if (form.telefono && !/^[\d\s\+\-\(\)]{6,20}$/.test(form.telefono)) errs.telefono = 'Formato inválido'
+  if (!form.telefono || form.telefono.replace(/\s/g, '').length === 0) errs.telefono = 'El teléfono es requerido'
+  else if (form.telefono.replace(/\s/g, '').length !== 10) errs.telefono = 'Debe tener 10 dígitos (código de área + número)'
   if (!form.provincia) errs.provincia = 'Seleccioná una provincia'
   if (!form.ciudad) errs.ciudad = 'Seleccioná una ciudad'
   if (!form.posicion) errs.posicion = 'Seleccioná una posición'
@@ -195,7 +196,8 @@ const DatosTab = ({ player, updatePlayer }) => {
     if (errors.provincia) setErrors((prev) => ({ ...prev, provincia: '' }))
   }
 
-  const ciudadesDisponibles = getCiudades(form.provincia)
+  const { provincias, loading: loadingProvincias } = useProvincias()
+  const { municipios, loading: loadingMunicipios } = useMunicipios(form.provincia)
 
   const handleSave = () => {
     const errs = validateProfileForm(form)
@@ -234,9 +236,10 @@ const DatosTab = ({ player, updatePlayer }) => {
             label="Provincia *"
             value={form.provincia}
             onChange={handleProvinciaChange}
-            options={PROVINCIAS}
-            placeholder="Seleccioná una provincia"
+            options={provincias}
+            placeholder={loadingProvincias ? 'Cargando provincias...' : 'Seleccioná una provincia'}
             error={errors.provincia}
+            disabled={loadingProvincias}
           />
           <StyledSelect
             label="Ciudad *"
@@ -245,10 +248,14 @@ const DatosTab = ({ player, updatePlayer }) => {
               setForm((prev) => ({ ...prev, ciudad: v }))
               if (errors.ciudad) setErrors((prev) => ({ ...prev, ciudad: '' }))
             }}
-            options={ciudadesDisponibles}
-            placeholder={form.provincia ? 'Seleccioná una ciudad' : 'Primero elegí la provincia'}
+            options={municipios}
+            placeholder={
+              !form.provincia ? 'Primero elegí la provincia'
+              : loadingMunicipios ? 'Cargando ciudades...'
+              : 'Seleccioná una ciudad'
+            }
             error={errors.ciudad}
-            disabled={!form.provincia}
+            disabled={!form.provincia || loadingMunicipios}
           />
         </div>
       </SectionCard>
@@ -472,6 +479,57 @@ const PasswordTab = () => {
   )
 }
 
+// ── Banner perfil incompleto ──────────────────────────────────────────────────
+
+const PROFILE_FIELDS = [
+  { key: 'telefono',           label: 'Teléfono',           check: (v) => v && v.replace(/\s/g, '').length === 10 },
+  { key: 'provincia',          label: 'Provincia',          check: (v) => !!v },
+  { key: 'ciudad',             label: 'Ciudad',             check: (v) => !!v },
+  { key: 'posicion',           label: 'Posición',           check: (v) => !!v },
+  { key: 'mano',               label: 'Mano dominante',     check: (v) => !!v },
+  { key: 'categoria',          label: 'Categoría',          check: (v) => !!v },
+  { key: 'frecuencia',         label: 'Frecuencia',         check: (v) => !!v },
+  { key: 'diasDisponibles',    label: 'Días disponibles',   check: (v) => Array.isArray(v) && v.length > 0 },
+  { key: 'horariosDisponibles',label: 'Horarios',           check: (v) => Array.isArray(v) && v.length > 0 },
+]
+
+const ProfileCompletionBanner = ({ player, onComplete }) => {
+  const missing = PROFILE_FIELDS.filter(({ key, check }) => !check(player?.[key]))
+  const total = PROFILE_FIELDS.length
+  const done = total - missing.length
+  const pct = Math.round((done / total) * 100)
+
+  if (missing.length === 0) return null
+
+  return (
+    <div className="bg-amber-500/8 border border-amber-400/20 rounded-2xl p-4">
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div>
+          <p className="text-amber-400 text-sm font-semibold">Completá tu perfil — {pct}%</p>
+          <p className="text-white/35 text-xs mt-0.5">
+            {missing.length === 1
+              ? `Falta: ${missing[0].label}`
+              : `Faltan: ${missing.slice(0, 3).map(f => f.label).join(', ')}${missing.length > 3 ? ` y ${missing.length - 3} más` : ''}`
+            }
+          </p>
+        </div>
+        <button
+          onClick={onComplete}
+          className="shrink-0 text-xs font-semibold text-amber-400 border border-amber-400/30 bg-amber-400/10 hover:bg-amber-400/20 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          Completar
+        </button>
+      </div>
+      <div className="w-full bg-white/8 rounded-full h-1.5 overflow-hidden">
+        <div
+          className="h-full bg-amber-400 rounded-full transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 const TABS = [
@@ -482,6 +540,7 @@ const TABS = [
 const PlayerProfilePage = () => {
   const [activeTab, setActiveTab] = useState('datos')
   const { player, updatePlayer } = usePlayerStore()
+
 
   const initials = player
     ? `${player.nombre?.[0] || ''}${player.apellido?.[0] || ''}`.toUpperCase()
@@ -502,6 +561,9 @@ const PlayerProfilePage = () => {
           <p className="text-white/30 text-sm mt-0.5">DNI {player?.dni} · {player?.categoria || '—'}</p>
         </div>
       </div>
+
+      {/* Banner perfil incompleto */}
+      <ProfileCompletionBanner player={player} onComplete={() => setActiveTab('datos')} />
 
       {/* Tabs */}
       <div className="flex gap-1 bg-white/4 p-1 rounded-xl w-fit border border-white/6">

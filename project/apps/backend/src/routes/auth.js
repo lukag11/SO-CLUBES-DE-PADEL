@@ -55,8 +55,11 @@ router.post('/jugador/login', async (req, res) => {
       include: { club: true },
     })
 
-    if (!jugador || !(await bcrypt.compare(password, jugador.password))) {
-      return res.status(401).json({ error: 'Credenciales incorrectas' })
+    if (!jugador) {
+      return res.status(401).json({ error: 'DNI no registrado' })
+    }
+    if (!(await bcrypt.compare(password, jugador.password))) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' })
     }
 
     if (!jugador.activo) {
@@ -66,6 +69,49 @@ router.post('/jugador/login', async (req, res) => {
     const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId })
 
     res.json({
+      token,
+      user: {
+        id: jugador.id,
+        nombre: jugador.nombre,
+        apellido: jugador.apellido,
+        dni: jugador.dni,
+        role: 'jugador',
+        club: { id: jugador.club.id, nombre: jugador.club.nombre },
+      },
+    })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
+// POST /api/auth/jugador/registro
+router.post('/jugador/registro', async (req, res) => {
+  const { nombre, apellido, dni, password, email, telefono, clubId } = req.body
+
+  if (!nombre || !apellido || !dni || !password || !clubId) {
+    return res.status(400).json({ error: 'Faltan datos obligatorios' })
+  }
+
+  try {
+    const existe = await prisma.jugador.findUnique({
+      where: { clubId_dni: { clubId, dni } },
+    })
+
+    if (existe) {
+      return res.status(409).json({ error: 'Ya existe un jugador con ese DNI en este club' })
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10)
+
+    const jugador = await prisma.jugador.create({
+      data: { clubId, nombre, apellido, dni, password: passwordHash, email, telefono },
+      include: { club: true },
+    })
+
+    const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId })
+
+    res.status(201).json({
       token,
       user: {
         id: jugador.id,

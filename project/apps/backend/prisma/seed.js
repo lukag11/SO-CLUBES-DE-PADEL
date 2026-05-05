@@ -26,6 +26,18 @@ async function main() {
     },
   })
 
+  await prisma.jugador.upsert({
+    where: { clubId_dni: { clubId: club.id, dni: '12345678' } },
+    update: {},
+    create: {
+      clubId: club.id,
+      nombre: 'Lucas',
+      apellido: 'Romero',
+      dni: '12345678',
+      password: passwordHash,
+    },
+  })
+
   console.log('Seed completo — Club:', club.id)
 }
 

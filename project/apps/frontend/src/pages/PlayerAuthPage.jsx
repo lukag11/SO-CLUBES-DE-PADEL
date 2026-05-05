@@ -4,6 +4,7 @@ import { Zap, Lock, Eye, EyeOff, CreditCard } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import usePlayerStore from '../store/playerStore'
+import { api } from '../lib/api'
 
 const CourtDecoration = () => (
   <svg className="absolute inset-0 w-full h-full opacity-[0.07]" viewBox="0 0 500 700" fill="none" preserveAspectRatio="xMidYMid slice">
@@ -30,23 +31,24 @@ const PlayerAuthPage = () => {
     setError('')
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.dni || !form.password) {
       setError('Completá todos los campos')
       return
     }
     setLoading(true)
-    // TODO: reemplazar con llamada real a la API
-    setTimeout(() => {
-      if (form.dni === '12345678' && form.password === '123456') {
-        login({ nombre: 'Lucas', apellido: 'Romero', dni: form.dni, genero: 'Masculino' }, 'player-demo-token')
-        navigate('/dashboardJugadores/dashboard')
-      } else {
-        setError('DNI o contraseña incorrectos')
-        setLoading(false)
-      }
-    }, 900)
+    setError('')
+
+    try {
+      const clubId = 'cmoryx4a900008t4qmzdzuiee'
+      const data = await api.post('/auth/jugador/login', { dni: form.dni, password: form.password, clubId })
+      login(data.user, data.token)
+      navigate('/dashboardJugadores/dashboard')
+    } catch (err) {
+      setError(err.message || 'DNI o contraseña incorrectos')
+      setLoading(false)
+    }
   }
 
   return (

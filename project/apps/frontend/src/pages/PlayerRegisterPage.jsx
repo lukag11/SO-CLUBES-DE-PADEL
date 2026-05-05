@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Zap, ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import useRegisterForm from '../hooks/useRegisterForm'
 import usePlayerStore from '../store/playerStore'
+import { api } from '../lib/api'
 import Step1Basicos from '../features/player-register/Step1Basicos'
 import Step2Perfil from '../features/player-register/Step2Perfil'
 import Step3Preferencias from '../features/player-register/Step3Preferencias'
@@ -142,17 +143,25 @@ const PlayerRegisterPage = () => {
     if (!validateStep(3)) return
 
     setSubmitting(true)
-    // TODO: reemplazar con llamada real a la API
-    setTimeout(() => {
+    try {
+      const clubId = 'cmoryx4a900008t4qmzdzuiee'
+      const data = await api.post('/auth/jugador/registro', {
+        clubId,
+        nombre:   form.nombre,
+        apellido: form.apellido,
+        dni:      form.dni,
+        password: form.password,
+        email:    form.email,
+        telefono: form.telefono,
+      })
       login(
         {
-          nombre:              form.nombre,
-          apellido:            form.apellido,
-          genero:              form.genero,
-          apodo:               form.apodo,
-          dni:                 form.dni,
+          ...data.user,
           email:               form.email,
           telefono:            form.telefono,
+          fechaNacimiento:     form.fechaNacimiento,
+          genero:              form.genero,
+          apodo:               form.apodo,
           provincia:           form.provincia,
           ciudad:              form.ciudad,
           posicion:            form.posicion,
@@ -161,11 +170,15 @@ const PlayerRegisterPage = () => {
           frecuencia:          form.frecuencia,
           diasDisponibles:     form.diasDisponibles,
           horariosDisponibles: form.horariosDisponibles,
+          perfilPublico:       form.perfilPublico,
         },
-        'player-register-token'
+        data.token
       )
       navigate('/dashboardJugadores/dashboard')
-    }, 1200)
+    } catch (err) {
+      alert(err.message || 'Error al registrarse')
+      setSubmitting(false)
+    }
   }
 
   const stepProps = { form, errors, handleChange, handleBlur, toggleArrayValue, setValue }

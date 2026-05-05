@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Lock, Eye, EyeOff } from 'lucide-react'
+import { Lock, Eye, EyeOff, Globe } from 'lucide-react'
 import Input from '../../components/ui/Input'
 import { DIAS, HORARIOS, FRECUENCIAS } from '../../hooks/useRegisterForm'
 
@@ -111,13 +111,39 @@ const Step3Preferencias = ({ form, errors, handleChange, handleBlur, toggleArray
           {HORARIOS.map((h) => (
             <ToggleChip
               key={h}
-              label={h}
+              label={h === '00:00' ? '00h' : h.replace(':00', 'h')}
               selected={form.horariosDisponibles.includes(h)}
               onClick={() => toggleArrayValue('horariosDisponibles', h)}
             />
           ))}
         </div>
         <FieldError error={errors.horariosDisponibles} />
+      </div>
+
+      {/* Perfil público */}
+      <div className="rounded-2xl border border-white/8 bg-white/3 p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className={`mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${form.perfilPublico ? 'bg-[#afca0b]/15' : 'bg-white/6'}`}>
+              <Globe size={16} className={form.perfilPublico ? 'text-[#afca0b]' : 'text-white/30'} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white/80">Perfil público</p>
+              <p className="text-xs text-white/35 mt-0.5 leading-relaxed">
+                {form.perfilPublico
+                  ? 'Visible para jugadores de cualquier club en la red PadelOS'
+                  : 'Solo vos y el administrador de tu club pueden ver tu perfil'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setValue('perfilPublico', !form.perfilPublico)}
+            className={`relative shrink-0 w-11 h-6 rounded-full transition-colors duration-200 ${form.perfilPublico ? 'bg-[#afca0b]' : 'bg-white/15'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${form.perfilPublico ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
       </div>
 
       {/* Contraseñas — inputs blancos sobre dark */}
@@ -131,7 +157,7 @@ const Step3Preferencias = ({ form, errors, handleChange, handleBlur, toggleArray
             type={showPass ? 'text' : 'password'}
             placeholder="Mínimo 8 caracteres"
             value={form.password}
-            onChange={handleChange}
+            onChange={(e) => { handleChange(e); handleBlur('password') }}
             onBlur={() => handleBlur('password')}
             icon={Lock}
             error={errors.password}

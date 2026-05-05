@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Club {
+  id          String   @id @default(cuid())
+  nombre      String
+  slug        String   @unique
+  logoUrl     String?
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  admins    Admin[]
+  jugadores Jugador[]
+
+  @@map("clubs")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  clubId    String
+  nombre    String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  club Club @relation(fields: [clubId], references: [id])
+
+  @@map("admins")
+}
+
+model Jugador {
+  id        String   @id @default(cuid())
+  clubId    String
+  nombre    String
+  apellido  String
+  dni       String
+  email     String?
+  telefono  String?
+  password  String
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  club Club @relation(fields: [clubId], references: [id])
+
+  @@unique([clubId, dni])
+  @@map("jugadores")
+}

@@ -67,10 +67,15 @@
 - Jugador: ~70% completo
 - Profesor: ~70% completo
 
-## Backend / API 🔲 Pendiente
+## Backend / API 🔄 En progreso
 
-- Ver roadmap en `context/roadmap.md`
-- Stack: Express + Prisma + Supabase
+- Stack: Express + Prisma + Supabase + Railway
+- **Bloque 1 ✅** — Setup base completo. Server Express en `project/apps/backend/`, levanta en puerto 3001, health check en `GET /api/health`
+- Schema Prisma inicial: `Club`, `Admin`, `Jugador` con `club_id` en todas
+- Variables necesarias en `.env.example` (DATABASE_URL, SUPABASE_URL, JWT_SECRET)
+- **Bloque 2 🔲** — Auth (login admin/jugador/profesor con JWT real) — requiere `.env` con credenciales Supabase
+- **Bloque 3 🔲** — Reservas CRUD
+- Ver roadmap completo en `context/roadmap.md`
 
 ## WhatsApp 🔲 Futuro
 

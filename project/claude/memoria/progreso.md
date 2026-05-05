@@ -24,8 +24,9 @@
 | Módulo torneos admin | ✅ Completo | CRUD, grupos, bracket, horarios, personalización |
 | Módulo torneos jugador | ✅ Completo | Inscripción, historial, vista pública |
 | Responsive design mobile | 🔄 En progreso | Admin ~80%, Jugador ~70%, Profesor ~70% |
-| Backend real | 🔲 Pendiente | Stack decidido: Express + Prisma + Supabase |
-| Multi-tenancy (club_id) | 🔲 Pendiente | Diseñar schema con Prisma |
+| Backend real — Bloque 1 setup | ✅ Completo | Express + Prisma + Supabase. Server levanta en puerto 3001 |
+| Backend real — Bloque 2 auth | 🔲 Pendiente | Requiere .env con credenciales Supabase reales |
+| Multi-tenancy (club_id) | 🔲 Pendiente | Schema base creado (Club, Admin, Jugador) — falta migrar a Supabase |
 | WhatsApp notificaciones | 🔲 Futuro | Pendiente para fase backend |
 | Landing SaaS empresa | 🔲 Futuro | Cuando haya primer cliente real |
 | Registro self-service de clubes | 🔲 Futuro | MVP: alta manual por el equipo |
@@ -126,9 +127,10 @@
 
 ## Próximos pasos en orden
 
-1. **Terminar responsive** — revisar secciones pendientes (ver checklist arriba)
-2. **Arrancar backend** — Express + Prisma + Supabase (ver `arquitectura.md`)
-3. **Schema de base de datos** — todas las tablas con `club_id`
-4. **Auth real** — reemplazar mocks de login con JWT real
-5. **Conectar frontend al backend** — reemplazar localStorage store por store → API calls
-6. **Landing SaaS** — cuando haya primer cliente potencial
+1. **Terminar responsive** — revisar secciones pendientes (ver checklist arriba) — puede hacerse en paralelo
+2. ✅ **Backend Bloque 1** — setup base completo (`project/apps/backend/`)
+3. **Backend Bloque 2** — Auth: login admin/jugador/profesor con JWT real (requiere .env con Supabase)
+4. **Backend Bloque 3** — Reservas CRUD con club_id + conectar frontend
+5. **Backend Bloque 4** — Torneos
+6. **Backend Bloque 5** — Pagos, stats, etc.
+7. **Landing SaaS** — cuando haya primer cliente potencial

@@ -4,6 +4,7 @@ import { Mail, Lock, Eye, EyeOff, Zap } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import useAuthStore from '../store/authStore'
+import { api } from '../lib/api'
 
 // Decoración SVG: líneas de cancha de pádel
 const CourtDecoration = () => (
@@ -57,16 +58,14 @@ const LoginPage = () => {
     setLoading(true)
     setError('')
 
-    // TODO: reemplazar con llamada real a la API cuando exista el backend
-    setTimeout(() => {
-      if (form.email === 'admin@club.com' && form.password === '123456') {
-        login({ name: 'Admin', email: form.email, role: 'admin' }, 'demo-token')
-        navigate('/dashboardAdmin')
-      } else {
-        setError('Email o contraseña incorrectos')
-        setLoading(false)
-      }
-    }, 1000)
+    try {
+      const data = await api.post('/auth/admin/login', { email: form.email, password: form.password })
+      login(data.user, data.token)
+      navigate('/dashboardAdmin')
+    } catch (err) {
+      setError(err.message || 'Email o contraseña incorrectos')
+      setLoading(false)
+    }
   }
 
   return (

@@ -186,6 +186,7 @@ const PlayerReservasPage = () => {
   const [esTurnoFijo, setEsTurnoFijo] = useState(false)
   const [modalAbierto, setModalAbierto] = useState(false)
   const [reservaACancelar, setReservaACancelar] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
 
   // Auto-abrir modal si venimos desde la landing con un slot pre-seleccionado
   useEffect(() => {
@@ -338,9 +339,10 @@ const PlayerReservasPage = () => {
   }
 
   const handleConfirmar = async () => {
-    if (!slotSeleccionado || !canchaActual) return
+    if (!slotSeleccionado || !canchaActual || submitting) return
     if (esTurnoFijo && yaTimeTurnoFijoEnCancha) return
 
+    setSubmitting(true)
     // Intentar guardar en el backend si tenemos el cuid de la cancha y el token
     if (canchaDBId && token) {
       try {
@@ -353,6 +355,7 @@ const PlayerReservasPage = () => {
         fetchReservasDia(fechaSeleccionada)
       } catch (err) {
         setErrorReserva(err.message || 'No se pudo guardar la reserva')
+        setSubmitting(false)
         return
       }
     }
@@ -379,6 +382,7 @@ const PlayerReservasPage = () => {
     setConfirmadoEsFijo(esTurnoFijo)
     setConfirmado(true)
     setErrorReserva(null)
+    setSubmitting(false)
   }
 
   return (
@@ -715,15 +719,28 @@ const PlayerReservasPage = () => {
               {/* Botón confirmar */}
               <button
                 onClick={handleConfirmar}
+                disabled={submitting}
                 className={[
-                  'w-full flex items-center justify-center gap-3 font-bold text-base py-4 rounded-2xl transition-all duration-200 active:scale-[0.98]',
+                  'w-full flex items-center justify-center gap-3 font-bold text-base py-4 rounded-2xl transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed',
                   esTurnoFijo
                     ? 'bg-amber-400 text-[#0d1117] hover:bg-amber-300 shadow-lg shadow-amber-400/20'
                     : 'bg-[#afca0b] text-[#0d1117] hover:brightness-110 shadow-lg shadow-[#afca0b]/20',
                 ].join(' ')}
               >
-                {esTurnoFijo ? <Repeat size={18} /> : <CheckCircle size={18} />}
-                {esTurnoFijo ? 'Enviar solicitud de turno fijo' : 'Confirmar reserva'}
+                {submitting ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    {esTurnoFijo ? <Repeat size={18} /> : <CheckCircle size={18} />}
+                    {esTurnoFijo ? 'Enviar solicitud de turno fijo' : 'Confirmar reserva'}
+                  </>
+                )}
               </button>
 
               <button

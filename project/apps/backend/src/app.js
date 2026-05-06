@@ -2,6 +2,8 @@ import express from 'express'
 import cors from 'cors'
 import healthRouter from './routes/health.js'
 import authRouter from './routes/auth.js'
+import canchasRouter from './routes/canchas.js'
+import reservasRouter from './routes/reservas.js'
 
 const app = express()
 
@@ -20,5 +22,7 @@ app.use(express.json())
 
 app.use('/api', healthRouter)
 app.use('/api/auth', authRouter)
+app.use('/api/canchas', canchasRouter)
+app.use('/api/reservas', reservasRouter)
 
 export default app

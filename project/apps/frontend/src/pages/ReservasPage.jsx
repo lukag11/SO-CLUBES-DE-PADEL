@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   ChevronLeft, ChevronRight, Plus, X, Save, Check,
   CalendarDays, DollarSign, Lock, Repeat, Clock,
@@ -14,6 +14,8 @@ import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
 import useReservasAdminStore from '../store/reservasAdminStore'
 import useProfesoresStore from '../store/profesoresStore'
+import useAuthStore from '../store/authStore'
+import { api } from '../lib/api'
 import { overlaps, toMin } from '../utils/timeUtils'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -774,7 +776,7 @@ const FormBloqueo = ({ franja, cancha, onSave, onCancel }) => {
 
 // ─── Panel lateral — Detalle reserva ─────────────────────────────────────────
 
-const DetalleReserva = ({ reserva, onCancelar, onPago, onClose }) => {
+const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => {
   const tipoCfg = TIPO_CONFIG[reserva.tipo]
   const pagoCfg = reserva.pago ? PAGO_CONFIG[reserva.pago] : null
   const estadoCfg = ESTADO_CONFIG[reserva.estado]
@@ -902,7 +904,17 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose }) => {
       {/* Acciones — reservas normales */}
       {reserva.tipo !== 'bloqueado' && reserva.tipo !== 'clase' && reserva.estado !== 'cancelada' && (
         <div className="px-5 py-4 border-t border-slate-100 flex flex-col gap-2">
-          {reserva.pago !== 'pagado' && (
+          {/* Botón aprobar: solo para reservas backend pendientes */}
+          {reserva._backendId && reserva.estado === 'pendiente' && onAprobar && (
+            <button
+              onClick={() => onAprobar(reserva.id)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors"
+            >
+              <Check size={14} />
+              Aprobar reserva
+            </button>
+          )}
+          {reserva.pago !== 'pagado' && reserva.estado === 'confirmada' && (
             <button
               onClick={() => onPago(reserva.id)}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors"
@@ -1795,6 +1807,37 @@ const ReservasPage = () => {
   const pagarReservaAdmin = useReservasAdminStore((s) => s.pagarReserva)
   const updateReservaAdmin = useReservasAdminStore((s) => s.updateReserva)
 
+  const adminToken = useAuthStore((s) => s.token)
+  const clubId = 'cmoryx4a900008t4qmzdzuiee'
+
+  // Reservas reales desde el backend (jugadores que reservaron online)
+  const [reservasBackend, setReservasBackend] = useState([])
+
+  useEffect(() => {
+    if (!adminToken) return
+    api.get(`/reservas?clubId=${clubId}&fecha=${fecha}`, { Authorization: `Bearer ${adminToken}` })
+      .then((data) => setReservasBackend(data))
+      .catch(() => setReservasBackend([]))
+  }, [fecha, adminToken])
+
+  // Transforma una reserva de la DB al formato de la grilla admin
+  const mapBackendReserva = (r) => ({
+    id: `backend_${r.id}`,
+    _backendId: r.id,
+    canchaId: CANCHAS_MOCK.findIndex((c) => c.nombre === r.cancha?.nombre) + 1 || 1,
+    canchaNombre: r.cancha?.nombre || '',
+    fecha: r.fecha,
+    inicio: r.horaInicio,
+    fin: r.horaFin,
+    tipo: r.tipo || 'online',
+    jugadores: r.jugador ? [`${r.jugador.nombre} ${r.jugador.apellido}`] : [],
+    estado: r.estado,
+    pago: r.estado === 'confirmada' ? 'pendiente' : null,
+    monto: r.precio || 0,
+    notas: r.notas || '',
+    creadoPor: 'jugador',
+  })
+
   // Mapea la hora del jugador (ej. '10:00') a la franja admin que la contiene
   const franjaParaHora = (hora) =>
     FRANJAS.find((f) => f.inicio <= hora && hora < f.fin) ||
@@ -1852,9 +1895,17 @@ const ReservasPage = () => {
       })
   , [turnosFijos, diaSemanaFecha, fecha])
 
+  // Reservas del backend transformadas, excluyendo canceladas y las que ya están en el store local
+  const reservasBackendDia = useMemo(
+    () => reservasBackend
+      .filter((r) => r.estado !== 'cancelada')
+      .map(mapBackendReserva),
+    [reservasBackend] // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
   const reservasDia = useMemo(
-    () => [...reservas.filter((r) => r.fecha === fecha), ...playerReservasDia, ...turnosFijosDia],
-    [reservas, fecha, playerReservasDia, turnosFijosDia]
+    () => [...reservas.filter((r) => r.fecha === fecha), ...playerReservasDia, ...turnosFijosDia, ...reservasBackendDia],
+    [reservas, fecha, playerReservasDia, turnosFijosDia, reservasBackendDia]
   )
 
   // Total de turnos fijos activos para el día de semana, sin descontar ausencias puntuales
@@ -1895,7 +1946,28 @@ const ReservasPage = () => {
     setSeleccion(null)
   }
 
+  const handleAprobarBackend = async (id) => {
+    const backendId = String(id).replace('backend_', '')
+    try {
+      await api.patch(`/reservas/${backendId}/estado`, { estado: 'confirmada' }, { Authorization: `Bearer ${adminToken}` })
+      setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, estado: 'confirmada' } : r))
+    } catch (err) {
+      alert(err.message || 'No se pudo aprobar la reserva')
+    }
+    setSeleccion(null)
+  }
+
   const handleCancelar = (id) => {
+    // Reserva del backend: id = 'backend_<reservaId>'
+    if (String(id).startsWith('backend_')) {
+      const backendId = String(id).replace('backend_', '')
+      api.patch(`/reservas/${backendId}/estado`, { estado: 'cancelada' }, { Authorization: `Bearer ${adminToken}` })
+        .then(() => setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, estado: 'cancelada' } : r)))
+        .catch((err) => alert(err.message || 'No se pudo cancelar'))
+      setSeleccion(null)
+      return
+    }
+
     // Reserva eventual del jugador: id = 'player_<reservaId>'
     if (String(id).startsWith('player_')) {
       const reservaId = Number(String(id).replace('player_', ''))
@@ -2053,7 +2125,7 @@ const ReservasPage = () => {
               <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">
                 {seleccion.tipo === 'detalle' ? (
                   <div className="flex flex-col">
-                    <DetalleReserva reserva={seleccion.reserva} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} />
+                    <DetalleReserva reserva={seleccion.reserva} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} onAprobar={handleAprobarBackend} />
                     {seleccion.reserva.tipo !== 'bloqueado' && seleccion.reserva.tipo !== 'clase' && seleccion.reserva.estado !== 'cancelada' && (
                       <div className="px-5 pb-4">
                         <button onClick={() => handleEditar(seleccion.reserva)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 transition-colors">

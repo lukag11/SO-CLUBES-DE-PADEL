@@ -38,6 +38,20 @@ async function main() {
     },
   })
 
+  const canchasData = [
+    { nombre: 'Cancha 1', tipo: 'Cristal', indoor: true },
+    { nombre: 'Cancha 2', tipo: 'Cristal', indoor: true },
+    { nombre: 'Cancha 3', tipo: 'Pared',   indoor: false },
+    { nombre: 'Cancha 4', tipo: 'Pared',   indoor: false },
+  ]
+
+  for (const c of canchasData) {
+    const existing = await prisma.cancha.findFirst({ where: { clubId: club.id, nombre: c.nombre } })
+    if (!existing) {
+      await prisma.cancha.create({ data: { clubId: club.id, ...c } })
+    }
+  }
+
   console.log('Seed completo — Club:', club.id)
 }
 

@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-05
+**Última actualización:** 2026-05-06
 
 ---
 
@@ -9,24 +9,31 @@
 | Módulo | Estado | Notas |
 |---|---|---|
 | Base frontend + design system | ✅ Completo | Tailwind, componentes UI, dark/light themes |
-| Login admin | ✅ Completo | Mock con admin@club.com / 123456 — conectar a backend |
+| Login admin | ✅ Completo | Conectado al backend real. admin@club.com / 123456 |
 | Landing pública (5 templates) | ✅ Completo | Personalizable desde panel admin |
 | Dashboard admin completo | ✅ Completo | Stats, navegación, sidebar colapsable |
-| Gestión reservas (admin) | ✅ Completo | Grilla semanal, aprobación, turnos fijos, profesores |
-| Gestión pagos (admin) | ✅ Completo | Registro de pagos por turno |
+| Gestión reservas (admin) | ✅ Frontend completo | Grilla semanal, aprobación, turnos fijos — falta backend (Bloque 3) |
+| Gestión pagos (admin) | ✅ Frontend completo | Registro de pagos por turno — falta backend |
 | Edición del club / Quiénes Somos | ✅ Completo | Logo, colores, plantillas, horarios, canchas |
-| Registro jugador (stepper 3 pasos) | ✅ Completo | DNI, nombre, email, contraseña |
-| Dashboard jugador completo | ✅ Completo | Resumen, reservas, turnos fijos, stats, torneos, perfil |
-| Reservas jugador (grilla + modal) | ✅ Completo | Slots 1.5h, grilla por fecha/cancha, confirmación |
-| Turnos fijos (pendiente → aprobación) | ✅ Completo | Flujo completo con notificación |
-| Notificaciones admin + jugador | ✅ Completo | Badge, centro de notificaciones |
-| Dashboard profesor (agenda + disponibilidad) | ✅ Completo | Portal separado `/dashboardProfesor` |
-| Módulo torneos admin | ✅ Completo | CRUD, grupos, bracket, horarios, personalización |
-| Módulo torneos jugador | ✅ Completo | Inscripción, historial, vista pública |
+| Registro jugador (stepper 3 pasos) | ✅ Completo | Conectado al backend real. Validaciones, georef API, toggle perfil público |
+| Login jugador | ✅ Completo | Conectado al backend real (DNI + password + clubId) |
+| Perfil jugador | ✅ Completo | Editable, banner "completá tu perfil", georef API, perfilPublico |
+| Dashboard jugador completo | ✅ Completo | Resumen, reservas, turnos fijos, stats, torneos |
+| Reservas jugador (grilla + modal) | ✅ Frontend completo | Slots 1.5h — falta backend (Bloque 3) |
+| Turnos fijos (pendiente → aprobación) | ✅ Frontend completo | Flujo completo — falta backend (Bloque 3) |
+| Notificaciones admin + jugador | ✅ Frontend completo | Badge, centro de notificaciones — falta backend |
+| Dashboard profesor (agenda + disponibilidad) | ✅ Frontend completo | Portal separado `/dashboardProfesor` — falta backend |
+| Módulo torneos admin | ✅ Frontend completo | CRUD, grupos, bracket, horarios — falta backend (Bloque 4) |
+| Módulo torneos jugador | ✅ Frontend completo | Inscripción, historial, vista pública — falta backend (Bloque 4) |
+| Estadísticas jugador | 🔲 Hardcodeado | Placeholder. Implementar en Bloque 5 con datos reales de reservas + torneos |
 | Responsive design mobile | 🔄 En progreso | Admin ~80%, Jugador ~70%, Profesor ~70% |
 | Backend real — Bloque 1 setup | ✅ Completo | Express + Prisma + Supabase. Server levanta en puerto 3001 |
 | Backend real — Bloque 2 auth | ✅ Completo | JWT + bcrypt. Login admin/jugador + registro jugador conectados al frontend |
-| Multi-tenancy (club_id) | ✅ Completo | Schema Club/Admin/Jugador en Supabase. Seed con club-demo, admin y jugador de prueba |
+| Multi-tenancy (club_id) | ✅ Completo | Schema Club/Admin/Jugador en Supabase. Seed con club-demo, admin y jugador |
+| Backend real — Bloque 3 reservas | ✅ Completo | Cancha + Reserva en Supabase. 4 endpoints. Frontend jugador POST + admin GET/PATCH conectados |
+| Backend real — Bloque 4 torneos | 🔲 Pendiente | Torneo, Pareja, Partido en Prisma. Matching por DNI |
+| Backend real — Bloque 5 stats | 🔲 Pendiente | Estadísticas reales calculadas desde reservas + torneos |
+| Google OAuth | 🔲 Futuro | Bloque 5. Supabase Auth + paso extra para cargar DNI |
 | WhatsApp notificaciones | 🔲 Futuro | Pendiente para fase backend |
 | Landing SaaS empresa | 🔲 Futuro | Cuando haya primer cliente real |
 | Registro self-service de clubes | 🔲 Futuro | MVP: alta manual por el equipo |
@@ -130,7 +137,7 @@
 1. **Terminar responsive** — revisar secciones pendientes (ver checklist arriba) — puede hacerse en paralelo
 2. ✅ **Backend Bloque 1** — setup base completo (`project/apps/backend/`)
 3. ✅ **Backend Bloque 2** — Auth JWT completo. Login admin/jugador/profesor + registro jugador conectados al frontend real
-4. **Backend Bloque 3** — Reservas CRUD con club_id + conectar frontend ← PRÓXIMO
+4. ✅ **Backend Bloque 3** — Reservas CRUD completo
 5. **Backend Bloque 4** — Torneos
 6. **Backend Bloque 5** — Pagos, stats, etc.
 7. **Landing SaaS** — cuando haya primer cliente potencial

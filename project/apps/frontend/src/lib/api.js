@@ -11,6 +11,7 @@ const request = async (path, { headers, ...rest } = {}) => {
 }
 
 export const api = {
-  post: (path, body, headers) => request(path, { method: 'POST', body: JSON.stringify(body), headers }),
-  get: (path, headers) => request(path, { method: 'GET', headers }),
+  post:  (path, body, headers) => request(path, { method: 'POST',  body: JSON.stringify(body), headers }),
+  patch: (path, body, headers) => request(path, { method: 'PATCH', body: JSON.stringify(body), headers }),
+  get:   (path, headers)       => request(path, { method: 'GET',   headers }),
 }

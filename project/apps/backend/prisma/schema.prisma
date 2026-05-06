@@ -19,6 +19,8 @@ model Club {
 
   admins    Admin[]
   jugadores Jugador[]
+  canchas   Cancha[]
+  reservas  Reserva[]
 
   @@map("clubs")
 }
@@ -50,8 +52,47 @@ model Jugador {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  club Club @relation(fields: [clubId], references: [id])
+  club     Club      @relation(fields: [clubId], references: [id])
+  reservas Reserva[]
 
   @@unique([clubId, dni])
   @@map("jugadores")
+}
+
+model Cancha {
+  id      String  @id @default(cuid())
+  clubId  String
+  nombre  String
+  tipo    String  @default("Cristal")
+  indoor  Boolean @default(true)
+  activo  Boolean @default(true)
+
+  club     Club      @relation(fields: [clubId], references: [id])
+  reservas Reserva[]
+
+  @@map("canchas")
+}
+
+model Reserva {
+  id          String   @id @default(cuid())
+  clubId      String
+  canchaId    String
+  jugadorId   String?
+  fecha       String
+  horaInicio  String
+  horaFin     String
+  estado      String   @default("pendiente")
+  precio      Float?
+  esTurnoFijo Boolean  @default(false)
+  tipo        String   @default("online")
+  jugadores   String[]
+  notas       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  club    Club     @relation(fields: [clubId], references: [id])
+  cancha  Cancha   @relation(fields: [canchaId], references: [id])
+  jugador Jugador? @relation(fields: [jugadorId], references: [id])
+
+  @@map("reservas")
 }

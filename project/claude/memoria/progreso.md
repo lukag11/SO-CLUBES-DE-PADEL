@@ -31,7 +31,7 @@
 | Backend real — Bloque 2 auth | ✅ Completo | JWT + bcrypt. Login admin/jugador + registro jugador conectados al frontend |
 | Multi-tenancy (club_id) | ✅ Completo | Schema Club/Admin/Jugador en Supabase. Seed con club-demo, admin y jugador |
 | Backend real — Bloque 3 reservas | ✅ Completo | Cancha + Reserva en Supabase. 4 endpoints. Frontend jugador POST + admin GET/PATCH conectados. Fix: botón confirmar con spinner/disabled para evitar peticiones duplicadas |
-| Backend real — Bloque 4 torneos | 🔲 Pendiente | Torneo, Pareja, Partido en Prisma. Matching por DNI |
+| Backend real — Bloque 4 torneos | ✅ Completo | Torneo + Pareja en Prisma. 14 endpoints. Admin + jugador conectados. mapBackendTorneo, fix Number(id)→String |
 | Backend real — Bloque 5 stats | 🔲 Pendiente | Estadísticas reales calculadas desde reservas + torneos |
 | Google OAuth | 🔲 Futuro | Bloque 5. Supabase Auth + paso extra para cargar DNI |
 | WhatsApp notificaciones | 🔲 Futuro | Pendiente para fase backend |
@@ -138,6 +138,6 @@
 2. ✅ **Backend Bloque 1** — setup base completo (`project/apps/backend/`)
 3. ✅ **Backend Bloque 2** — Auth JWT completo. Login admin/jugador/profesor + registro jugador conectados al frontend real
 4. ✅ **Backend Bloque 3** — Reservas CRUD completo
-5. **Backend Bloque 4** — Torneos
-6. **Backend Bloque 5** — Pagos, stats, etc.
+5. ✅ **Backend Bloque 4** — Torneos completo. Torneo + Pareja en Prisma. 14 endpoints REST. TorneosPage + TorneoDetallePage + PlayerTournamentsPage conectados al backend. Fix Number(id)→String para cuid routing.
+6. **Backend Bloque 5** — Stats jugador, mis-reservas, Google OAuth
 7. **Landing SaaS** — cuando haya primer cliente potencial

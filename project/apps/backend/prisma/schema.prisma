@@ -21,6 +21,7 @@ model Club {
   jugadores Jugador[]
   canchas   Cancha[]
   reservas  Reserva[]
+  torneos   Torneo[]
 
   @@map("clubs")
 }
@@ -95,4 +96,55 @@ model Reserva {
   jugador Jugador? @relation(fields: [jugadorId], references: [id])
 
   @@map("reservas")
+}
+
+model Torneo {
+  id                     String   @id @default(cuid())
+  clubId                 String
+  nombre                 String
+  categorias             String[]
+  formato                String   @default("Eliminación directa")
+  genero                 String   @default("Masculino")
+  estado                 String   @default("draft")
+  cupoLibre              Boolean  @default(false)
+  cuposPorCategoria      Json     @default("{}")
+  cupoEspera             Int      @default(5)
+  canchasAsignadas       Int[]
+  fechaInicio            String?
+  fechaFin               String?
+  fechaLimiteInscripcion String?
+  diaInicioEliminatoria  String?
+  horaInicioEliminatoria String?
+  descripcion            String?
+  grupos                 Json?
+  brackets               Json?
+  ganador                String?
+  subcampeon             String?
+  personalizacion        Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  club    Club     @relation(fields: [clubId], references: [id])
+  parejas Pareja[]
+
+  @@map("torneos")
+}
+
+model Pareja {
+  id               String   @id @default(cuid())
+  torneoId         String
+  clubId           String
+  jugador1         String
+  jugador2         String
+  jugador1Dni      String?
+  jugador2Dni      String?
+  categoria        String
+  fecha            String?
+  disponibilidad   Json?
+  prefiereMismoDia Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  torneo Torneo @relation(fields: [torneoId], references: [id], onDelete: Cascade)
+
+  @@map("parejas")
 }

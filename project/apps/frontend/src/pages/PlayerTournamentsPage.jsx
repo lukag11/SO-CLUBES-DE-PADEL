@@ -7,6 +7,7 @@ import useTorneosStore from '../store/torneosStore'
 import usePlayerStore from '../store/playerStore'
 import useTorneosNotif from '../store/playerNotificationsStore'
 import { esSlotDeGrupos } from '../services/torneoService'
+import { api } from '../lib/api'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -980,11 +981,41 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onCl
   )
 }
 
+// ── Mapper backend → store (para jugador) ────────────────────────────────────
+
+const mapBackendTorneoPlayer = (t) => ({
+  id: t.id,
+  nombre: t.nombre,
+  categorias: t.categorias ?? [],
+  formato: t.formato,
+  genero: t.genero,
+  estado: t.estado,
+  cupoLibre: t.cupoLibre,
+  cuposPorCategoria: t.cuposPorCategoria ?? {},
+  cupoEspera: t.cupoEspera ?? 5,
+  canchasAsignadas: t.canchasAsignadas ?? [],
+  fechaInicio: t.fechaInicio,
+  fechaFin: t.fechaFin,
+  fechaLimiteInscripcion: t.fechaLimiteInscripcion,
+  descripcion: t.descripcion ?? '',
+  inscriptos: (t.parejas ?? []).map((p) => ({
+    id: p.id, jugador1: p.jugador1, jugador2: p.jugador2,
+    jugador1Dni: p.jugador1Dni, jugador2Dni: p.jugador2Dni,
+    categoria: p.categoria, fecha: p.fecha,
+    disponibilidad: p.disponibilidad ?? [], prefiereMismoDia: p.prefiereMismoDia ?? false,
+  })),
+  grupos: t.grupos ?? null,
+  brackets: t.brackets ?? {},
+  ganador: t.ganador,
+  subcampeon: t.subcampeon,
+  ...(t.personalizacion ?? {}),
+})
+
 // ── Página principal ──────────────────────────────────────────────────────────
 
 const PlayerTournamentsPage = () => {
-  const { torneos, addPareja, updatePareja, bajaInscripto } = useTorneosStore()
-  const { player } = usePlayerStore()
+  const { torneos, setTorneos, addParejaFromApi, addPareja, updatePareja, bajaInscripto } = useTorneosStore()
+  const { player, token: playerToken } = usePlayerStore()
   const addInscripcionEnEspera = useTorneosNotif((s) => s.addInscripcionEnEspera)
   const [modalTorneo, setModalTorneo]   = useState(null)
   const [modalEdicion, setModalEdicion] = useState(null) // { torneo, pareja }
@@ -993,7 +1024,19 @@ const PlayerTournamentsPage = () => {
   const playerName = player
     ? `${player.nombre}${player.apellido ? ' ' + player.apellido : ''}`
     : ''
-  const playerDni = player?.dni ?? ''
+  const playerDni  = player?.dni    ?? ''
+  const playerClubId = player?.clubId ?? null
+  const authH      = playerToken ? { Authorization: `Bearer ${playerToken}` } : {}
+
+  // Cargar torneos desde backend si el store no tiene datos del backend
+  useEffect(() => {
+    if (!playerClubId) return
+    const hayBackend = torneos.some((t) => typeof t.id === 'string')
+    if (hayBackend) return // ya cargados por otra página
+    api.get(`/torneos?clubId=${playerClubId}`)
+      .then((data) => { if (Array.isArray(data) && data.length > 0) setTorneos(data.map(mapBackendTorneoPlayer)) })
+      .catch(() => {})
+  }, [playerClubId])
 
   const puedeInscribirse = (torneo) => {
     if (!player?.genero) return true
@@ -1011,18 +1054,34 @@ const PlayerTournamentsPage = () => {
   const titulos = misTorneos.filter((t) => esDePareja(t.ganador, playerName)).length
   const finales  = misTorneos.filter((t) => esDePareja(t.subcampeon, playerName)).length
 
-  const handleConfirmarInscripcion = (pareja) => {
+  const isBackendTorneo = (t) => typeof t?.id === 'string'
+
+  const handleConfirmarInscripcion = async (pareja) => {
     if (!modalTorneo) return
-    const cat        = pareja.categoria
-    const cupoMax    = modalTorneo.cupoLibre ? null : (modalTorneo.cuposPorCategoria?.[cat] ?? null)
-    const confirmados = modalTorneo.inscriptos.filter(
-      (i) => i.categoria === cat && i.estado !== 'espera'
-    ).length
-    const enEsperaCat = modalTorneo.inscriptos.filter(
-      (i) => i.categoria === cat && i.estado === 'espera'
-    ).length
+    const cat         = pareja.categoria
+    const cupoMax     = modalTorneo.cupoLibre ? null : (modalTorneo.cuposPorCategoria?.[cat] ?? null)
+    const confirmados = modalTorneo.inscriptos.filter((i) => i.categoria === cat && i.estado !== 'espera').length
+    const enEsperaCat = modalTorneo.inscriptos.filter((i) => i.categoria === cat && i.estado === 'espera').length
     const cupoEspera  = modalTorneo.cupoEspera ?? 5
     const vaAEspera   = cupoMax !== null && confirmados >= cupoMax && enEsperaCat < cupoEspera
+
+    if (isBackendTorneo(modalTorneo) && playerToken) {
+      try {
+        const p = await api.post(`/torneos/${modalTorneo.id}/inscribir`, { ...pareja }, authH)
+        addParejaFromApi(modalTorneo.id, {
+          id: p.id, jugador1: p.jugador1, jugador2: p.jugador2,
+          jugador1Dni: p.jugador1Dni, jugador2Dni: p.jugador2Dni,
+          categoria: p.categoria, fecha: p.fecha,
+          disponibilidad: p.disponibilidad ?? [], prefiereMismoDia: p.prefiereMismoDia ?? false,
+        })
+        if (vaAEspera) {
+          addInscripcionEnEspera({ torneoNombre: modalTorneo.nombre, categoria: cat })
+          setToastEspera(modalTorneo.nombre)
+        }
+        setModalTorneo(null)
+        return
+      } catch { /* fallback local */ }
+    }
     addPareja(modalTorneo.id, { ...pareja, estado: vaAEspera ? 'espera' : 'inscripto' })
     if (vaAEspera) {
       addInscripcionEnEspera({ torneoNombre: modalTorneo.nombre, categoria: cat })
@@ -1031,13 +1090,22 @@ const PlayerTournamentsPage = () => {
     setModalTorneo(null)
   }
 
-  const handleConfirmarEdicion = ({ jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia }) => {
+  const handleConfirmarEdicion = async ({ jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia }) => {
     if (!modalEdicion) return
-    updatePareja(modalEdicion.torneo.id, modalEdicion.pareja.id, { jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia })
+    const { torneo: t, pareja } = modalEdicion
+    const changes = { jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia }
+    if (isBackendTorneo(t) && typeof pareja.id === 'string' && playerToken) {
+      api.patch(`/torneos/${t.id}/inscribir/${pareja.id}`, changes, authH).catch(() => {})
+    }
+    updatePareja(t.id, pareja.id, changes)
     setModalEdicion(null)
   }
 
-  const handleCancelarInscripcion = (torneoId, parejaId) => {
+  const handleCancelarInscripcion = async (torneoId, parejaId) => {
+    const t = torneos.find((x) => String(x.id) === String(torneoId))
+    if (isBackendTorneo(t) && typeof parejaId === 'string' && playerToken) {
+      api.delete(`/torneos/${torneoId}/inscribir/${parejaId}`, authH).catch(() => {})
+    }
     bajaInscripto(torneoId, parejaId)
   }
 

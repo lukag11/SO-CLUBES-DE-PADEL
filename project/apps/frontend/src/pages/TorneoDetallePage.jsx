@@ -7,6 +7,8 @@ import {
   Palette, ChevronDown, Maximize2, Minimize2, Share2, Upload,
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
+import useAuthStore from '../store/authStore'
+import { api } from '../lib/api'
 import {
   generateEliminationBracket,
   generateAPAEliminationBracket,
@@ -1770,8 +1772,9 @@ const TorneoDetallePage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const { torneos, setEstado, setBracket, updateBracket, bajaInscripto, setGanadores,
-          setGrupos, updateGrupos, resolveGroupTie, addPareja, updatePareja,
+          setGrupos, updateGrupos, resolveGroupTie, addPareja, addParejaFromApi, updatePareja,
           updatePersonalizacion } = useTorneosStore()
+  const token = useAuthStore((s) => s.token)
   const addBajaInscripcionTorneo = usePlayerNotificationsStore((s) => s.addBajaInscripcionTorneo)
   const addPromovido             = usePlayerNotificationsStore((s) => s.addPromovido)
   const club           = useClubStore((s) => s.club)
@@ -1779,7 +1782,7 @@ const TorneoDetallePage = () => {
   const canchasActivas = canchas.filter((c) => c.activa)
   const canchaName     = (id) => canchas.find((c) => c.id === id)?.nombre ?? `Cancha ${id}`
   const [tab, setTab]                   = useState('inscriptos')
-  const [catTab, setCatTab]             = useState(() => torneos.find((x) => x.id === Number(id))?.categorias?.[0] ?? null)
+  const [catTab, setCatTab]             = useState(() => torneos.find((x) => String(x.id) === id)?.categorias?.[0] ?? null)
   const [swapSource, setSwapSource]     = useState(null)
   const [modalAgregarAdmin, setModalAgregarAdmin] = useState(false)
   const [zonaDetalleIdx, setZonaDetalleIdx]       = useState(null)
@@ -1790,7 +1793,7 @@ const TorneoDetallePage = () => {
   const [bracketPublicar,   setBracketPublicar]   = useState(false)
   const [vistaParalela,     setVistaParalela]     = useState(false)
   const [persona, setPersona] = useState(() => {
-    const t = torneos.find((x) => x.id === Number(id))
+    const t = torneos.find((x) => String(x.id) === id)
     return {
       colorAcento:          t?.colorAcento          ?? '',
       estiloCardFixture:    t?.estiloCardFixture    ?? 'oscura',
@@ -1823,7 +1826,7 @@ const TorneoDetallePage = () => {
     }
   })
   const [selectedBracketCat, setSelectedBracketCat] = useState(() => {
-    const t = torneos.find((x) => x.id === Number(id))
+    const t = torneos.find((x) => String(x.id) === id)
     if (t?.brackets) {
       const cats = Object.keys(t.brackets)
       if (cats.length > 0) return cats[0]
@@ -1842,7 +1845,21 @@ const TorneoDetallePage = () => {
   const [savedOk, setSavedOk]       = useState(false)
   const setP = (k, v) => setPersona((p) => ({ ...p, [k]: v }))
 
-  const torneo   = torneos.find((t) => t.id === Number(id))
+  const torneo   = torneos.find((t) => String(t.id) === id)
+  const isBackend = torneo ? typeof torneo.id === 'string' : false
+  const authH     = token  ? { Authorization: `Bearer ${token}` } : {}
+  const syncBrackets = (brackets) => {
+    if (!isBackend) return
+    api.patch(`/torneos/${torneo.id}/brackets`, { brackets }, authH).catch(() => {})
+  }
+  const syncGrupos = (grupos) => {
+    if (!isBackend) return
+    api.patch(`/torneos/${torneo.id}/grupos`, { grupos }, authH).catch(() => {})
+  }
+  const syncEstado = (estado) => {
+    if (!isBackend) return
+    api.patch(`/torneos/${torneo.id}/estado`, { estado }, authH).catch(() => {})
+  }
   const multiCat = (torneo?.categorias?.length ?? 0) > 1
   const activeBracket = torneo?.brackets?.[selectedBracketCat] ?? null
 
@@ -1884,16 +1901,20 @@ const TorneoDetallePage = () => {
     !esFormatoGrupos
 
   const handleToggleEstado = () => {
-    setEstado(torneo.id, toggleEstado(torneo.estado))
+    const nuevoEstado = toggleEstado(torneo.estado)
+    setEstado(torneo.id, nuevoEstado)
+    syncEstado(nuevoEstado)
   }
 
   const handleGenerarFixture = () => {
     try {
       const cats = torneo.categorias
+      const newBrackets = { ...(torneo.brackets ?? {}) }
       if (cats.length <= 1) {
         const bracket = generateEliminationBracket(torneo.inscriptos)
         const cat = cats[0] ?? 'default'
         setBracket(torneo.id, cat, bracket)
+        newBrackets[cat] = bracket
         setSelectedBracketCat(cat)
       } else {
         let firstCat = null
@@ -1902,11 +1923,13 @@ const TorneoDetallePage = () => {
           if (parejasCat.length >= 2) {
             const bracket = generateEliminationBracket(parejasCat)
             setBracket(torneo.id, cat, bracket)
+            newBrackets[cat] = bracket
             if (!firstCat) firstCat = cat
           }
         })
         if (firstCat) setSelectedBracketCat(firstCat)
       }
+      syncBrackets(newBrackets)
       setTab('fixture')
     } catch (e) {
       alert(e.message)
@@ -1916,17 +1939,22 @@ const TorneoDetallePage = () => {
   const handleRegistrarResultado = (matchId, datos) => {
     if (!activeBracket) return
     const newBracket = advanceWinner(activeBracket, matchId, datos)
+    const newBrackets = { ...(torneo.brackets ?? {}), [selectedBracketCat]: newBracket }
     if (isBracketFinished(newBracket)) {
       const ganadorObj    = getBracketWinner(newBracket)
       const final         = newBracket.rondas[newBracket.rondas.length - 1].partidos[0]
       const subcampeonObj = final.pareja1?.id === ganadorObj?.id ? final.pareja2 : final.pareja1
-      updateBracket(torneo.id, selectedBracketCat, newBracket)
-      setGanadores(torneo.id, {
+      const ganadoresData = {
         ganador:    ganadorObj    ? `${ganadorObj.jugador1} / ${ganadorObj.jugador2}`    : null,
         subcampeon: subcampeonObj ? `${subcampeonObj.jugador1} / ${subcampeonObj.jugador2}` : null,
-      })
+      }
+      updateBracket(torneo.id, selectedBracketCat, newBracket)
+      setGanadores(torneo.id, ganadoresData)
+      syncBrackets(newBrackets)
+      if (isBackend) api.patch(`/torneos/${torneo.id}/ganadores`, ganadoresData, authH).catch(() => {})
     } else {
       updateBracket(torneo.id, selectedBracketCat, newBracket)
+      syncBrackets(newBrackets)
     }
   }
 
@@ -1942,6 +1970,7 @@ const TorneoDetallePage = () => {
       })),
     }
     updateBracket(torneo.id, selectedBracketCat, newBracket)
+    syncBrackets({ ...(torneo.brackets ?? {}), [selectedBracketCat]: newBracket })
     setModalHorario(null)
   }
 
@@ -1953,14 +1982,19 @@ const TorneoDetallePage = () => {
     return () => window.removeEventListener('keydown', handleKey)
   }, [bracketFullscreen])
 
-  const handleBajaInscripto = (inscriptoId, ins) => {
+  const handleBajaInscripto = async (inscriptoId, ins) => {
+    if (isBackend && typeof inscriptoId === 'string') {
+      await api.delete(`/torneos/${torneo.id}/parejas/${inscriptoId}`, authH).catch(() => {})
+    }
     bajaInscripto(torneo.id, inscriptoId)
-    // Si era inscripto confirmado, promover automáticamente el primero en espera (misma categoría)
     if (ins?.estado !== 'espera') {
       const primerEspera = torneo.inscriptos.find(
         (i) => i.id !== inscriptoId && i.estado === 'espera' && i.categoria === ins?.categoria
       )
       if (primerEspera) {
+        if (isBackend && typeof primerEspera.id === 'string') {
+          api.patch(`/torneos/${torneo.id}/parejas/${primerEspera.id}`, { estado: 'inscripto' }, authH).catch(() => {})
+        }
         updatePareja(torneo.id, primerEspera.id, { estado: 'inscripto' })
         addPromovido({ torneoNombre: torneo.nombre, categoria: primerEspera.categoria })
       }
@@ -1976,11 +2010,26 @@ const TorneoDetallePage = () => {
   }
 
   const handlePromoverEspera = (ins) => {
+    if (isBackend && typeof ins.id === 'string') {
+      api.patch(`/torneos/${torneo.id}/parejas/${ins.id}`, { estado: 'inscripto' }, authH).catch(() => {})
+    }
     updatePareja(torneo.id, ins.id, { estado: 'inscripto' })
     addPromovido({ torneoNombre: torneo.nombre, categoria: ins.categoria })
   }
 
-  const handleAgregarAdmin = (datos) => {
+  const handleAgregarAdmin = async (datos) => {
+    if (isBackend) {
+      try {
+        const p = await api.post(`/torneos/${torneo.id}/parejas`, datos, authH)
+        addParejaFromApi(torneo.id, {
+          id: p.id, jugador1: p.jugador1, jugador2: p.jugador2,
+          jugador1Dni: p.jugador1Dni, jugador2Dni: p.jugador2Dni,
+          categoria: p.categoria, fecha: p.fecha,
+          disponibilidad: p.disponibilidad ?? [], prefiereMismoDia: p.prefiereMismoDia ?? false,
+        })
+        return
+      } catch { /* fallback */ }
+    }
     addPareja(torneo.id, datos)
   }
 
@@ -1990,6 +2039,7 @@ const TorneoDetallePage = () => {
     try {
       const grupos = generateGroupPhase(torneo.inscriptos)
       setGrupos(torneo.id, grupos)
+      syncGrupos(grupos)
       setTab('grupos')
     } catch (e) { alert(e.message) }
   }
@@ -2019,6 +2069,7 @@ const TorneoDetallePage = () => {
     ;[allParejas[iA], allParejas[iB]] = [allParejas[iB], allParejas[iA]]
     const newGrupos = generateGroupPhase(allParejas)
     updateGrupos(torneo.id, newGrupos)
+    syncGrupos(newGrupos)
     setSwapSource(null)
   }
 
@@ -2028,10 +2079,12 @@ const TorneoDetallePage = () => {
       : canchas.filter((c) => c.activa)
     const newGrupos = autoScheduleGroups(torneo.grupos, canchasParaTorneo)
     updateGrupos(torneo.id, newGrupos)
+    syncGrupos(newGrupos)
   }
 
   const handleConfirmarGrupos = () => {
     setEstado(torneo.id, 'in_progress')
+    syncEstado('in_progress')
     setSwapSource(null)
   }
 
@@ -2047,6 +2100,7 @@ const TorneoDetallePage = () => {
       ? advanceGroupMatch(gruposConResultado, matchId, ganador)
       : gruposConResultado
     updateGrupos(torneo.id, newGrupos)
+    syncGrupos(newGrupos)
   }
 
   const handleResolveTie = (zonaIdx, primero, segundo) => {
@@ -2056,10 +2110,12 @@ const TorneoDetallePage = () => {
   const handleGenerarFaseEliminatoria = () => {
     try {
       const cats = [...new Set((torneo.grupos ?? []).map((z) => z.categoria).filter(Boolean))]
+      const newBrackets = { ...(torneo.brackets ?? {}) }
       if (cats.length <= 1) {
         const bracket = generateAPAEliminationBracket(torneo.grupos)
         const cat = cats[0] ?? torneo.categorias[0] ?? 'default'
         setBracket(torneo.id, cat, bracket)
+        newBrackets[cat] = bracket
         setSelectedBracketCat(cat)
       } else {
         let firstCat = null
@@ -2067,10 +2123,12 @@ const TorneoDetallePage = () => {
           const zonasCat = torneo.grupos.filter((z) => z.categoria === cat)
           const bracket = generateAPAEliminationBracket(zonasCat)
           setBracket(torneo.id, cat, bracket)
+          newBrackets[cat] = bracket
           if (!firstCat) firstCat = cat
         })
         if (firstCat) setSelectedBracketCat(firstCat)
       }
+      syncBrackets(newBrackets)
       setTab('fixture')
     } catch (e) { alert(e.message) }
   }
@@ -3122,7 +3180,12 @@ const TorneoDetallePage = () => {
           torneo={torneo}
           inscripto={editando}
           onClose={() => setEditando(null)}
-          onGuardar={(id, changes) => updatePareja(torneo.id, id, changes)}
+          onGuardar={(pid, changes) => {
+            updatePareja(torneo.id, pid, changes)
+            if (isBackend && typeof pid === 'string') {
+              api.patch(`/torneos/${torneo.id}/parejas/${pid}`, changes, authH).catch(() => {})
+            }
+          }}
         />
       )}
     </div>

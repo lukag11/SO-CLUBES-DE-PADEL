@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Trophy, Plus, Users, X, ChevronRight, Calendar, Medal,
@@ -8,6 +8,8 @@ import {
 import { GENEROS, FORMATOS } from '../features/admin/torneosMockData'
 import useTorneosStore from '../store/torneosStore'
 import useClubStore from '../store/clubStore'
+import useAuthStore from '../store/authStore'
+import { api } from '../lib/api'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -878,10 +880,70 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
   )
 }
 
+// ── Mapper backend → store ────────────────────────────────────────────────────
+
+const PERSONALIZACION_DEFAULTS = {
+  colorAcento: null, estiloCardFixture: 'oscura', colorCardFixture: null,
+  estiloCardGrupos: 'oscura', colorCardGrupos: null, colorCard: null,
+  estiloCard: 'oscura', fontScale: 'normal', imagenFondoDraw: null,
+  imagenFondoBracket: null, imagenFondoFixture: null, imagenFondoGrupos: null,
+  imagenHeaderGrupos: null, colorTextoCardGrupos: null, sponsors: [],
+  sponsorScale: 'normal', bannerLateral1Fixture: null, bannerLateral2Fixture: null,
+  bannerLateral1Grupos: null, bannerLateral2Grupos: null, drawMostrarClub: true,
+  drawTitulo: 'Main Draw', drawMostrarNombre: true, drawMostrarFechas: true,
+  drawMostrarCategorias: true, drawColorTitulo: null, bracketColores: {}, bracketColorCards: {},
+}
+
+const mapBackendTorneo = (t) => ({
+  ...PERSONALIZACION_DEFAULTS,
+  ...(t.personalizacion ?? {}),
+  id: t.id,
+  nombre: t.nombre,
+  categorias: t.categorias ?? [],
+  formato: t.formato,
+  genero: t.genero,
+  estado: t.estado,
+  cupoLibre: t.cupoLibre,
+  cuposPorCategoria: t.cuposPorCategoria ?? {},
+  cupoEspera: t.cupoEspera ?? 5,
+  canchasAsignadas: t.canchasAsignadas ?? [],
+  fechaInicio: t.fechaInicio,
+  fechaFin: t.fechaFin,
+  fechaLimiteInscripcion: t.fechaLimiteInscripcion,
+  diaInicioEliminatoria: t.diaInicioEliminatoria,
+  horaInicioEliminatoria: t.horaInicioEliminatoria,
+  descripcion: t.descripcion ?? '',
+  inscriptos: (t.parejas ?? []).map((p) => ({
+    id: p.id,
+    jugador1: p.jugador1,
+    jugador2: p.jugador2,
+    jugador1Dni: p.jugador1Dni,
+    jugador2Dni: p.jugador2Dni,
+    categoria: p.categoria,
+    fecha: p.fecha,
+    disponibilidad: p.disponibilidad ?? [],
+    prefiereMismoDia: p.prefiereMismoDia ?? false,
+  })),
+  grupos: t.grupos ?? null,
+  brackets: t.brackets ?? {},
+  ganador: t.ganador,
+  subcampeon: t.subcampeon,
+})
+
 // ── Página principal ──────────────────────────────────────────────────────────
 
 const TorneosPage = () => {
-  const { torneos, addTorneo, setEstado, deleteTorneo, updateTorneo } = useTorneosStore()
+  const { torneos, setTorneos, addTorneoFromApi, addTorneo, updateTorneoFromApi, setEstado, deleteTorneo, updateTorneo } = useTorneosStore()
+  const token  = useAuthStore((s) => s.token)
+  const clubId = useAuthStore((s) => s.club?.id)
+
+  useEffect(() => {
+    if (!clubId) return
+    api.get(`/torneos?clubId=${clubId}`)
+      .then((data) => { if (Array.isArray(data) && data.length > 0) setTorneos(data.map(mapBackendTorneo)) })
+      .catch(() => {})
+  }, [clubId])
+
   const navigate = useNavigate()
   const [tabActiva, setTabActiva] = useState('en_curso')
   const [modalNuevo, setModalNuevo] = useState(false)
@@ -895,17 +957,33 @@ const TorneosPage = () => {
 
   const torneosTab = torneos.filter((t) => (TAB_ESTADOS[tabActiva] ?? []).includes(t.estado))
 
-  const handleToggleEstado = (id) => {
+  const authHeader = token ? { Authorization: `Bearer ${token}` } : {}
+  const isBackend  = (id) => typeof id === 'string'
+
+  const handleToggleEstado = async (id) => {
     const torneo = torneos.find((t) => t.id === id)
     if (!torneo) return
-    setEstado(id, toggleEstado(torneo.estado))
+    const nuevoEstado = toggleEstado(torneo.estado)
+    if (isBackend(id)) {
+      try { await api.patch(`/torneos/${id}/estado`, { estado: nuevoEstado }, authHeader) } catch { /* fallback local */ }
+    }
+    setEstado(id, nuevoEstado)
   }
 
   const handleVerDetalle = (torneo) => {
     navigate(`/dashboardAdmin/torneos/${torneo.id}`)
   }
 
-  const handleNuevoTorneo = (form) => {
+  const handleNuevoTorneo = async (form) => {
+    if (token) {
+      try {
+        const data = await api.post('/torneos', form, authHeader)
+        addTorneoFromApi(mapBackendTorneo(data))
+        setModalNuevo(false)
+        setTabActiva('proximos')
+        return
+      } catch { /* fallback local */ }
+    }
     addTorneo(form)
     setModalNuevo(false)
     setTabActiva('proximos')
@@ -913,12 +991,25 @@ const TorneosPage = () => {
 
   const handleEditar = (torneo) => setTorneoEditar(torneo)
 
-  const handleGuardarEdicion = (form) => {
+  const handleGuardarEdicion = async (form) => {
+    if (isBackend(torneoEditar.id)) {
+      try {
+        const data = await api.patch(`/torneos/${torneoEditar.id}`, form, authHeader)
+        updateTorneoFromApi(mapBackendTorneo(data))
+        setTorneoEditar(null)
+        return
+      } catch { /* fallback local */ }
+    }
     updateTorneo(torneoEditar.id, form)
     setTorneoEditar(null)
   }
 
-  const handleEliminar = (id) => deleteTorneo(id)
+  const handleEliminar = async (id) => {
+    if (isBackend(id)) {
+      try { await api.delete(`/torneos/${id}`, authHeader) } catch { /* fallback local */ }
+    }
+    deleteTorneo(id)
+  }
 
   const stats = [
     { label: 'En curso',    value: torneos.filter(t => t.estado === 'in_progress').length, icon: CheckCircle, color: 'text-emerald-500' },

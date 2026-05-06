@@ -4,6 +4,7 @@ import healthRouter from './routes/health.js'
 import authRouter from './routes/auth.js'
 import canchasRouter from './routes/canchas.js'
 import reservasRouter from './routes/reservas.js'
+import torneosRouter from './routes/torneos.js'
 
 const app = express()
 
@@ -24,5 +25,6 @@ app.use('/api', healthRouter)
 app.use('/api/auth', authRouter)
 app.use('/api/canchas', canchasRouter)
 app.use('/api/reservas', reservasRouter)
+app.use('/api/torneos', torneosRouter)
 
 export default app

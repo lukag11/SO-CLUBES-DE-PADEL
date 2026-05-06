@@ -167,6 +167,17 @@ const useTorneosStore = create((set, get) => ({
     })
   },
 
+  // Agrega una pareja ya creada en el backend (con cuid ID)
+  addParejaFromApi: (torneoId, pareja) => {
+    set((state) => {
+      const updated = state.torneos.map((t) =>
+        t.id === torneoId ? { ...t, inscriptos: [...t.inscriptos, pareja] } : t
+      )
+      save(updated)
+      return { torneos: updated }
+    })
+  },
+
   // Inscribe una pareja en un torneo
   addPareja: (torneoId, pareja) => {
     set((state) => {
@@ -292,6 +303,32 @@ const useTorneosStore = create((set, get) => ({
       const updated = state.torneos.map((t) =>
         t.id === id ? { ...t, ...campos } : t
       )
+      save(updated)
+      return { torneos: updated }
+    })
+  },
+
+  // Reemplaza todos los torneos (carga inicial desde backend)
+  setTorneos: (torneos) => {
+    set(() => {
+      save(torneos)
+      return { torneos }
+    })
+  },
+
+  // Agrega un torneo ya creado en el backend (ID cuid)
+  addTorneoFromApi: (torneo) => {
+    set((state) => {
+      const updated = [torneo, ...state.torneos]
+      save(updated)
+      return { torneos: updated }
+    })
+  },
+
+  // Actualiza un torneo desde la respuesta del backend
+  updateTorneoFromApi: (torneo) => {
+    set((state) => {
+      const updated = state.torneos.map((t) => t.id === torneo.id ? { ...t, ...torneo } : t)
       save(updated)
       return { torneos: updated }
     })

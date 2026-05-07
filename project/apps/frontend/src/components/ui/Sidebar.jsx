@@ -14,7 +14,8 @@ const navItems = [
 const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
   const navigate   = useNavigate()
   const logout     = useAuthStore((state) => state.logout)
-  const sinLeer    = useNotificacionesStore((state) => state.sinLeer())
+  const sinLeer        = useNotificacionesStore((state) => state.sinLeer())
+  const sinLeerTorneos = useNotificacionesStore((state) => state.sinLeerTorneos())
   const clubNombre = useClubStore((state) => state.club.nombre)
   const clubLogo   = useClubStore((state) => state.club.logo)
 
@@ -81,12 +82,20 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
                         {sinLeer > 9 ? '9+' : sinLeer}
                       </span>
                     )}
+                    {to === '/dashboardAdmin/torneos' && sinLeerTorneos > 0 && (
+                      <span className="bg-emerald-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shrink-0">
+                        {sinLeerTorneos > 9 ? '9+' : sinLeerTorneos}
+                      </span>
+                    )}
                   </>
                 )}
 
                 {/* Badge en modo colapsado */}
                 {collapsed && to === '/dashboardAdmin/reservas' && sinLeer > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                )}
+                {collapsed && to === '/dashboardAdmin/torneos' && sinLeerTorneos > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full" />
                 )}
 
                 {/* Tooltip en modo colapsado */}
@@ -95,6 +104,9 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
                     {label}
                     {to === '/dashboardAdmin/reservas' && sinLeer > 0 && (
                       <span className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{sinLeer}</span>
+                    )}
+                    {to === '/dashboardAdmin/torneos' && sinLeerTorneos > 0 && (
+                      <span className="ml-1.5 bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{sinLeerTorneos}</span>
                     )}
                   </span>
                 )}

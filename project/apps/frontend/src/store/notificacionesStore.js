@@ -129,6 +129,87 @@ const useNotificacionesStore = create((set, get) => ({
     })
   },
 
+  // Jugador completa inscripción (venía sinCompanero, ahora tiene pareja y horario) → avisa al admin
+  completacionTorneo: ({ jugador1, jugador2, categoria, torneoNombre, torneoId }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'completacion_torneo',
+      jugador1,
+      jugador2,
+      categoria,
+      torneoNombre,
+      torneoId: torneoId ?? null,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      saveNotificaciones(updated)
+      return { notificaciones: updated }
+    })
+  },
+
+  // Jugador edita su inscripción en un torneo → avisa al admin
+  actualizacionTorneo: ({ jugador1, jugador2, categoria, torneoNombre, torneoId }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'actualizacion_torneo',
+      jugador1,
+      jugador2,
+      categoria,
+      torneoNombre,
+      torneoId: torneoId ?? null,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      saveNotificaciones(updated)
+      return { notificaciones: updated }
+    })
+  },
+
+  // Jugador cancela su inscripción en un torneo → avisa al admin
+  bajaTorneo: ({ jugador1, jugador2, categoria, torneoNombre, torneoId }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'baja_torneo',
+      jugador1,
+      jugador2,
+      categoria,
+      torneoNombre,
+      torneoId: torneoId ?? null,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      saveNotificaciones(updated)
+      return { notificaciones: updated }
+    })
+  },
+
+  // Jugador se inscribe en un torneo → avisa al admin
+  nuevaInscripcionTorneo: ({ jugador1, jugador2, categoria, torneoNombre, torneoId, vaAEspera = false }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'inscripcion_torneo',
+      jugador1,
+      jugador2,
+      categoria,
+      torneoNombre,
+      torneoId: torneoId ?? null,
+      vaAEspera,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      saveNotificaciones(updated)
+      return { notificaciones: updated }
+    })
+  },
+
   // Profesor cancela una clase → avisa al admin
   cancelacionClaseProfesor: ({ profesorNombre, canchaNombre, fecha, inicio, fin }) => {
     const nueva = {
@@ -176,7 +257,8 @@ const useNotificacionesStore = create((set, get) => ({
     })
   },
 
-  sinLeer: () => get().notificaciones.filter((n) => !n.leida).length,
+  sinLeer: () => get().notificaciones.filter((n) => !n.leida && n.tipo !== 'inscripcion_torneo' && n.tipo !== 'baja_torneo' && n.tipo !== 'actualizacion_torneo').length,
+  sinLeerTorneos: () => get().notificaciones.filter((n) => !n.leida && (n.tipo === 'inscripcion_torneo' || n.tipo === 'baja_torneo' || n.tipo === 'actualizacion_torneo' || n.tipo === 'completacion_torneo')).length,
 }))
 
 export default useNotificacionesStore

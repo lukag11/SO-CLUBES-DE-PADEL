@@ -724,8 +724,15 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
                 <Swords size={8} /> Mismo día
               </span>
             )}
+            {ins.sinCompanero && (
+              <span className="inline-flex items-center gap-1 text-[9px] font-medium text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
+                ⚠ Sin compañero/a
+              </span>
+            )}
           </div>
-          {slots.length > 0 && (
+          {ins.sinCompanero ? (
+            <span className="text-[10px] text-orange-400 italic mt-0.5">Horario pendiente</span>
+          ) : slots.length > 0 ? (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {slots.map((s, i) => (
                 <span key={i} className="inline-flex items-center gap-0.5 text-[10px] font-medium text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
@@ -733,7 +740,7 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
                 </span>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
         {!confirmando && (
           <div className="flex items-center gap-0.5 shrink-0">
@@ -779,7 +786,14 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
             <Swords size={8} /> Mismo día
           </span>
         )}
-        {slots.length > 0 ? (
+        {ins.sinCompanero && (
+          <span className="inline-flex items-center gap-1 text-[9px] font-medium text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded self-start">
+            ⚠ Sin compañero/a
+          </span>
+        )}
+        {ins.sinCompanero ? (
+          <span className="text-[9px] text-orange-400 italic">Horario pendiente</span>
+        ) : slots.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {slots.map((s, i) => (
               <span key={i} className="inline-flex items-center gap-0.5 text-[9px] font-medium text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
@@ -1104,7 +1118,7 @@ const PublicarBracketModal = ({ torneo, club, activeBracket, seedingMap, selecte
 
         {/* Selector de ronda — solo en vista ronda */}
         {vista === 'ronda' && (
-          <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-slate-100 bg-slate-50/60 shrink-0 overflow-x-auto">
+          <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-slate-100 bg-slate-50/60 shrink-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
             <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mr-1 shrink-0">Ronda:</span>
             {rondas.map((ronda, idx) => (
               <button
@@ -1216,7 +1230,9 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
   const [diaSelec, setDiaSelec]                 = useState('')
   const [horaSelec, setHoraSelec]               = useState('')
   const [slotError, setSlotError]               = useState('')
-  const [formError, setFormError]               = useState('')
+  const [dniErrors, setDniErrors]               = useState({ j1: '', j2: '' })
+  const [nameErrors, setNameErrors]             = useState({ j1: '', j2: '' })
+  const [sinCompanero, setSinCompanero]         = useState(false)
 
   const soloUnDia = [...new Set(slots.map((s) => s.dia))].length <= 1
   useEffect(() => { if (!soloUnDia) setPrefiereMismoDia(false) }, [soloUnDia])
@@ -1258,18 +1274,34 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
 
   const handleConfirmar = () => {
     if (cupoLleno) return
-    if (!jugador1.trim() || !jugador2.trim()) {
-      setFormError('Completá los nombres de ambos jugadores.')
-      return
+    const newNameErrors = { j1: '', j2: '' }
+    if (!jugador1.trim()) newNameErrors.j1 = 'Requerido'
+    if (!sinCompanero && !jugador2.trim()) newNameErrors.j2 = 'Requerido'
+    if (newNameErrors.j1 || newNameErrors.j2) { setNameErrors(newNameErrors); return }
+    setNameErrors({ j1: '', j2: '' })
+    const newDniErrors = { j1: '', j2: '' }
+    if (!jugador1Dni.trim())                           newDniErrors.j1 = 'Requerido'
+    else if (!/^\d{7,8}$/.test(jugador1Dni.trim()))   newDniErrors.j1 = 'Entre 7 y 8 números'
+    if (!sinCompanero) {
+      if (!jugador2Dni.trim())                           newDniErrors.j2 = 'Requerido'
+      else if (!/^\d{7,8}$/.test(jugador2Dni.trim()))   newDniErrors.j2 = 'Entre 7 y 8 números'
     }
+    if (newDniErrors.j1 || newDniErrors.j2) { setDniErrors(newDniErrors); return }
+    setDniErrors({ j1: '', j2: '' })
+    if (!sinCompanero) {
+      if (slots.length === 0) { setSlotError('Agregá al menos un horario disponible.'); return }
+      if (slots.length === 1 && !prefiereMismoDia) { setSlotError('Con un solo horario, marcá "Mismo día" o agregá un segundo día para el otro partido.'); return }
+    }
+    setSlotError('')
     onConfirmar({
       jugador1: jugador1.trim(),
       jugador1Dni: jugador1Dni.trim(),
-      jugador2: jugador2.trim(),
-      jugador2Dni: jugador2Dni.trim(),
+      jugador2: sinCompanero ? 'Por definir' : jugador2.trim(),
+      jugador2Dni: sinCompanero ? '' : jugador2Dni.trim(),
       categoria,
       disponibilidad: slots,
       prefiereMismoDia,
+      sinCompanero,
       fecha: new Date().toISOString().split('T')[0],
     })
     onClose()
@@ -1297,6 +1329,30 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
 
+          {/* Toggle sin compañero */}
+          <button
+            type="button"
+            onClick={() => setSinCompanero((v) => !v)}
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all text-left w-full ${
+              sinCompanero
+                ? 'border-amber-300/40 bg-amber-50/60'
+                : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+            }`}
+          >
+            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
+              sinCompanero ? 'bg-amber-400 border-amber-400' : 'border-slate-300 bg-white'
+            }`}>
+              {sinCompanero && (
+                <svg viewBox="0 0 10 8" className="w-2 h-2">
+                  <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                </svg>
+              )}
+            </div>
+            <span className={`text-[11px] font-medium leading-snug ${sinCompanero ? 'text-amber-700' : 'text-slate-500'}`}>
+              Sin compañero/a aún · reservar cupo
+            </span>
+          </button>
+
           {/* Jugadores — grilla 2x2: nombre | DNI para cada uno */}
           <div className="grid grid-cols-2 gap-x-2 gap-y-2">
             <div>
@@ -1305,42 +1361,93 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
                 type="text"
                 placeholder="Nombre y apellido"
                 value={jugador1}
-                onChange={(e) => { setJugador1(e.target.value); setFormError('') }}
-                className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
+                onChange={(e) => {
+                  const raw = e.target.value
+                  setJugador1(raw.replace(/[0-9]/g, ''))
+                  if (/[0-9]/.test(raw))
+                    setNameErrors((p) => ({ ...p, j1: 'Solo letras permitidas' }))
+                  else
+                    setNameErrors((p) => ({ ...p, j1: '' }))
+                }}
+                className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameErrors.j1 ? 'border-red-400' : 'border-slate-200'}`}
               />
+              {nameErrors.j1 && <p className="text-red-500 text-[10px] mt-0.5">{nameErrors.j1}</p>}
             </div>
             <div>
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 2</label>
-              <input
-                type="text"
-                placeholder="Nombre y apellido"
-                value={jugador2}
-                onChange={(e) => { setJugador2(e.target.value); setFormError('') }}
-                className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
-              />
+              {sinCompanero ? (
+                <div className="border border-amber-200 bg-amber-50 rounded-xl px-2.5 py-2 text-xs text-amber-600 italic">
+                  Por definir
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  placeholder="Nombre y apellido"
+                  value={jugador2}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    setJugador2(raw.replace(/[0-9]/g, ''))
+                    if (/[0-9]/.test(raw))
+                      setNameErrors((p) => ({ ...p, j2: 'Solo letras permitidas' }))
+                    else
+                      setNameErrors((p) => ({ ...p, j2: '' }))
+                  }}
+                  className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameErrors.j2 ? 'border-red-400' : 'border-slate-200'}`}
+                />
+              )}
+              {nameErrors.j2 && <p className="text-red-500 text-[10px] mt-0.5">{nameErrors.j2}</p>}
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">DNI J1</label>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                DNI J1 <span className="text-red-400">*</span>
+              </label>
               <input
                 type="text"
                 placeholder="12345678"
                 value={jugador1Dni}
-                onChange={(e) => setJugador1Dni(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 8)
+                  setJugador1Dni(val)
+                  if (val.length > 0 && val.length < 7)
+                    setDniErrors((p) => ({ ...p, j1: 'Mínimo 7 dígitos' }))
+                  else
+                    setDniErrors((p) => ({ ...p, j1: '' }))
+                }}
+                maxLength={8}
+                inputMode="numeric"
+                className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${dniErrors.j1 ? 'border-red-400' : 'border-slate-200'}`}
               />
+              {dniErrors.j1 && <p className="text-red-500 text-[10px] mt-0.5">{dniErrors.j1}</p>}
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">DNI J2</label>
-              <input
-                type="text"
-                placeholder="12345678"
-                value={jugador2Dni}
-                onChange={(e) => setJugador2Dni(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
-              />
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                DNI J2 {!sinCompanero && <span className="text-red-400">*</span>}
+              </label>
+              {sinCompanero ? (
+                <div className="border border-amber-200 bg-amber-50 rounded-xl px-2.5 py-2 text-xs text-amber-600 italic">
+                  Por definir
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  placeholder="12345678"
+                  value={jugador2Dni}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 8)
+                    setJugador2Dni(val)
+                    if (val.length > 0 && val.length < 7)
+                      setDniErrors((p) => ({ ...p, j2: 'Mínimo 7 dígitos' }))
+                    else
+                      setDniErrors((p) => ({ ...p, j2: '' }))
+                  }}
+                  maxLength={8}
+                  inputMode="numeric"
+                  className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${dniErrors.j2 ? 'border-red-400' : 'border-slate-200'}`}
+                />
+              )}
+              {dniErrors.j2 && <p className="text-red-500 text-[10px] mt-0.5">{dniErrors.j2}</p>}
             </div>
           </div>
-          {formError && <p className="text-red-500 text-xs -mt-1">{formError}</p>}
 
           {/* Categoría */}
           {torneo.categorias.length > 1 && (
@@ -1356,8 +1463,16 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
             </div>
           )}
 
-          {/* Disponibilidad */}
-          <div className="flex flex-col gap-2">
+          {/* Disponibilidad — oculta cuando sin compañero/a */}
+          {sinCompanero && (
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50/60">
+              <span className="text-amber-500 text-sm shrink-0 mt-0.5">⏳</span>
+              <p className="text-amber-700 text-xs leading-relaxed">
+                La disponibilidad se cargará cuando se confirme el compañero/a de esta pareja.
+              </p>
+            </div>
+          )}
+          <div className={`flex flex-col gap-2 ${sinCompanero ? 'hidden' : ''}`}>
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                 Disponibilidad horaria
@@ -1486,10 +1601,16 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
 // ── Modal editar disponibilidad ───────────────────────────────────────────────
 
 const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) => {
-  const [slots, setSlots]           = useState(inscripto.disponibilidad ? [...inscripto.disponibilidad] : [])
-  const [diaSelec, setDiaSelec]   = useState('')
-  const [horaSelec, setHoraSelec] = useState('')
-  const [slotError, setSlotError] = useState('')
+  const [slots, setSlots]               = useState(inscripto.disponibilidad ? [...inscripto.disponibilidad] : [])
+  const [diaSelec, setDiaSelec]         = useState('')
+  const [horaSelec, setHoraSelec]       = useState('')
+  const [slotError, setSlotError]       = useState('')
+  const [prefiereMismoDia, setPrefiereMismoDia] = useState(inscripto.prefiereMismoDia ?? false)
+  const [sinCompanero, setSinCompanero] = useState(inscripto.sinCompanero ?? false)
+  const [jugador2, setJugador2]         = useState(inscripto.sinCompanero ? '' : (inscripto.jugador2 ?? ''))
+  const [jugador2Dni, setJugador2Dni]   = useState(inscripto.sinCompanero ? '' : (inscripto.jugador2Dni ?? ''))
+  const [nameError, setNameError]       = useState('')
+  const [dniError, setDniError]         = useState('')
 
   const diaCorte    = torneo.diaInicioEliminatoria  ?? null
   const horaCorte   = torneo.horaInicioEliminatoria ?? null
@@ -1498,12 +1619,36 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
   const horasParaDia = (dia) =>
     HORAS_DISPONIBLES.filter((h) => esSlotDeGrupos(dia, h, diaCorte, horaCorte))
 
+  const soloUnDia = [...new Set(slots.map((s) => s.dia))].length <= 1
+  useEffect(() => { if (!soloUnDia) setPrefiereMismoDia(false) }, [soloUnDia])
+
   const handleAddSlot = () => {
     if (!diaSelec || !horaSelec) return
     if (slots.length >= MAX_SLOTS_ADMIN) { setSlotError(`Máximo ${MAX_SLOTS_ADMIN} horarios.`); return }
     if (slots.some((s) => s.dia === diaSelec && s.horaDesde === horaSelec)) { setSlotError('Ese horario ya fue agregado.'); return }
     setSlots([...slots, { dia: diaSelec, horaDesde: horaSelec }])
     setSlotError('')
+  }
+
+  const handleGuardar = () => {
+    if (!sinCompanero) {
+      if (!jugador2.trim()) { setNameError('Requerido'); return }
+      setNameError('')
+      if (!jugador2Dni.trim()) { setDniError('Requerido'); return }
+      if (!/^\d{7,8}$/.test(jugador2Dni.trim())) { setDniError('Entre 7 y 8 números'); return }
+      setDniError('')
+      if (slots.length === 0) { setSlotError('Agregá al menos un horario.'); return }
+      if (slots.length === 1 && !prefiereMismoDia) { setSlotError('Con un solo horario, marcá "Mismo día" o agregá un segundo día.'); return }
+    }
+    setSlotError('')
+    onGuardar(inscripto.id, {
+      jugador2: sinCompanero ? 'Por definir' : jugador2.trim(),
+      jugador2Dni: sinCompanero ? '' : jugador2Dni.trim(),
+      sinCompanero,
+      disponibilidad: slots,
+      prefiereMismoDia,
+    })
+    onClose()
   }
 
   return (
@@ -1514,8 +1659,8 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
-            <h2 className="text-slate-800 font-bold text-base">Editar disponibilidad</h2>
-            <p className="text-slate-400 text-xs mt-0.5 truncate">{inscripto.jugador1} / {inscripto.jugador2}</p>
+            <h2 className="text-slate-800 font-bold text-base">Editar inscripción</h2>
+            <p className="text-slate-400 text-xs mt-0.5 truncate">{inscripto.jugador1} · {inscripto.categoria}</p>
           </div>
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
             <X size={16} />
@@ -1523,74 +1668,141 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Disponibilidad horaria</label>
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${slots.length >= MAX_SLOTS_ADMIN ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'}`}>
-              {slots.length}/{MAX_SLOTS_ADMIN}
+        <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
+
+          {/* Toggle sin compañero */}
+          <button
+            type="button"
+            onClick={() => setSinCompanero((v) => !v)}
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all text-left w-full ${
+              sinCompanero ? 'border-amber-300/50 bg-amber-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+            }`}
+          >
+            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
+              sinCompanero ? 'bg-amber-400 border-amber-400' : 'border-slate-300 bg-white'
+            }`}>
+              {sinCompanero && (
+                <svg viewBox="0 0 10 8" className="w-2 h-2">
+                  <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                </svg>
+              )}
+            </div>
+            <span className={`text-xs font-medium ${sinCompanero ? 'text-amber-700' : 'text-slate-500'}`}>
+              Sin compañero/a confirmado/a aún
             </span>
-          </div>
+          </button>
 
-          <div className="flex flex-col gap-3">
-            <select
-              value={diaSelec}
-              onChange={(e) => {
-                const d = e.target.value
-                setDiaSelec(d)
-                setHoraSelec(horasParaDia(d)[0] ?? '')
-              }}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
-            >
-              <option value="">Seleccioná un día</option>
-              {diasValidos.map((d) => <option key={d} value={d}>{d}</option>)}
-            </select>
-            {diaSelec && (
-              <div>
-                <p className="text-xs text-slate-400 mb-1.5">Desde las</p>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {horasParaDia(diaSelec).map((h) => (
-                    <button
-                      key={h}
-                      type="button"
-                      onClick={() => setHoraSelec(h)}
-                      className={`py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                        horaSelec === h
-                          ? 'bg-brand-500 border-brand-500 text-white'
-                          : 'bg-white border-slate-200 text-slate-500 hover:border-brand-300 hover:text-brand-600'
-                      }`}
-                    >
-                      {h}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <button
-              onClick={handleAddSlot}
-              disabled={!diaSelec || !horaSelec || slots.length >= MAX_SLOTS_ADMIN}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white rounded-xl transition-all text-sm font-medium"
-            >
-              <Plus size={14} /> Agregar disponibilidad
-            </button>
-          </div>
-
-          {slotError && <p className="text-red-500 text-xs">{slotError}</p>}
-
-          {slots.length > 0 ? (
-            <div className="flex flex-col gap-1.5">
-              {slots.map((s, i) => (
-                <div key={i} className="flex items-center justify-between bg-brand-50 border border-brand-100 rounded-lg px-3 py-2 text-xs">
-                  <span className="text-brand-700 font-medium">{s.dia} · desde las {s.horaDesde}</span>
-                  <button onClick={() => setSlots(slots.filter((_, j) => j !== i))} className="text-brand-300 hover:text-red-500 transition-colors">
-                    <X size={13} />
-                  </button>
-                </div>
-              ))}
+          {/* Compañero nombre + DNI */}
+          {sinCompanero ? (
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50/60">
+              <span className="text-amber-500 text-sm shrink-0">⏳</span>
+              <p className="text-amber-700 text-xs leading-relaxed">
+                La pareja y la disponibilidad se completarán cuando el jugador confirme su compañero/a.
+              </p>
             </div>
           ) : (
-            <p className="text-slate-400 text-xs text-center py-4 bg-slate-50 rounded-xl">
-              Sin horarios — la pareja puede jugar cualquier horario disponible.
-            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 2</label>
+                <input
+                  type="text"
+                  value={jugador2}
+                  onChange={(e) => { setJugador2(e.target.value.replace(/[0-9]/g, '')); setNameError('') }}
+                  placeholder="Nombre y apellido"
+                  className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameError ? 'border-red-400' : 'border-slate-200'}`}
+                />
+                {nameError && <p className="text-red-500 text-[10px] mt-0.5">{nameError}</p>}
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">DNI J2 <span className="text-red-400">*</span></label>
+                <input
+                  type="text"
+                  value={jugador2Dni}
+                  onChange={(e) => { setJugador2Dni(e.target.value.replace(/\D/g, '').slice(0, 8)); setDniError('') }}
+                  placeholder="12345678"
+                  maxLength={8}
+                  inputMode="numeric"
+                  className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${dniError ? 'border-red-400' : 'border-slate-200'}`}
+                />
+                {dniError && <p className="text-red-500 text-[10px] mt-0.5">{dniError}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* Disponibilidad */}
+          {!sinCompanero && (
+            <>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Disponibilidad horaria</label>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${slots.length >= MAX_SLOTS_ADMIN ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'}`}>
+                  {slots.length}/{MAX_SLOTS_ADMIN}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <select
+                  value={diaSelec}
+                  onChange={(e) => { const d = e.target.value; setDiaSelec(d); setHoraSelec(horasParaDia(d)[0] ?? '') }}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
+                >
+                  <option value="">Seleccioná un día</option>
+                  {diasValidos.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+                {diaSelec && (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-1.5">Desde las</p>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {horasParaDia(diaSelec).map((h) => (
+                        <button key={h} type="button" onClick={() => setHoraSelec(h)}
+                          className={`py-1.5 rounded-lg text-xs font-semibold border transition-all ${horaSelec === h ? 'bg-brand-500 border-brand-500 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-brand-300 hover:text-brand-600'}`}>
+                          {h}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <button onClick={handleAddSlot} disabled={!diaSelec || !horaSelec || slots.length >= MAX_SLOTS_ADMIN}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white rounded-xl transition-all text-sm font-medium">
+                  <Plus size={14} /> Agregar disponibilidad
+                </button>
+              </div>
+
+              {slotError && <p className="text-red-500 text-xs">{slotError}</p>}
+
+              {slots.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  {slots.map((s, i) => (
+                    <div key={i} className="flex items-center justify-between bg-brand-50 border border-brand-100 rounded-lg px-3 py-2 text-xs">
+                      <span className="text-brand-700 font-medium">{s.dia} · desde las {s.horaDesde}</span>
+                      <button onClick={() => setSlots(slots.filter((_, j) => j !== i))} className="text-brand-300 hover:text-red-500 transition-colors">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-400 text-xs text-center py-3 bg-slate-50 rounded-xl">Sin horarios cargados</p>
+              )}
+
+              {/* Toggle mismo día */}
+              <button type="button" onClick={() => soloUnDia && setPrefiereMismoDia((v) => !v)} disabled={!soloUnDia}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all text-left ${
+                  !soloUnDia ? 'border-slate-100 bg-slate-50 opacity-40 cursor-not-allowed'
+                  : prefiereMismoDia ? 'border-amber-300/40 bg-amber-50'
+                  : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                }`}>
+                <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${prefiereMismoDia && soloUnDia ? 'bg-amber-400 border-amber-400' : 'border-slate-300 bg-white'}`}>
+                  {prefiereMismoDia && soloUnDia && (
+                    <svg viewBox="0 0 10 8" className="w-2 h-2">
+                      <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    </svg>
+                  )}
+                </div>
+                <span className={`text-xs font-medium ${prefiereMismoDia && soloUnDia ? 'text-amber-700' : 'text-slate-500'}`}>
+                  Prefieren jugar los 2 partidos el mismo día
+                </span>
+              </button>
+            </>
           )}
         </div>
 
@@ -1599,10 +1811,8 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
           <button onClick={onClose} className="flex-1 py-2.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all">
             Cancelar
           </button>
-          <button
-            onClick={() => { onGuardar(inscripto.id, { disponibilidad: slots }); onClose() }}
-            className="flex-1 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm shadow-brand-500/20"
-          >
+          <button onClick={handleGuardar}
+            className="flex-1 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm shadow-brand-500/20">
             Guardar
           </button>
         </div>
@@ -1775,8 +1985,9 @@ const TorneoDetallePage = () => {
           setGrupos, updateGrupos, resolveGroupTie, addPareja, addParejaFromApi, updatePareja,
           updatePersonalizacion } = useTorneosStore()
   const token = useAuthStore((s) => s.token)
-  const addBajaInscripcionTorneo = usePlayerNotificationsStore((s) => s.addBajaInscripcionTorneo)
-  const addPromovido             = usePlayerNotificationsStore((s) => s.addPromovido)
+  const addBajaInscripcionTorneo       = usePlayerNotificationsStore((s) => s.addBajaInscripcionTorneo)
+  const addPromovido                   = usePlayerNotificationsStore((s) => s.addPromovido)
+  const addInscripcionActualizadaAdmin = usePlayerNotificationsStore((s) => s.addInscripcionActualizadaAdmin)
   const club           = useClubStore((s) => s.club)
   const canchas        = club.canchas
   const canchasActivas = canchas.filter((c) => c.activa)
@@ -2248,7 +2459,7 @@ const TorneoDetallePage = () => {
 
       {/* Tabs */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="flex border-b border-slate-100 overflow-x-auto">
+        <div className="flex border-b border-slate-100 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
           {[
             { key: 'inscriptos', label: 'Parejas inscriptas', icon: Users,     count: torneo.inscriptos.length },
             ...(esFormatoGrupos ? [{ key: 'grupos',   label: 'Grupos',          icon: GitMerge, count: torneo.grupos ? torneo.grupos.length : null }] : []),
@@ -3185,6 +3396,11 @@ const TorneoDetallePage = () => {
             if (isBackend && typeof pid === 'string') {
               api.patch(`/torneos/${torneo.id}/parejas/${pid}`, changes, authH).catch(() => {})
             }
+            addInscripcionActualizadaAdmin({
+              torneoNombre: torneo.nombre,
+              categoria: editando.categoria,
+              jugador2: changes.jugador2,
+            })
           }}
         />
       )}

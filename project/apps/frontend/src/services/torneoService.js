@@ -524,15 +524,18 @@ export const autoScheduleGroups = (grupos, canchas) => {
   const newGrupos = JSON.parse(JSON.stringify(grupos))
   const activas   = canchas.filter((c) => c.activa)
 
-  const slotCanchas = new Map()
-  const slotKey     = (dia, hora) => `${dia}||${hora}`
+  const slotCanchas    = new Map()
+  const parejaFirstDay = new Map() // id → dia del primer partido asignado (para prefiereMismoDia)
+  const slotKey        = (dia, hora) => `${dia}||${hora}`
 
   for (const zona of newGrupos) {
     for (const partido of zona.partidos) {
       if (partido.slot) continue
 
-      const p1Slots = partido.pareja1?.disponibilidad ?? []
-      const p2Slots = partido.pareja2?.disponibilidad ?? []
+      const p1       = partido.pareja1
+      const p2       = partido.pareja2
+      const p1Slots  = p1?.disponibilidad ?? []
+      const p2Slots  = p2?.disponibilidad ?? []
 
       // Días donde ambas parejas tienen disponibilidad
       const diasEnComun = [...new Set(
@@ -541,10 +544,23 @@ export const autoScheduleGroups = (grupos, canchas) => {
           .map((s1) => s1.dia)
       )]
 
+      // Si alguna pareja prefiere mismo día y ya tiene un partido asignado,
+      // ese día va primero en la lista (best-effort: puede que no haya cancha libre)
+      const prefDias = new Set(
+        [p1, p2]
+          .filter((p) => p?.prefiereMismoDia && parejaFirstDay.has(p.id))
+          .map((p) => parejaFirstDay.get(p.id))
+          .filter((d) => diasEnComun.includes(d))
+      )
+      const diasOrdenados = [
+        ...diasEnComun.filter((d) => prefDias.has(d)),
+        ...diasEnComun.filter((d) => !prefDias.has(d)),
+      ]
+
       let assigned = false
-      for (const dia of diasEnComun) {
-        const h1 = parseInt(p1Slots.find((s) => s.dia === dia).horaDesde.split(':')[0])
-        const h2 = parseInt(p2Slots.find((s) => s.dia === dia).horaDesde.split(':')[0])
+      for (const dia of diasOrdenados) {
+        const h1 = parseInt(p1Slots.find((s) => s.dia === dia)?.horaDesde?.split(':')[0] ?? '8')
+        const h2 = parseInt(p2Slots.find((s) => s.dia === dia)?.horaDesde?.split(':')[0] ?? '8')
         const horaInicio = Math.max(h1, h2)
 
         for (let h = horaInicio; h <= 23; h++) {
@@ -559,6 +575,11 @@ export const autoScheduleGroups = (grupos, canchas) => {
             partido.sinHorario = false
             ocupadas.add(libre.id)
             assigned = true
+
+            // Registrar el día del primer partido para cada pareja con preferencia
+            if (p1?.prefiereMismoDia && !parejaFirstDay.has(p1.id)) parejaFirstDay.set(p1.id, dia)
+            if (p2?.prefiereMismoDia && !parejaFirstDay.has(p2.id)) parejaFirstDay.set(p2.id, dia)
+
             break
           }
         }

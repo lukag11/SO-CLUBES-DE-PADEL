@@ -175,6 +175,25 @@ const usePlayerNotificationsStore = create((set, get) => ({
     })
   },
 
+  // Admin actualiza inscripción del jugador en un torneo (ej: carga pareja vía WhatsApp)
+  addInscripcionActualizadaAdmin: ({ torneoNombre, categoria, jugador2 }) => {
+    const nueva = {
+      id: Date.now(),
+      tipo: 'inscripcion_actualizada_admin',
+      titulo: 'El club actualizó tu inscripción',
+      cuerpo: jugador2 && jugador2 !== 'Por definir'
+        ? `${torneoNombre} · ${categoria} · Compañero/a: ${jugador2}`
+        : `${torneoNombre} · ${categoria} · El club modificó los datos de tu inscripción`,
+      leida: false,
+      timestamp: new Date().toISOString(),
+    }
+    set((state) => {
+      const updated = [nueva, ...state.notificaciones]
+      save(updated)
+      return { notificaciones: updated }
+    })
+  },
+
   // Jugador fue promovido de lista de espera a inscripto
   addPromovido: ({ torneoNombre, categoria }) => {
     const nueva = {

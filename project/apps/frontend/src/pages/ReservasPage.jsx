@@ -1378,7 +1378,7 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onEliminar, onMarcarTodas
         </div>
 
         <div className="divide-y divide-slate-50">
-          {notificaciones.map((n) => {
+          {notificaciones.filter((n) => n.tipo !== 'inscripcion_torneo' && n.tipo !== 'baja_torneo' && n.tipo !== 'actualizacion_torneo').map((n) => {
             const esNuevaReserva = n.tipo === 'nueva_reserva'
             const esSolicitudFijo = n.tipo === 'solicitud_turno_fijo'
             const esLiberacion = n.tipo === 'liberacion_turno'

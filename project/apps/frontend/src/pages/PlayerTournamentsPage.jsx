@@ -6,8 +6,10 @@ import {
 import useTorneosStore from '../store/torneosStore'
 import usePlayerStore from '../store/playerStore'
 import useTorneosNotif from '../store/playerNotificationsStore'
+import useNotificacionesStore from '../store/notificacionesStore'
 import { esSlotDeGrupos } from '../services/torneoService'
 import { api } from '../lib/api'
+import InfoBlock from '../components/InfoBlock'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -445,6 +447,7 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
   const [open, setOpen]                 = useState(false)
   const [openGrupos, setOpenGrupos]     = useState(false)
   const [confirmarBaja, setConfirmarBaja] = useState(false)
+  const [showDisp, setShowDisp]         = useState(false)
   const miPareja = torneo.inscriptos.find(
     (i) => i.jugador1 === playerName || i.jugador2 === playerName
   )
@@ -498,6 +501,11 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
                 En lista de espera
               </span>
             )}
+            {miPareja?.sinCompanero && (
+              <span className="text-[10px] font-semibold text-amber-300 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                ⚠ Sin compañero/a
+              </span>
+            )}
             <span className="text-xs text-white/30">{torneo.categorias.join(', ')}</span>
             <span className="text-xs text-white/30">{torneo.formato}</span>
             {torneo.genero && (
@@ -515,6 +523,46 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
               </span>
             )}
           </div>
+
+          {/* Botón reloj — disponibilidad horaria */}
+          {miPareja && (
+            <button
+              onClick={() => setShowDisp((v) => !v)}
+              className={`mt-2.5 flex items-center gap-1.5 text-[11px] font-medium transition-colors ${
+                showDisp ? 'text-[#afca0b]' : 'text-white/25 hover:text-white/50'
+              }`}
+            >
+              <Clock size={12} />
+              Mi disponibilidad horaria
+              {showDisp ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+            </button>
+          )}
+
+          {/* Panel disponibilidad */}
+          {showDisp && miPareja && (
+            <div className="mt-2 rounded-xl border border-white/8 bg-white/3 px-3 py-2.5 flex flex-col gap-1.5">
+              {miPareja.sinCompanero ? (
+                <p className="text-amber-300/70 text-xs italic">
+                  Disponibilidad pendiente — se completará al confirmar compañero/a.
+                </p>
+              ) : miPareja.disponibilidad?.length ? (
+                <>
+                  {miPareja.disponibilidad.map((s, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#afca0b]/60 shrink-0" />
+                      <span className="text-white/60 text-xs font-medium">{s.dia}</span>
+                      <span className="text-white/30 text-xs">desde las {s.horaDesde}</span>
+                    </div>
+                  ))}
+                  {miPareja.prefiereMismoDia && (
+                    <p className="text-white/25 text-[10px] mt-0.5 italic">Prefiero jugar ambos partidos el mismo día</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-white/25 text-xs italic">Sin horarios cargados.</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -710,6 +758,8 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onCl
   const [pendingDia, setPendingDia]   = useState(diasValidos[0] ?? DIAS_SEMANA[0])
   const [pendingHora, setPendingHora] = useState(horasParaDia(diasValidos[0] ?? DIAS_SEMANA[0])[0] ?? '18:00')
   const [errors, setErrors]           = useState({})
+  const [exito, setExito]             = useState(null) // null | { data, vaAEspera }
+  const [sinCompanero, setSinCompanero] = useState(parejaExistente?.sinCompanero ?? false)
 
   // Días que aún no tienen slot agregado
   const diasLibres = diasValidos.filter((d) => !slots.some((s) => s.dia === d))
@@ -743,25 +793,39 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onCl
 
   const validate = () => {
     const e = {}
-    if (!jugador2.trim())    e.jugador2    = 'Completá el nombre de tu compañero/a'
-    if (!jugador2Dni.trim()) e.jugador2Dni = 'Completá el DNI de tu compañero/a'
-    if (slots.length === 0)  e.slots       = 'Agregá al menos un horario disponible'
+    if (!sinCompanero) {
+      if (!jugador2.trim())                             e.jugador2    = 'Completá el nombre de tu compañero/a'
+      if (!jugador2Dni.trim())                          e.jugador2Dni = 'Completá el DNI de tu compañero/a'
+      else if (!/^\d{7,8}$/.test(jugador2Dni.trim()))  e.jugador2Dni = 'El DNI debe tener entre 7 y 8 números'
+      if (slots.length === 0) {
+        e.slots = 'Agregá al menos un horario disponible'
+      } else if (slots.length === 1 && !prefiereMismoDia) {
+        e.slots = 'Con un solo horario, marcá "Preferimos jugar los 2 partidos el mismo día", o agregá un segundo día para el otro partido.'
+      }
+    }
     return e
   }
 
   const handleConfirmar = () => {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
-    onConfirmar({
+    const data = {
       jugador1,
       jugador1Dni: jugador1Dni ?? '',
-      jugador2: jugador2.trim(),
-      jugador2Dni: jugador2Dni.trim(),
+      jugador2: sinCompanero ? 'Por definir' : jugador2.trim(),
+      jugador2Dni: sinCompanero ? '' : jugador2Dni.trim(),
       categoria,
       fecha: new Date().toISOString().split('T')[0],
       disponibilidad: slots,
       prefiereMismoDia,
-    })
+      sinCompanero,
+    }
+    // Calcular si va a espera para mostrar el mensaje correcto
+    const cupoMax     = torneo.cupoLibre ? null : (torneo.cuposPorCategoria?.[categoria] ?? null)
+    const confirmados = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado !== 'espera').length
+    const enEsperaCat = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado === 'espera').length
+    const vaAEspera   = cupoMax !== null && confirmados >= cupoMax && enEsperaCat < (torneo.cupoEspera ?? 5)
+    setExito({ data, vaAEspera })
   }
 
   return (
@@ -782,8 +846,113 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onCl
           </button>
         </div>
 
+        {/* Pantalla de éxito */}
+        {exito && (
+          <>
+            <style>{`
+              @keyframes scaleIn  { from { transform: scale(0.6); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+              @keyframes fadeUp   { from { transform: translateY(14px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+              @keyframes drawCirc { from { stroke-dashoffset: 138 } to { stroke-dashoffset: 0 } }
+              @keyframes drawChk  { from { stroke-dashoffset: 32 } to { stroke-dashoffset: 0 } }
+            `}</style>
+            <div className="flex flex-col items-center justify-center px-6 py-10 gap-5">
+
+              {/* Ícono animado */}
+              <div style={{ animation: 'scaleIn 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
+                {exito.vaAEspera ? (
+                  <div className="w-24 h-24 rounded-full bg-amber-400/10 border-2 border-amber-400/30 flex items-center justify-center text-5xl">
+                    ⏳
+                  </div>
+                ) : (
+                  <svg width="96" height="96" viewBox="0 0 96 96">
+                    <circle cx="48" cy="48" r="44" fill="none"
+                      stroke="#afca0b" strokeWidth="3" strokeLinecap="round"
+                      style={{ strokeDasharray: 276, strokeDashoffset: 276, animation: 'drawCirc 0.6s ease-out 0.1s forwards' }}
+                    />
+                    <path d="M30 50 L43 63 L67 37" fill="none"
+                      stroke="#afca0b" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ strokeDasharray: 50, strokeDashoffset: 50, animation: 'drawChk 0.35s ease-out 0.6s forwards' }}
+                    />
+                  </svg>
+                )}
+              </div>
+
+              {/* Título */}
+              <div className="text-center" style={{ animation: 'fadeUp 0.4s ease-out 0.5s both' }}>
+                <h3 className={`font-bold text-xl ${exito.vaAEspera ? 'text-amber-400' : 'text-white'}`}>
+                  {isEdit ? '¡Cambios guardados!' : exito.vaAEspera ? 'En lista de espera' : '¡Inscripción confirmada!'}
+                </h3>
+                <p className="text-white/35 text-sm mt-1">{torneo.nombre}</p>
+              </div>
+
+              {/* Pareja */}
+              <div className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-center"
+                style={{ animation: 'fadeUp 0.4s ease-out 0.65s both' }}>
+                <p className="text-white text-sm font-semibold">
+                  {jugador1}{' '}
+                  <span className="text-white/30 font-normal">/</span>{' '}
+                  {sinCompanero
+                    ? <span className="text-amber-300 font-normal italic text-xs">Sin compañero/a aún</span>
+                    : exito.data.jugador2}
+                </p>
+                <p className="text-white/35 text-xs mt-0.5">{exito.data.categoria}</p>
+              </div>
+
+              {/* Mensaje */}
+              <p className="text-center text-xs leading-relaxed"
+                style={{ animation: 'fadeUp 0.4s ease-out 0.75s both',
+                  color: exito.vaAEspera ? 'rgba(251,191,36,0.6)' : sinCompanero ? 'rgba(251,191,36,0.55)' : 'rgba(255,255,255,0.3)' }}>
+                {isEdit
+                  ? 'Tus datos de inscripción fueron actualizados correctamente.'
+                  : exito.vaAEspera
+                    ? 'El cupo está completo por ahora. Te avisaremos si se libera un lugar.'
+                    : sinCompanero
+                      ? 'Tu cupo está reservado. Editá la inscripción cuando sepas con quién jugás.'
+                      : 'El admin podrá ver tu inscripción en el panel de torneos.'}
+              </p>
+
+              {/* Botón Listo */}
+              <button
+                onClick={() => onConfirmar(exito.data)}
+                style={{ animation: 'fadeUp 0.4s ease-out 0.85s both' }}
+                className={`w-full py-3 rounded-xl text-sm font-bold transition-all ${
+                  exito.vaAEspera
+                    ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30'
+                    : 'bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117]'
+                }`}
+              >
+                Listo
+              </button>
+            </div>
+          </>
+        )}
+
         {/* Form */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
+        <div className={`flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3 ${exito ? 'hidden' : ''}`}>
+
+          {/* Toggle sin compañero */}
+          <button
+            type="button"
+            onClick={() => setSinCompanero((v) => !v)}
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all text-left w-full ${
+              sinCompanero
+                ? 'border-amber-400/30 bg-amber-400/8'
+                : 'border-white/8 bg-white/3 hover:bg-white/5'
+            }`}
+          >
+            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
+              sinCompanero ? 'bg-amber-400 border-amber-400' : 'border-white/20 bg-transparent'
+            }`}>
+              {sinCompanero && (
+                <svg viewBox="0 0 10 8" className="w-2 h-2">
+                  <path d="M1 4l2.5 2.5L9 1" stroke="#0d1117" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                </svg>
+              )}
+            </div>
+            <span className={`text-[11px] font-medium leading-snug ${sinCompanero ? 'text-amber-300' : 'text-white/45'}`}>
+              Todavía no sé con quién juego · Reservar cupo igual
+            </span>
+          </button>
 
           {/* Jugadores */}
           <div className="grid grid-cols-2 gap-x-2 gap-y-2">
@@ -797,15 +966,28 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onCl
             {/* J2 nombre */}
             <div>
               <label className="text-[10px] font-medium text-white/40 block mb-1">Compañero/a</label>
-              <input
-                type="text"
-                value={jugador2}
-                onChange={(e) => setJugador2(e.target.value)}
-                placeholder="Nombre y apellido"
-                className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 ${
-                  errors.jugador2 ? 'border-red-500/50' : 'border-white/10'
-                }`}
-              />
+              {sinCompanero ? (
+                <div className="bg-white/3 border border-white/5 rounded-xl px-2.5 py-2 text-xs text-amber-300/50 italic">
+                  Por definir
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={jugador2}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    setJugador2(raw.replace(/[0-9]/g, ''))
+                    if (/[0-9]/.test(raw))
+                      setErrors((p) => ({ ...p, jugador2: 'Solo letras permitidas' }))
+                    else
+                      setErrors((p) => ({ ...p, jugador2: '' }))
+                  }}
+                  placeholder="Nombre y apellido"
+                  className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 ${
+                    errors.jugador2 ? 'border-red-500/50' : 'border-white/10'
+                  }`}
+                />
+              )}
               {errors.jugador2 && <p className="text-red-400 text-[10px] mt-0.5">{errors.jugador2}</p>}
             </div>
             {/* J1 DNI */}
@@ -817,24 +999,51 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onCl
             </div>
             {/* J2 DNI */}
             <div>
-              <label className="text-[10px] font-medium text-white/40 block mb-1">DNI compañero/a</label>
-              <input
-                type="text"
-                value={jugador2Dni}
-                onChange={(e) => setJugador2Dni(e.target.value)}
-                placeholder="12345678"
-                className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 ${
-                  errors.jugador2Dni ? 'border-red-500/50' : 'border-white/10'
-                }`}
-              />
+              <label className="text-[10px] font-medium text-white/40 block mb-1">
+                DNI compañero/a {!sinCompanero && <span className="text-red-400">*</span>}
+              </label>
+              {sinCompanero ? (
+                <div className="bg-white/3 border border-white/5 rounded-xl px-2.5 py-2 text-xs text-amber-300/50 italic">
+                  Por definir
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={jugador2Dni}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 8)
+                    setJugador2Dni(val)
+                    if (val.length > 0 && val.length < 7)
+                      setErrors((p) => ({ ...p, jugador2Dni: 'Mínimo 7 dígitos' }))
+                    else
+                      setErrors((p) => ({ ...p, jugador2Dni: '' }))
+                  }}
+                  placeholder="12345678"
+                  maxLength={8}
+                  inputMode="numeric"
+                  className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 ${
+                    errors.jugador2Dni ? 'border-red-500/50' : 'border-white/10'
+                  }`}
+                />
+              )}
               {errors.jugador2Dni && <p className="text-red-400 text-[10px] mt-0.5">{errors.jugador2Dni}</p>}
             </div>
           </div>
+
+          {/* Info DNI */}
+          <InfoBlock label="¿Por qué pedimos el DNI del compañero/a?" variant="dark">
+            <p>Usamos el DNI para vincular el historial de partidos y estadísticas de cada jugador. Sin él no podemos hacer el seguimiento correcto dentro del torneo.</p>
+            <p>Asegurate de cargarlo bien — si hay un error podés editarlo antes de que el admin cierre las inscripciones.</p>
+          </InfoBlock>
 
           {/* Categoría */}
           {torneo.categorias.length > 1 && (
             <div>
               <label className="text-[10px] font-medium text-white/40 block mb-1">Categoría</label>
+              <InfoBlock label="¿Qué categoría elegir?" variant="dark">
+                <p>Inscribite en la categoría que corresponde a tu nivel de juego. 1° categoría es el nivel más alto, a mayor número menor nivel.</p>
+                <p>Si no sabés cuál te corresponde, consultá con el admin del club antes de inscribirte.</p>
+              </InfoBlock>
               <select
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
@@ -846,8 +1055,21 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onCl
             </div>
           )}
 
-          {/* Disponibilidad */}
-          <div>
+          {/* Disponibilidad — oculta cuando sin compañero/a */}
+          {sinCompanero && (
+            <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl border border-amber-400/20 bg-amber-400/5">
+              <span className="text-amber-400 text-sm shrink-0 mt-0.5">⏳</span>
+              <p className="text-amber-300/70 text-xs leading-relaxed">
+                Cargá la disponibilidad cuando confirmes con tu compañero/a. Podrás editarla desde "Mis torneos".
+              </p>
+            </div>
+          )}
+          <div className={sinCompanero ? 'hidden' : ''}>
+            <InfoBlock label="¿Cómo funciona la disponibilidad?" variant="dark">
+              <p>Indicá los días y horarios en los que podés jugar. El admin usa esa info para armar el fixture y asignarte partidos en momentos que te queden bien.</p>
+              <p>Podés agregar hasta <span className="font-semibold text-white/80">{MAX_SLOTS} horarios</span>. Cuantos más pongas, más fácil es que te toquen partidos en días convenientes.</p>
+              <p>Si el torneo tiene fase de grupos y fase eliminatoria, los horarios que cargues aplican solo a la fase de grupos.</p>
+            </InfoBlock>
             <label className="text-[10px] font-medium text-white/40 flex items-center gap-1.5 mb-2">
               Disponibilidad horaria
               <span className="text-white/25 font-normal">(coordinada con tu pareja)</span>
@@ -958,24 +1180,31 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onCl
                 Preferimos jugar los 2 partidos el mismo día
               </span>
             </button>
+            <InfoBlock label="¿Cómo funciona esta preferencia?" variant="dark">
+              <p>Al marcar esta opción, el sistema intentará asignarte los 2 partidos de fase de grupos en el mismo día que hayas indicado.</p>
+              <p>Es una preferencia, no una garantía. Si ese día ya no tiene canchas disponibles para tu horario, el segundo partido puede quedar en otro día dentro de tu disponibilidad.</p>
+              <p>Solo podés activarla si cargaste un único día disponible. Si agregás más de un día, la opción se desactiva automáticamente.</p>
+            </InfoBlock>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-white/8 flex gap-2 justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-medium text-white/40 hover:text-white hover:bg-white/6 rounded-xl transition-all"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleConfirmar}
-            className="px-5 py-2 text-xs font-bold bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117] rounded-xl transition-all"
-          >
-            {isEdit ? 'Guardar cambios' : 'Confirmar inscripción'}
-          </button>
-        </div>
+        {/* Footer — oculto cuando se muestra la pantalla de éxito */}
+        {!exito && (
+          <div className="px-5 py-3 border-t border-white/8 flex gap-2 justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-medium text-white/40 hover:text-white hover:bg-white/6 rounded-xl transition-all"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirmar}
+              className="px-5 py-2 text-xs font-bold bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117] rounded-xl transition-all"
+            >
+              {isEdit ? 'Guardar cambios' : 'Confirmar inscripción'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1016,7 +1245,11 @@ const mapBackendTorneoPlayer = (t) => ({
 const PlayerTournamentsPage = () => {
   const { torneos, setTorneos, addParejaFromApi, addPareja, updatePareja, bajaInscripto } = useTorneosStore()
   const { player, token: playerToken } = usePlayerStore()
-  const addInscripcionEnEspera = useTorneosNotif((s) => s.addInscripcionEnEspera)
+  const addInscripcionEnEspera     = useTorneosNotif((s) => s.addInscripcionEnEspera)
+  const nuevaInscripcionTorneo     = useNotificacionesStore((s) => s.nuevaInscripcionTorneo)
+  const bajaTorneo                 = useNotificacionesStore((s) => s.bajaTorneo)
+  const actualizacionTorneo        = useNotificacionesStore((s) => s.actualizacionTorneo)
+  const completacionTorneo         = useNotificacionesStore((s) => s.completacionTorneo)
   const [modalTorneo, setModalTorneo]   = useState(null)
   const [modalEdicion, setModalEdicion] = useState(null) // { torneo, pareja }
   const [toastEspera, setToastEspera]   = useState(null) // nombre del torneo
@@ -1039,10 +1272,9 @@ const PlayerTournamentsPage = () => {
   }, [playerClubId])
 
   const puedeInscribirse = (torneo) => {
-    if (!player?.genero) return true
-    // Torneo femenino: exclusivo para mujeres
-    if (torneo.genero === 'Femenino') return player.genero === 'Femenino'
-    // Torneo masculino o mixto: cualquier género puede inscribirse
+    // Femenino: exclusivo para mujeres (si el perfil no tiene género asignado, tampoco puede)
+    if (torneo.genero === 'Femenino') return player?.genero === 'Femenino'
+    // Masculino y Mixto: todos pueden, independientemente del género del perfil
     return true
   }
 
@@ -1050,6 +1282,14 @@ const PlayerTournamentsPage = () => {
   const disponibles = torneos.filter((t) =>
     t.estado === 'open' && !estaInscripto(t, playerName) && puedeInscribirse(t)
   )
+
+  const alertasDeadline = misTorneos.filter((t) => {
+    if (!t.fechaLimiteInscripcion) return false
+    const p = t.inscriptos.find((i) => i.jugador1 === playerName || i.jugador2 === playerName)
+    if (!p?.sinCompanero) return false
+    const dias = Math.ceil((new Date(t.fechaLimiteInscripcion + 'T23:59:59') - new Date()) / 86400000)
+    return dias > 0 && dias <= 4
+  })
 
   const titulos = misTorneos.filter((t) => esDePareja(t.ganador, playerName)).length
   const finales  = misTorneos.filter((t) => esDePareja(t.subcampeon, playerName)).length
@@ -1074,6 +1314,11 @@ const PlayerTournamentsPage = () => {
           categoria: p.categoria, fecha: p.fecha,
           disponibilidad: p.disponibilidad ?? [], prefiereMismoDia: p.prefiereMismoDia ?? false,
         })
+        nuevaInscripcionTorneo({
+          jugador1: pareja.jugador1, jugador2: pareja.jugador2,
+          categoria: cat, torneoNombre: modalTorneo.nombre,
+          torneoId: modalTorneo.id, vaAEspera,
+        })
         if (vaAEspera) {
           addInscripcionEnEspera({ torneoNombre: modalTorneo.nombre, categoria: cat })
           setToastEspera(modalTorneo.nombre)
@@ -1083,6 +1328,11 @@ const PlayerTournamentsPage = () => {
       } catch { /* fallback local */ }
     }
     addPareja(modalTorneo.id, { ...pareja, estado: vaAEspera ? 'espera' : 'inscripto' })
+    nuevaInscripcionTorneo({
+      jugador1: pareja.jugador1, jugador2: pareja.jugador2,
+      categoria: cat, torneoNombre: modalTorneo.nombre,
+      torneoId: modalTorneo.id, vaAEspera,
+    })
     if (vaAEspera) {
       addInscripcionEnEspera({ torneoNombre: modalTorneo.nombre, categoria: cat })
       setToastEspera(modalTorneo.nombre)
@@ -1090,19 +1340,35 @@ const PlayerTournamentsPage = () => {
     setModalTorneo(null)
   }
 
-  const handleConfirmarEdicion = async ({ jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia }) => {
+  const handleConfirmarEdicion = async ({ jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia, sinCompanero }) => {
     if (!modalEdicion) return
     const { torneo: t, pareja } = modalEdicion
-    const changes = { jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia }
+    const changes = { jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia, sinCompanero }
     if (isBackendTorneo(t) && typeof pareja.id === 'string' && playerToken) {
       api.patch(`/torneos/${t.id}/inscribir/${pareja.id}`, changes, authH).catch(() => {})
     }
     updatePareja(t.id, pareja.id, changes)
+    const eraIncompleta = pareja.sinCompanero === true && !sinCompanero
+    if (eraIncompleta) {
+      completacionTorneo({ jugador1: pareja.jugador1, jugador2, categoria, torneoNombre: t.nombre, torneoId: t.id })
+    } else {
+      actualizacionTorneo({ jugador1: pareja.jugador1, jugador2, categoria, torneoNombre: t.nombre, torneoId: t.id })
+    }
     setModalEdicion(null)
   }
 
   const handleCancelarInscripcion = async (torneoId, parejaId) => {
     const t = torneos.find((x) => String(x.id) === String(torneoId))
+    const pareja = t?.inscriptos.find((i) => String(i.id) === String(parejaId))
+    if (pareja && t) {
+      bajaTorneo({
+        jugador1: pareja.jugador1,
+        jugador2: pareja.jugador2,
+        categoria: pareja.categoria,
+        torneoNombre: t.nombre,
+        torneoId: t.id,
+      })
+    }
     if (isBackendTorneo(t) && typeof parejaId === 'string' && playerToken) {
       api.delete(`/torneos/${torneoId}/inscribir/${parejaId}`, authH).catch(() => {})
     }
@@ -1111,6 +1377,31 @@ const PlayerTournamentsPage = () => {
 
   return (
     <div className="flex flex-col gap-8">
+
+      {/* Alertas deadline sinCompanero */}
+      {alertasDeadline.map((t) => {
+        const dias = Math.ceil((new Date(t.fechaLimiteInscripcion + 'T23:59:59') - new Date()) / 86400000)
+        const miPareja = t.inscriptos.find((i) => i.jugador1 === playerName || i.jugador2 === playerName)
+        return (
+          <div key={t.id} className="flex items-start gap-3 bg-amber-500/10 border border-amber-400/25 rounded-2xl px-4 py-3">
+            <span className="text-amber-400 text-base shrink-0 mt-0.5">⚠</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-amber-300 text-sm font-semibold leading-snug">
+                Falta{dias === 1 ? '' : 'n'} {dias} día{dias !== 1 ? 's' : ''} para el cierre de inscripciones
+              </p>
+              <p className="text-white/40 text-xs mt-0.5 leading-snug">
+                Cupo reservado en <span className="text-white/60 font-medium">{t.nombre}</span> ({miPareja?.categoria}) pero todavía no completaste la pareja.
+              </p>
+              <button
+                onClick={() => setModalEdicion({ torneo: t, pareja: miPareja })}
+                className="mt-2 text-xs font-semibold text-amber-300 hover:text-amber-200 underline underline-offset-2 transition-colors"
+              >
+                Completar inscripción →
+              </button>
+            </div>
+          </div>
+        )
+      })}
 
       {/* Toast lista de espera */}
       {toastEspera && (

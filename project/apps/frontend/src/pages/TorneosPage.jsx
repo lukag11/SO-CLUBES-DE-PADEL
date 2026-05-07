@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import {
   Trophy, Plus, Users, X, ChevronRight, Calendar, Medal,
   CheckCircle, Clock, Archive, ToggleLeft, ToggleRight, Infinity,
-  Lock, Pencil, Trash2, AlertTriangle,
+  Lock, Pencil, Trash2, AlertTriangle, Bell, UserCheck,
 } from 'lucide-react'
 import { GENEROS, FORMATOS } from '../features/admin/torneosMockData'
+import InfoBlock from '../components/InfoBlock'
 import useTorneosStore from '../store/torneosStore'
 import useClubStore from '../store/clubStore'
 import useAuthStore from '../store/authStore'
+import useNotificacionesStore from '../store/notificacionesStore'
 import { api } from '../lib/api'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -499,6 +501,14 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
     descripcion: torneoEditar.descripcion ?? '',
   } : EMPTY_FORM)
   const [errors, setErrors] = useState({})
+  const [bloqueoEspecifico, setBloqueoEspecifico] = useState(
+    () => (torneoEditar?.canchasAsignadas ?? []).length > 0
+  )
+
+  const toggleBloqueo = () => {
+    if (bloqueoEspecifico) set('canchasAsignadas', [])
+    setBloqueoEspecifico((p) => !p)
+  }
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }))
 
@@ -587,6 +597,11 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
               onRename={renameCategoria}
             />
             {errors.categorias && <p className="text-red-500 text-xs mt-1.5">{errors.categorias}</p>}
+            <InfoBlock label="¿Cómo funcionan las categorías?">
+              <p>Cada categoría representa un nivel de juego. Las parejas se inscriben en la categoría que corresponde a su nivel, y cada una tiene su propio cuadro de partidos separado.</p>
+              <p><span className="font-semibold text-slate-700">Numeración:</span>{' '}1° categoría es el nivel más alto. A mayor número, menor nivel. Podés agregar variantes como "4° Categoría B" o "4° Categoría +35" para segmentar más.</p>
+              <p><span className="font-semibold text-slate-700">Múltiples categorías:</span>{' '}un mismo torneo puede tener varias. Cada una tendrá su propio cupo, zonas y cuadro de llaves independientes.</p>
+            </InfoBlock>
           </div>
 
           {/* Género */}
@@ -610,45 +625,75 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
             </div>
           </div>
 
-          {/* Canchas asignadas */}
+          {/* Canchas — toggle bloqueo específico */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-slate-600">Canchas para el torneo</label>
-              <span className="text-xs text-slate-400">Las seleccionadas quedan bloqueadas para reservas</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {canchasClub.map((cancha) => {
-                const asignada = form.canchasAsignadas.includes(cancha.id)
-                return (
-                  <button
-                    key={cancha.id}
-                    type="button"
-                    onClick={() => set('canchasAsignadas', asignada
-                      ? form.canchasAsignadas.filter((id) => id !== cancha.id)
-                      : [...form.canchasAsignadas, cancha.id]
-                    )}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left ${
-                      asignada
-                        ? 'border-brand-500 bg-brand-500/8 text-brand-700'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                      asignada ? 'bg-brand-500 border-brand-500' : 'border-slate-300 bg-white'
-                    }`}>
-                      {asignada && (
-                        <svg viewBox="0 0 10 8" className="w-2.5 h-2.5 fill-white">
-                          <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                        </svg>
+            <button
+              type="button"
+              onClick={toggleBloqueo}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-all"
+            >
+              <div className="flex items-center gap-2.5 text-left">
+                <Lock size={14} className={bloqueoEspecifico ? 'text-brand-500' : 'text-slate-400'} />
+                <div>
+                  <p className="text-sm font-medium text-slate-700">Bloquear canchas específicas</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {bloqueoEspecifico
+                      ? form.canchasAsignadas.length > 0
+                        ? `${form.canchasAsignadas.length} cancha${form.canchasAsignadas.length !== 1 ? 's' : ''} seleccionada${form.canchasAsignadas.length !== 1 ? 's' : ''}`
+                        : 'Seleccioná las canchas a bloquear'
+                      : 'Todas las canchas quedan bloqueadas'}
+                  </p>
+                </div>
+              </div>
+              {/* Toggle pill */}
+              <div className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${bloqueoEspecifico ? 'bg-brand-500' : 'bg-slate-200'}`}>
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${bloqueoEspecifico ? 'left-5' : 'left-1'}`} />
+              </div>
+            </button>
+
+            <InfoBlock label="¿Cómo funciona el bloqueo?">
+              <p><span className="font-semibold text-slate-700">Toggle apagado:</span>{' '}todas las canchas del club quedan bloqueadas para reservas mientras dura el torneo. Ningún jugador puede reservar.</p>
+              <p><span className="font-semibold text-slate-700">Toggle encendido:</span>{' '}solo las canchas que seleccionás quedan bloqueadas. Las demás siguen disponibles para reservas normales.</p>
+              <p className="text-slate-400 border-t border-sky-100 pt-1.5"><span className="font-medium text-slate-500">Ejemplo:</span> el torneo usa Cancha 1 y Cancha 2 → activás el toggle, seleccionás esas dos, y Cancha 3 queda libre para que otros jugadores reserven.</p>
+            </InfoBlock>
+
+            {bloqueoEspecifico && (
+              <div className="mt-2 flex flex-col gap-2">
+                {canchasClub.map((cancha) => {
+                  const asignada = form.canchasAsignadas.includes(cancha.id)
+                  return (
+                    <button
+                      key={cancha.id}
+                      type="button"
+                      onClick={() => set('canchasAsignadas', asignada
+                        ? form.canchasAsignadas.filter((id) => id !== cancha.id)
+                        : [...form.canchasAsignadas, cancha.id]
                       )}
-                    </span>
-                    {cancha.nombre}
-                  </button>
-                )
-              })}
-            </div>
-            {form.canchasAsignadas.length === 0 && (
-              <p className="text-slate-400 text-xs mt-1.5">Si no seleccionás ninguna, se bloquearán todas las canchas del club.</p>
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left ${
+                        asignada
+                          ? 'border-brand-500 bg-brand-500/8 text-brand-700'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                        asignada ? 'bg-brand-500 border-brand-500' : 'border-slate-300 bg-white'
+                      }`}>
+                        {asignada && (
+                          <svg viewBox="0 0 10 8" className="w-2.5 h-2.5">
+                            <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                          </svg>
+                        )}
+                      </span>
+                      {cancha.nombre}
+                    </button>
+                  )
+                })}
+                {form.canchasAsignadas.length === 0 && (
+                  <p className="text-amber-600 text-xs bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                    Seleccioná al menos una cancha, o desactivá el toggle para bloquear todas.
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
@@ -753,6 +798,11 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
             >
               {FORMATOS.map((f) => <option key={f} value={f}>{f}</option>)}
             </select>
+            <InfoBlock label="¿Qué formato elegir?">
+              <p><span className="font-semibold text-slate-700">Round Robin:</span>{' '}todas las parejas juegan contra todas, sin fase eliminatoria. Gana quien acumula más puntos al final. Formato ideal cuando el objetivo es que todos jueguen la mayor cantidad de partidos posible.</p>
+              <p><span className="font-semibold text-slate-700">Eliminación directa:</span>{' '}las parejas juegan entre sí desde el inicio. El que pierde queda eliminado. Ideal para torneos cortos o con pocas parejas.</p>
+              <p><span className="font-semibold text-slate-700">Fase de grupos + Eliminación:</span>{' '}primero se forman zonas donde todas las parejas juegan entre sí. Los mejores de cada zona clasifican a la fase eliminatoria. Más partidos garantizados por pareja.</p>
+            </InfoBlock>
           </div>
 
           {/* Fechas */}
@@ -790,10 +840,14 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
               onChange={(e) => set('fechaLimiteInscripcion', e.target.value)}
               className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all ${errors.fechaLimiteInscripcion ? 'border-red-400' : 'border-slate-200'}`}
             />
-            {errors.fechaLimiteInscripcion
-              ? <p className="text-red-500 text-xs mt-1">{errors.fechaLimiteInscripcion}</p>
-              : <p className="text-slate-400 text-xs mt-1">Debe ser anterior al inicio del torneo para tener tiempo de armar las zonas.</p>
-            }
+            {errors.fechaLimiteInscripcion && (
+              <p className="text-red-500 text-xs mt-1">{errors.fechaLimiteInscripcion}</p>
+            )}
+            <InfoBlock label="¿Para qué sirve esta fecha?">
+              <p>Es la fecha hasta la cual los jugadores pueden inscribirse al torneo. Pasada esa fecha, la inscripción se cierra automáticamente.</p>
+              <p><span className="font-semibold text-slate-700">¿Por qué ponerla antes del inicio?</span>{' '}Necesitás tiempo para armar las zonas y el fixture una vez que sabés quiénes están anotados.</p>
+              <p className="text-slate-400 border-t border-sky-100 pt-1.5"><span className="font-medium text-slate-500">Ejemplo:</span> torneo empieza el 15/06 → poné límite el 10/06, así tenés 5 días para organizar las zonas y comunicar los horarios.</p>
+            </InfoBlock>
           </div>
 
           {/* Inicio fase eliminatoria — solo para formato grupos */}
@@ -936,6 +990,11 @@ const TorneosPage = () => {
   const { torneos, setTorneos, addTorneoFromApi, addTorneo, updateTorneoFromApi, setEstado, deleteTorneo, updateTorneo } = useTorneosStore()
   const token  = useAuthStore((s) => s.token)
   const clubId = useAuthStore((s) => s.club?.id)
+  const { notificaciones, marcarLeida, marcarTodasLeidas } = useNotificacionesStore()
+  const notifTorneosNoLeidas = notificaciones.filter(
+    (n) => (n.tipo === 'inscripcion_torneo' || n.tipo === 'baja_torneo' || n.tipo === 'actualizacion_torneo' || n.tipo === 'completacion_torneo') && !n.leida
+  )
+  const sinLeerInscripciones = notifTorneosNoLeidas.length
 
   useEffect(() => {
     if (!clubId) return
@@ -1051,9 +1110,78 @@ const TorneosPage = () => {
         ))}
       </div>
 
+      {/* Panel inscripciones recientes */}
+      {notifTorneosNoLeidas.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <Bell size={15} className="text-slate-400" />
+              <span className="text-sm font-semibold text-slate-700">Inscripciones recientes</span>
+              {sinLeerInscripciones > 0 && (
+                <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-brand-500 text-white leading-none">
+                  {sinLeerInscripciones}
+                </span>
+              )}
+            </div>
+            {sinLeerInscripciones > 0 && (
+              <button
+                onClick={() => notifTorneosNoLeidas.filter((n) => !n.leida).forEach((n) => marcarLeida(n.id))}
+                className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                Marcar todo leído
+              </button>
+            )}
+          </div>
+          <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+            {notifTorneosNoLeidas.map((n) => {
+              const ts = new Date(n.timestamp)
+              const ahora = new Date()
+              const diffMin = Math.floor((ahora - ts) / 60000)
+              const tiempoStr = diffMin < 1 ? 'Ahora' : diffMin < 60 ? `Hace ${diffMin} min` : diffMin < 1440 ? `Hace ${Math.floor(diffMin / 60)}h` : ts.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+              const esBaja = n.tipo === 'baja_torneo'
+              const esActualizacion = n.tipo === 'actualizacion_torneo'
+              const esCompletacion = n.tipo === 'completacion_torneo'
+              const iconColor = esBaja ? 'text-red-500' : esActualizacion ? 'text-sky-500' : esCompletacion ? 'text-violet-500' : n.vaAEspera ? 'text-amber-600' : 'text-emerald-600'
+              const iconBg    = esBaja ? 'bg-red-100'  : esActualizacion ? 'bg-sky-100'  : esCompletacion ? 'bg-violet-100' : n.vaAEspera ? 'bg-amber-100'  : 'bg-emerald-100'
+              const rowBg     = esBaja ? 'bg-red-50/30' : esActualizacion ? 'bg-sky-50/20' : esCompletacion ? 'bg-violet-50/20' : 'bg-brand-500/[0.02]'
+              const prefijo   = esBaja ? 'Baja' : esActualizacion ? 'Actualización' : esCompletacion ? 'Inscripción completada' : null
+              const prefijoColor = esBaja ? 'text-red-500' : esCompletacion ? 'text-violet-500' : 'text-sky-500'
+              return (
+                <div
+                  key={n.id}
+                  className={`flex items-center gap-3 px-4 py-3 transition-colors ${rowBg}`}
+                >
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+                    <UserCheck size={13} className={iconColor} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-700 font-medium truncate">
+                      {prefijo && <span className={`${prefijoColor} font-semibold text-xs`}>{prefijo} · </span>}
+                      {n.jugador1} <span className="text-slate-400">/</span> {n.jugador2}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {n.torneoNombre} · {n.categoria}
+                      {n.vaAEspera && <span className="ml-1 text-amber-500 font-medium">· Lista de espera</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] text-slate-300 whitespace-nowrap">{tiempoStr}</span>
+                    <button
+                      onClick={() => marcarLeida(n.id)}
+                      className="w-1.5 h-1.5 rounded-full bg-brand-500 hover:bg-brand-600 transition-colors shrink-0"
+                      title="Marcar como leída"
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="flex border-b border-slate-100 overflow-x-auto">
+        <div className="flex border-b border-slate-100 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
           {tabs.map(({ key, label, icon: Icon }) => {
             const count = torneos.filter(t => (TAB_ESTADOS[key] ?? []).includes(t.estado)).length
             return (

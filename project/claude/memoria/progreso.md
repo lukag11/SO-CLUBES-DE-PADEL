@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-06
+**Última actualización:** 2026-05-07
 
 ---
 
@@ -24,7 +24,7 @@
 | Notificaciones admin + jugador | ✅ Frontend completo | Badge, centro de notificaciones — falta backend |
 | Dashboard profesor (agenda + disponibilidad) | ✅ Frontend completo | Portal separado `/dashboardProfesor` — falta backend |
 | Módulo torneos admin | ✅ Frontend completo | CRUD, grupos, bracket, horarios — falta backend (Bloque 4) |
-| Módulo torneos jugador | ✅ Frontend completo | Inscripción, historial, vista pública — falta backend (Bloque 4) |
+| Módulo torneos jugador | ✅ Frontend completo | Inscripción, historial, sinCompanero, disponibilidad, notificaciones separadas — falta backend (Bloque 4) |
 | Estadísticas jugador | 🔲 Hardcodeado | Placeholder. Implementar en Bloque 5 con datos reales de reservas + torneos |
 | Responsive design mobile | 🔄 En progreso | Admin ~80%, Jugador ~70%, Profesor ~70% |
 | Backend real — Bloque 1 setup | ✅ Completo | Express + Prisma + Supabase. Server levanta en puerto 3001 |
@@ -129,6 +129,47 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-05-07) — Torneos: flujo sinCompanero + notificaciones
+
+### Funcionalidades implementadas
+
+**sinCompanero en inscripción (jugador)**
+- Toggle "Todavía no sé con quién juego" en `ModalInscripcion` (PlayerTournamentsPage)
+- Al activarlo: oculta jugador2, DNI y disponibilidad. Guarda `sinCompanero: true`, `jugador2: 'Por definir'`
+- Badge "⚠ Sin compañero/a" en `MiTorneoCard`
+- Banner de alerta deadline cuando `sinCompanero && fechaLimiteInscripcion <= 4 días`
+- Validación: 1 solo slot sin "prefiereMismoDia" → bloqueado con mensaje
+
+**sinCompanero en carga admin (TorneoDetallePage)**
+- Toggle en `ModalAgregarParejaAdmin`
+- `ParejaCard`: muestra "Horario pendiente" en naranja cuando `sinCompanero`
+
+**Admin puede editar inscripción completa**
+- `ModalEditarDisponibilidad` extendido a "Editar inscripción": maneja jugador2, DNI, sinCompanero, disponibilidad y prefiereMismoDia
+- Cubre el caso: jugador avisa por WhatsApp → admin completa los datos en su nombre
+- Al guardar: notifica al jugador via `addInscripcionActualizadaAdmin` (playerNotificationsStore)
+
+**Notificaciones separadas reservas / torneos**
+- `notificacionesStore.sinLeer()`: excluye tipos torneo (inscripcion_torneo, baja_torneo, actualizacion_torneo)
+- `notificacionesStore.sinLeerTorneos()`: cuenta solo tipos torneo (incluye completacion_torneo)
+- Sidebar: badge rojo en Reservas, badge verde en Torneos
+- `TorneosPage`: panel solo muestra notificaciones no leídas de tipo torneo; al marcarlas se ocultan
+- `ReservasPage`: no muestra ningún tipo torneo
+
+**Nuevas acciones en notificacionesStore**
+- `bajaTorneo` — jugador cancela inscripción
+- `actualizacionTorneo` — jugador edita inscripción
+- `completacionTorneo` — jugador completa inscripción (sinCompanero → con pareja)
+
+**Nueva acción en playerNotificationsStore**
+- `addInscripcionActualizadaAdmin` — admin edita inscripción en nombre del jugador
+
+**Visualización disponibilidad horaria**
+- Botón reloj en `MiTorneoCard` → despliega panel inline con los slots del jugador
+- Muestra día + horaDesde, nota "mismo día" si aplica, mensaje ámbar si sinCompanero
 
 ---
 

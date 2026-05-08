@@ -2465,7 +2465,7 @@ const TorneoDetallePage = () => {
             ...(esFormatoGrupos ? [{ key: 'grupos',   label: 'Grupos',          icon: GitMerge, count: torneo.grupos ? torneo.grupos.length : null }] : []),
             ...(esFormatoGrupos && torneo.grupos && torneo.estado === 'in_progress' ? [{ key: 'horarios', label: 'Horarios', icon: Clock, count: null }] : []),
             { key: 'fixture',    label: 'Fixture / Bracket',  icon: Zap,       count: activeBracket ? activeBracket.rondas.length : null },
-            { key: 'visual',     label: 'Personalización',     icon: Palette,   count: null },
+            ...(torneo.estado !== 'finished' ? [{ key: 'visual', label: 'Personalización', icon: Palette, count: null }] : []),
           ].map(({ key, label, icon: Icon, count }) => (
             <button
               key={key}

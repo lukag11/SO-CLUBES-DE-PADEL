@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import {
   Trophy, Plus, Users, X, ChevronRight, Calendar, Medal,
   CheckCircle, Clock, Archive, ToggleLeft, ToggleRight, Infinity,
-  Lock, Pencil, Trash2, AlertTriangle, Bell, UserCheck,
+  Lock, Pencil, Trash2, AlertTriangle, Bell, UserCheck, Camera, Download,
 } from 'lucide-react'
+import FlyerTorneo from '../components/FlyerTorneo'
+import { FLYER_TEMPLATES } from '../lib/flyerTemplates'
 import { GENEROS, FORMATOS } from '../features/admin/torneosMockData'
 import InfoBlock from '../components/InfoBlock'
 import useTorneosStore from '../store/torneosStore'
@@ -280,7 +282,24 @@ const EMPTY_FORM = {
   diaInicioEliminatoria: '',
   horaInicioEliminatoria: '',
   descripcion: '',
+  // flyer
+  premioPrimero: '',
+  premioSegundo: '',
+  premioSemifinal: '',
+  premioExtra: '',
+  whatsapp: '',
+  servicios: [],
+  imagenFondo: '',
 }
+
+const SERVICIOS_OPCIONES = [
+  { id: 'indoor',     label: 'Canchas indoor' },
+  { id: 'bar',        label: 'Bar y comidas' },
+  { id: 'parking',    label: 'Estacionamiento' },
+  { id: 'cupos',      label: 'Cupos limitados' },
+  { id: 'vestuarios', label: 'Vestuarios' },
+  { id: 'wifi',       label: 'WiFi' },
+]
 
 // Transición de estado al hacer toggle de inscripción
 const toggleEstado = (estado) => {
@@ -317,11 +336,15 @@ const Badge = ({ estado }) => {
   )
 }
 
-const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar }) => {
+const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar, onFlyer }) => {
   const [confirmarEliminar, setConfirmarEliminar] = useState(false)
-  const cupo     = totalCupo(torneo)
-  const cupoLleno = !torneo.cupoLibre && torneo.inscriptos.length >= cupo
-  const pct      = cupo ? Math.round((torneo.inscriptos.length / cupo) * 100) : 0
+  const confirmados  = torneo.inscriptos.filter((i) => i.estado !== 'espera')
+  const enEspera     = torneo.inscriptos.filter((i) => i.estado === 'espera')
+  const cupo         = totalCupo(torneo)
+  const cupoLleno    = !torneo.cupoLibre && confirmados.length >= cupo
+  const pct          = cupo ? Math.round((confirmados.length / cupo) * 100) : 0
+  const cupoEspera   = torneo.cupoEspera ?? 0
+  const pctEspera    = cupoEspera > 0 ? Math.round((enEspera.length / cupoEspera) * 100) : 0
   const puedeToggle          = ['draft', 'open', 'closed'].includes(torneo.estado)
   const puedeEditarEliminar  = ['draft', 'open', 'closed'].includes(torneo.estado)
 
@@ -362,6 +385,41 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
           )}
         </div>
 
+        {/* Cierre de inscripciones */}
+        {torneo.fechaLimiteInscripcion && torneo.estado === 'open' && (() => {
+          const dias = Math.ceil((new Date(torneo.fechaLimiteInscripcion + 'T23:59:59') - new Date()) / 86400000)
+          if (dias <= 0) return null
+          const critico = dias <= 2
+          const urgente = dias <= 5
+          return (
+            <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border ${
+              critico ? 'bg-red-50 border-red-200' :
+              urgente ? 'bg-amber-50 border-amber-200' :
+                        'bg-yellow-50 border-yellow-200'
+            }`}>
+              <span className="relative flex items-center justify-center shrink-0">
+                {critico && (
+                  <span className="absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-400 opacity-75 animate-ping" />
+                )}
+                <span className={`relative w-2 h-2 rounded-full ${
+                  critico ? 'bg-red-500' : urgente ? 'bg-amber-400 animate-pulse' : 'bg-yellow-400 animate-pulse'
+                }`} />
+              </span>
+              <span className={`text-[10px] font-semibold leading-tight ${
+                critico ? 'text-red-600' : urgente ? 'text-amber-600' : 'text-yellow-700'
+              }`}>
+                Cierre de inscripciones · {fmtFecha(torneo.fechaLimiteInscripcion)}
+                {critico
+                  ? <span className="ml-1 font-bold">— {dias} día{dias !== 1 ? 's' : ''}</span>
+                  : urgente
+                    ? <span className="ml-1">— {dias} días</span>
+                    : null
+                }
+              </span>
+            </div>
+          )
+        })()}
+
         {/* Categorías chips */}
         <div className="flex flex-wrap gap-1">
           {torneo.categorias.slice(0, 3).map((cat) => (
@@ -376,7 +434,7 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
           )}
         </div>
 
-        {/* Cupo */}
+        {/* Cupo inscriptos */}
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Inscriptos</span>
@@ -386,7 +444,7 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
               </span>
             ) : (
               <span className={`text-xs font-semibold tabular-nums ${cupoLleno ? 'text-red-500' : 'text-slate-600'}`}>
-                {torneo.inscriptos.length}
+                {confirmados.length}
                 <span className="text-slate-400 font-normal"> / {cupo}</span>
                 <span className="text-slate-300 font-normal ml-1">({pct}%)</span>
               </span>
@@ -401,6 +459,26 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
             </div>
           )}
         </div>
+
+        {/* Suplentes — solo si hay cupo de espera y al menos 1 suplente */}
+        {cupoEspera > 0 && enEspera.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-amber-500 font-medium uppercase tracking-wide">Suplentes</span>
+              <span className="text-xs font-semibold tabular-nums text-amber-600">
+                {enEspera.length}
+                <span className="text-amber-400 font-normal"> / {cupoEspera}</span>
+                <span className="text-amber-300 font-normal ml-1">({pctEspera}%)</span>
+              </span>
+            </div>
+            <div className="h-1 bg-amber-100 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-amber-400 transition-all duration-500"
+                style={{ width: `${Math.min(pctEspera, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
 
       </div>
 
@@ -429,10 +507,20 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
       <div className="px-4 py-2.5 border-t border-slate-100 flex items-center justify-between">
         <span className="flex items-center gap-1 text-xs text-slate-400">
           <Users size={11} />
-          {torneo.inscriptos.length} inscripto{torneo.inscriptos.length !== 1 ? 's' : ''}
+          {confirmados.length} inscripto{confirmados.length !== 1 ? 's' : ''}
+          {enEspera.length > 0 && (
+            <span className="text-amber-500 ml-1">· {enEspera.length} en espera</span>
+          )}
         </span>
 
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => onFlyer(torneo)}
+            title="Generar flyer"
+            className="text-slate-300 hover:text-violet-500 hover:bg-violet-50 p-1.5 rounded-lg transition-all"
+          >
+            <Camera size={13} />
+          </button>
           {puedeEditarEliminar && (
             <>
               <button onClick={() => onEditar(torneo)} title="Editar"
@@ -499,8 +587,16 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
     diaInicioEliminatoria: torneoEditar.diaInicioEliminatoria ?? '',
     horaInicioEliminatoria: torneoEditar.horaInicioEliminatoria ?? '',
     descripcion: torneoEditar.descripcion ?? '',
+    premioPrimero: torneoEditar.premioPrimero ?? '',
+    premioSegundo: torneoEditar.premioSegundo ?? '',
+    premioSemifinal: torneoEditar.premioSemifinal ?? '',
+    premioExtra: torneoEditar.premioExtra ?? '',
+    whatsapp: torneoEditar.whatsapp ?? '',
+    servicios: torneoEditar.servicios ?? [],
+    imagenFondo: torneoEditar.imagenFondo ?? '',
   } : EMPTY_FORM)
   const [errors, setErrors] = useState({})
+  const [activeTab, setActiveTab] = useState('datos')
   const [bloqueoEspecifico, setBloqueoEspecifico] = useState(
     () => (torneoEditar?.canchasAsignadas ?? []).length > 0
   )
@@ -569,7 +665,25 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
           </button>
         </div>
 
-        {/* Form */}
+        {/* Tab bar */}
+        <div className="flex border-b border-slate-100 px-4 md:px-6 shrink-0">
+          {[{ key: 'datos', label: 'Datos del torneo' }, { key: 'flyer', label: 'Flyer' }].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-all ${
+                activeTab === key
+                  ? 'border-brand-500 text-brand-600'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Form — Datos */}
+        {activeTab === 'datos' && (
         <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 flex flex-col gap-4 md:gap-5">
 
           {/* Nombre */}
@@ -914,6 +1028,120 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
 
         </div>
 
+        )}
+
+        {/* Form — Flyer */}
+        {activeTab === 'flyer' && (
+          <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 flex flex-col gap-4 md:gap-5">
+
+            {/* Foto de fondo */}
+            <div>
+              <label className="text-xs font-medium text-slate-600 block mb-1">
+                Foto de fondo <span className="text-slate-400">(opcional)</span>
+              </label>
+              <input
+                type="url"
+                value={form.imagenFondo}
+                onChange={(e) => set('imagenFondo', e.target.value)}
+                placeholder="https://... (URL de imagen: cancha, jugador...)"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+              />
+              {form.imagenFondo && (
+                <div className="mt-2 w-full h-20 rounded-lg overflow-hidden border border-slate-200">
+                  <img src={form.imagenFondo} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
+                </div>
+              )}
+              <p className="text-xs text-slate-400 mt-1">Se aplica como fondo oscurecido. Recomendado: foto de cancha o jugador.</p>
+            </div>
+
+            {/* Premios */}
+            <div>
+              <label className="text-xs font-medium text-slate-600 block mb-2">Premios <span className="text-slate-400">(opcional)</span></label>
+              <div className="flex flex-col gap-2">
+                {[
+                  { key: 'premioPrimero',   label: '1° Puesto',  placeholder: 'Ej: $50.000' },
+                  { key: 'premioSegundo',   label: '2° Puesto',  placeholder: 'Ej: $30.000' },
+                  { key: 'premioSemifinal', label: 'Semifinal',  placeholder: 'Ej: $15.000' },
+                ].map(({ key, label, placeholder }) => (
+                  <div key={key} className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                    <span className="text-sm text-slate-600 w-24 shrink-0">{label}</span>
+                    <input
+                      type="text"
+                      value={form[key]}
+                      onChange={(e) => set(key, e.target.value)}
+                      placeholder={placeholder}
+                      className="flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder-slate-300"
+                    />
+                  </div>
+                ))}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                  <label className="text-xs text-slate-400 block mb-1">Texto adicional</label>
+                  <input
+                    type="text"
+                    value={form.premioExtra}
+                    onChange={(e) => set('premioExtra', e.target.value)}
+                    placeholder="Ej: Medallas para todos los participantes"
+                    className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder-slate-300"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* WhatsApp */}
+            <div>
+              <label className="text-xs font-medium text-slate-600 block mb-1">WhatsApp de inscripciones <span className="text-slate-400">(opcional)</span></label>
+              <input
+                type="text"
+                value={form.whatsapp}
+                onChange={(e) => set('whatsapp', e.target.value)}
+                placeholder="Ej: +54 9 11 1234-5678"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+              />
+            </div>
+
+            {/* Servicios */}
+            <div>
+              <label className="text-xs font-medium text-slate-600 block mb-2">Servicios disponibles <span className="text-slate-400">(opcional)</span></label>
+              <div className="grid grid-cols-2 gap-2">
+                {SERVICIOS_OPCIONES.map(({ id, label }) => {
+                  const activo = form.servicios.includes(id)
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => set('servicios', activo
+                        ? form.servicios.filter((s) => s !== id)
+                        : [...form.servicios, id]
+                      )}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left ${
+                        activo
+                          ? 'border-brand-500 bg-brand-500/8 text-brand-700'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                        activo ? 'bg-brand-500 border-brand-500' : 'border-slate-300 bg-white'
+                      }`}>
+                        {activo && (
+                          <svg viewBox="0 0 10 8" className="w-2.5 h-2.5">
+                            <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                          </svg>
+                        )}
+                      </span>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+              Guardá el torneo y luego usá el botón <span className="font-medium text-slate-500">Generar flyer</span> en la card para ver la vista previa y descargar el PNG.
+            </p>
+
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-4 py-3.5 md:px-6 md:py-4 border-t border-slate-100 flex gap-3 justify-end">
           <button
@@ -927,6 +1155,132 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
             className="px-5 py-2 text-sm font-semibold bg-brand-500 text-white rounded-xl hover:bg-brand-600 transition-all"
           >
             {esEdicion ? 'Guardar cambios' : 'Crear torneo'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Modal flyer ──────────────────────────────────────────────────────────────
+
+const ModalFlyer = ({ torneo, club, onClose }) => {
+  const [selectedTemplate, setSelectedTemplate] = useState('navy')
+  const [accentColor, setAccentColor] = useState(FLYER_TEMPLATES[0].defaultAccent)
+  const [busy, setBusy] = useState(false)
+  const [busyMsg, setBusyMsg] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
+
+  const handleSelectTemplate = (tpl) => {
+    setSelectedTemplate(tpl.id)
+    setAccentColor(tpl.defaultAccent)
+  }
+
+  const handleDescargar = async () => {
+    setBusy(true)
+    setErrorMsg('')
+    setBusyMsg('Cargando fuentes…')
+    try {
+      const { generateFlyer } = await import('../lib/generateFlyer')
+      setBusyMsg('Generando PNG…')
+      const pngDataUrl = await generateFlyer({ torneo, club, template: selectedTemplate, accentColor })
+      const a = document.createElement('a')
+      a.href     = pngDataUrl
+      a.download = `flyer-${torneo.nombre.replace(/\s+/g, '-')}.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } catch (err) {
+      console.error('generateFlyer error:', err)
+      setErrorMsg(`Error: ${err.message}`)
+    } finally {
+      setBusy(false)
+      setBusyMsg('')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+
+        {/* Header */}
+        <div className="px-4 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div>
+            <h2 className="text-slate-800 font-bold text-base">Vista previa del flyer</h2>
+            <p className="text-slate-400 text-xs mt-0.5">Exporta PNG 1080 × 1080 px · Generado con Satori</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-lg transition-all">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Preview CSS — inmediato, solo para mostrar */}
+        <div className="flex-1 overflow-auto flex items-center justify-center p-5 bg-slate-100">
+          <div style={{ width: 351, height: 351, overflow: 'hidden', borderRadius: 12, flexShrink: 0, boxShadow: '0 20px 50px -10px rgba(0,0,0,0.45)' }}>
+            <div style={{ transform: 'scale(0.65)', transformOrigin: 'top left', width: 540, height: 540 }}>
+              <FlyerTorneo torneo={torneo} club={club} template={selectedTemplate} accentColor={accentColor} />
+            </div>
+          </div>
+        </div>
+
+        {/* Selector de templates */}
+        <div className="px-4 pt-3 pb-2 border-t border-slate-100 shrink-0">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Diseño</p>
+          <div className="flex gap-2">
+            {FLYER_TEMPLATES.map((tpl) => {
+              const active = selectedTemplate === tpl.id
+              return (
+                <button
+                  key={tpl.id}
+                  onClick={() => handleSelectTemplate(tpl)}
+                  className={`flex-1 rounded-xl overflow-hidden border-2 transition-all ${active ? 'border-brand-500 ring-2 ring-brand-200' : 'border-transparent hover:border-slate-300'}`}
+                >
+                  {/* Mini preview color */}
+                  <div style={{ height: 36, background: tpl.preview.bg, position: 'relative' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${tpl.preview.bar[0]}, ${tpl.preview.bar[1]})` }} />
+                  </div>
+                  <div className="bg-slate-50 py-1">
+                    <p className={`text-xs font-semibold text-center ${active ? 'text-brand-600' : 'text-slate-600'}`}>{tpl.name}</p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Color accent picker */}
+          <div className="flex items-center gap-3 mt-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Color acento</p>
+            <label className="relative cursor-pointer flex items-center gap-2">
+              <div
+                className="w-7 h-7 rounded-lg border-2 border-white shadow-md ring-1 ring-slate-200"
+                style={{ background: accentColor }}
+              />
+              <input
+                type="color"
+                value={accentColor}
+                onChange={(e) => setAccentColor(e.target.value)}
+                className="absolute opacity-0 w-0 h-0"
+              />
+              <span className="text-xs text-slate-400 font-mono">{accentColor}</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-3.5 border-t border-slate-100 flex items-center gap-3 justify-end shrink-0">
+          {busy && <span className="text-xs text-slate-400 mr-auto">{busyMsg}</span>}
+          {errorMsg && <span className="text-xs text-red-500 mr-auto">{errorMsg}</span>}
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-all">
+            Cerrar
+          </button>
+          <button
+            onClick={handleDescargar}
+            disabled={busy}
+            className="flex items-center gap-2 px-5 py-2 text-sm font-semibold bg-brand-500 text-white rounded-xl hover:bg-brand-600 transition-all disabled:opacity-60"
+          >
+            <Download size={15} />
+            {busy ? '…' : 'Descargar PNG'}
           </button>
         </div>
       </div>
@@ -967,6 +1321,13 @@ const mapBackendTorneo = (t) => ({
   diaInicioEliminatoria: t.diaInicioEliminatoria,
   horaInicioEliminatoria: t.horaInicioEliminatoria,
   descripcion: t.descripcion ?? '',
+  premioPrimero:  t.premioPrimero  ?? '',
+  premioSegundo:  t.premioSegundo  ?? '',
+  premioSemifinal: t.premioSemifinal ?? '',
+  premioExtra:    t.premioExtra    ?? '',
+  whatsapp:       t.whatsapp       ?? '',
+  servicios:      t.servicios      ?? [],
+  imagenFondo:    t.imagenFondo    ?? '',
   inscriptos: (t.parejas ?? []).map((p) => ({
     id: p.id,
     jugador1: p.jugador1,
@@ -990,6 +1351,7 @@ const TorneosPage = () => {
   const { torneos, setTorneos, addTorneoFromApi, addTorneo, updateTorneoFromApi, setEstado, deleteTorneo, updateTorneo } = useTorneosStore()
   const token  = useAuthStore((s) => s.token)
   const clubId = useAuthStore((s) => s.club?.id)
+  const club   = useClubStore((s) => s.club)
   const { notificaciones, marcarLeida, marcarTodasLeidas } = useNotificacionesStore()
   const notifTorneosNoLeidas = notificaciones.filter(
     (n) => (n.tipo === 'inscripcion_torneo' || n.tipo === 'baja_torneo' || n.tipo === 'actualizacion_torneo' || n.tipo === 'completacion_torneo') && !n.leida
@@ -1007,6 +1369,16 @@ const TorneosPage = () => {
   const [tabActiva, setTabActiva] = useState('en_curso')
   const [modalNuevo, setModalNuevo] = useState(false)
   const [torneoEditar, setTorneoEditar] = useState(null)
+  const [busquedaFin, setBusquedaFin] = useState('')
+  const [añoFin, setAñoFin] = useState('')
+  const [toastNuevoTorneo, setToastNuevoTorneo] = useState(null)
+  const [flyerTorneo, setFlyerTorneo] = useState(null)
+
+  useEffect(() => {
+    if (!toastNuevoTorneo) return
+    const t = setTimeout(() => setToastNuevoTorneo(null), 4000)
+    return () => clearTimeout(t)
+  }, [toastNuevoTorneo])
 
   const tabs = [
     { key: 'en_curso',    label: 'En curso',    icon: CheckCircle },
@@ -1015,6 +1387,27 @@ const TorneosPage = () => {
   ]
 
   const torneosTab = torneos.filter((t) => (TAB_ESTADOS[tabActiva] ?? []).includes(t.estado))
+
+  const añosFinalizados = useMemo(() => {
+    const años = new Set(
+      torneos.filter((t) => t.estado === 'finished').map((t) => new Date(t.fechaFin + 'T12:00:00').getFullYear())
+    )
+    return [...años].sort((a, b) => b - a)
+  }, [torneos])
+
+  const finalizadosFiltrados = useMemo(() => {
+    const q = busquedaFin.toLowerCase().trim()
+    return torneosTab.filter((t) => {
+      if (añoFin && String(new Date(t.fechaFin + 'T12:00:00').getFullYear()) !== añoFin) return false
+      if (!q) return true
+      const enNombre     = t.nombre.toLowerCase().includes(q)
+      const enCategorias = t.categorias.some((c) => c.toLowerCase().includes(q))
+      const enJugadores  = t.inscriptos.some(
+        (i) => i.jugador1?.toLowerCase().includes(q) || i.jugador2?.toLowerCase().includes(q)
+      )
+      return enNombre || enCategorias || enJugadores
+    })
+  }, [torneosTab, busquedaFin, añoFin])
 
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {}
   const isBackend  = (id) => typeof id === 'string'
@@ -1033,19 +1426,31 @@ const TorneosPage = () => {
     navigate(`/dashboardAdmin/torneos/${torneo.id}`)
   }
 
+  const flyerFields = (form) => ({
+    premioPrimero:   form.premioPrimero  ?? '',
+    premioSegundo:   form.premioSegundo  ?? '',
+    premioSemifinal: form.premioSemifinal ?? '',
+    premioExtra:     form.premioExtra    ?? '',
+    whatsapp:        form.whatsapp       ?? '',
+    servicios:       form.servicios      ?? [],
+    imagenFondo:     form.imagenFondo    ?? '',
+  })
+
   const handleNuevoTorneo = async (form) => {
     if (token) {
       try {
         const data = await api.post('/torneos', form, authHeader)
-        addTorneoFromApi(mapBackendTorneo(data))
+        addTorneoFromApi({ ...mapBackendTorneo(data), ...flyerFields(form) })
         setModalNuevo(false)
         setTabActiva('proximos')
+        setToastNuevoTorneo(form.nombre)
         return
       } catch { /* fallback local */ }
     }
     addTorneo(form)
     setModalNuevo(false)
     setTabActiva('proximos')
+    setToastNuevoTorneo(form.nombre)
   }
 
   const handleEditar = (torneo) => setTorneoEditar(torneo)
@@ -1054,7 +1459,7 @@ const TorneosPage = () => {
     if (isBackend(torneoEditar.id)) {
       try {
         const data = await api.patch(`/torneos/${torneoEditar.id}`, form, authHeader)
-        updateTorneoFromApi(mapBackendTorneo(data))
+        updateTorneoFromApi({ ...mapBackendTorneo(data), ...flyerFields(form) })
         setTorneoEditar(null)
         return
       } catch { /* fallback local */ }
@@ -1070,12 +1475,7 @@ const TorneosPage = () => {
     deleteTorneo(id)
   }
 
-  const stats = [
-    { label: 'En curso',    value: torneos.filter(t => t.estado === 'in_progress').length, icon: CheckCircle, color: 'text-emerald-500' },
-    { label: 'Próximos',    value: torneos.filter(t => TAB_ESTADOS.proximos.includes(t.estado)).length, icon: Clock, color: 'text-sky-500' },
-    { label: 'Finalizados', value: torneos.filter(t => t.estado === 'finished').length,    icon: Archive,     color: 'text-slate-400' },
-    { label: 'Inscriptos',  value: torneos.reduce((acc, t) => acc + t.inscriptos.length, 0), icon: Users,    color: 'text-violet-500' },
-  ]
+  const torneosAbiertos = torneos.filter((t) => t.estado === 'open')
 
   return (
     <div className="flex flex-col gap-6">
@@ -1095,20 +1495,54 @@ const TorneosPage = () => {
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        {stats.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-white border border-slate-200 rounded-2xl px-4 py-3.5 md:px-5 md:py-4 flex items-center gap-3">
-            <div className="w-9 h-9 md:w-10 md:h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0">
-              <Icon size={18} className={color} />
+      {/* Franja de inscripción vigente */}
+      {torneosAbiertos.map((t) => {
+        const confirmados = t.inscriptos.filter((i) => i.estado !== 'espera')
+        const enEspera    = t.inscriptos.filter((i) => i.estado === 'espera')
+        const cupo        = totalCupo(t)
+        const diasCierre  = t.fechaLimiteInscripcion
+          ? Math.ceil((new Date(t.fechaLimiteInscripcion + 'T23:59:59') - new Date()) / 86400000)
+          : null
+        const critico = diasCierre !== null && diasCierre <= 2
+        const urgente = diasCierre !== null && diasCierre <= 5
+        return (
+          <div key={t.id} className="bg-white border border-emerald-200 rounded-2xl px-4 py-3.5 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0">
+            {/* Nombre */}
+            <div className="flex items-center gap-2 sm:flex-1 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+              <span className="text-slate-700 font-semibold text-sm truncate">{t.nombre}</span>
+              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md shrink-0">Inscripción abierta</span>
             </div>
-            <div className="min-w-0">
-              <p className="text-slate-800 text-xl md:text-2xl font-bold leading-none truncate">{value}</p>
-              <p className="text-slate-400 text-xs mt-1 truncate">{label}</p>
+            {/* Métricas */}
+            <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <Users size={13} className="text-slate-400 shrink-0" />
+                <span className="text-slate-800 text-sm font-bold">{confirmados.length}</span>
+                {cupo && <span className="text-slate-400 text-xs">/ {cupo} inscriptos</span>}
+                {!cupo && <span className="text-slate-400 text-xs">inscriptos</span>}
+              </div>
+              {enEspera.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <Clock size={13} className="text-amber-400 shrink-0" />
+                  <span className="text-amber-600 text-sm font-bold">{enEspera.length}</span>
+                  <span className="text-slate-400 text-xs">en espera</span>
+                </div>
+              )}
+              {diasCierre !== null && diasCierre > 0 && (
+                <div className={`flex items-center gap-1.5 ${critico ? 'text-red-500' : urgente ? 'text-amber-500' : 'text-slate-500'}`}>
+                  {critico && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping absolute" />}
+                  <AlertTriangle size={13} className="shrink-0" />
+                  <span className="text-sm font-bold">{diasCierre}</span>
+                  <span className="text-xs">día{diasCierre !== 1 ? 's' : ''} para el cierre</span>
+                </div>
+              )}
+              {diasCierre === null && (
+                <span className="text-slate-400 text-xs">Sin fecha límite</span>
+              )}
             </div>
           </div>
-        ))}
-      </div>
+        )
+      })}
 
       {/* Panel inscripciones recientes */}
       {notifTorneosNoLeidas.length > 0 && (
@@ -1221,7 +1655,50 @@ const TorneosPage = () => {
               )}
             </div>
           ) : tabActiva === 'finalizados' ? (
-            <div className="overflow-x-auto">
+            <div className="flex flex-col gap-4">
+
+              {/* Barra de filtros */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Buscar por torneo, categoría o jugador…"
+                    value={busquedaFin}
+                    onChange={(e) => setBusquedaFin(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+                  />
+                  {busquedaFin && (
+                    <button onClick={() => setBusquedaFin('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+                {añosFinalizados.length > 1 && (
+                  <select
+                    value={añoFin}
+                    onChange={(e) => setAñoFin(e.target.value)}
+                    className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+                  >
+                    <option value="">Todos los años</option>
+                    {añosFinalizados.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                )}
+              </div>
+
+              {/* Resultado vacío post-filtro */}
+              {finalizadosFiltrados.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400">
+                  <Trophy size={36} strokeWidth={1.2} />
+                  <p className="text-sm">Sin resultados para esa búsqueda</p>
+                  <button onClick={() => { setBusquedaFin(''); setAñoFin('') }} className="text-xs text-brand-500 hover:text-brand-600 mt-1">
+                    Limpiar filtros
+                  </button>
+                </div>
+              ) : (
+              <div className="overflow-x-auto">
               <table className="w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-100">
@@ -1234,7 +1711,7 @@ const TorneosPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {torneosTab.map((t) => (
+                  {finalizadosFiltrados.map((t) => (
                     <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-3.5 pr-4">
                         <p className="font-medium text-slate-800">{t.nombre}</p>
@@ -1285,6 +1762,8 @@ const TorneosPage = () => {
                 </tbody>
               </table>
             </div>
+              )}
+            </div>
           ) : (
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
               {torneosTab.map((t) => (
@@ -1295,6 +1774,7 @@ const TorneosPage = () => {
                   onToggleEstado={handleToggleEstado}
                   onEditar={handleEditar}
                   onEliminar={handleEliminar}
+                  onFlyer={setFlyerTorneo}
                 />
               ))}
             </div>
@@ -1315,6 +1795,35 @@ const TorneosPage = () => {
           onClose={() => setTorneoEditar(null)}
           onGuardar={handleGuardarEdicion}
         />
+      )}
+
+      {flyerTorneo && (
+        <ModalFlyer
+          torneo={flyerTorneo}
+          club={club}
+          onClose={() => setFlyerTorneo(null)}
+        />
+      )}
+
+      {/* Toast nuevo torneo */}
+      {toastNuevoTorneo && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+          <div className="flex items-center gap-3.5 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl shadow-black/30 border border-white/8 min-w-[280px] max-w-sm">
+            <div className="w-9 h-9 rounded-xl bg-brand-500/15 border border-brand-500/25 flex items-center justify-center shrink-0">
+              <Trophy size={17} className="text-brand-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold text-white/40 uppercase tracking-widest leading-none mb-0.5">Torneo creado</p>
+              <p className="text-sm font-semibold text-white truncate">{toastNuevoTorneo}</p>
+            </div>
+            <button
+              onClick={() => setToastNuevoTorneo(null)}
+              className="text-white/30 hover:text-white/70 transition-colors shrink-0 ml-1"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
       )}
 
     </div>

@@ -75,6 +75,13 @@ const useTorneosStore = create((set, get) => ({
       diaInicioEliminatoria:  form.diaInicioEliminatoria  ?? null,
       horaInicioEliminatoria: form.horaInicioEliminatoria ?? null,
       descripcion: form.descripcion,
+      premioPrimero: form.premioPrimero ?? '',
+      premioSegundo: form.premioSegundo ?? '',
+      premioSemifinal: form.premioSemifinal ?? '',
+      premioExtra: form.premioExtra ?? '',
+      whatsapp: form.whatsapp ?? '',
+      servicios: form.servicios ?? [],
+      imagenFondo: form.imagenFondo ?? '',
       colorAcento: null,
       estiloCardFixture: 'oscura',
       colorCardFixture: null,
@@ -277,6 +284,13 @@ const useTorneosStore = create((set, get) => ({
           diaInicioEliminatoria: form.diaInicioEliminatoria ?? null,
           horaInicioEliminatoria: form.horaInicioEliminatoria ?? null,
           descripcion: form.descripcion,
+          premioPrimero: form.premioPrimero ?? '',
+          premioSegundo: form.premioSegundo ?? '',
+          premioSemifinal: form.premioSemifinal ?? '',
+          premioExtra: form.premioExtra ?? '',
+          whatsapp: form.whatsapp ?? '',
+          servicios: form.servicios ?? [],
+          imagenFondo: form.imagenFondo ?? '',
         }
       )
       save(updated)

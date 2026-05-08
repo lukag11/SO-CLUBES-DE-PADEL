@@ -132,6 +132,39 @@
 
 ---
 
+## Último bloque completado (2026-05-07) — Flyer torneo: Satori PNG funcional
+
+### Funcionalidades implementadas
+
+**Sistema de flyer descargable (PNG 1080×1080)**
+- `generateFlyer.jsx` — Motor Satori que genera SVG → PNG en el browser sin backend
+- `FlyerTorneo.jsx` — Preview CSS 540×540 idéntico al flyer final
+- `flyerTemplates.js` — 3 templates (navy/fuego/minimal) + color de acento personalizable
+- `vite.config.js` — Fix `define: { 'process.env': {} }` para que Satori funcione en browser
+- `@fontsource/inter` instalado localmente (400/700/900) — importado con `?url` para evitar CDN
+
+**Correcciones críticas Satori**
+- Fuentes cargadas localmente (antes: CDN fetch que fallaba → "Error: u is not iterable")
+- Eliminados `lineHeight < 1` (Satori no los soporta)
+- `flex: 1` → `flexGrow: 1` (shorthand no válido en Satori)
+- `borderWidth: 2.5` → `borderWidth: 3` (decimales no válidos)
+- `borderTop: '1px solid ...'` → propiedades separadas `borderTopWidth/Style/Color`
+- Colores hex 8 dígitos (`#rrggbbaa`) → `rgba()` con helper `rgba(hex, alpha)`
+- `fontStyle: 'italic'` eliminado (no hay fuente italic cargada)
+- `overflow: 'hidden'` en sub-elementos → eliminado
+
+**Persistencia de datos del flyer**
+- `flyerFields(form)` helper en `TorneosPage.jsx` — extrae campos flyer antes de hacer merge con respuesta del backend
+- `mapBackendTorneo` actualizado para incluir todos los campos flyer (premios, whatsapp, servicios, imagenFondo)
+- `torneosStore` — `addTorneo` y `updateTorneo` incluyen `imagenFondo`
+- Selector de template + color picker en `ModalFlyer`
+- Input URL para foto de fondo con preview inline
+
+**Descarga funcional**
+- `document.body.appendChild(a); a.click(); document.body.removeChild(a)` — fix para que el `<a>` funcione sin estar en el DOM
+
+---
+
 ## Último bloque completado (2026-05-07) — Torneos: flujo sinCompanero + notificaciones
 
 ### Funcionalidades implementadas
@@ -180,5 +213,6 @@
 3. ✅ **Backend Bloque 2** — Auth JWT completo. Login admin/jugador/profesor + registro jugador conectados al frontend real
 4. ✅ **Backend Bloque 3** — Reservas CRUD completo
 5. ✅ **Backend Bloque 4** — Torneos completo. Torneo + Pareja en Prisma. 14 endpoints REST. TorneosPage + TorneoDetallePage + PlayerTournamentsPage conectados al backend. Fix Number(id)→String para cuid routing.
-6. **Backend Bloque 5** — Stats jugador, mis-reservas, Google OAuth
+6. **Backend Bloque 5** — Flyer: mover generación a endpoint Railway (hcti.io o screenshot API) cuando haya backend. Por ahora funciona 100% en browser con Satori.
+7. **Backend Bloque 5** — Stats jugador, mis-reservas, Google OAuth
 7. **Landing SaaS** — cuando haya primer cliente potencial

@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-07
+**Última actualización:** 2026-05-10
 
 ---
 
@@ -129,6 +129,40 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-05-10) — Torneos: categorías con género + filtrado por perfil jugador
+
+### Funcionalidades implementadas
+
+**Etiquetas de género en torneos "Ambos" (admin)**
+- Helper `catLabel(torneo, cat, short?)` en `TorneoDetallePage`: devuelve `"4° Categoría · Masc."` cuando `torneo.genero === 'Ambos'`
+- Tabs de categorías, select del modal "Agregar pareja" y mensajes vacíos usan `catLabel`
+
+**Fix modal "Agregar pareja" (admin)**
+- Botón "Prefieren jugar los 2 partidos el mismo día" ahora se oculta con `{!sinCompanero && (...)}` cuando sinCompañero está tildado
+- Antes estaba fuera del `div` con clase `hidden`, por eso seguía visible
+
+**Filtrado de categorías por género del jugador (lado jugador)**
+- Helper `catLabelPlayer(torneo, cat)` en `PlayerTournamentsPage`: muestra `"4° Categoría Masc."` en cards y modal (solo informativo)
+- Helper `categoriasParaJugador(torneo, playerGenero)`: filtra categorías según `generoPorCategoria` y el perfil del jugador
+  - Categoría sin mapa → visible para todos
+  - Mixto → visible para todos
+  - M → solo Masculino; F → solo Femenino
+- `puedeInscribirse()` actualizado: en torneos Ambos, requiere al menos 1 categoría compatible con el género del jugador
+- Modal inscripción: si 1 sola categoría disponible → readonly; si varias → select filtrado
+
+**Campo género en perfil del jugador**
+- `PlayerProfilePage`: toggle Masculino/Femenino en formulario de edición de perfil (sección "Datos básicos")
+- Persiste en localStorage via `updatePlayer(form)`. Para sincronizar a DB: pendiente Bloque 5
+
+**Store y mock data**
+- `torneosStore`: `addTorneo` y `updateTorneo` reemplazan `cupoEspera` plano por `cupoEsperaPorCategoria` y agregan `generoPorCategoria`
+- `torneosMockData`: agrega `'Ambos'` a la lista `GENEROS` + suplentes de prueba por categoría en torneo mock
+
+**Toast component**
+- `Toast.jsx` nuevo componente UI con animaciones CSS en `index.css`
 
 ---
 

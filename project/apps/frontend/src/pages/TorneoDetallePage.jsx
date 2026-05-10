@@ -67,6 +67,14 @@ const getDiasValidos = (fechaInicio, fechaFin) => {
   return DIAS_SEMANA.filter((d) => seen.has(d))
 }
 
+// Devuelve "4° Categoría · Masc." cuando el torneo es Ambos, si no solo el nombre
+const catLabel = (torneo, cat, short = false) => {
+  if (torneo?.genero !== 'Ambos') return cat
+  const gen = ((torneo.generoPorCategoria ?? {})[cat]) ?? 'M'
+  const suffix = gen === 'F' ? (short ? 'Fem.' : 'Femenino') : gen === 'Mixto' ? 'Mixto' : (short ? 'Masc.' : 'Masculino')
+  return `${cat} · ${suffix}`
+}
+
 // ── Helpers grupos ────────────────────────────────────────────────────────────
 
 const tieneOverlap = (p1, p2) => {
@@ -1458,7 +1466,9 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
                 onChange={(e) => setCategoria(e.target.value)}
                 className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 bg-white"
               >
-                {torneo.categorias.map((c) => <option key={c} value={c}>{c}</option>)}
+                {torneo.categorias.map((c) => (
+                  <option key={c} value={c}>{catLabel(torneo, c)}</option>
+                ))}
               </select>
             </div>
           )}
@@ -1546,25 +1556,27 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
             )}
           </div>
 
-          {/* Prefiere mismo día — compacto */}
-          <button
-            onClick={() => soloUnDia && setPrefiereMismoDia((v) => !v)}
-            disabled={!soloUnDia}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all ${
-              !soloUnDia
-                ? 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
-                : prefiereMismoDia
-                  ? 'border-[#afca0b]/30 bg-[#afca0b]/8 text-slate-700'
-                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
-              prefiereMismoDia && soloUnDia ? 'bg-[#afca0b] border-[#afca0b]' : 'border-slate-300'
-            }`}>
-              {prefiereMismoDia && soloUnDia && <span className="text-white text-[9px] font-bold">✓</span>}
-            </div>
-            <span className="text-xs">Prefieren jugar los 2 partidos el mismo día</span>
-          </button>
+          {/* Prefiere mismo día — solo cuando hay compañero */}
+          {!sinCompanero && (
+            <button
+              onClick={() => soloUnDia && setPrefiereMismoDia((v) => !v)}
+              disabled={!soloUnDia}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all ${
+                !soloUnDia
+                  ? 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
+                  : prefiereMismoDia
+                    ? 'border-[#afca0b]/30 bg-[#afca0b]/8 text-slate-700'
+                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
+                prefiereMismoDia && soloUnDia ? 'bg-[#afca0b] border-[#afca0b]' : 'border-slate-300'
+              }`}>
+                {prefiereMismoDia && soloUnDia && <span className="text-white text-[9px] font-bold">✓</span>}
+              </div>
+              <span className="text-xs">Prefieren jugar los 2 partidos el mismo día</span>
+            </button>
+          )}
         </div>
 
         {/* Alerta cupo lleno */}
@@ -2088,20 +2100,20 @@ const TorneoDetallePage = () => {
     return map
   }, [torneo?.grupos, selectedBracketCat])
 
-  if (!torneo) {
-    return (
-      <div className="flex flex-col items-center justify-center py-32 gap-4 text-slate-400">
-        <Trophy size={48} strokeWidth={1.2} />
-        <p className="text-sm">Torneo no encontrado</p>
-        <button
-          onClick={() => navigate('/dashboardAdmin/torneos')}
-          className="text-sm font-medium text-brand-500 hover:text-brand-600"
-        >
-          Volver a torneos
-        </button>
-      </div>
-    )
-  }
+  // ── Bracket fullscreen: Escape para cerrar ───────────────────────────────────
+  useEffect(() => {
+    if (!bracketFullscreen) return
+    const handleKey = (e) => { if (e.key === 'Escape') setBracketFullscreen(false) }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [bracketFullscreen])
+
+  // Navegar de vuelta si el torneo fue eliminado
+  useEffect(() => {
+    if (!torneo) navigate('/dashboardAdmin/torneos', { replace: true })
+  }, [torneo, navigate])
+
+  if (!torneo) return null
 
   const esFormatoGrupos   = torneo.formato === 'Fase de grupos + Eliminación'
   const puedeToggle       = ['draft', 'open', 'closed'].includes(torneo.estado)
@@ -2184,14 +2196,6 @@ const TorneoDetallePage = () => {
     syncBrackets({ ...(torneo.brackets ?? {}), [selectedBracketCat]: newBracket })
     setModalHorario(null)
   }
-
-  // ── Bracket fullscreen: Escape para cerrar ───────────────────────────────────
-  useEffect(() => {
-    if (!bracketFullscreen) return
-    const handleKey = (e) => { if (e.key === 'Escape') setBracketFullscreen(false) }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [bracketFullscreen])
 
   const handleBajaInscripto = async (inscriptoId, ins) => {
     if (isBackend && typeof inscriptoId === 'string') {
@@ -2363,7 +2367,7 @@ const TorneoDetallePage = () => {
               : 'text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
           }`}
         >
-          {c}
+          {catLabel(torneo, c, true)}
         </button>
       ))}
     </div>
@@ -2396,6 +2400,7 @@ const TorneoDetallePage = () => {
               <span className={`font-semibold px-2 py-0.5 rounded-md border text-[10px] ${
                 torneo.genero === 'Femenino'  ? 'text-pink-600 bg-pink-50 border-pink-200' :
                 torneo.genero === 'Mixto'     ? 'text-violet-600 bg-violet-50 border-violet-200' :
+                torneo.genero === 'Ambos'     ? 'text-teal-600 bg-teal-50 border-teal-200' :
                                                'text-sky-600 bg-sky-50 border-sky-200'
               }`}>
                 {torneo.genero}
@@ -2517,7 +2522,7 @@ const TorneoDetallePage = () => {
               return confirmados.length === 0 && enEspera.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
                   <Users size={40} strokeWidth={1.2} />
-                  <p className="text-sm">Todavía no hay parejas inscriptas{multiCat ? ` en ${catTab}` : ''}</p>
+                  <p className="text-sm">Todavía no hay parejas inscriptas{multiCat ? ` en ${catLabel(torneo, catTab)}` : ''}</p>
                 </div>
               ) : (
                 <>

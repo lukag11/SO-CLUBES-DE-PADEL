@@ -163,6 +163,7 @@ const DatosTab = ({ player, updatePlayer }) => {
     telefono:            player?.telefono            || '',
     provincia:           player?.provincia           || '',
     ciudad:              player?.ciudad              || '',
+    genero:              player?.genero              || '',
     posicion:            player?.posicion            || '',
     mano:                player?.mano                || '',
     categoria:           player?.categoria           || '',
@@ -263,6 +264,28 @@ const DatosTab = ({ player, updatePlayer }) => {
       {/* Perfil del jugador */}
       <SectionCard title="Perfil del jugador">
         <div className="flex flex-col gap-5">
+
+          <div>
+            <p className="text-white/40 text-xs font-medium mb-2">Género</p>
+            <div className="flex gap-2">
+              {['Masculino', 'Femenino'].map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, genero: g }))}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                    form.genero === g
+                      ? g === 'Femenino'
+                        ? 'bg-pink-500/20 border-pink-500/40 text-pink-300'
+                        : 'bg-sky-500/20 border-sky-500/40 text-sky-300'
+                      : 'bg-white/5 border-white/10 text-white/40 hover:border-white/20'
+                  }`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div>
             <p className="text-white/40 text-xs font-medium mb-2">Posición</p>

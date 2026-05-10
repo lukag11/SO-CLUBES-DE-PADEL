@@ -19,6 +19,30 @@ const fmtFecha = (iso) =>
 const totalCupo = (torneo) =>
   torneo.cupoLibre ? null : Object.values(torneo.cuposPorCategoria).reduce((a, b) => a + b, 0)
 
+// Label de categoría con sufijo de género (solo cuando torneo es Ambos)
+const catLabelPlayer = (torneo, cat) => {
+  if (torneo.genero !== 'Ambos') return cat
+  const gen = ((torneo.generoPorCategoria ?? {})[cat]) ?? 'M'
+  const suffix = gen === 'F' ? 'Fem.' : gen === 'Mixto' ? 'Mixto' : 'Masc.'
+  return `${cat} ${suffix}`
+}
+
+// Filtra las categorías visibles para un jugador según su género
+// Solo aplica cuando torneo.genero === 'Ambos'; si no, devuelve todas
+const categoriasParaJugador = (torneo, playerGenero) => {
+  if (torneo.genero !== 'Ambos') return torneo.categorias
+  if (!playerGenero) return torneo.categorias // sin perfil de género → mostramos todo
+  const genMap = torneo.generoPorCategoria ?? {}
+  return torneo.categorias.filter((c) => {
+    const gen = genMap[c]
+    if (!gen) return true // sin mapa de género → visible para todos
+    if (gen === 'Mixto') return true
+    if (playerGenero === 'Masculino') return gen === 'M'
+    if (playerGenero === 'Femenino')  return gen === 'F'
+    return true
+  })
+}
+
 const ESTADO_CONFIG = {
   draft:       { label: 'Borrador',   color: 'text-white/30 bg-white/5 border-white/10',           icon: Clock },
   open:        { label: 'Inscripción abierta', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20', icon: CheckCircle },
@@ -506,12 +530,13 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
                 ⚠ Sin compañero/a
               </span>
             )}
-            <span className="text-xs text-white/30">{torneo.categorias.join(', ')}</span>
+            <span className="text-xs text-white/30">{torneo.categorias.map((c) => catLabelPlayer(torneo, c)).join(', ')}</span>
             <span className="text-xs text-white/30">{torneo.formato}</span>
             {torneo.genero && (
               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
                 torneo.genero === 'Femenino' ? 'text-pink-400 bg-pink-400/10 border-pink-400/20' :
                 torneo.genero === 'Mixto'    ? 'text-violet-400 bg-violet-400/10 border-violet-400/20' :
+                torneo.genero === 'Ambos'    ? 'text-teal-400 bg-teal-400/10 border-teal-400/20' :
                                               'text-sky-400 bg-sky-400/10 border-sky-400/20'
               }`}>
                 {torneo.genero}
@@ -652,10 +677,10 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse }) => {
   const cupo        = totalCupo(torneo)
   const inscriptos  = torneo.inscriptos.filter((i) => i.estado !== 'espera').length
   const enEspera    = torneo.inscriptos.filter((i) => i.estado === 'espera').length
-  const cupoEspera  = torneo.cupoEspera ?? 5
+  const cupoEsperaTotal = Object.values(torneo.cupoEsperaPorCategoria ?? {}).reduce((a, b) => a + b, 0)
   const lleno       = cupo !== null && inscriptos >= cupo
-  const hayEspera   = lleno && enEspera < cupoEspera
-  const totalLleno  = lleno && enEspera >= cupoEspera
+  const hayEspera   = lleno && enEspera < cupoEsperaTotal
+  const totalLleno  = lleno && enEspera >= cupoEsperaTotal
   const pct         = cupo ? Math.round((inscriptos / cupo) * 100) : 0
 
   return (
@@ -664,11 +689,12 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse }) => {
         <div className="min-w-0">
           <h3 className="text-white font-semibold text-base truncate">{torneo.nombre}</h3>
           <p className="text-white/35 text-xs mt-0.5">
-        {torneo.categorias.join(', ')} · {torneo.formato}
+        {torneo.categorias.map((c) => catLabelPlayer(torneo, c)).join(', ')} · {torneo.formato}
         {torneo.genero && (
           <span className={`ml-2 font-semibold px-1.5 py-0.5 rounded border text-[10px] ${
             torneo.genero === 'Femenino' ? 'text-pink-400 bg-pink-400/10 border-pink-400/20' :
             torneo.genero === 'Mixto'    ? 'text-violet-400 bg-violet-400/10 border-violet-400/20' :
+            torneo.genero === 'Ambos'    ? 'text-teal-400 bg-teal-400/10 border-teal-400/20' :
                                           'text-sky-400 bg-sky-400/10 border-sky-400/20'
           }`}>
             {torneo.genero}
@@ -712,7 +738,7 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse }) => {
         )}
         {hayEspera && (
           <p className="text-[11px] text-amber-400 mt-1.5">
-            Cupo completo · quedan {cupoEspera - enEspera} lugar{cupoEspera - enEspera !== 1 ? 'es' : ''} en lista de espera
+            Cupo completo · quedan {cupoEsperaTotal - enEspera} lugar{cupoEsperaTotal - enEspera !== 1 ? 'es' : ''} en lista de espera
           </p>
         )}
       </div>
@@ -737,8 +763,9 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse }) => {
 
 // ── Modal inscripción ─────────────────────────────────────────────────────────
 
-const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onClose, onConfirmar }) => {
+const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaExistente, onClose, onConfirmar }) => {
   const isEdit = !!parejaExistente
+  const catsDisponibles = categoriasParaJugador(torneo, playerGenero)
   const diaCorte  = torneo.diaInicioEliminatoria  ?? null
   const horaCorte = torneo.horaInicioEliminatoria ?? null
 
@@ -752,7 +779,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onCl
 
   const [jugador2, setJugador2]         = useState(parejaExistente?.jugador2 ?? '')
   const [jugador2Dni, setJugador2Dni]   = useState(parejaExistente?.jugador2Dni ?? '')
-  const [categoria, setCategoria]     = useState(parejaExistente?.categoria ?? torneo.categorias[0] ?? '')
+  const [categoria, setCategoria]     = useState(parejaExistente?.categoria ?? catsDisponibles[0] ?? '')
   const [slots, setSlots]             = useState(parejaExistente?.disponibilidad ?? [])
   const [prefiereMismoDia, setPrefiereMismoDia] = useState(parejaExistente?.prefiereMismoDia ?? false)
   const [pendingDia, setPendingDia]   = useState(diasValidos[0] ?? DIAS_SEMANA[0])
@@ -824,7 +851,8 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onCl
     const cupoMax     = torneo.cupoLibre ? null : (torneo.cuposPorCategoria?.[categoria] ?? null)
     const confirmados = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado !== 'espera').length
     const enEsperaCat = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado === 'espera').length
-    const vaAEspera   = cupoMax !== null && confirmados >= cupoMax && enEsperaCat < (torneo.cupoEspera ?? 5)
+    const cupoEsperaCat = (torneo.cupoEsperaPorCategoria ?? {})[categoria] ?? 0
+    const vaAEspera   = cupoMax !== null && confirmados >= cupoMax && enEsperaCat < cupoEsperaCat
     setExito({ data, vaAEspera })
   }
 
@@ -1037,21 +1065,31 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, parejaExistente, onCl
           </InfoBlock>
 
           {/* Categoría */}
-          {torneo.categorias.length > 1 && (
+          {catsDisponibles.length > 0 && (
             <div>
               <label className="text-[10px] font-medium text-white/40 block mb-1">Categoría</label>
-              <InfoBlock label="¿Qué categoría elegir?" variant="dark">
-                <p>Inscribite en la categoría que corresponde a tu nivel de juego. 1° categoría es el nivel más alto, a mayor número menor nivel.</p>
-                <p>Si no sabés cuál te corresponde, consultá con el admin del club antes de inscribirte.</p>
-              </InfoBlock>
-              <select
-                value={categoria}
-                onChange={(e) => setCategoria(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all"
-                style={{ backgroundColor: '#0d1117' }}
-              >
-                {torneo.categorias.map((c) => <option key={c} value={c} style={{ backgroundColor: '#0d1117' }}>{c}</option>)}
-              </select>
+              {catsDisponibles.length === 1 ? (
+                <div className="w-full bg-white/5 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white/70">
+                  {catLabelPlayer(torneo, catsDisponibles[0])}
+                </div>
+              ) : (
+                <>
+                  <InfoBlock label="¿Qué categoría elegir?" variant="dark">
+                    <p>Inscribite en la categoría que corresponde a tu nivel de juego. 1° categoría es el nivel más alto, a mayor número menor nivel.</p>
+                    <p>Si no sabés cuál te corresponde, consultá con el admin del club antes de inscribirte.</p>
+                  </InfoBlock>
+                  <select
+                    value={categoria}
+                    onChange={(e) => setCategoria(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all"
+                    style={{ backgroundColor: '#0d1117' }}
+                  >
+                    {catsDisponibles.map((c) => (
+                      <option key={c} value={c} style={{ backgroundColor: '#0d1117' }}>{catLabelPlayer(torneo, c)}</option>
+                    ))}
+                  </select>
+                </>
+              )}
             </div>
           )}
 
@@ -1221,7 +1259,8 @@ const mapBackendTorneoPlayer = (t) => ({
   estado: t.estado,
   cupoLibre: t.cupoLibre,
   cuposPorCategoria: t.cuposPorCategoria ?? {},
-  cupoEspera: t.cupoEspera ?? 5,
+  cupoEsperaPorCategoria: t.cupoEsperaPorCategoria ?? {},
+  generoPorCategoria: t.generoPorCategoria ?? {},
   canchasAsignadas: t.canchasAsignadas ?? [],
   fechaInicio: t.fechaInicio,
   fechaFin: t.fechaFin,
@@ -1272,9 +1311,11 @@ const PlayerTournamentsPage = () => {
   }, [playerClubId])
 
   const puedeInscribirse = (torneo) => {
-    // Femenino: exclusivo para mujeres (si el perfil no tiene género asignado, tampoco puede)
+    // Femenino: exclusivo para mujeres
     if (torneo.genero === 'Femenino') return player?.genero === 'Femenino'
-    // Masculino y Mixto: todos pueden, independientemente del género del perfil
+    // Ambos: el jugador debe tener al menos una categoría disponible según su género
+    if (torneo.genero === 'Ambos') return categoriasParaJugador(torneo, player?.genero).length > 0
+    // Masculino y Mixto: todos pueden
     return true
   }
 
@@ -1302,8 +1343,8 @@ const PlayerTournamentsPage = () => {
     const cupoMax     = modalTorneo.cupoLibre ? null : (modalTorneo.cuposPorCategoria?.[cat] ?? null)
     const confirmados = modalTorneo.inscriptos.filter((i) => i.categoria === cat && i.estado !== 'espera').length
     const enEsperaCat = modalTorneo.inscriptos.filter((i) => i.categoria === cat && i.estado === 'espera').length
-    const cupoEspera  = modalTorneo.cupoEspera ?? 5
-    const vaAEspera   = cupoMax !== null && confirmados >= cupoMax && enEsperaCat < cupoEspera
+    const cupoEsperaCat = (modalTorneo.cupoEsperaPorCategoria ?? {})[cat] ?? 0
+    const vaAEspera   = cupoMax !== null && confirmados >= cupoMax && enEsperaCat < cupoEsperaCat
 
     if (isBackendTorneo(modalTorneo) && playerToken) {
       try {
@@ -1492,6 +1533,7 @@ const PlayerTournamentsPage = () => {
           torneo={modalTorneo}
           jugador1={playerName}
           jugador1Dni={playerDni}
+          playerGenero={player?.genero}
           onClose={() => setModalTorneo(null)}
           onConfirmar={handleConfirmarInscripcion}
         />
@@ -1503,6 +1545,7 @@ const PlayerTournamentsPage = () => {
           torneo={modalEdicion.torneo}
           jugador1={playerName}
           jugador1Dni={playerDni}
+          playerGenero={player?.genero}
           parejaExistente={modalEdicion.pareja}
           onClose={() => setModalEdicion(null)}
           onConfirmar={handleConfirmarEdicion}

@@ -4,7 +4,7 @@ export const CATEGORIAS = [
   '1° Categoría', '2° Categoría', '3° Categoría', '4° Categoría',
   '5° Categoría', '6° Categoría', '7° Categoría', '8° Categoría',
 ]
-export const GENEROS  = ['Masculino', 'Femenino', 'Mixto']
+export const GENEROS  = ['Masculino', 'Femenino', 'Mixto', 'Ambos']
 export const FORMATOS = ['Round Robin', 'Eliminación directa', 'Fase de grupos + Eliminación']
 
 // ── Mock inscriptos (torneos existentes) ──────────────────────────────────────
@@ -402,6 +402,7 @@ export const TORNEOS_INICIALES = [
     categorias: ['4° Categoría', '6° Categoría'],
     cupoLibre: false,
     cuposPorCategoria: { '4° Categoría': 24, '6° Categoría': 18 },
+    cupoEspera: 5,
     formato: 'Fase de grupos + Eliminación',
     genero: 'Masculino',
     estado: 'in_progress',
@@ -445,6 +446,16 @@ export const TORNEOS_INICIALES = [
       t99q1,  t99q2,  t99q3,  t99q4,  t99q5,  t99q6,
       t99q7,  t99q8,  t99q9,  t99q10, t99q11, t99q12,
       t99q13, t99q14, t99q15, t99q16, t99q17, t99q18,
+      // Suplentes 4ta categoría
+      { id: 25, jugador1: 'Iván Álvarez',    jugador2: 'Martín Rojo',    categoria: '4° Categoría', fecha: '2026-04-02', estado: 'espera', disponibilidad: LNMN, prefiereMismoDia: false },
+      { id: 26, jugador1: 'Nicolás Estrada', jugador2: 'Pablo Vidal',    categoria: '4° Categoría', fecha: '2026-04-02', estado: 'espera', disponibilidad: JNVN, prefiereMismoDia: false },
+      { id: 27, jugador1: 'Dante Herrera',   jugador2: 'Lautaro Mena',   categoria: '4° Categoría', fecha: '2026-04-03', estado: 'espera', disponibilidad: SM,   prefiereMismoDia: false },
+      { id: 28, jugador1: 'Kevin Salinas',   jugador2: 'Franco Pizarro', categoria: '4° Categoría', fecha: '2026-04-03', estado: 'espera', disponibilidad: DM,   prefiereMismoDia: true  },
+      // Suplentes 6ta categoría
+      { id: 43, jugador1: 'Omar Castillo',   jugador2: 'Héctor Bravo',   categoria: '6° Categoría', fecha: '2026-04-02', estado: 'espera', disponibilidad: [{ dia: 'Lunes', horaDesde: '10:00' }, { dia: 'Miércoles', horaDesde: '10:00' }], prefiereMismoDia: false },
+      { id: 44, jugador1: 'Felipe Mora',     jugador2: 'Rodrigo Acuña',  categoria: '6° Categoría', fecha: '2026-04-02', estado: 'espera', disponibilidad: [{ dia: 'Jueves', horaDesde: '10:00' }], prefiereMismoDia: true  },
+      { id: 45, jugador1: 'Ignacio Ponce',   jugador2: 'Bruno Leiva',    categoria: '6° Categoría', fecha: '2026-04-03', estado: 'espera', disponibilidad: [{ dia: 'Viernes', horaDesde: '16:00' }, { dia: 'Sábado', horaDesde: '10:00' }], prefiereMismoDia: false },
+      { id: 46, jugador1: 'Matías Córdoba',  jugador2: 'Sergio Valdés',  categoria: '6° Categoría', fecha: '2026-04-03', estado: 'espera', disponibilidad: [{ dia: 'Sábado', horaDesde: '14:00' }], prefiereMismoDia: false },
     ],
     grupos: [...grupos99, ...grupos99_6ta],
     brackets: { '4° Categoría': bracket99, '6° Categoría': bracket99_6ta },

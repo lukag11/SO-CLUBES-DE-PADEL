@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
-import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
 import useClubStore from '../../store/clubStore'
@@ -11,7 +12,8 @@ const navItems = [
   { to: '/dashboardAdmin/pagos',    label: 'Pagos',    icon: CreditCard },
 ]
 
-const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
+const Sidebar = ({ mobileOpen, onMobileClose }) => {
+  const [hovered, setHovered] = useState(false)
   const navigate   = useNavigate()
   const logout     = useAuthStore((state) => state.logout)
   const sinLeer        = useNotificacionesStore((state) => state.sinLeer())
@@ -24,8 +26,16 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
     navigate('/login')
   }
 
+  const expanded = hovered
+
   return (
-    <aside className={`fixed top-0 left-0 h-screen bg-dark-900 flex flex-col z-40 transition-all duration-300 w-60 ${collapsed ? 'lg:w-16' : 'lg:w-60'} ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+    <aside
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={`fixed top-0 left-0 h-screen bg-dark-900 flex flex-col z-40 transition-all duration-200
+        ${expanded ? 'lg:w-60' : 'lg:w-16'}
+        ${mobileOpen ? 'translate-x-0 w-60' : '-translate-x-full lg:translate-x-0'}`}
+    >
 
       {/* Botón cerrar (solo mobile) */}
       <button
@@ -38,7 +48,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
       {/* Logo */}
       <Link
         to="/dashboardAdmin"
-        className={`flex items-center gap-3 py-5 border-b border-white/5 hover:opacity-80 transition-opacity shrink-0 ${collapsed ? 'justify-center px-0' : 'px-6'}`}
+        className={`flex items-center gap-3 py-5 border-b border-white/5 hover:opacity-80 transition-opacity shrink-0 ${expanded ? 'px-6' : 'justify-center px-0'}`}
       >
         <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center shadow-lg shadow-brand-500/30 shrink-0 overflow-hidden">
           {clubLogo
@@ -46,7 +56,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
             : <Zap size={16} className="text-white" />
           }
         </div>
-        {!collapsed && (
+        {expanded && (
           <span className="text-white font-bold text-lg tracking-tight truncate">
             {clubNombre || 'PadelOS'}
           </span>
@@ -59,11 +69,11 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
           <NavLink
             key={to}
             to={to}
-            title={collapsed ? label : undefined}
+            title={!expanded ? label : undefined}
             className={({ isActive }) =>
               [
                 'group relative flex items-center rounded-xl text-sm font-medium transition-all duration-150',
-                collapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5',
+                expanded ? 'gap-3 px-3 py-2.5' : 'justify-center px-0 py-2.5',
                 isActive
                   ? 'bg-brand-500/15 text-brand-400'
                   : 'text-white/50 hover:text-white hover:bg-white/5',
@@ -74,7 +84,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
               <>
                 <Icon size={18} className={isActive ? 'text-brand-400 shrink-0' : 'text-white/40 shrink-0'} />
 
-                {!collapsed && (
+                {expanded && (
                   <>
                     <span className="flex-1">{label}</span>
                     {to === '/dashboardAdmin/reservas' && sinLeer > 0 && (
@@ -91,15 +101,15 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
                 )}
 
                 {/* Badge en modo colapsado */}
-                {collapsed && to === '/dashboardAdmin/reservas' && sinLeer > 0 && (
+                {!expanded && to === '/dashboardAdmin/reservas' && sinLeer > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                 )}
-                {collapsed && to === '/dashboardAdmin/torneos' && sinLeerTorneos > 0 && (
+                {!expanded && to === '/dashboardAdmin/torneos' && sinLeerTorneos > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full" />
                 )}
 
                 {/* Tooltip en modo colapsado */}
-                {collapsed && (
+                {!expanded && (
                   <span className="pointer-events-none absolute left-full ml-3 whitespace-nowrap bg-dark-900 border border-white/10 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
                     {label}
                     {to === '/dashboardAdmin/reservas' && sinLeer > 0 && (
@@ -120,26 +130,18 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
       <div className="px-2 py-3 border-t border-white/5">
         <button
           onClick={handleLogout}
-          title={collapsed ? 'Cerrar sesión' : undefined}
-          className={`group relative flex items-center rounded-xl text-sm font-medium text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-all duration-150 w-full ${collapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5'}`}
+          title={!expanded ? 'Cerrar sesión' : undefined}
+          className={`group relative flex items-center rounded-xl text-sm font-medium text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-all duration-150 w-full ${expanded ? 'gap-3 px-3 py-2.5' : 'justify-center px-0 py-2.5'}`}
         >
           <LogOut size={18} className="shrink-0" />
-          {!collapsed && <span>Cerrar sesión</span>}
-          {collapsed && (
+          {expanded && <span>Cerrar sesión</span>}
+          {!expanded && (
             <span className="pointer-events-none absolute left-full ml-3 whitespace-nowrap bg-dark-900 border border-white/10 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
               Cerrar sesión
             </span>
           )}
         </button>
       </div>
-
-      {/* Botón toggle (solo desktop) */}
-      <button
-        onClick={onToggle}
-        className="hidden lg:flex absolute -right-3 top-[72px] w-6 h-6 bg-dark-900 border border-white/10 rounded-full items-center justify-center text-white/40 hover:text-white hover:border-white/30 transition-all duration-150 shadow-md"
-      >
-        {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-      </button>
 
     </aside>
   )

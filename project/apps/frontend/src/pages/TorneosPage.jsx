@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Trophy, Plus, Users, X, ChevronRight, Calendar, Medal,
@@ -6,6 +6,7 @@ import {
   Lock, Pencil, Trash2, AlertTriangle, Bell, UserCheck, Camera, Download,
 } from 'lucide-react'
 import FlyerTorneo from '../components/FlyerTorneo'
+import Toast from '../components/ui/Toast'
 import { FLYER_TEMPLATES } from '../lib/flyerTemplates'
 import { GENEROS, FORMATOS } from '../features/admin/torneosMockData'
 import InfoBlock from '../components/InfoBlock'
@@ -44,7 +45,14 @@ const GENERO_CONFIG = {
   Masculino: { color: 'text-sky-600 bg-sky-50 border-sky-200' },
   Femenino:  { color: 'text-pink-600 bg-pink-50 border-pink-200' },
   Mixto:     { color: 'text-violet-600 bg-violet-50 border-violet-200' },
+  Ambos:     { color: 'text-teal-600 bg-teal-50 border-teal-200' },
 }
+
+const GENERO_CAT_OPTS = [
+  { key: 'M',     label: 'Masc.',   color: 'border-sky-400 bg-sky-50 text-sky-700' },
+  { key: 'F',     label: 'Fem.',    color: 'border-pink-400 bg-pink-50 text-pink-700' },
+  { key: 'Mixto', label: 'Mixto',   color: 'border-violet-400 bg-violet-50 text-violet-700' },
+]
 
 // ── Selector de categorías ────────────────────────────────────────────────────
 
@@ -73,6 +81,47 @@ const normalizeCategoria = (str) =>
     .replace(/categor[ií]as?/g, '')
     .replace(/\bcat\.?\b/g, '')
     .replace(/[^a-z0-9]/g, '')
+
+const VariantRow = ({ v, onCheck, selected, editando, editVal, onSetEditando, onSetEditVal, onConfirmarEdicion, onDelete }) => {
+  const sel  = selected
+  const isEd = editando === v
+  return (
+    <div className="flex items-center gap-1.5 pl-6">
+      {isEd ? (
+        <>
+          <input
+            autoFocus
+            type="text"
+            value={editVal}
+            onChange={(e) => onSetEditVal(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') onConfirmarEdicion(v); if (e.key === 'Escape') onSetEditando(null) }}
+            className="flex-1 min-w-0 text-xs bg-white border border-brand-400 rounded-lg px-2 py-0.5 outline-none"
+          />
+          <button type="button" onClick={() => onConfirmarEdicion(v)} className="text-[10px] text-brand-500 font-semibold hover:text-brand-700">✓</button>
+          <button type="button" onClick={() => onSetEditando(null)} className="text-[10px] text-slate-400 hover:text-slate-600">✕</button>
+        </>
+      ) : (
+        <>
+          <button type="button" onClick={onCheck} className="flex items-center gap-1.5 flex-1 text-left">
+            <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${sel ? 'bg-brand-500 border-brand-500' : 'border-slate-300 bg-white'}`}>
+              {sel && <CHECK />}
+            </span>
+            <span className={`text-xs ${sel ? 'text-brand-600 font-semibold' : 'text-slate-600'}`}>{v}</span>
+            <span className="text-amber-400 text-[10px]">★</span>
+          </button>
+          <button type="button" title="Editar"
+            onClick={() => { onSetEditando(v); onSetEditVal(v) }}
+            className="text-[10px] text-slate-300 hover:text-brand-400 transition-colors px-0.5"
+          ><Pencil size={11} /></button>
+          <button type="button" title="Eliminar"
+            onClick={() => onDelete(v)}
+            className="text-[10px] text-slate-300 hover:text-red-400 transition-colors px-0.5"
+          ><Trash2 size={11} /></button>
+        </>
+      )}
+    </div>
+  )
+}
 
 const CategoriasSelector = ({ value, onToggle, historicas = [], onSave, onDelete, onRename }) => {
   const [varInputs, setVarInputs]   = useState({})   // { num: string }
@@ -145,47 +194,6 @@ const CategoriasSelector = ({ value, onToggle, historicas = [], onSave, onDelete
     setEditando(null)
   }
 
-  const VariantRow = ({ v, onCheck }) => {
-    const sel  = value.includes(v)
-    const isEd = editando === v
-    return (
-      <div className="flex items-center gap-1.5 pl-6">
-        {isEd ? (
-          <>
-            <input
-              autoFocus
-              type="text"
-              value={editVal}
-              onChange={(e) => setEditVal(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') confirmarEdicion(v); if (e.key === 'Escape') setEditando(null) }}
-              className="flex-1 min-w-0 text-xs bg-white border border-brand-400 rounded-lg px-2 py-0.5 outline-none"
-            />
-            <button type="button" onClick={() => confirmarEdicion(v)} className="text-[10px] text-brand-500 font-semibold hover:text-brand-700">✓</button>
-            <button type="button" onClick={() => setEditando(null)} className="text-[10px] text-slate-400 hover:text-slate-600">✕</button>
-          </>
-        ) : (
-          <>
-            <button type="button" onClick={onCheck} className="flex items-center gap-1.5 flex-1 text-left">
-              <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${sel ? 'bg-brand-500 border-brand-500' : 'border-slate-300 bg-white'}`}>
-                {sel && <CHECK />}
-              </span>
-              <span className={`text-xs ${sel ? 'text-brand-600 font-semibold' : 'text-slate-600'}`}>{v}</span>
-              <span className="text-amber-400 text-[10px]">★</span>
-            </button>
-            <button type="button" title="Editar"
-              onClick={() => { setEditando(v); setEditVal(v) }}
-              className="text-[10px] text-slate-300 hover:text-brand-400 transition-colors px-0.5"
-            ><Pencil size={11} /></button>
-            <button type="button" title="Eliminar"
-              onClick={() => { onDelete(v); if (sel) onToggle(v) }}
-              className="text-[10px] text-slate-300 hover:text-red-400 transition-colors px-0.5"
-            ><Trash2 size={11} /></button>
-          </>
-        )}
-      </div>
-    )
-  }
-
   return (
     <div className="flex flex-col gap-1.5">
       {/* Bases 1ra–8va */}
@@ -216,7 +224,17 @@ const CategoriasSelector = ({ value, onToggle, historicas = [], onSave, onDelete
             {/* Sub-sección variantes */}
             {showSub && (
               <div className="border-t border-slate-100 px-3 pt-2 pb-2.5 flex flex-col gap-1.5">
-                {varDisp.map((v) => <VariantRow key={v} v={v} onCheck={() => onToggle(v)} />)}
+                {varDisp.map((v) => (
+                  <VariantRow
+                    key={v} v={v}
+                    selected={value.includes(v)}
+                    editando={editando} editVal={editVal}
+                    onCheck={() => onToggle(v)}
+                    onSetEditando={setEditando} onSetEditVal={setEditVal}
+                    onConfirmarEdicion={confirmarEdicion}
+                    onDelete={(cat) => { onDelete(cat); if (value.includes(cat)) onToggle(cat) }}
+                  />
+                ))}
                 {/* Input nueva variante */}
                 <div className="flex flex-col gap-1 pl-6 pt-0.5">
                   <div className="flex items-center gap-1.5">
@@ -247,7 +265,17 @@ const CategoriasSelector = ({ value, onToggle, historicas = [], onSave, onDelete
       {/* Otras (no-standard) */}
       <div className="rounded-xl border border-dashed border-slate-200 px-3 py-2.5 flex flex-col gap-1.5">
         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Otras</p>
-        {otrasHistoricas.map((cat) => <VariantRow key={cat} v={cat} onCheck={() => onToggle(cat)} />)}
+        {otrasHistoricas.map((cat) => (
+          <VariantRow
+            key={cat} v={cat}
+            selected={value.includes(cat)}
+            editando={editando} editVal={editVal}
+            onCheck={() => onToggle(cat)}
+            onSetEditando={setEditando} onSetEditVal={setEditVal}
+            onConfirmarEdicion={confirmarEdicion}
+            onDelete={(c) => { onDelete(c); if (value.includes(c)) onToggle(c) }}
+          />
+        ))}
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-1.5">
             <input type="text" value={customInput}
@@ -273,7 +301,8 @@ const EMPTY_FORM = {
   genero: 'Masculino',
   cupoLibre: false,
   cuposPorCategoria: {},
-  cupoEspera: 5,
+  cupoEsperaPorCategoria: {},
+  generoPorCategoria: {},
   formato: FORMATOS[0],
   canchasAsignadas: [],
   fechaInicio: '',
@@ -336,17 +365,34 @@ const Badge = ({ estado }) => {
   )
 }
 
+const MAX_CATS = 3
+
+const catGenLabel = (torneo, cat, short = true) => {
+  if (torneo.genero !== 'Ambos') return null
+  const gen = ((torneo.generoPorCategoria ?? {})[cat]) ?? 'M'
+  if (short) return gen === 'M' ? 'Masc.' : gen === 'F' ? 'Fem.' : 'Mixto'
+  return gen === 'M' ? 'Masculino' : gen === 'F' ? 'Femenino' : 'Mixto'
+}
+
+const NEUTRAL_COLOR = { chip: 'text-slate-500 bg-slate-100', bar: 'bg-brand-500', label: 'text-slate-600' }
+
+const catColor = (torneo, cat) => {
+  if (torneo.genero !== 'Ambos') return NEUTRAL_COLOR
+  const gen = ((torneo.generoPorCategoria ?? {})[cat]) ?? 'M'
+  if (gen === 'F')     return { chip: 'text-pink-600 bg-pink-50 border border-pink-200',       bar: 'bg-pink-400',   label: 'text-pink-500' }
+  if (gen === 'Mixto') return { chip: 'text-violet-600 bg-violet-50 border border-violet-200', bar: 'bg-violet-400', label: 'text-violet-500' }
+  return                      { chip: 'text-sky-600 bg-sky-50 border border-sky-200',          bar: 'bg-sky-400',    label: 'text-sky-500' }
+}
+
 const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar, onFlyer }) => {
   const [confirmarEliminar, setConfirmarEliminar] = useState(false)
+  const [catsExpanded, setCatsExpanded] = useState(false)
   const confirmados  = torneo.inscriptos.filter((i) => i.estado !== 'espera')
   const enEspera     = torneo.inscriptos.filter((i) => i.estado === 'espera')
-  const cupo         = totalCupo(torneo)
-  const cupoLleno    = !torneo.cupoLibre && confirmados.length >= cupo
-  const pct          = cupo ? Math.round((confirmados.length / cupo) * 100) : 0
-  const cupoEspera   = torneo.cupoEspera ?? 0
-  const pctEspera    = cupoEspera > 0 ? Math.round((enEspera.length / cupoEspera) * 100) : 0
   const puedeToggle          = ['draft', 'open', 'closed'].includes(torneo.estado)
   const puedeEditarEliminar  = ['draft', 'open', 'closed'].includes(torneo.estado)
+  const catsToShow   = catsExpanded ? torneo.categorias : torneo.categorias.slice(0, MAX_CATS)
+  const hasMoreCats  = torneo.categorias.length > MAX_CATS
 
   return (
     <div onClick={() => onVerDetalle(torneo)} className={`group relative bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col hover:border-slate-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer ${HOVER_BG[torneo.estado] ?? HOVER_BG.draft}`}>
@@ -422,63 +468,74 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
 
         {/* Categorías chips */}
         <div className="flex flex-wrap gap-1">
-          {torneo.categorias.slice(0, 3).map((cat) => (
-            <span key={cat} className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-              {cat}
-            </span>
-          ))}
-          {torneo.categorias.length > 3 && (
-            <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
-              +{torneo.categorias.length - 3} más
-            </span>
+          {catsToShow.map((cat) => {
+            const gl = catGenLabel(torneo, cat)
+            const cc = catColor(torneo, cat)
+            return (
+              <span key={cat} className={`text-[10px] font-medium px-2 py-0.5 rounded-md ${cc.chip}`}>
+                {cat}{gl ? ` · ${gl}` : ''}
+              </span>
+            )
+          })}
+          {hasMoreCats && !catsExpanded && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setCatsExpanded(true) }}
+              className="text-[10px] font-medium text-brand-500 bg-brand-50 px-2 py-0.5 rounded-md hover:bg-brand-100 transition-colors"
+            >
+              +{torneo.categorias.length - MAX_CATS} más
+            </button>
           )}
         </div>
 
-        {/* Cupo inscriptos */}
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Inscriptos</span>
-            {torneo.cupoLibre ? (
-              <span className="flex items-center gap-1 text-xs font-semibold text-sky-500">
-                <Infinity size={11} /> Sin límite
-              </span>
-            ) : (
-              <span className={`text-xs font-semibold tabular-nums ${cupoLleno ? 'text-red-500' : 'text-slate-600'}`}>
-                {confirmados.length}
-                <span className="text-slate-400 font-normal"> / {cupo}</span>
-                <span className="text-slate-300 font-normal ml-1">({pct}%)</span>
-              </span>
-            )}
-          </div>
-          {!torneo.cupoLibre && (
-            <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${cupoLleno ? 'bg-red-400' : 'bg-brand-500'}`}
-                style={{ width: `${Math.min(pct, 100)}%` }}
-              />
-            </div>
+        {/* Inscriptos por categoría */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Inscriptos</span>
+          {catsToShow.map((cat) => {
+            const conf      = torneo.inscriptos.filter((i) => i.categoria === cat && i.estado !== 'espera').length
+            const espCat    = torneo.inscriptos.filter((i) => i.categoria === cat && i.estado === 'espera').length
+            const cupoCat   = torneo.cupoLibre ? null : (torneo.cuposPorCategoria?.[cat] ?? 0)
+            const esperaCat = (torneo.cupoEsperaPorCategoria ?? {})[cat] ?? 0
+            const pctCat    = cupoCat ? Math.round((conf / cupoCat) * 100) : 0
+            const lleno     = cupoCat !== null && conf >= cupoCat
+            const gl        = catGenLabel(torneo, cat)
+            const cc        = catColor(torneo, cat)
+            return (
+              <div key={cat} className="flex flex-col gap-0.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`text-[11px] font-medium truncate min-w-0 ${cc.label}`}>
+                    {cat}{gl ? ` · ${gl}` : ''}
+                  </span>
+                  {cupoCat !== null ? (
+                    <span className={`text-[11px] font-semibold tabular-nums shrink-0 ${lleno ? 'text-red-500' : 'text-slate-600'}`}>
+                      {conf}<span className="text-slate-400 font-normal">/{cupoCat}</span>
+                    </span>
+                  ) : (
+                    <span className={`text-[11px] font-semibold shrink-0 flex items-center gap-0.5 ${cc.label}`}>
+                      <Infinity size={10} /> {conf}
+                    </span>
+                  )}
+                </div>
+                {cupoCat !== null && (
+                  <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-500 ${lleno ? 'bg-red-400' : cc.bar}`}
+                      style={{ width: `${Math.min(pctCat, 100)}%` }} />
+                  </div>
+                )}
+                {espCat > 0 && esperaCat > 0 && (
+                  <p className="text-[10px] text-amber-500">{espCat}/{esperaCat} en espera</p>
+                )}
+              </div>
+            )
+          })}
+          {hasMoreCats && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setCatsExpanded((v) => !v) }}
+              className="text-[11px] text-brand-500 hover:text-brand-700 font-medium text-left"
+            >
+              {catsExpanded ? 'Ver menos ↑' : `+${torneo.categorias.length - MAX_CATS} categorías más ↓`}
+            </button>
           )}
         </div>
-
-        {/* Suplentes — solo si hay cupo de espera y al menos 1 suplente */}
-        {cupoEspera > 0 && enEspera.length > 0 && (
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-amber-500 font-medium uppercase tracking-wide">Suplentes</span>
-              <span className="text-xs font-semibold tabular-nums text-amber-600">
-                {enEspera.length}
-                <span className="text-amber-400 font-normal"> / {cupoEspera}</span>
-                <span className="text-amber-300 font-normal ml-1">({pctEspera}%)</span>
-              </span>
-            </div>
-            <div className="h-1 bg-amber-100 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full bg-amber-400 transition-all duration-500"
-                style={{ width: `${Math.min(pctEspera, 100)}%` }}
-              />
-            </div>
-          </div>
-        )}
 
       </div>
 
@@ -496,7 +553,7 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
             <button onClick={() => setConfirmarEliminar(false)} className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded-lg hover:bg-slate-100 transition-all">
               No
             </button>
-            <button onClick={() => onEliminar(torneo.id)} className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-2.5 py-1 rounded-lg transition-all">
+            <button onClick={(e) => { e.stopPropagation(); onEliminar(torneo.id) }} className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-2.5 py-1 rounded-lg transition-all">
               Eliminar
             </button>
           </div>
@@ -578,7 +635,13 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
     genero: torneoEditar.genero ?? 'Masculino',
     cupoLibre: torneoEditar.cupoLibre,
     cuposPorCategoria: torneoEditar.cuposPorCategoria ?? {},
-    cupoEspera: torneoEditar.cupoEspera ?? 5,
+    cupoEsperaPorCategoria: Object.fromEntries(
+      (torneoEditar.categorias ?? []).map((cat) => [
+        cat,
+        (torneoEditar.cupoEsperaPorCategoria ?? {})[cat] ?? 0,
+      ])
+    ),
+    generoPorCategoria: torneoEditar.generoPorCategoria ?? {},
     formato: torneoEditar.formato,
     canchasAsignadas: torneoEditar.canchasAsignadas ?? [],
     fechaInicio: torneoEditar.fechaInicio,
@@ -597,6 +660,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
   } : EMPTY_FORM)
   const [errors, setErrors] = useState({})
   const [activeTab, setActiveTab] = useState('datos')
+  const formScrollRef = useRef(null)
   const [bloqueoEspecifico, setBloqueoEspecifico] = useState(
     () => (torneoEditar?.canchasAsignadas ?? []).length > 0
   )
@@ -615,9 +679,32 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
         ? prev.categorias.filter(c => c !== cat)
         : [...prev.categorias, cat]
       const cuposPorCategoria = { ...prev.cuposPorCategoria }
-      if (yaEsta) delete cuposPorCategoria[cat]
-      return { ...prev, categorias, cuposPorCategoria }
+      const cupoEsperaPorCategoria = { ...prev.cupoEsperaPorCategoria }
+      if (yaEsta) {
+        delete cuposPorCategoria[cat]
+        delete cupoEsperaPorCategoria[cat]
+      } else {
+        if (!(cat in cupoEsperaPorCategoria)) cupoEsperaPorCategoria[cat] = 0
+      }
+      return { ...prev, categorias, cuposPorCategoria, cupoEsperaPorCategoria }
     })
+  }
+
+  const setGeneroCategoria = (cat, valor) => {
+    setForm((prev) => ({
+      ...prev,
+      generoPorCategoria: { ...prev.generoPorCategoria, [cat]: valor },
+    }))
+  }
+
+  const setCupoEsperaCategoria = (cat, valor) => {
+    setForm((prev) => ({
+      ...prev,
+      cupoEsperaPorCategoria: {
+        ...prev.cupoEsperaPorCategoria,
+        [cat]: valor === '' ? '' : Math.max(0, Number(valor)),
+      },
+    }))
   }
 
   const setCupoCategoria = (cat, valor) => {
@@ -648,7 +735,16 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
 
   const handleGuardar = () => {
     const e = validate()
-    if (Object.keys(e).length) { setErrors(e); return }
+    if (Object.keys(e).length) {
+      setErrors(e)
+      setTimeout(() => {
+        if (!formScrollRef.current) return
+        const firstKey = Object.keys(e)[0]
+        const el = formScrollRef.current.querySelector(`[data-field="${firstKey}"]`)
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 30)
+      return
+    }
     onGuardar(form)
   }
 
@@ -684,10 +780,10 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
 
         {/* Form — Datos */}
         {activeTab === 'datos' && (
-        <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 flex flex-col gap-4 md:gap-5">
+        <div ref={formScrollRef} className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 flex flex-col gap-4 md:gap-5">
 
           {/* Nombre */}
-          <div>
+          <div data-field="nombre">
             <label className="text-xs font-medium text-slate-600 block mb-1">Nombre del torneo</label>
             <input
               type="text"
@@ -700,7 +796,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
           </div>
 
           {/* Categorías */}
-          <div>
+          <div data-field="categorias">
             <label className="text-xs font-medium text-slate-600 block mb-2">Categorías</label>
             <CategoriasSelector
               value={form.categorias}
@@ -843,45 +939,72 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
               {!form.cupoLibre && (
                 <div className="flex flex-col gap-2">
                   {form.categorias.map((cat) => (
-                    <div key={cat} className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
-                      <span className="text-sm text-slate-700 flex-1">{cat}</span>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min={2}
-                          max={64}
-                          value={form.cuposPorCategoria[cat] || ''}
-                          onChange={(e) => setCupoCategoria(cat, e.target.value)}
-                          placeholder="0"
-                          className={`w-20 text-center bg-white border rounded-lg px-2 py-1 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all ${
-                            errors[`cupo_${cat}`] ? 'border-red-400' : 'border-slate-200'
-                          }`}
-                        />
-                        <span className="text-xs text-slate-400 whitespace-nowrap">parejas</span>
+                    <div key={cat} data-field={`cupo_${cat}`} className="flex flex-col gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-slate-700 flex-1">{cat}</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={2}
+                            max={64}
+                            value={form.cuposPorCategoria[cat] || ''}
+                            onChange={(e) => setCupoCategoria(cat, e.target.value)}
+                            placeholder="0"
+                            className={`w-20 text-center bg-white border rounded-lg px-2 py-1 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all ${
+                              errors[`cupo_${cat}`] ? 'border-red-400' : 'border-slate-200'
+                            }`}
+                          />
+                          <span className="text-xs text-slate-400 whitespace-nowrap">parejas</span>
+                        </div>
                       </div>
+                      {form.genero === 'Ambos' && (
+                        <div className="flex gap-1.5 pt-0.5">
+                          {GENERO_CAT_OPTS.map((opt) => (
+                            <button
+                              key={opt.key}
+                              type="button"
+                              onClick={() => setGeneroCategoria(cat, opt.key)}
+                              className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-lg border transition-all ${
+                                (form.generoPorCategoria[cat] ?? 'M') === opt.key
+                                  ? opt.color
+                                  : 'border-slate-200 bg-white text-slate-400 hover:bg-slate-100'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                   {form.categorias.some(cat => errors[`cupo_${cat}`]) && (
                     <p className="text-red-500 text-xs">Todos los cupos deben ser mínimo 2</p>
                   )}
-                  {/* Lista de espera */}
-                  <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mt-1">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-amber-700">Lista de espera</p>
-                      <p className="text-xs text-amber-500 mt-0.5">Lugares extra si se baja alguna pareja</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        max={20}
-                        value={form.cupoEspera}
-                        onChange={(e) => set('cupoEspera', Math.max(0, Number(e.target.value)))}
-                        className="w-20 text-center bg-white border border-amber-200 rounded-lg px-2 py-1 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all"
-                      />
-                      <span className="text-xs text-amber-600 whitespace-nowrap">parejas</span>
-                    </div>
+                  {/* Lista de espera — inputs por categoría */}
+                  <div className="flex flex-col gap-1.5 mt-1">
+                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide px-0.5">Lista de espera</p>
+                    {form.categorias.map((cat) => (
+                      <div key={cat} className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                        <span className="text-sm text-amber-700 flex-1">{cat}</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            max={20}
+                            value={form.cupoEsperaPorCategoria[cat] ?? 0}
+                            onChange={(e) => setCupoEsperaCategoria(cat, e.target.value)}
+                            className="w-16 text-center bg-white border border-amber-200 rounded-lg px-2 py-1 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all"
+                          />
+                          <span className="text-xs text-amber-600 whitespace-nowrap">parejas</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                  <InfoBlock label="¿Cómo funciona la lista de espera?">
+                    <p>Cuando el cupo de una categoría se completa, las parejas siguientes quedan en lista de espera en lugar de ser rechazadas.</p>
+                    <p><span className="font-semibold text-slate-700">Promoción automática:</span>{' '}si una pareja confirmada se baja, la primera en espera pasa automáticamente a confirmada y recibe una notificación.</p>
+                    <p><span className="font-semibold text-slate-700">Por categoría:</span>{' '}cada categoría tiene su propio cupo de espera. Podés poner 0 si no querés lista de espera para esa categoría.</p>
+                  </InfoBlock>
                 </div>
               )}
 
@@ -921,7 +1044,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
 
           {/* Fechas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+            <div data-field="fechaInicio">
               <label className="text-xs font-medium text-slate-600 block mb-1">Fecha de inicio</label>
               <input
                 type="date"
@@ -931,7 +1054,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
               />
               {errors.fechaInicio && <p className="text-red-500 text-xs mt-1">{errors.fechaInicio}</p>}
             </div>
-            <div>
+            <div data-field="fechaFin">
               <label className="text-xs font-medium text-slate-600 block mb-1">Fecha de fin</label>
               <input
                 type="date"
@@ -1164,7 +1287,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
 
 // ── Modal flyer ──────────────────────────────────────────────────────────────
 
-const ModalFlyer = ({ torneo, club, onClose }) => {
+const ModalFlyer = ({ torneo, club, onClose, onDescargado }) => {
   const [selectedTemplate, setSelectedTemplate] = useState('navy')
   const [accentColor, setAccentColor] = useState(FLYER_TEMPLATES[0].defaultAccent)
   const [busy, setBusy] = useState(false)
@@ -1190,6 +1313,7 @@ const ModalFlyer = ({ torneo, club, onClose }) => {
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
+      onDescargado?.()
     } catch (err) {
       console.error('generateFlyer error:', err)
       setErrorMsg(`Error: ${err.message}`)
@@ -1313,7 +1437,8 @@ const mapBackendTorneo = (t) => ({
   estado: t.estado,
   cupoLibre: t.cupoLibre,
   cuposPorCategoria: t.cuposPorCategoria ?? {},
-  cupoEspera: t.cupoEspera ?? 5,
+  cupoEsperaPorCategoria: t.cupoEsperaPorCategoria ?? {},
+  generoPorCategoria: t.generoPorCategoria ?? {},
   canchasAsignadas: t.canchasAsignadas ?? [],
   fechaInicio: t.fechaInicio,
   fechaFin: t.fechaFin,
@@ -1352,7 +1477,7 @@ const TorneosPage = () => {
   const token  = useAuthStore((s) => s.token)
   const clubId = useAuthStore((s) => s.club?.id)
   const club   = useClubStore((s) => s.club)
-  const { notificaciones, marcarLeida, marcarTodasLeidas } = useNotificacionesStore()
+  const { notificaciones, marcarLeida } = useNotificacionesStore()
   const notifTorneosNoLeidas = notificaciones.filter(
     (n) => (n.tipo === 'inscripcion_torneo' || n.tipo === 'baja_torneo' || n.tipo === 'actualizacion_torneo' || n.tipo === 'completacion_torneo') && !n.leida
   )
@@ -1372,13 +1497,41 @@ const TorneosPage = () => {
   const [busquedaFin, setBusquedaFin] = useState('')
   const [añoFin, setAñoFin] = useState('')
   const [toastNuevoTorneo, setToastNuevoTorneo] = useState(null)
-  const [flyerTorneo, setFlyerTorneo] = useState(null)
+  const [toastFlyer, setToastFlyer]             = useState(false)
+  const [toastEdicion, setToastEdicion]         = useState(false)
+  const [toastEliminado, setToastEliminado]     = useState(false)
+  const [toastEstado, setToastEstado]           = useState(null)   // { estado: 'open'|'closed'|... }
+  const [flyerTorneo, setFlyerTorneo]           = useState(null)
 
   useEffect(() => {
     if (!toastNuevoTorneo) return
     const t = setTimeout(() => setToastNuevoTorneo(null), 4000)
     return () => clearTimeout(t)
   }, [toastNuevoTorneo])
+
+  useEffect(() => {
+    if (!toastFlyer) return
+    const t = setTimeout(() => setToastFlyer(false), 3500)
+    return () => clearTimeout(t)
+  }, [toastFlyer])
+
+  useEffect(() => {
+    if (!toastEdicion) return
+    const t = setTimeout(() => setToastEdicion(false), 3500)
+    return () => clearTimeout(t)
+  }, [toastEdicion])
+
+  useEffect(() => {
+    if (!toastEliminado) return
+    const t = setTimeout(() => setToastEliminado(false), 3500)
+    return () => clearTimeout(t)
+  }, [toastEliminado])
+
+  useEffect(() => {
+    if (!toastEstado) return
+    const t = setTimeout(() => setToastEstado(null), 3500)
+    return () => clearTimeout(t)
+  }, [toastEstado])
 
   const tabs = [
     { key: 'en_curso',    label: 'En curso',    icon: CheckCircle },
@@ -1420,6 +1573,7 @@ const TorneosPage = () => {
       try { await api.patch(`/torneos/${id}/estado`, { estado: nuevoEstado }, authHeader) } catch { /* fallback local */ }
     }
     setEstado(id, nuevoEstado)
+    setToastEstado(nuevoEstado)
   }
 
   const handleVerDetalle = (torneo) => {
@@ -1427,13 +1581,16 @@ const TorneosPage = () => {
   }
 
   const flyerFields = (form) => ({
-    premioPrimero:   form.premioPrimero  ?? '',
-    premioSegundo:   form.premioSegundo  ?? '',
-    premioSemifinal: form.premioSemifinal ?? '',
-    premioExtra:     form.premioExtra    ?? '',
-    whatsapp:        form.whatsapp       ?? '',
-    servicios:       form.servicios      ?? [],
-    imagenFondo:     form.imagenFondo    ?? '',
+    premioPrimero:        form.premioPrimero        ?? '',
+    premioSegundo:        form.premioSegundo        ?? '',
+    premioSemifinal:      form.premioSemifinal      ?? '',
+    premioExtra:          form.premioExtra          ?? '',
+    whatsapp:             form.whatsapp             ?? '',
+    servicios:            form.servicios            ?? [],
+    imagenFondo:          form.imagenFondo          ?? '',
+    // campos frontend-only que el backend puede no devolver
+    cupoEsperaPorCategoria: form.cupoEsperaPorCategoria ?? {},
+    generoPorCategoria:     form.generoPorCategoria     ?? {},
   })
 
   const handleNuevoTorneo = async (form) => {
@@ -1461,11 +1618,13 @@ const TorneosPage = () => {
         const data = await api.patch(`/torneos/${torneoEditar.id}`, form, authHeader)
         updateTorneoFromApi({ ...mapBackendTorneo(data), ...flyerFields(form) })
         setTorneoEditar(null)
+        setToastEdicion(true)
         return
       } catch { /* fallback local */ }
     }
     updateTorneo(torneoEditar.id, form)
     setTorneoEditar(null)
+    setToastEdicion(true)
   }
 
   const handleEliminar = async (id) => {
@@ -1473,6 +1632,7 @@ const TorneosPage = () => {
       try { await api.delete(`/torneos/${id}`, authHeader) } catch { /* fallback local */ }
     }
     deleteTorneo(id)
+    setToastEliminado(true)
   }
 
   const torneosAbiertos = torneos.filter((t) => t.estado === 'open')
@@ -1718,7 +1878,10 @@ const TorneosPage = () => {
                         <p className="text-xs text-slate-400 mt-0.5">{t.formato}</p>
                       </td>
                       <td className="py-3.5 pr-4 text-slate-600 text-xs">
-                        <p>{t.categorias.join(', ')}</p>
+                        <p>{t.categorias.map((cat) => {
+                          const gen = t.genero === 'Ambos' ? (t.generoPorCategoria ?? {})[cat] : null
+                          return gen ? `${cat} (${gen === 'M' ? 'Masc.' : gen === 'F' ? 'Fem.' : 'Mixto'})` : cat
+                        }).join(', ')}</p>
                         {t.genero && (
                           <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${(GENERO_CONFIG[t.genero] ?? GENERO_CONFIG.Masculino).color}`}>
                             {t.genero}
@@ -1802,29 +1965,18 @@ const TorneosPage = () => {
           torneo={flyerTorneo}
           club={club}
           onClose={() => setFlyerTorneo(null)}
+          onDescargado={() => setToastFlyer(true)}
         />
       )}
 
-      {/* Toast nuevo torneo */}
-      {toastNuevoTorneo && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-          <div className="flex items-center gap-3.5 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl shadow-black/30 border border-white/8 min-w-[280px] max-w-sm">
-            <div className="w-9 h-9 rounded-xl bg-brand-500/15 border border-brand-500/25 flex items-center justify-center shrink-0">
-              <Trophy size={17} className="text-brand-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-semibold text-white/40 uppercase tracking-widest leading-none mb-0.5">Torneo creado</p>
-              <p className="text-sm font-semibold text-white truncate">{toastNuevoTorneo}</p>
-            </div>
-            <button
-              onClick={() => setToastNuevoTorneo(null)}
-              className="text-white/30 hover:text-white/70 transition-colors shrink-0 ml-1"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Toasts */}
+      {toastEliminado   && <Toast icon={Trash2}      iconBg="bg-red-500/15 border border-red-500/25"         iconColor="text-red-400"     barColor="bg-red-400/50"     label="Torneo eliminado" message="El torneo fue eliminado"       duration={3500} onClose={() => setToastEliminado(false)}  />}
+      {toastEdicion     && <Toast icon={CheckCircle} iconBg="bg-brand-500/15 border border-brand-500/25"     iconColor="text-brand-400"   barColor="bg-brand-400/50"   label="Torneo editado"   message="Datos guardados correctamente"  duration={3500} onClose={() => setToastEdicion(false)}    />}
+      {toastFlyer       && <Toast icon={Download}    iconBg="bg-emerald-500/15 border border-emerald-500/25" iconColor="text-emerald-400" barColor="bg-emerald-400/50" label="Flyer listo"       message="PNG descargado correctamente"   duration={3500} onClose={() => setToastFlyer(false)}      />}
+      {toastNuevoTorneo && <Toast icon={Trophy}      iconBg="bg-brand-500/15 border border-brand-500/25"     iconColor="text-brand-400"   barColor="bg-brand-400/50"   label="Torneo creado"    message={toastNuevoTorneo}               duration={4000} onClose={() => setToastNuevoTorneo(null)} />}
+      {toastEstado === 'open'   && <Toast icon={ToggleRight} iconBg="bg-emerald-500/15 border border-emerald-500/25" iconColor="text-emerald-400" barColor="bg-emerald-400/50" label="Inscripción abierta"  message="Las inscripciones están abiertas"  duration={3500} onClose={() => setToastEstado(null)} />}
+      {toastEstado === 'closed' && <Toast icon={Lock}        iconBg="bg-amber-500/15 border border-amber-500/25"     iconColor="text-amber-400"   barColor="bg-amber-400/50"   label="Inscripción cerrada"  message="Las inscripciones están cerradas"  duration={3500} onClose={() => setToastEstado(null)} />}
+      {toastEstado === 'draft'  && <Toast icon={ToggleLeft}  iconBg="bg-slate-500/15 border border-slate-500/25"     iconColor="text-slate-400"   barColor="bg-slate-400/50"   label="Volvió a borrador"    message="El torneo volvió a borrador"       duration={3500} onClose={() => setToastEstado(null)} />}
 
     </div>
   )

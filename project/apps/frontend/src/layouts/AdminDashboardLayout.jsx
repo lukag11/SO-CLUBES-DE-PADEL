@@ -7,8 +7,6 @@ import Sidebar from '../components/ui/Sidebar'
 import Navbar from '../components/ui/Navbar'
 import usePageTitle from '../hooks/usePageTitle'
 
-const SIDEBAR_KEY = 'admin_sidebar_collapsed'
-
 const BOTTOM_NAV_ITEMS = [
   { to: '/dashboardAdmin',          label: 'Inicio',    icon: LayoutDashboard, exact: true },
   { to: '/dashboardAdmin/reservas', label: 'Reservas',  icon: CalendarDays },
@@ -67,9 +65,6 @@ const BottomNav = ({ visible }) => {
 const DashboardLayout = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const title = usePageTitle()
-  const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem(SIDEBAR_KEY) === 'true'
-  )
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [navVisible, setNavVisible] = useState(true)
   const mainRef = useRef(null)
@@ -92,13 +87,6 @@ const DashboardLayout = () => {
     return <Navigate to="/login" replace />
   }
 
-  const handleToggle = () => {
-    setCollapsed((prev) => {
-      localStorage.setItem(SIDEBAR_KEY, String(!prev))
-      return !prev
-    })
-  }
-
   return (
     <div className="h-screen bg-slate-50 flex overflow-hidden">
       {sidebarOpen && (
@@ -108,12 +96,10 @@ const DashboardLayout = () => {
         />
       )}
       <Sidebar
-        collapsed={collapsed}
-        onToggle={handleToggle}
         mobileOpen={sidebarOpen}
         onMobileClose={() => setSidebarOpen(false)}
       />
-      <div className={`flex-1 min-w-0 flex flex-col h-full transition-all duration-300 ${collapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
+      <div className="flex-1 min-w-0 flex flex-col h-full lg:ml-16">
         <Navbar title={title} onMenuClick={() => setSidebarOpen(true)} />
         <main ref={mainRef} className="flex-1 p-4 md:p-6 overflow-y-auto overflow-x-hidden pb-20 lg:pb-6">
           <Outlet />

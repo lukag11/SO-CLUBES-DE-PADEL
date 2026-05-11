@@ -13,7 +13,8 @@ const useReservasStore = create((set, get) => ({
     const jugador = player
       ? `${player.nombre}${player.apellido ? ' ' + player.apellido : ''}`
       : 'Jugador'
-    const id = Date.now()
+    // Usar el ID del backend si existe — garantiza que las operaciones posteriores (cancelar, etc.) apunten al CUID correcto
+    const id = backendReservaId ?? Date.now()
     const nueva = {
       id,
       canchaId,

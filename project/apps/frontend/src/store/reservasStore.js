@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import useNotificacionesStore from './notificacionesStore'
 import usePlayerStore from './playerStore'
-import useReservasAdminStore from './reservasAdminStore'
 
 const useReservasStore = create((set, get) => ({
   reservas: [],
@@ -15,10 +14,8 @@ const useReservasStore = create((set, get) => ({
       ? `${player.nombre}${player.apellido ? ' ' + player.apellido : ''}`
       : 'Jugador'
     const id = Date.now()
-    const adminSlotId = id + 1
     const nueva = {
       id,
-      adminSlotId,
       canchaId,
       canchaNombre,
       canchaInfo,
@@ -32,23 +29,6 @@ const useReservasStore = create((set, get) => ({
       _aprobadoPorAdmin: false,
     }
     set((state) => ({ reservas: [...state.reservas, nueva] }))
-    // Crear slot visible en la grilla del admin
-    useReservasAdminStore.getState().addReserva({
-      id: adminSlotId,
-      tipo: esTurnoFijo ? 'solicitud_fijo' : 'online',
-      canchaId,
-      canchaNombre,
-      fecha,
-      inicio: hora,
-      fin: horaFin,
-      jugadores: [jugador],
-      estado: 'pendiente',
-      pago: null,
-      monto: precio || 0,
-      notas: '',
-      creadoPor: 'jugador',
-      reservaStoreId: id,
-    })
     const notifStore = useNotificacionesStore.getState()
     if (esTurnoFijo) {
       notifStore.solicitudTurnoFijo({ jugador, canchaNombre, canchaId, fecha, hora, horaFin, precio })
@@ -71,9 +51,6 @@ const useReservasStore = create((set, get) => ({
     set((state) => ({
       reservas: state.reservas.map((r) => r.id === id ? { ...r, estado: 'cancelada' } : r)
     }))
-    if (reserva?.adminSlotId) {
-      useReservasAdminStore.getState().deleteReserva(reserva.adminSlotId)
-    }
     if (reserva && notificarAdmin) {
       useNotificacionesStore.getState().cancelacionReserva({
         jugador: reserva.jugador,

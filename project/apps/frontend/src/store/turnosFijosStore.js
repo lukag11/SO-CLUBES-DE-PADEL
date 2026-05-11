@@ -24,7 +24,7 @@ const useTurnosFijosStore = create((set, get) => ({
   addTurnoFijo: ({ canchaId, canchaNombre, canchaInfo, dia, inicio, fin, precio, jugador, reservaId }) => {
     const nuevo = {
       id: Date.now(),
-      canchaId: Number(canchaId),
+      canchaId,
       canchaNombre,
       canchaInfo,
       dia,

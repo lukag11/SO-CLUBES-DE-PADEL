@@ -5,7 +5,7 @@ import {
   Users, AlertCircle, CheckCircle, Ban, Pencil, Bell, GraduationCap, Trash2, XCircle, MapPin,
 } from 'lucide-react'
 import {
-  FRANJAS, CANCHAS_MOCK, RESERVAS_INICIALES,
+  FRANJAS,
   RAZONES_BLOQUEO, METODOS_PAGO, CLASES_PROFESOR, DIAS_SEMANA_OPCIONES,
 } from '../features/admin/reservasMockData'
 import useNotificacionesStore from '../store/notificacionesStore'
@@ -15,6 +15,7 @@ import useTurnosFijosStore from '../store/turnosFijosStore'
 import useReservasAdminStore from '../store/reservasAdminStore'
 import useProfesoresStore from '../store/profesoresStore'
 import useAuthStore from '../store/authStore'
+import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
 import { overlaps, toMin } from '../utils/timeUtils'
 
@@ -122,8 +123,8 @@ const Select = ({ label, children, ...props }) => (
 
 // ─── Stats bar ────────────────────────────────────────────────────────────────
 
-const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos }) => {
-  const total = CANCHAS_MOCK.length * FRANJAS.length
+const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos, canchasCount }) => {
+  const total = (canchasCount || 4) * FRANJAS.length
 
   // Turnos ocupados: slots únicos de reservas + clases (bloqueados también ocupan)
   const ocupadosSet = new Set([
@@ -312,14 +313,14 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick }) => {
 
 // ─── Grilla ───────────────────────────────────────────────────────────────────
 
-const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick }) => (
+const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [] }) => (
   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
     <div className="overflow-x-auto">
       <table className="w-full min-w-[540px] border-collapse text-sm">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="text-left px-4 py-3 text-slate-400 font-medium text-xs w-28 shrink-0">Horario</th>
-            {CANCHAS_MOCK.map((c) => (
+            {canchas.map((c) => (
               <th key={c.id} className="px-3 py-3 text-slate-600 font-semibold text-xs text-center">
                 <span>{c.nombre}</span>
                 <span className="block text-slate-400 font-normal text-[10px] mt-0.5">
@@ -339,7 +340,7 @@ const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick }) => (
                   <span className="text-slate-300 text-xs mx-0.5">–</span>
                   <span className="text-slate-400 text-xs font-mono">{franja.fin}</span>
                 </td>
-                {CANCHAS_MOCK.map((cancha) => {
+                {canchas.map((cancha) => {
                   // Clases del profesor tienen prioridad sobre reservas libres
                   const clase = getReserva(clasesDia, cancha.id, franja)
                   const reserva = clase || getReserva(reservas, cancha.id, franja)
@@ -419,10 +420,10 @@ const CeldaMobile = ({ reserva, franja, cancha, onClick, pasado }) => {
   )
 }
 
-const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick }) => {
+const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [] }) => {
   const [page, setPage] = useState(0)
-  const totalPages = Math.ceil(CANCHAS_MOCK.length / 2)
-  const canchasVisible = CANCHAS_MOCK.slice(page * 2, page * 2 + 2)
+  const totalPages = Math.ceil(canchas.length / 2)
+  const canchasVisible = canchas.slice(page * 2, page * 2 + 2)
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -1525,17 +1526,17 @@ const PanelAlertas = ({
 
 // ─── Tab turnos fijos ─────────────────────────────────────────────────────────
 
-const EMPTY_CLASE = {
-  profesor: '', canchaId: CANCHAS_MOCK[0].id, dia: 'lunes',
+const makeEmptyClase = (canchas) => ({
+  profesor: '', canchaId: canchas[0]?.id ?? '', dia: 'lunes',
   inicio: FRANJAS[0].inicio, fin: FRANJAS[1].fin, hasta: '', activa: true,
-}
+})
 
 const DIAS_LABEL = {
   lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles',
   jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo',
 }
 
-const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase }) => {
+const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [] }) => {
   const turnosFijosJugadores = useTurnosFijosStore((s) => s.turnosFijos)
   const liberarTurno = useTurnosFijosStore((s) => s.liberarTurno)
   const updateTurnoFijo = useTurnosFijosStore((s) => s.updateTurnoFijo)
@@ -1544,7 +1545,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase }) => {
   const pendientes = turnosFijosJugadores.filter((t) => t.estado === 'pendiente')
   const hoy = todayISO()
   const [mostrarForm, setMostrarForm] = useState(false)
-  const [formClase, setFormClase] = useState(EMPTY_CLASE)
+  const [formClase, setFormClase] = useState(() => makeEmptyClase(canchas))
   const [errorForm, setErrorForm] = useState('')
 
   const handleAprobarTurnoFijo = async (id) => {
@@ -1580,7 +1581,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase }) => {
     if (!formClase.hasta) { setErrorForm('La fecha de vigencia es requerida'); return }
     if (formClase.fin <= formClase.inicio) { setErrorForm('El horario de fin debe ser posterior al inicio'); return }
     setErrorForm('')
-    onAddClase({ ...formClase, canchaId: Number(formClase.canchaId), id: Date.now() })
+    onAddClase({ ...formClase, id: Date.now() })
     setFormClase(EMPTY_CLASE)
     setMostrarForm(false)
   }
@@ -1736,7 +1737,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase }) => {
                   onChange={(e) => setFormClase((p) => ({ ...p, canchaId: e.target.value }))}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 appearance-none bg-white"
                 >
-                  {CANCHAS_MOCK.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  {canchas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
               </div>
               <div>
@@ -1813,7 +1814,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase }) => {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {clases.map((c) => {
-                  const cancha = CANCHAS_MOCK.find((ca) => ca.id === c.canchaId)
+                  const cancha = canchas.find((ca) => ca.id === c.canchaId)
                   const diaLabel = DIAS_SEMANA_OPCIONES.find((d) => d.value === c.dia)?.label || c.dia
                   return (
                     <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
@@ -1882,6 +1883,7 @@ const ReservasPage = () => {
 
   const adminToken = useAuthStore((s) => s.token)
   const clubId = useAuthStore((s) => s.user?.club?.id) ?? 'cmoryx4a900008t4qmzdzuiee'
+  const canchas = useClubStore((s) => s.club.canchas)
 
   // Reservas reales desde el backend (jugadores que reservaron online)
   const [reservasBackend, setReservasBackend] = useState([])
@@ -1911,7 +1913,7 @@ const ReservasPage = () => {
   const mapBackendReserva = (r) => ({
     id: `backend_${r.id}`,
     _backendId: r.id,
-    canchaId: CANCHAS_MOCK.findIndex((c) => c.nombre === r.cancha?.nombre) + 1 || 1,
+    canchaId: r.canchaId,
     canchaNombre: r.cancha?.nombre || '',
     fecha: r.fecha,
     inicio: r.horaInicio,
@@ -1931,28 +1933,6 @@ const ReservasPage = () => {
     FRANJAS.find((f) => f.inicio === hora) ||
     FRANJAS[0]
 
-  // Reservas eventuales confirmadas del jugador → tipo 'online' en grilla
-  const playerReservasDia = useMemo(() =>
-    playerReservas
-      .filter((r) => r.estado === 'confirmada' && !r.esTurnoFijo && r.fecha === fecha)
-      .map((r) => {
-        const f = franjaParaHora(r.hora)
-        return {
-          id: `player_${r.id}`,
-          canchaId: r.canchaId,
-          fecha: r.fecha,
-          inicio: f.inicio,
-          fin: f.fin,
-          tipo: 'online',
-          jugadores: [r.jugador || 'Jugador online'],
-          pago: 'pendiente',
-          monto: r.precio,
-          estado: 'confirmada',
-          notas: '',
-          recurrencia: null,
-        }
-      })
-  , [playerReservas, fecha])
 
   // Turnos fijos aprobados → tipo 'fijo' (violeta) en grilla, para el día de semana que corresponde
   const diaSemanaFecha = getDiaSemana(fecha)
@@ -1967,7 +1947,7 @@ const ReservasPage = () => {
         const f = franjaParaHora(t.inicio)
         return {
           id: `fijo_player_${t.id}`,
-          canchaId: Number(t.canchaId),
+          canchaId: t.canchaId,
           fecha,
           inicio: f.inicio,
           fin: f.fin,
@@ -1991,8 +1971,8 @@ const ReservasPage = () => {
   )
 
   const reservasDia = useMemo(
-    () => [...reservas.filter((r) => r.fecha === fecha), ...playerReservasDia, ...turnosFijosDia, ...reservasBackendDia],
-    [reservas, fecha, playerReservasDia, turnosFijosDia, reservasBackendDia]
+    () => [...reservas.filter((r) => r.fecha === fecha), ...turnosFijosDia, ...reservasBackendDia],
+    [reservas, fecha, turnosFijosDia, reservasBackendDia]
   )
 
   // Total de turnos fijos activos para el día de semana, sin descontar ausencias puntuales
@@ -2163,7 +2143,7 @@ const ReservasPage = () => {
       )}
 
       {/* Stats */}
-      <StatsBar reservasDia={reservasDia} clasesDia={clasesDia} totalTurnosFijos={totalTurnosFijos} />
+      <StatsBar reservasDia={reservasDia} clasesDia={clasesDia} totalTurnosFijos={totalTurnosFijos} canchasCount={canchas.length} />
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
@@ -2204,13 +2184,13 @@ const ReservasPage = () => {
 
           {/* Vista mobile: 2 canchas por página */}
           <div className="md:hidden">
-            <GrillaMobile reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} />
+            <GrillaMobile reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchas} />
           </div>
 
           {/* Vista desktop: tabla completa + panel lateral */}
           <div className="hidden md:flex gap-4 flex-1 min-h-0">
             <div className="flex-1 overflow-auto min-w-0">
-              <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} />
+              <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchas} />
             </div>
             {seleccion && !editando && (
               <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">
@@ -2271,6 +2251,7 @@ const ReservasPage = () => {
           clases={clases}
           onAddClase={handleAddClase}
           onDeleteClase={handleDeleteClase}
+          canchas={canchas}
         />
       )}
     </div>

@@ -222,13 +222,13 @@ router.delete('/:id', requireAuth, async (req, res) => {
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
     if (reserva.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
 
-    // Jugador solo puede cancelar sus propias reservas pendientes
+    // Jugador solo puede cancelar sus propias reservas (pendiente o confirmada)
     if (req.user.role === 'jugador') {
       if (reserva.jugadorId !== req.user.id) return res.status(403).json({ error: 'Sin permisos' })
-      if (reserva.estado !== 'pendiente') return res.status(400).json({ error: 'Solo se pueden cancelar reservas pendientes' })
+      if (!['pendiente', 'confirmada'].includes(reserva.estado)) return res.status(400).json({ error: 'La reserva ya está cancelada' })
     }
 
-    await prisma.reserva.delete({ where: { id } })
+    await prisma.reserva.update({ where: { id }, data: { estado: 'cancelada' } })
     res.json({ ok: true })
   } catch (err) {
     console.error(err)

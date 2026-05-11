@@ -41,7 +41,7 @@ router.get('/:slug', async (req, res) => {
   try {
     const club = await prisma.club.findUnique({
       where: { slug: req.params.slug },
-      select: { id: true, nombre: true, slug: true, logoUrl: true, config: true },
+      select: { id: true, nombre: true, slug: true, logoUrl: true, config: true, activo: true },
     })
     if (!club || !club.activo) return res.status(404).json({ error: 'Club no encontrado' })
     res.json(club)

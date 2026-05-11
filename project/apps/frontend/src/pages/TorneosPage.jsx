@@ -21,11 +21,6 @@ import { api } from '../lib/api'
 const fmtFecha = (iso) =>
   new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
 
-const totalCupo = (torneo) =>
-  torneo.cupoLibre
-    ? null
-    : Object.values(torneo.cuposPorCategoria).reduce((a, b) => a + b, 0)
-
 // Mapeo de tab key → estados que incluye
 const TAB_ESTADOS = {
   en_curso:    ['in_progress'],
@@ -1470,14 +1465,69 @@ const mapBackendTorneo = (t) => ({
   subcampeon: t.subcampeon,
 })
 
+// ── Franja de inscripción vigente ─────────────────────────────────────────────
+
+
+const TorneoAlertRow = ({ torneo, onVerDetalle }) => {
+  const diasRestantes = (() => {
+    if (!torneo.fechaLimiteInscripcion) return null
+    const diff = Math.ceil(
+      (new Date(torneo.fechaLimiteInscripcion + 'T23:59:59') - new Date()) / 86400000
+    )
+    return diff
+  })()
+
+  const confirmados = (torneo.inscriptos ?? []).filter((i) => i.estado !== 'espera')
+  const enEspera   = (torneo.inscriptos ?? []).filter((i) => i.estado === 'espera')
+
+  return (
+    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+
+      <span className="font-semibold text-slate-700 text-sm truncate max-w-[200px]">
+        {torneo.nombre}
+      </span>
+
+      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
+        Inscripción abierta
+      </span>
+
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <span className="text-sm text-slate-500">
+          <span className="font-medium text-slate-700">{confirmados.length}</span> inscriptos
+        </span>
+        {enEspera.length > 0 && (
+          <span className="text-xs text-amber-600 font-medium">{enEspera.length} en espera</span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0 ml-auto">
+        {diasRestantes != null && (
+          <span className={`flex items-center gap-1 text-xs font-medium ${diasRestantes <= 3 ? 'text-red-500' : 'text-amber-600'}`}>
+            <AlertTriangle size={12} />
+            {diasRestantes <= 0 ? 'Vence hoy' : `${diasRestantes}d para cierre`}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => onVerDetalle(torneo)}
+          className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 px-2.5 py-1 rounded-lg transition-colors"
+        >
+          Ver inscriptos <ChevronRight size={12} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 
 const TorneosPage = () => {
   const { torneos, setTorneos, addTorneoFromApi, addTorneo, updateTorneoFromApi, setEstado, deleteTorneo, updateTorneo } = useTorneosStore()
   const token  = useAuthStore((s) => s.token)
-  const clubId = useAuthStore((s) => s.club?.id)
+  const clubId = useAuthStore((s) => s.user?.club?.id)
   const club   = useClubStore((s) => s.club)
-  const { notificaciones, marcarLeida } = useNotificacionesStore()
+  const { notificaciones, eliminarNotificacion } = useNotificacionesStore()
   const notifTorneosNoLeidas = notificaciones.filter(
     (n) => (n.tipo === 'inscripcion_torneo' || n.tipo === 'baja_torneo' || n.tipo === 'actualizacion_torneo' || n.tipo === 'completacion_torneo') && !n.leida
   )
@@ -1486,12 +1536,18 @@ const TorneosPage = () => {
   useEffect(() => {
     if (!clubId) return
     api.get(`/torneos?clubId=${clubId}`)
-      .then((data) => { if (Array.isArray(data) && data.length > 0) setTorneos(data.map(mapBackendTorneo)) })
+      .then((data) => {
+        if (!Array.isArray(data) || data.length === 0) return
+        const mapped = data.map(mapBackendTorneo)
+        setTorneos(mapped)
+        const hayEnCurso = mapped.some((t) => t.estado === 'in_progress')
+        setTabActiva(hayEnCurso ? 'en_curso' : 'proximos')
+      })
       .catch(() => {})
   }, [clubId])
 
   const navigate = useNavigate()
-  const [tabActiva, setTabActiva] = useState('en_curso')
+  const [tabActiva, setTabActiva] = useState('proximos')
   const [modalNuevo, setModalNuevo] = useState(false)
   const [torneoEditar, setTorneoEditar] = useState(null)
   const [busquedaFin, setBusquedaFin] = useState('')
@@ -1656,53 +1712,7 @@ const TorneosPage = () => {
       </div>
 
       {/* Franja de inscripción vigente */}
-      {torneosAbiertos.map((t) => {
-        const confirmados = t.inscriptos.filter((i) => i.estado !== 'espera')
-        const enEspera    = t.inscriptos.filter((i) => i.estado === 'espera')
-        const cupo        = totalCupo(t)
-        const diasCierre  = t.fechaLimiteInscripcion
-          ? Math.ceil((new Date(t.fechaLimiteInscripcion + 'T23:59:59') - new Date()) / 86400000)
-          : null
-        const critico = diasCierre !== null && diasCierre <= 2
-        const urgente = diasCierre !== null && diasCierre <= 5
-        return (
-          <div key={t.id} className="bg-white border border-emerald-200 rounded-2xl px-4 py-3.5 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0">
-            {/* Nombre */}
-            <div className="flex items-center gap-2 sm:flex-1 min-w-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
-              <span className="text-slate-700 font-semibold text-sm truncate">{t.nombre}</span>
-              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md shrink-0">Inscripción abierta</span>
-            </div>
-            {/* Métricas */}
-            <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <Users size={13} className="text-slate-400 shrink-0" />
-                <span className="text-slate-800 text-sm font-bold">{confirmados.length}</span>
-                {cupo && <span className="text-slate-400 text-xs">/ {cupo} inscriptos</span>}
-                {!cupo && <span className="text-slate-400 text-xs">inscriptos</span>}
-              </div>
-              {enEspera.length > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <Clock size={13} className="text-amber-400 shrink-0" />
-                  <span className="text-amber-600 text-sm font-bold">{enEspera.length}</span>
-                  <span className="text-slate-400 text-xs">en espera</span>
-                </div>
-              )}
-              {diasCierre !== null && diasCierre > 0 && (
-                <div className={`flex items-center gap-1.5 ${critico ? 'text-red-500' : urgente ? 'text-amber-500' : 'text-slate-500'}`}>
-                  {critico && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping absolute" />}
-                  <AlertTriangle size={13} className="shrink-0" />
-                  <span className="text-sm font-bold">{diasCierre}</span>
-                  <span className="text-xs">día{diasCierre !== 1 ? 's' : ''} para el cierre</span>
-                </div>
-              )}
-              {diasCierre === null && (
-                <span className="text-slate-400 text-xs">Sin fecha límite</span>
-              )}
-            </div>
-          </div>
-        )
-      })}
+      {torneosAbiertos.map((t) => <TorneoAlertRow key={t.id} torneo={t} onVerDetalle={handleVerDetalle} />)}
 
       {/* Panel inscripciones recientes */}
       {notifTorneosNoLeidas.length > 0 && (
@@ -1719,7 +1729,7 @@ const TorneosPage = () => {
             </div>
             {sinLeerInscripciones > 0 && (
               <button
-                onClick={() => notifTorneosNoLeidas.filter((n) => !n.leida).forEach((n) => marcarLeida(n.id))}
+                onClick={() => notifTorneosNoLeidas.forEach((n) => eliminarNotificacion(n.id))}
                 className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
               >
                 Marcar todo leído
@@ -1761,7 +1771,7 @@ const TorneosPage = () => {
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[11px] text-slate-300 whitespace-nowrap">{tiempoStr}</span>
                     <button
-                      onClick={() => marcarLeida(n.id)}
+                      onClick={() => eliminarNotificacion(n.id)}
                       className="w-1.5 h-1.5 rounded-full bg-brand-500 hover:bg-brand-600 transition-colors shrink-0"
                       title="Marcar como leída"
                     />

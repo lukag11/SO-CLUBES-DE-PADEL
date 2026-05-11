@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-10
+**Última actualización:** 2026-05-11
 
 ---
 
@@ -76,15 +76,16 @@
 
 | Clave | Store | Contenido |
 |---|---|---|
-| `torneos_v1` | torneosStore | Lista de torneos |
-| `player_reservas` | reservasStore | Reservas del jugador |
-| `admin_notificaciones_v2` | notificacionesStore | Avisos para el admin |
-| `player_notificaciones` | playerNotificationsStore | Notificaciones del jugador |
+| `admin_notificaciones_v2` | notificacionesStore | Avisos admin (UI efímero) |
+| `player_notificaciones` | playerNotificationsStore | Notificaciones jugador (UI efímero) |
 | `player_token` | playerStore | Token de sesión jugador |
 | `player_data` | playerStore | Datos del jugador logueado |
-| `club_config` | clubStore | Configuración del club |
+| `club_config` | clubStore | Config club (fallback; backend es fuente de verdad) |
 | `token` | authStore | Token del admin |
+| `admin_user` | authStore | Objeto user completo (incluye clubId) — necesario para sobrevivir refresh |
 | `admin_sidebar_collapsed` | AdminDashboardLayout | Estado del sidebar desktop |
+
+**Eliminados de localStorage (migrado a backend):** `torneos_v1`, `player_reservas`, `reservas_admin`, `turnos_fijos`, `profesores`
 
 > Para limpiar localStorage en pruebas: incrementar `APP_VERSION` en `main.jsx` (versión actual: 16.0).
 
@@ -237,6 +238,52 @@
 **Visualización disponibilidad horaria**
 - Botón reloj en `MiTorneoCard` → despliega panel inline con los slots del jugador
 - Muestra día + horaDesde, nota "mismo día" si aplica, mensaje ámbar si sinCompanero
+
+---
+
+## Último bloque completado (2026-05-11) — Migración completa a backend real
+
+### Objetivo
+Eliminar todo uso de localStorage para datos de negocio. Todo a Supabase via backend. localStorage solo para tokens, prefs UI y notificaciones efímeras.
+
+### Stores limpiados (eliminado localStorage + seeds mock)
+- `reservasAdminStore` — arranca `[]`, método `setReservas()`
+- `reservasStore` — arranca `[]`, método `setReservas()`
+- `turnosFijosStore` — arranca `[]`, método `setTurnosFijos()`
+- `profesoresStore` — arranca `[]`, método `setProfesores()`
+
+### authStore — fix crítico
+- Agregado `admin_user` en localStorage para persistir el objeto `user` (incluye `user.club.id`)
+- Sin este fix: al refrescar `user = null` → `clubId = undefined` → ningún fetch del admin se ejecutaba
+- Funciones actualizadas: `login()`, `logout()`, `setUser()`
+
+### Nuevos endpoints backend
+- `GET /api/clubs/me` — retorna config del club (con canchas) para el admin autenticado
+- `PATCH /api/clubs/me` — guarda `config Json` en el modelo Club
+- `GET /api/reservas/me` — reservas propias del jugador autenticado
+- `POST /api/reservas/admin` — creación manual de reserva por admin
+- `PATCH /api/reservas/:id` — actualización parcial de reserva
+- `DELETE /api/reservas/:id` — cancelación con control de rol
+
+### Prisma schema
+- Torneo: `cupoEsperaPorCategoria Json @default("{}")`, `generoPorCategoria Json @default("{}")`
+- Club: `config Json?`
+- Corrido `prisma db push` para aplicar cambios
+
+### Conexiones frontend → backend
+- `AdminDashboardLayout`: carga config del club al montar (`GET /api/clubs/me` → `loadFromBackend()`)
+- `PlayerLayout`: carga reservas del jugador al montar (`GET /api/reservas/me` → `setReservas()`)
+- `QuienesSomosPage`: `boundSaveClub = () => saveClub(token)` pasa token a todos los sub-componentes → `PATCH /api/clubs/me` al guardar
+
+### Fix selectores clubId
+- `TorneosPage`: `useAuthStore((s) => s.user?.club?.id)` (era `s.club?.id`, siempre undefined)
+- `PlayerTournamentsPage`: `player?.club?.id ?? player?.clubId ?? null`
+- `TorneoDetallePage`: fallback fetch cuando el store está vacío (acceso directo por URL)
+
+### Fix tab torneos admin
+- Default `tabActiva` cambiado a `'proximos'` (torneos draft/open/closed)
+- Tras el fetch: si hay `in_progress` → salta a `'en_curso'`; si no → queda en `'proximos'`
+- Antes: al navegar y volver se reseteaba a `'en_curso'` y los torneos nuevos "desaparecían"
 
 ---
 

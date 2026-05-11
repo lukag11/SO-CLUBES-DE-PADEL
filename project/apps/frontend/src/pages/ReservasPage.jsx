@@ -1808,7 +1808,7 @@ const ReservasPage = () => {
   const updateReservaAdmin = useReservasAdminStore((s) => s.updateReserva)
 
   const adminToken = useAuthStore((s) => s.token)
-  const clubId = 'cmoryx4a900008t4qmzdzuiee'
+  const clubId = useAuthStore((s) => s.user?.club?.id) ?? 'cmoryx4a900008t4qmzdzuiee'
 
   // Reservas reales desde el backend (jugadores que reservaron online)
   const [reservasBackend, setReservasBackend] = useState([])

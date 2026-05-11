@@ -43,6 +43,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
   const {
     nombre, categorias, formato, genero, cupoLibre, cuposPorCategoria, cupoEspera,
+    cupoEsperaPorCategoria, generoPorCategoria,
     canchasAsignadas, fechaInicio, fechaFin, fechaLimiteInscripcion,
     diaInicioEliminatoria, horaInicioEliminatoria, descripcion,
   } = req.body
@@ -62,6 +63,8 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         cupoLibre: !!cupoLibre,
         cuposPorCategoria: cuposPorCategoria ?? {},
         cupoEspera: cupoEspera ?? 5,
+        cupoEsperaPorCategoria: cupoEsperaPorCategoria ?? {},
+        generoPorCategoria: generoPorCategoria ?? {},
         canchasAsignadas: canchasAsignadas ?? [],
         fechaInicio: fechaInicio ?? null,
         fechaFin: fechaFin ?? null,
@@ -84,6 +87,7 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params
   const {
     nombre, categorias, formato, genero, cupoLibre, cuposPorCategoria, cupoEspera,
+    cupoEsperaPorCategoria, generoPorCategoria,
     canchasAsignadas, fechaInicio, fechaFin, fechaLimiteInscripcion,
     diaInicioEliminatoria, horaInicioEliminatoria, descripcion,
   } = req.body
@@ -96,20 +100,22 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
     const updated = await prisma.torneo.update({
       where: { id },
       data: {
-        ...(nombre              !== undefined && { nombre }),
-        ...(categorias          !== undefined && { categorias }),
-        ...(formato             !== undefined && { formato }),
-        ...(genero              !== undefined && { genero }),
-        ...(cupoLibre           !== undefined && { cupoLibre: !!cupoLibre }),
-        ...(cuposPorCategoria   !== undefined && { cuposPorCategoria }),
-        ...(cupoEspera          !== undefined && { cupoEspera }),
-        ...(canchasAsignadas    !== undefined && { canchasAsignadas }),
-        ...(fechaInicio         !== undefined && { fechaInicio }),
-        ...(fechaFin            !== undefined && { fechaFin }),
+        ...(nombre                 !== undefined && { nombre }),
+        ...(categorias             !== undefined && { categorias }),
+        ...(formato                !== undefined && { formato }),
+        ...(genero                 !== undefined && { genero }),
+        ...(cupoLibre              !== undefined && { cupoLibre: !!cupoLibre }),
+        ...(cuposPorCategoria      !== undefined && { cuposPorCategoria }),
+        ...(cupoEspera             !== undefined && { cupoEspera }),
+        ...(cupoEsperaPorCategoria !== undefined && { cupoEsperaPorCategoria }),
+        ...(generoPorCategoria     !== undefined && { generoPorCategoria }),
+        ...(canchasAsignadas       !== undefined && { canchasAsignadas }),
+        ...(fechaInicio            !== undefined && { fechaInicio }),
+        ...(fechaFin               !== undefined && { fechaFin }),
         ...(fechaLimiteInscripcion !== undefined && { fechaLimiteInscripcion }),
         ...(diaInicioEliminatoria  !== undefined && { diaInicioEliminatoria }),
         ...(horaInicioEliminatoria !== undefined && { horaInicioEliminatoria }),
-        ...(descripcion         !== undefined && { descripcion }),
+        ...(descripcion            !== undefined && { descripcion }),
       },
       include: { parejas: { orderBy: { createdAt: 'asc' } } },
     })

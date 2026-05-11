@@ -169,11 +169,39 @@ const useClubStore = create((set, get) => ({
     })
   },
 
-  // Guarda en localStorage y aplica colores + fuente al DOM
-  saveClub: () => {
+  // Carga config desde backend y la fusiona con los defaults
+  loadFromBackend: (backendConfig) => {
+    if (!backendConfig) return
+    set((state) => {
+      const merged = {
+        ...state.club,
+        ...backendConfig,
+        horarios: Object.fromEntries(
+          DIAS_SEMANA.map((dia) => [
+            dia,
+            { ...HORARIOS_DEFAULT[dia], ...(backendConfig.horarios?.[dia] ?? {}) },
+          ])
+        ),
+      }
+      localStorage.setItem('club_config', JSON.stringify(merged))
+      applyColorsToDOM(merged.colorPrimario, merged.colorSecundario, merged.fontFamilia)
+      return { club: merged }
+    })
+  },
+
+  // Guarda en localStorage + DOM + opcionalmente en el backend (si se pasa el token)
+  saveClub: (token) => {
     const { club } = get()
     localStorage.setItem('club_config', JSON.stringify(club))
     applyColorsToDOM(club.colorPrimario, club.colorSecundario, club.fontFamilia)
+    if (token) {
+      const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+      fetch(`${BASE}/clubs/me`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ config: club }),
+      }).catch(() => { /* silent — localStorage ya guardó */ })
+    }
   },
 }))
 

@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate, Link } from 'react-router-dom'
 import { Zap, BarChart2, Trophy, Users, LogOut, LayoutDashboard, UserCircle, Repeat, CalendarDays, Bell, Menu, X } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import usePlayerNotificationsStore from '../store/playerNotificationsStore'
+import useReservasStore from '../store/reservasStore'
+import { api } from '../lib/api'
 
 const navItems = [
   { to: '/dashboardJugadores/dashboard',    label: 'Mi resumen',       icon: LayoutDashboard },
@@ -15,10 +17,36 @@ const navItems = [
 ]
 
 const PlayerLayout = () => {
-  const { isAuthenticated, player, logout } = usePlayerStore()
+  const { isAuthenticated, player, token } = usePlayerStore()
+  const logout = usePlayerStore((s) => s.logout)
   const sinLeer = usePlayerNotificationsStore((s) => s.notificaciones.filter((n) => !n.leida).length)
+  const setReservas = useReservasStore((s) => s.setReservas)
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Carga las reservas propias del jugador desde el backend al montar el layout
+  useEffect(() => {
+    if (!token) return
+    api.get('/reservas/me', { Authorization: `Bearer ${token}` })
+      .then((data) => {
+        if (!Array.isArray(data)) return
+        setReservas(data.map((r) => ({
+          id: r.id,
+          canchaId: r.canchaId,
+          canchaNombre: r.cancha?.nombre ?? '',
+          canchaInfo: r.cancha ? `${r.cancha.tipo ?? 'Padel'} · ${r.cancha.indoor ? 'Indoor' : 'Outdoor'}` : '',
+          fecha: r.fecha,
+          hora: r.horaInicio,
+          horaFin: r.horaFin,
+          precio: r.precio,
+          esTurnoFijo: r.esTurnoFijo,
+          jugador: player ? `${player.nombre} ${player.apellido ?? ''}`.trim() : '',
+          estado: r.estado,
+          _aprobadoPorAdmin: r.estado === 'confirmada',
+        })))
+      })
+      .catch(() => { /* mantiene reservas en memoria como fallback */ })
+  }, [token])
 
   if (!isAuthenticated) {
     return <Navigate to="/dashboardJugadores" replace />

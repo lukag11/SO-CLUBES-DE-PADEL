@@ -3,9 +3,11 @@ import { Outlet, Navigate, NavLink } from 'react-router-dom'
 import { LayoutDashboard, CalendarDays, Trophy, CreditCard, Info } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useNotificacionesStore from '../store/notificacionesStore'
+import useClubStore from '../store/clubStore'
 import Sidebar from '../components/ui/Sidebar'
 import Navbar from '../components/ui/Navbar'
 import usePageTitle from '../hooks/usePageTitle'
+import { api } from '../lib/api'
 
 const BOTTOM_NAV_ITEMS = [
   { to: '/dashboardAdmin',          label: 'Inicio',    icon: LayoutDashboard, exact: true },
@@ -64,10 +66,20 @@ const BottomNav = ({ visible }) => {
 
 const DashboardLayout = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const token = useAuthStore((s) => s.token)
+  const loadFromBackend = useClubStore((s) => s.loadFromBackend)
   const title = usePageTitle()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [navVisible, setNavVisible] = useState(true)
   const mainRef = useRef(null)
+
+  // Carga config del club desde el backend al montar el layout
+  useEffect(() => {
+    if (!token) return
+    api.get('/clubs/me', { Authorization: `Bearer ${token}` })
+      .then((data) => { if (data?.config) loadFromBackend(data.config) })
+      .catch(() => { /* mantiene config local como fallback */ })
+  }, [token])
 
   useEffect(() => {
     const el = mainRef.current

@@ -1993,10 +1993,11 @@ const ModalHorario = ({ partido, canchasActivas, onClose, onGuardar }) => {
 const TorneoDetallePage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { torneos, setEstado, setBracket, updateBracket, bajaInscripto, setGanadores,
+  const { torneos, setTorneos, addTorneoFromApi, setEstado, setBracket, updateBracket, bajaInscripto, setGanadores,
           setGrupos, updateGrupos, resolveGroupTie, addPareja, addParejaFromApi, updatePareja,
           updatePersonalizacion } = useTorneosStore()
   const token = useAuthStore((s) => s.token)
+  const adminClubId = useAuthStore((s) => s.user?.club?.id)
   const addBajaInscripcionTorneo       = usePlayerNotificationsStore((s) => s.addBajaInscripcionTorneo)
   const addPromovido                   = usePlayerNotificationsStore((s) => s.addPromovido)
   const addInscripcionActualizadaAdmin = usePlayerNotificationsStore((s) => s.addInscripcionActualizadaAdmin)
@@ -2108,10 +2109,42 @@ const TorneoDetallePage = () => {
     return () => window.removeEventListener('keydown', handleKey)
   }, [bracketFullscreen])
 
+  // Si el store está vacío (refresh directo), carga todos los torneos del club desde el backend
+  useEffect(() => {
+    if (torneos.length > 0) return // ya hay datos en el store
+    if (!adminClubId) return
+    api.get(`/torneos?clubId=${adminClubId}`)
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setTorneos(data.map((t) => ({
+            ...( t.personalizacion ?? {}),
+            id: t.id, nombre: t.nombre, categorias: t.categorias ?? [],
+            formato: t.formato, genero: t.genero, estado: t.estado,
+            cupoLibre: t.cupoLibre, cuposPorCategoria: t.cuposPorCategoria ?? {},
+            cupoEsperaPorCategoria: t.cupoEsperaPorCategoria ?? {},
+            generoPorCategoria: t.generoPorCategoria ?? {},
+            canchasAsignadas: t.canchasAsignadas ?? [],
+            fechaInicio: t.fechaInicio, fechaFin: t.fechaFin,
+            fechaLimiteInscripcion: t.fechaLimiteInscripcion,
+            descripcion: t.descripcion ?? '',
+            inscriptos: (t.parejas ?? []).map((p) => ({
+              id: p.id, jugador1: p.jugador1, jugador2: p.jugador2,
+              jugador1Dni: p.jugador1Dni, jugador2Dni: p.jugador2Dni,
+              categoria: p.categoria, fecha: p.fecha,
+              disponibilidad: p.disponibilidad ?? [], prefiereMismoDia: p.prefiereMismoDia ?? false,
+            })),
+            grupos: t.grupos ?? null, brackets: t.brackets ?? {},
+            ganador: t.ganador, subcampeon: t.subcampeon,
+          })))
+        }
+      })
+      .catch(() => {})
+  }, [adminClubId, torneos.length])
+
   // Navegar de vuelta si el torneo fue eliminado
   useEffect(() => {
-    if (!torneo) navigate('/dashboardAdmin/torneos', { replace: true })
-  }, [torneo, navigate])
+    if (torneos.length > 0 && !torneo) navigate('/dashboardAdmin/torneos', { replace: true })
+  }, [torneo, torneos.length, navigate])
 
   if (!torneo) return null
 

@@ -1,19 +1,6 @@
 import { create } from 'zustand'
-import { TORNEOS_INICIALES } from '../features/admin/torneosMockData'
 
-const CACHE_KEY      = 'torneos_v1'
 const CATS_CACHE_KEY = 'torneos_categorias_v1'
-
-const loadTorneos = () => {
-  try {
-    const saved = localStorage.getItem(CACHE_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
-    }
-  } catch { /* ignore */ }
-  return TORNEOS_INICIALES
-}
 
 const loadCategorias = () => {
   try {
@@ -23,14 +10,14 @@ const loadCategorias = () => {
   return []
 }
 
-const save      = (torneos)    => { try { localStorage.setItem(CACHE_KEY,      JSON.stringify(torneos))    } catch { /* ignore */ } }
-const saveCats  = (categorias) => { try { localStorage.setItem(CATS_CACHE_KEY, JSON.stringify(categorias)) } catch { /* ignore */ } }
+const saveCats = (categorias) => {
+  try { localStorage.setItem(CATS_CACHE_KEY, JSON.stringify(categorias)) } catch { /* ignore */ }
+}
 
 const useTorneosStore = create((set, get) => ({
-  torneos: loadTorneos(),
-  categoriasGuardadas: loadCategorias(), // variantes persistidas por el club
+  torneos: [],                              // siempre vacío al inicio — se carga desde el backend
+  categoriasGuardadas: loadCategorias(),    // preferencia UI del club — localStorage OK
 
-  // Guarda una variante de categoría (ej: "4° Categoría B +35")
   saveCategoria: (cat) => {
     set((state) => {
       if (state.categoriasGuardadas.includes(cat)) return state
@@ -40,7 +27,6 @@ const useTorneosStore = create((set, get) => ({
     })
   },
 
-  // Elimina una variante guardada
   deleteCategoria: (cat) => {
     set((state) => {
       const updated = state.categoriasGuardadas.filter((c) => c !== cat)
@@ -49,7 +35,6 @@ const useTorneosStore = create((set, get) => ({
     })
   },
 
-  // Renombra una variante guardada
   renameCategoria: (oldCat, newCat) => {
     set((state) => {
       const updated = state.categoriasGuardadas.map((c) => c === oldCat ? newCat : c)
@@ -58,7 +43,7 @@ const useTorneosStore = create((set, get) => ({
     })
   },
 
-  // Agrega un nuevo torneo (siempre arranca en draft)
+  // Fallback local cuando el backend no está disponible
   addTorneo: (form) => {
     const nuevo = {
       id: Date.now(),
@@ -83,110 +68,75 @@ const useTorneosStore = create((set, get) => ({
       servicios: form.servicios ?? [],
       imagenFondo: form.imagenFondo ?? '',
       colorAcento: null,
-      estiloCardFixture: 'oscura',
-      colorCardFixture: null,
-      estiloCardGrupos: 'oscura',
-      colorCardGrupos: null,
-      colorCard: null,
-      estiloCard: 'oscura',
-      fontScale: 'normal',
-      imagenFondoDraw: null,
-      imagenFondoBracket: null,
-      imagenFondoFixture: null,
-      imagenFondoGrupos: null,
-      imagenHeaderGrupos: null,
-      colorTextoCardGrupos: null,
-      sponsors: [],
-      sponsorScale: 'normal',
-      bannerLateral1Fixture: null,
-      bannerLateral2Fixture: null,
-      bannerLateral1Grupos: null,
-      bannerLateral2Grupos: null,
-      drawMostrarClub: true,
-      drawTitulo: 'Main Draw',
-      drawMostrarNombre: true,
-      drawMostrarFechas: true,
-      drawMostrarCategorias: true,
-      drawColorTitulo: null,
-      bracketColores: {},
-      bracketColorCards: {},
-      cupoEsperaPorCategoria: form.cupoLibre ? {} : Object.fromEntries(Object.entries(form.cupoEsperaPorCategoria ?? {}).map(([k, v]) => [k, v === '' ? 0 : v])),
+      estiloCardFixture: 'oscura', colorCardFixture: null,
+      estiloCardGrupos: 'oscura',  colorCardGrupos: null,
+      colorCard: null, estiloCard: 'oscura', fontScale: 'normal',
+      imagenFondoDraw: null, imagenFondoBracket: null,
+      imagenFondoFixture: null, imagenFondoGrupos: null,
+      imagenHeaderGrupos: null, colorTextoCardGrupos: null,
+      sponsors: [], sponsorScale: 'normal',
+      bannerLateral1Fixture: null, bannerLateral2Fixture: null,
+      bannerLateral1Grupos: null,  bannerLateral2Grupos: null,
+      drawMostrarClub: true, drawTitulo: 'Main Draw',
+      drawMostrarNombre: true, drawMostrarFechas: true,
+      drawMostrarCategorias: true, drawColorTitulo: null,
+      bracketColores: {}, bracketColorCards: {},
+      cupoEsperaPorCategoria: form.cupoLibre ? {} : Object.fromEntries(
+        Object.entries(form.cupoEsperaPorCategoria ?? {}).map(([k, v]) => [k, v === '' ? 0 : v])
+      ),
       generoPorCategoria: form.generoPorCategoria ?? {},
       estado: 'draft',
-      inscriptos: [],
-      grupos: null,
-      brackets: {},
-      ganador: null,
-      subcampeon: null,
+      inscriptos: [], grupos: null, brackets: {},
+      ganador: null, subcampeon: null,
     }
-    set((state) => {
-      const updated = [nuevo, ...state.torneos]
-      save(updated)
-      return { torneos: updated }
-    })
+    set((state) => ({ torneos: [nuevo, ...state.torneos] }))
     return nuevo
   },
 
-  // Transiciona el estado de un torneo
   setEstado: (id, estado) => {
-    set((state) => {
-      const updated = state.torneos.map((t) => t.id === id ? { ...t, estado } : t)
-      save(updated)
-      return { torneos: updated }
-    })
+    set((state) => ({
+      torneos: state.torneos.map((t) => t.id === id ? { ...t, estado } : t)
+    }))
   },
 
-  // Asigna el bracket de una categoría y pasa a in_progress
   setBracket: (id, categoria, bracket) => {
-    set((state) => {
-      const updated = state.torneos.map((t) =>
+    set((state) => ({
+      torneos: state.torneos.map((t) =>
         t.id === id
           ? { ...t, brackets: { ...(t.brackets ?? {}), [categoria]: bracket }, estado: 'in_progress' }
           : t
       )
-      save(updated)
-      return { torneos: updated }
-    })
+    }))
   },
 
-  // Actualiza el bracket de una categoría (para avanzar ganadores)
   updateBracket: (id, categoria, bracket) => {
-    set((state) => {
-      const updated = state.torneos.map((t) =>
+    set((state) => ({
+      torneos: state.torneos.map((t) =>
         t.id === id
           ? { ...t, brackets: { ...(t.brackets ?? {}), [categoria]: bracket } }
           : t
       )
-      save(updated)
-      return { torneos: updated }
-    })
+    }))
   },
 
-  // Da de baja una pareja inscripta
   bajaInscripto: (torneoId, inscriptoId) => {
-    set((state) => {
-      const updated = state.torneos.map((t) =>
+    set((state) => ({
+      torneos: state.torneos.map((t) =>
         t.id === torneoId
           ? { ...t, inscriptos: t.inscriptos.filter((i) => i.id !== inscriptoId) }
           : t
       )
-      save(updated)
-      return { torneos: updated }
-    })
+    }))
   },
 
-  // Agrega una pareja ya creada en el backend (con cuid ID)
   addParejaFromApi: (torneoId, pareja) => {
-    set((state) => {
-      const updated = state.torneos.map((t) =>
+    set((state) => ({
+      torneos: state.torneos.map((t) =>
         t.id === torneoId ? { ...t, inscriptos: [...t.inscriptos, pareja] } : t
       )
-      save(updated)
-      return { torneos: updated }
-    })
+    }))
   },
 
-  // Inscribe una pareja en un torneo
   addPareja: (torneoId, pareja) => {
     set((state) => {
       const torneo = state.torneos.find((t) => t.id === torneoId)
@@ -194,94 +144,69 @@ const useTorneosStore = create((set, get) => ({
       const nextId = torneo.inscriptos.length
         ? Math.max(...torneo.inscriptos.map((i) => i.id)) + 1
         : 1
-      const nueva = { id: nextId, ...pareja }
-      const updated = state.torneos.map((t) =>
-        t.id === torneoId ? { ...t, inscriptos: [...t.inscriptos, nueva] } : t
-      )
-      save(updated)
-      return { torneos: updated }
+      return {
+        torneos: state.torneos.map((t) =>
+          t.id === torneoId
+            ? { ...t, inscriptos: [...t.inscriptos, { id: nextId, ...pareja }] }
+            : t
+        )
+      }
     })
   },
 
-  // Asigna la fase de grupos generada
   setGrupos: (torneoId, grupos) => {
-    set((state) => {
-      const updated = state.torneos.map((t) =>
-        t.id === torneoId ? { ...t, grupos } : t
-      )
-      save(updated)
-      return { torneos: updated }
-    })
+    set((state) => ({
+      torneos: state.torneos.map((t) => t.id === torneoId ? { ...t, grupos } : t)
+    }))
   },
 
-  // Actualiza los grupos (para registrar resultados de partidos)
   updateGrupos: (torneoId, grupos) => {
-    set((state) => {
-      const updated = state.torneos.map((t) =>
-        t.id === torneoId ? { ...t, grupos } : t
-      )
-      save(updated)
-      return { torneos: updated }
-    })
+    set((state) => ({
+      torneos: state.torneos.map((t) => t.id === torneoId ? { ...t, grupos } : t)
+    }))
   },
 
-  // Resuelve manualmente un empate en zona de 3
   resolveGroupTie: (torneoId, zonaIdx, primero, segundo) => {
-    set((state) => {
-      const updated = state.torneos.map((t) => {
+    set((state) => ({
+      torneos: state.torneos.map((t) => {
         if (t.id !== torneoId || !t.grupos) return t
         const newGrupos = JSON.parse(JSON.stringify(t.grupos))
         const zona = newGrupos[zonaIdx]
-        if (zona) {
-          zona.clasificados      = [primero, segundo]
-          zona.necesitaDesempate = false
-        }
+        if (zona) { zona.clasificados = [primero, segundo]; zona.necesitaDesempate = false }
         return { ...t, grupos: newGrupos }
       })
-      save(updated)
-      return { torneos: updated }
-    })
+    }))
   },
 
-  // Edita los datos de una pareja inscripta
   updatePareja: (torneoId, parejaId, changes) => {
-    set((state) => {
-      const updated = state.torneos.map((t) =>
+    set((state) => ({
+      torneos: state.torneos.map((t) =>
         t.id === torneoId
           ? { ...t, inscriptos: t.inscriptos.map((i) => i.id === parejaId ? { ...i, ...changes } : i) }
           : t
       )
-      save(updated)
-      return { torneos: updated }
-    })
+    }))
   },
 
-  // Elimina un torneo (solo draft / open)
   deleteTorneo: (id) => {
-    set((state) => {
-      const updated = state.torneos.filter((t) => t.id !== id)
-      save(updated)
-      return { torneos: updated }
-    })
+    set((state) => ({ torneos: state.torneos.filter((t) => t.id !== id) }))
   },
 
-  // Actualiza datos del formulario de un torneo existente
   updateTorneo: (id, form) => {
-    set((state) => {
-      const updated = state.torneos.map((t) =>
+    set((state) => ({
+      torneos: state.torneos.map((t) =>
         t.id !== id ? t : {
           ...t,
-          nombre: form.nombre,
-          categorias: form.categorias,
-          genero: form.genero,
+          nombre: form.nombre, categorias: form.categorias, genero: form.genero,
           cupoLibre: form.cupoLibre,
           cuposPorCategoria: form.cupoLibre ? {} : form.cuposPorCategoria,
-          cupoEsperaPorCategoria: form.cupoLibre ? {} : Object.fromEntries(Object.entries(form.cupoEsperaPorCategoria ?? {}).map(([k, v]) => [k, v === '' ? 0 : v])),
+          cupoEsperaPorCategoria: form.cupoLibre ? {} : Object.fromEntries(
+            Object.entries(form.cupoEsperaPorCategoria ?? {}).map(([k, v]) => [k, v === '' ? 0 : v])
+          ),
           generoPorCategoria: form.generoPorCategoria ?? {},
           formato: form.formato,
           canchasAsignadas: form.canchasAsignadas ?? [],
-          fechaInicio: form.fechaInicio,
-          fechaFin: form.fechaFin,
+          fechaInicio: form.fechaInicio, fechaFin: form.fechaFin,
           fechaLimiteInscripcion: form.fechaLimiteInscripcion ?? null,
           diaInicioEliminatoria: form.diaInicioEliminatoria ?? null,
           horaInicioEliminatoria: form.horaInicioEliminatoria ?? null,
@@ -295,70 +220,44 @@ const useTorneosStore = create((set, get) => ({
           imagenFondo: form.imagenFondo ?? '',
         }
       )
-      save(updated)
-      return { torneos: updated }
-    })
+    }))
   },
 
-  // Actualiza el color de bracket de una categoría específica
   updateBracketColor: (torneoId, categoria, color) => {
-    set((state) => {
-      const updated = state.torneos.map((t) =>
+    set((state) => ({
+      torneos: state.torneos.map((t) =>
         t.id === torneoId
           ? { ...t, bracketColores: { ...(t.bracketColores ?? {}), [categoria]: color } }
           : t
       )
-      save(updated)
-      return { torneos: updated }
-    })
+    }))
   },
 
-  // Actualiza solo los campos de personalización visual
   updatePersonalizacion: (id, campos) => {
-    set((state) => {
-      const updated = state.torneos.map((t) =>
-        t.id === id ? { ...t, ...campos } : t
-      )
-      save(updated)
-      return { torneos: updated }
-    })
+    set((state) => ({
+      torneos: state.torneos.map((t) => t.id === id ? { ...t, ...campos } : t)
+    }))
   },
 
-  // Reemplaza todos los torneos (carga inicial desde backend)
-  setTorneos: (torneos) => {
-    set(() => {
-      save(torneos)
-      return { torneos }
-    })
-  },
+  // Reemplaza todos los torneos (carga desde backend)
+  setTorneos: (torneos) => set({ torneos }),
 
-  // Agrega un torneo ya creado en el backend (ID cuid)
   addTorneoFromApi: (torneo) => {
-    set((state) => {
-      const updated = [torneo, ...state.torneos]
-      save(updated)
-      return { torneos: updated }
-    })
+    set((state) => ({ torneos: [torneo, ...state.torneos] }))
   },
 
-  // Actualiza un torneo desde la respuesta del backend
   updateTorneoFromApi: (torneo) => {
-    set((state) => {
-      const updated = state.torneos.map((t) => t.id === torneo.id ? { ...t, ...torneo } : t)
-      save(updated)
-      return { torneos: updated }
-    })
+    set((state) => ({
+      torneos: state.torneos.map((t) => t.id === torneo.id ? { ...t, ...torneo } : t)
+    }))
   },
 
-  // Registra campeón y subcampeón al finalizar el bracket
   setGanadores: (id, { ganador, subcampeon }) => {
-    set((state) => {
-      const updated = state.torneos.map((t) =>
+    set((state) => ({
+      torneos: state.torneos.map((t) =>
         t.id === id ? { ...t, ganador, subcampeon, estado: 'finished' } : t
       )
-      save(updated)
-      return { torneos: updated }
-    })
+    }))
   },
 }))
 

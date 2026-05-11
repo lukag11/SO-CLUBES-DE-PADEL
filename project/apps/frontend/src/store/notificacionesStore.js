@@ -21,6 +21,18 @@ const saveNotificaciones = (list) => {
   try { localStorage.setItem(NOTIF_KEY, JSON.stringify(list)) } catch { /* ignore */ }
 }
 
+const TIPOS_TORNEO = ['inscripcion_torneo', 'baja_torneo', 'actualizacion_torneo', 'completacion_torneo']
+
+// Elimina notificaciones previas del mismo jugador en el mismo torneo antes de agregar la nueva
+const coalesceNotif = (list, nueva) => {
+  if (!TIPOS_TORNEO.includes(nueva.tipo)) return list
+  return list.filter((n) =>
+    !(TIPOS_TORNEO.includes(n.tipo) &&
+      n.torneoId === nueva.torneoId &&
+      n.jugador1 === nueva.jugador1)
+  )
+}
+
 const useNotificacionesStore = create((set, get) => ({
   notificaciones: loadNotificaciones(),
 
@@ -134,16 +146,13 @@ const useNotificacionesStore = create((set, get) => ({
     const nueva = {
       id: Date.now(),
       tipo: 'completacion_torneo',
-      jugador1,
-      jugador2,
-      categoria,
-      torneoNombre,
+      jugador1, jugador2, categoria, torneoNombre,
       torneoId: torneoId ?? null,
       leida: false,
       timestamp: new Date().toISOString(),
     }
     set((state) => {
-      const updated = [nueva, ...state.notificaciones]
+      const updated = [nueva, ...coalesceNotif(state.notificaciones, nueva)]
       saveNotificaciones(updated)
       return { notificaciones: updated }
     })
@@ -154,16 +163,13 @@ const useNotificacionesStore = create((set, get) => ({
     const nueva = {
       id: Date.now(),
       tipo: 'actualizacion_torneo',
-      jugador1,
-      jugador2,
-      categoria,
-      torneoNombre,
+      jugador1, jugador2, categoria, torneoNombre,
       torneoId: torneoId ?? null,
       leida: false,
       timestamp: new Date().toISOString(),
     }
     set((state) => {
-      const updated = [nueva, ...state.notificaciones]
+      const updated = [nueva, ...coalesceNotif(state.notificaciones, nueva)]
       saveNotificaciones(updated)
       return { notificaciones: updated }
     })
@@ -174,16 +180,13 @@ const useNotificacionesStore = create((set, get) => ({
     const nueva = {
       id: Date.now(),
       tipo: 'baja_torneo',
-      jugador1,
-      jugador2,
-      categoria,
-      torneoNombre,
+      jugador1, jugador2, categoria, torneoNombre,
       torneoId: torneoId ?? null,
       leida: false,
       timestamp: new Date().toISOString(),
     }
     set((state) => {
-      const updated = [nueva, ...state.notificaciones]
+      const updated = [nueva, ...coalesceNotif(state.notificaciones, nueva)]
       saveNotificaciones(updated)
       return { notificaciones: updated }
     })
@@ -194,17 +197,14 @@ const useNotificacionesStore = create((set, get) => ({
     const nueva = {
       id: Date.now(),
       tipo: 'inscripcion_torneo',
-      jugador1,
-      jugador2,
-      categoria,
-      torneoNombre,
+      jugador1, jugador2, categoria, torneoNombre,
       torneoId: torneoId ?? null,
       vaAEspera,
       leida: false,
       timestamp: new Date().toISOString(),
     }
     set((state) => {
-      const updated = [nueva, ...state.notificaciones]
+      const updated = [nueva, ...coalesceNotif(state.notificaciones, nueva)]
       saveNotificaciones(updated)
       return { notificaciones: updated }
     })

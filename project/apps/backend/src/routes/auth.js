@@ -41,6 +41,29 @@ router.post('/admin/login', async (req, res) => {
   }
 })
 
+const jugadorPublico = (j) => ({
+  id:                  j.id,
+  nombre:              j.nombre,
+  apellido:            j.apellido,
+  dni:                 j.dni,
+  email:               j.email,
+  telefono:            j.telefono,
+  genero:              j.genero,
+  apodo:               j.apodo,
+  fechaNacimiento:     j.fechaNacimiento,
+  provincia:           j.provincia,
+  ciudad:              j.ciudad,
+  posicion:            j.posicion,
+  mano:                j.mano,
+  categoria:           j.categoria,
+  frecuencia:          j.frecuencia,
+  diasDisponibles:     j.diasDisponibles,
+  horariosDisponibles: j.horariosDisponibles,
+  perfilPublico:       j.perfilPublico,
+  role:                'jugador',
+  club:                { id: j.club.id, nombre: j.club.nombre },
+})
+
 // POST /api/auth/jugador/login
 router.post('/jugador/login', async (req, res) => {
   const { dni, password, clubId } = req.body
@@ -61,24 +84,12 @@ router.post('/jugador/login', async (req, res) => {
     if (!(await bcrypt.compare(password, jugador.password))) {
       return res.status(401).json({ error: 'Contraseña incorrecta' })
     }
-
     if (!jugador.activo) {
       return res.status(403).json({ error: 'Cuenta inactiva' })
     }
 
     const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId })
-
-    res.json({
-      token,
-      user: {
-        id: jugador.id,
-        nombre: jugador.nombre,
-        apellido: jugador.apellido,
-        dni: jugador.dni,
-        role: 'jugador',
-        club: { id: jugador.club.id, nombre: jugador.club.nombre },
-      },
-    })
+    res.json({ token, user: jugadorPublico(jugador) })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error interno del servidor' })
@@ -87,7 +98,12 @@ router.post('/jugador/login', async (req, res) => {
 
 // POST /api/auth/jugador/registro
 router.post('/jugador/registro', async (req, res) => {
-  const { nombre, apellido, dni, password, email, telefono, clubId } = req.body
+  const {
+    nombre, apellido, dni, password, email, telefono, clubId,
+    genero, apodo, fechaNacimiento, provincia, ciudad,
+    posicion, mano, categoria, frecuencia,
+    diasDisponibles, horariosDisponibles, perfilPublico,
+  } = req.body
 
   if (!nombre || !apellido || !dni || !password || !clubId) {
     return res.status(400).json({ error: 'Faltan datos obligatorios' })
@@ -97,7 +113,6 @@ router.post('/jugador/registro', async (req, res) => {
     const existe = await prisma.jugador.findUnique({
       where: { clubId_dni: { clubId, dni } },
     })
-
     if (existe) {
       return res.status(409).json({ error: 'Ya existe un jugador con ese DNI en este club' })
     }
@@ -105,23 +120,26 @@ router.post('/jugador/registro', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10)
 
     const jugador = await prisma.jugador.create({
-      data: { clubId, nombre, apellido, dni, password: passwordHash, email, telefono },
+      data: {
+        clubId, nombre, apellido, dni, password: passwordHash, email, telefono,
+        genero:              genero              ?? null,
+        apodo:               apodo               ?? null,
+        fechaNacimiento:     fechaNacimiento     ?? null,
+        provincia:           provincia           ?? null,
+        ciudad:              ciudad              ?? null,
+        posicion:            posicion            ?? null,
+        mano:                mano                ?? null,
+        categoria:           categoria           ?? null,
+        frecuencia:          frecuencia          ?? null,
+        diasDisponibles:     diasDisponibles     ?? [],
+        horariosDisponibles: horariosDisponibles ?? [],
+        perfilPublico:       perfilPublico       ?? false,
+      },
       include: { club: true },
     })
 
     const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId })
-
-    res.status(201).json({
-      token,
-      user: {
-        id: jugador.id,
-        nombre: jugador.nombre,
-        apellido: jugador.apellido,
-        dni: jugador.dni,
-        role: 'jugador',
-        club: { id: jugador.club.id, nombre: jugador.club.nombre },
-      },
-    })
+    res.status(201).json({ token, user: jugadorPublico(jugador) })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error interno del servidor' })

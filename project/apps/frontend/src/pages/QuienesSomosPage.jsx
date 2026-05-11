@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import useClubStore from '../store/clubStore'
 import useProfesoresStore from '../store/profesoresStore'
+import useAuthStore from '../store/authStore'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -2003,6 +2004,8 @@ const QuienesSomosPage = () => {
   const [activeTab, setActiveTab] = useState('info')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { club, updateClub, updateCancha, updateHorario, setCantidadCanchas, saveClub } = useClubStore()
+  const token = useAuthStore((s) => s.token)
+  const boundSaveClub = () => saveClub(token)
 
   return (
     <div className="flex flex-col gap-6">
@@ -2087,16 +2090,16 @@ const QuienesSomosPage = () => {
       </div>
 
       {/* Contenido */}
-      {activeTab === 'info'       && <TabInfo       club={club} updateClub={updateClub} saveClub={saveClub} />}
-      {activeTab === 'canchas'    && <TabCanchas    club={club} updateCancha={updateCancha} setCantidadCanchas={setCantidadCanchas} updateHorario={updateHorario} saveClub={saveClub} />}
-      {activeTab === 'historia'   && <TabHistoria   club={club} updateClub={updateClub} saveClub={saveClub} />}
-      {activeTab === 'hero'       && <TabHero       club={club} updateClub={updateClub} saveClub={saveClub} />}
-      {activeTab === 'galeria'    && <TabGaleria    club={club} updateClub={updateClub} saveClub={saveClub} />}
-      {activeTab === 'servicios'  && <TabServicios  club={club} updateClub={updateClub} saveClub={saveClub} />}
-      {activeTab === 'staff'       && <TabStaff       club={club} updateClub={updateClub} saveClub={saveClub} />}
+      {activeTab === 'info'       && <TabInfo       club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
+      {activeTab === 'canchas'    && <TabCanchas    club={club} updateCancha={updateCancha} setCantidadCanchas={setCantidadCanchas} updateHorario={updateHorario} saveClub={boundSaveClub} />}
+      {activeTab === 'historia'   && <TabHistoria   club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
+      {activeTab === 'hero'       && <TabHero       club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
+      {activeTab === 'galeria'    && <TabGaleria    club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
+      {activeTab === 'servicios'  && <TabServicios  club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
+      {activeTab === 'staff'       && <TabStaff       club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
       {activeTab === 'profesores'  && <TabProfesores  club={club} />}
-      {activeTab === 'faq'         && <TabFaq         club={club} updateClub={updateClub} saveClub={saveClub} />}
-      {activeTab === 'apariencia' && <TabApariencia club={club} updateClub={updateClub} saveClub={saveClub} />}
+      {activeTab === 'faq'         && <TabFaq         club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
+      {activeTab === 'apariencia' && <TabApariencia club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
     </div>
   )
 }

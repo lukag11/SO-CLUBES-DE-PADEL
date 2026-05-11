@@ -14,6 +14,7 @@ model Club {
   slug        String   @unique
   logoUrl     String?
   activo      Boolean  @default(true)
+  config      Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -41,17 +42,30 @@ model Admin {
 }
 
 model Jugador {
-  id        String   @id @default(cuid())
-  clubId    String
-  nombre    String
-  apellido  String
-  dni       String
-  email     String?
-  telefono  String?
-  password  String
-  activo    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  clubId              String
+  nombre              String
+  apellido            String
+  dni                 String
+  email               String?
+  telefono            String?
+  password            String
+  activo              Boolean  @default(true)
+  // Perfil extendido
+  genero              String?
+  apodo               String?
+  fechaNacimiento     String?
+  provincia           String?
+  ciudad              String?
+  posicion            String?
+  mano                String?
+  categoria           String?
+  frecuencia          String?
+  diasDisponibles     String[]
+  horariosDisponibles String[]
+  perfilPublico       Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   club     Club      @relation(fields: [clubId], references: [id])
   reservas Reserva[]
@@ -109,6 +123,8 @@ model Torneo {
   cupoLibre              Boolean  @default(false)
   cuposPorCategoria      Json     @default("{}")
   cupoEspera             Int      @default(5)
+  cupoEsperaPorCategoria Json     @default("{}")
+  generoPorCategoria     Json     @default("{}")
   canchasAsignadas       Int[]
   fechaInicio            String?
   fechaFin               String?

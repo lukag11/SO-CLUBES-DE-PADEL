@@ -16,8 +16,6 @@ import InfoBlock from '../components/InfoBlock'
 const fmtFecha = (iso) =>
   new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
 
-const totalCupo = (torneo) =>
-  torneo.cupoLibre ? null : Object.values(torneo.cuposPorCategoria).reduce((a, b) => a + b, 0)
 
 // Label de categoría con sufijo de género (solo cuando torneo es Ambos)
 const catLabelPlayer = (torneo, cat) => {
@@ -673,15 +671,23 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
 
 // ── Card torneo disponible ────────────────────────────────────────────────────
 
-const TorneoDisponibleCard = ({ torneo, onInscribirse }) => {
-  const cupo        = totalCupo(torneo)
-  const inscriptos  = torneo.inscriptos.filter((i) => i.estado !== 'espera').length
-  const enEspera    = torneo.inscriptos.filter((i) => i.estado === 'espera').length
-  const cupoEsperaTotal = Object.values(torneo.cupoEsperaPorCategoria ?? {}).reduce((a, b) => a + b, 0)
-  const lleno       = cupo !== null && inscriptos >= cupo
-  const hayEspera   = lleno && enEspera < cupoEsperaTotal
-  const totalLleno  = lleno && enEspera >= cupoEsperaTotal
-  const pct         = cupo ? Math.round((inscriptos / cupo) * 100) : 0
+const TorneoDisponibleCard = ({ torneo, onInscribirse, playerGenero }) => {
+  const catsVisibles = categoriasParaJugador(torneo, playerGenero)
+
+  const catStats = catsVisibles.map((cat) => {
+    const cupo        = torneo.cupoLibre ? null : (torneo.cuposPorCategoria?.[cat] ?? null)
+    const confirmados = torneo.inscriptos.filter((i) => i.categoria === cat && i.estado !== 'espera').length
+    const enEspera    = torneo.inscriptos.filter((i) => i.categoria === cat && i.estado === 'espera').length
+    const cupoEspera  = (torneo.cupoEsperaPorCategoria ?? {})[cat] ?? 0
+    const lleno       = cupo !== null && confirmados >= cupo
+    const hayEsperaCat = lleno && enEspera < cupoEspera
+    const totalLlenoCat = lleno && enEspera >= cupoEspera
+    const pct         = cupo ? Math.round((confirmados / cupo) * 100) : 0
+    return { cat, cupo, confirmados, enEspera, cupoEspera, lleno, hayEsperaCat, totalLlenoCat, pct }
+  })
+
+  const todasLlenas    = catStats.length > 0 && catStats.every((s) => s.totalLlenoCat)
+  const hayEsperaAlguna = catStats.some((s) => s.hayEsperaCat)
 
   return (
     <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5 flex flex-col gap-4 hover:border-white/15 transition-colors">
@@ -714,48 +720,54 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse }) => {
         <p className="text-white/30 text-xs leading-relaxed line-clamp-2">{torneo.descripcion}</p>
       )}
 
-      {/* Cupo */}
-      <div>
-        <div className="flex justify-between items-center mb-1.5">
-          <span className="text-white/35 text-xs">Parejas inscriptas</span>
-          {torneo.cupoLibre ? (
-            <span className="flex items-center gap-1 text-xs font-semibold text-sky-400">
-              <InfinityIcon size={11} /> Sin límite
-            </span>
-          ) : (
-            <span className={`text-xs font-semibold ${totalLleno ? 'text-red-400' : lleno ? 'text-amber-400' : 'text-white/60'}`}>
-              {inscriptos} / {cupo}
-            </span>
-          )}
-        </div>
-        {!torneo.cupoLibre && (
-          <div className="h-1 bg-white/8 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${totalLleno ? 'bg-red-500' : lleno ? 'bg-amber-400' : 'bg-[#afca0b]'}`}
-              style={{ width: `${Math.min(pct, 100)}%` }}
-            />
-          </div>
-        )}
-        {hayEspera && (
-          <p className="text-[11px] text-amber-400 mt-1.5">
-            Cupo completo · quedan {cupoEsperaTotal - enEspera} lugar{cupoEsperaTotal - enEspera !== 1 ? 'es' : ''} en lista de espera
-          </p>
+      {/* Cupo por categoría (solo las del jugador) */}
+      <div className="flex flex-col gap-2">
+        <span className="text-white/35 text-xs">Parejas inscriptas</span>
+        {torneo.cupoLibre ? (
+          <span className="flex items-center gap-1 text-xs font-semibold text-sky-400">
+            <InfinityIcon size={11} /> Sin límite
+          </span>
+        ) : (
+          catStats.map(({ cat, cupo, confirmados, enEspera, cupoEspera, totalLlenoCat, hayEsperaCat, pct }) => {
+            const shortCat = cat.match(/^(\d+°)/)?.[1] ?? cat
+            return (
+              <div key={cat}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-white/40 text-xs">{shortCat} Cat.</span>
+                  <span className={`text-xs font-semibold ${totalLlenoCat ? 'text-red-400' : hayEsperaCat ? 'text-amber-400' : 'text-white/60'}`}>
+                    {confirmados} / {cupo}
+                  </span>
+                </div>
+                <div className="h-1 bg-white/8 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${totalLlenoCat ? 'bg-red-500' : hayEsperaCat ? 'bg-amber-400' : 'bg-[#afca0b]'}`}
+                    style={{ width: `${Math.min(pct, 100)}%` }}
+                  />
+                </div>
+                {hayEsperaCat && (
+                  <p className="text-[11px] text-amber-400 mt-1">
+                    Cupo completo · quedan {cupoEspera - enEspera} lugar{cupoEspera - enEspera !== 1 ? 'es' : ''} en espera
+                  </p>
+                )}
+              </div>
+            )
+          })
         )}
       </div>
 
       <button
         onClick={() => onInscribirse(torneo)}
-        disabled={totalLleno}
+        disabled={todasLlenas}
         className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${
-          totalLleno
+          todasLlenas
             ? 'bg-white/5 text-white/25 cursor-not-allowed'
-            : hayEspera
+            : hayEsperaAlguna
               ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30'
               : 'bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117]'
         }`}
       >
         <Plus size={15} />
-        {totalLleno ? 'Sin lugares' : hayEspera ? 'Anotarme en lista de espera' : 'Inscribirme'}
+        {todasLlenas ? 'Sin lugares' : hayEsperaAlguna ? 'Anotarme en lista de espera' : 'Inscribirme'}
       </button>
     </div>
   )
@@ -1297,7 +1309,7 @@ const PlayerTournamentsPage = () => {
     ? `${player.nombre}${player.apellido ? ' ' + player.apellido : ''}`
     : ''
   const playerDni  = player?.dni    ?? ''
-  const playerClubId = player?.clubId ?? null
+  const playerClubId = player?.club?.id ?? player?.clubId ?? null
   const authH      = playerToken ? { Authorization: `Bearer ${playerToken}` } : {}
 
   // Cargar torneos desde backend si el store no tiene datos del backend
@@ -1493,6 +1505,7 @@ const PlayerTournamentsPage = () => {
                 key={t.id}
                 torneo={t}
                 onInscribirse={setModalTorneo}
+                playerGenero={player?.genero}
               />
             ))}
           </div>

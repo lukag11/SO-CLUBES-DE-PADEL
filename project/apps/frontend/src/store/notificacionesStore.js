@@ -58,7 +58,7 @@ const useNotificacionesStore = create((set, get) => ({
   },
 
   // Jugador confirma una reserva online → avisa al admin
-  nuevaReservaJugador: ({ jugador, canchaNombre, canchaId, fecha, hora, horaFin, precio }) => {
+  nuevaReservaJugador: ({ jugador, canchaNombre, canchaId, fecha, hora, horaFin, precio, backendReservaId = null }) => {
     const nueva = {
       id: Date.now(),
       tipo: 'nueva_reserva',
@@ -69,6 +69,7 @@ const useNotificacionesStore = create((set, get) => ({
       inicio: hora,
       fin: horaFin || add90min(hora),
       precio,
+      backendReservaId,
       leida: false,
       timestamp: new Date().toISOString(),
     }

@@ -4,6 +4,7 @@ import { Zap, BarChart2, Trophy, Users, LogOut, LayoutDashboard, UserCircle, Rep
 import usePlayerStore from '../store/playerStore'
 import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 import useReservasStore from '../store/reservasStore'
+import useTurnosFijosStore from '../store/turnosFijosStore'
 import { api } from '../lib/api'
 
 const navItems = [
@@ -19,10 +20,20 @@ const navItems = [
 const PlayerLayout = () => {
   const { isAuthenticated, player, token } = usePlayerStore()
   const logout = usePlayerStore((s) => s.logout)
+  const setPlayer = usePlayerStore((s) => s.setPlayer)
   const sinLeer = usePlayerNotificationsStore((s) => s.notificaciones.filter((n) => !n.leida).length)
   const setReservas = useReservasStore((s) => s.setReservas)
+  const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Carga datos actualizados del jugador desde el backend
+  useEffect(() => {
+    if (!token) return
+    api.get('/jugadores/me', { Authorization: `Bearer ${token}` })
+      .then((data) => { if (data?.id) setPlayer(data) })
+      .catch(() => {})
+  }, [token])
 
   // Carga las reservas propias del jugador desde el backend al montar el layout
   useEffect(() => {
@@ -46,6 +57,14 @@ const PlayerLayout = () => {
         })))
       })
       .catch(() => { /* mantiene reservas en memoria como fallback */ })
+  }, [token])
+
+  // Carga turnos fijos del jugador desde el backend al montar
+  useEffect(() => {
+    if (!token) return
+    api.get('/turnos-fijos/me', { Authorization: `Bearer ${token}` })
+      .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
+      .catch(() => {})
   }, [token])
 
   if (!isAuthenticated) {

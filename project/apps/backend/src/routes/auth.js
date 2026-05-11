@@ -2,8 +2,30 @@ import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
 import { signToken } from '../lib/jwt.js'
+import { requireAuth, requireRole } from '../middleware/auth.js'
 
 const router = Router()
+
+// GET /api/auth/admin/me — datos actualizados del admin autenticado
+router.get('/admin/me', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const admin = await prisma.admin.findUnique({
+      where: { id: req.user.id },
+      include: { club: { select: { id: true, nombre: true, slug: true } } },
+    })
+    if (!admin) return res.status(404).json({ error: 'Admin no encontrado' })
+    res.json({
+      id: admin.id,
+      nombre: admin.nombre,
+      email: admin.email,
+      role: 'admin',
+      club: { id: admin.club.id, nombre: admin.club.nombre, slug: admin.club.slug },
+    })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener admin' })
+  }
+})
 
 // POST /api/auth/admin/login
 router.post('/admin/login', async (req, res) => {

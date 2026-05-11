@@ -46,7 +46,14 @@ const PlayerAuthPage = () => {
       login(data.user, data.token)
       navigate('/dashboardJugadores/dashboard')
     } catch (err) {
-      setError(err.message || 'DNI o contraseña incorrectos')
+      const msg = err.message || ''
+      if (msg.includes('no registrado') || msg.includes('no encontrado')) {
+        setError('Cuenta inexistente. ¿Todavía no te registraste?')
+      } else if (msg.includes('incorrecta') || msg.includes('incorrectos')) {
+        setError('Contraseña incorrecta')
+      } else {
+        setError(msg || 'No se pudo iniciar sesión')
+      }
       setLoading(false)
     }
   }
@@ -146,8 +153,16 @@ const PlayerAuthPage = () => {
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3">
-                {error}
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+                <span>{error}</span>
+                {error.includes('inexistente') && (
+                  <Link
+                    to="/dashboardJugadores/registro"
+                    className="text-[#afca0b] font-semibold text-xs whitespace-nowrap hover:underline shrink-0 mt-0.5"
+                  >
+                    Registrarme →
+                  </Link>
+                )}
               </div>
             )}
 

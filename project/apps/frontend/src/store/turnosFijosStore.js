@@ -8,7 +8,19 @@ const useTurnosFijosStore = create((set, get) => ({
   // Carga desde backend
   setTurnosFijos: (turnosFijos) => set({ turnosFijos }),
 
-  // Admin aprueba una solicitud de turno fijo del jugador
+  // Agrega un turno fijo recibido desde el backend (jugador solicita o admin aprueba)
+  addTurnoFijoFromApi: (turno) => {
+    set((state) => ({ turnosFijos: [turno, ...state.turnosFijos] }))
+  },
+
+  // Actualiza campos de un turno fijo existente (aprobación, ausencias, etc.)
+  updateTurnoFijo: (id, data) => {
+    set((state) => ({
+      turnosFijos: state.turnosFijos.map((t) => t.id === id ? { ...t, ...data } : t),
+    }))
+  },
+
+  // Admin aprueba una solicitud de turno fijo del jugador (flow local legacy)
   addTurnoFijo: ({ canchaId, canchaNombre, canchaInfo, dia, inicio, fin, precio, jugador, reservaId }) => {
     const nuevo = {
       id: Date.now(),

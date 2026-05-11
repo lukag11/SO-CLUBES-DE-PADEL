@@ -229,7 +229,7 @@ const Step1Basicos = ({ form, errors, handleChange, handleBlur, setValue }) => {
         type="email"
         placeholder="lucas@email.com"
         value={form.email}
-        onChange={(e) => { handleChange(e); handleBlur('email') }}
+        onChange={handleChange}
         onBlur={() => handleBlur('email')}
         icon={Mail}
         error={errors.email}

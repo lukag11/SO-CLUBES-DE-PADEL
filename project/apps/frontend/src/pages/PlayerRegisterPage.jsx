@@ -147,33 +147,27 @@ const PlayerRegisterPage = () => {
       const clubId = 'cmoryx4a900008t4qmzdzuiee'
       const data = await api.post('/auth/jugador/registro', {
         clubId,
-        nombre:   form.nombre,
-        apellido: form.apellido,
-        dni:      form.dni,
-        password: form.password,
-        email:    form.email,
-        telefono: form.telefono,
+        nombre:              form.nombre,
+        apellido:            form.apellido,
+        dni:                 form.dni,
+        password:            form.password,
+        email:               form.email,
+        telefono:            form.telefono,
+        genero:              form.genero,
+        apodo:               form.apodo,
+        fechaNacimiento:     form.fechaNacimiento,
+        provincia:           form.provincia,
+        ciudad:              form.ciudad,
+        posicion:            form.posicion,
+        mano:                form.mano,
+        categoria:           form.categoria,
+        frecuencia:          form.frecuencia,
+        diasDisponibles:     form.diasDisponibles,
+        horariosDisponibles: form.horariosDisponibles,
+        perfilPublico:       form.perfilPublico ?? false,
       })
-      login(
-        {
-          ...data.user,
-          email:               form.email,
-          telefono:            form.telefono,
-          fechaNacimiento:     form.fechaNacimiento,
-          genero:              form.genero,
-          apodo:               form.apodo,
-          provincia:           form.provincia,
-          ciudad:              form.ciudad,
-          posicion:            form.posicion,
-          mano:                form.mano,
-          categoria:           form.categoria,
-          frecuencia:          form.frecuencia,
-          diasDisponibles:     form.diasDisponibles,
-          horariosDisponibles: form.horariosDisponibles,
-          perfilPublico:       form.perfilPublico,
-        },
-        data.token
-      )
+      // data.user ya contiene todos los campos devueltos por el backend
+      login(data.user, data.token)
       navigate('/dashboardJugadores/dashboard')
     } catch (err) {
       alert(err.message || 'Error al registrarse')

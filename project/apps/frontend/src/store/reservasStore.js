@@ -9,7 +9,7 @@ const useReservasStore = create((set, get) => ({
   // Carga desde backend
   setReservas: (reservas) => set({ reservas }),
 
-  addReserva: ({ canchaId, canchaNombre, canchaInfo, fecha, hora, horaFin = '', precio, esTurnoFijo = false }) => {
+  addReserva: ({ canchaId, canchaNombre, canchaInfo, fecha, hora, horaFin = '', precio, esTurnoFijo = false, backendReservaId = null }) => {
     const { player } = usePlayerStore.getState()
     const jugador = player
       ? `${player.nombre}${player.apellido ? ' ' + player.apellido : ''}`
@@ -53,7 +53,7 @@ const useReservasStore = create((set, get) => ({
     if (esTurnoFijo) {
       notifStore.solicitudTurnoFijo({ jugador, canchaNombre, canchaId, fecha, hora, horaFin, precio })
     } else {
-      notifStore.nuevaReservaJugador({ jugador, canchaNombre, canchaId, fecha, hora, horaFin, precio })
+      notifStore.nuevaReservaJugador({ jugador, canchaNombre, canchaId, fecha, hora, horaFin, precio, backendReservaId })
     }
     return nueva
   },

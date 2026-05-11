@@ -2,7 +2,8 @@ import { Repeat, AlertTriangle, CalendarDays, X, Clock } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import useNotificacionesStore from '../store/notificacionesStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { api } from '../lib/api'
 
 const DIAS_LABEL = {
   lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles',
@@ -125,23 +126,50 @@ const ModalAusencia = ({ turno, fecha, onConfirmar, onCerrar }) => {
 
 const PlayerTurnosFijosPage = () => {
   const player = usePlayerStore((s) => s.player)
+  const token = usePlayerStore((s) => s.token)
   const liberarTurnoNotif = useNotificacionesStore((s) => s.liberarTurno)
-  const { turnosFijos, registrarAusenciaPendiente } = useTurnosFijosStore()
+  const { turnosFijos, setTurnosFijos, registrarAusenciaPendiente, updateTurnoFijo } = useTurnosFijosStore()
 
   const [modalTurno, setModalTurno] = useState(null)
+  const [enviando, setEnviando] = useState(false)
+
+  // Recarga desde el backend cada vez que el jugador entra a esta página
+  useEffect(() => {
+    if (!token) return
+    api.get('/turnos-fijos/me', { Authorization: `Bearer ${token}` })
+      .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
+      .catch(() => {})
+  }, [token])
 
   const activos = turnosFijos.filter((t) => t.activo)
+  const pendientes = turnosFijos.filter((t) => t.estado === 'pendiente')
 
-  const handleConfirmarAusencia = (fecha) => {
-    registrarAusenciaPendiente(modalTurno.id, fecha)
-    liberarTurnoNotif({
-      jugador: `${player?.nombre ?? ''} ${player?.apellido ?? ''}`.trim(),
-      cancha: modalTurno.canchaNombre,
-      fecha,
-      inicio: modalTurno.inicio,
-      fin: modalTurno.fin,
-      turnoFijoId: modalTurno.id,
-    })
+  const handleConfirmarAusencia = async (fecha) => {
+    setEnviando(true)
+    try {
+      if (token) {
+        const updated = await api.post(
+          `/turnos-fijos/${modalTurno.id}/ausencia`,
+          { fecha },
+          { Authorization: `Bearer ${token}` }
+        )
+        updateTurnoFijo(modalTurno.id, { ausenciasPendientes: updated.ausenciasPendientes })
+      } else {
+        registrarAusenciaPendiente(modalTurno.id, fecha)
+      }
+      liberarTurnoNotif({
+        jugador: `${player?.nombre ?? ''} ${player?.apellido ?? ''}`.trim(),
+        cancha: modalTurno.canchaNombre,
+        fecha,
+        inicio: modalTurno.inicio,
+        fin: modalTurno.fin,
+        turnoFijoId: modalTurno.id,
+      })
+    } catch {
+      // fallback local si el backend falla
+      registrarAusenciaPendiente(modalTurno.id, fecha)
+    }
+    setEnviando(false)
     setModalTurno(null)
   }
 
@@ -161,9 +189,35 @@ const PlayerTurnosFijosPage = () => {
       <div>
         <h1 className="text-white text-2xl font-bold">Mis turnos fijos</h1>
         <p className="text-white/40 text-sm mt-1">
-          {activos.length} turno{activos.length !== 1 ? 's' : ''} activo{activos.length !== 1 ? 's' : ''}
+          {activos.length} activo{activos.length !== 1 ? 's' : ''}
+          {pendientes.length > 0 && ` · ${pendientes.length} pendiente${pendientes.length !== 1 ? 's' : ''} de aprobación`}
         </p>
       </div>
+
+      {/* Pendientes de aprobación */}
+      {pendientes.length > 0 && (
+        <div className="bg-amber-500/8 border border-amber-500/20 rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-amber-500/15 flex items-center gap-2">
+            <Clock size={15} className="text-amber-400" />
+            <h3 className="text-amber-300 font-semibold text-sm">Pendientes de aprobación</h3>
+          </div>
+          <div className="divide-y divide-white/5">
+            {pendientes.map((t) => (
+              <div key={t.id} className="px-6 py-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-white text-sm font-medium">
+                    {DIAS_LABEL[t.dia] ?? t.dia} · {t.inicio}–{t.fin}
+                  </p>
+                  <p className="text-white/40 text-xs mt-0.5">{t.canchaNombre}</p>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/25 shrink-0">
+                  Esperando aprobación
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Lista */}
       <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">

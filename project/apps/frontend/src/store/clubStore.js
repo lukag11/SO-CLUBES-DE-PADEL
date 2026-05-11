@@ -95,37 +95,8 @@ const applyColorsToDOM = (colorPrimario, colorSecundario, fontFamilia = 'Inter')
   document.documentElement.style.setProperty('--club-font', fontFamilia)
 }
 
-// Cargar config guardada en localStorage si existe
-const loadPersistedClub = () => {
-  try {
-    const saved = localStorage.getItem('club_config')
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      const merged = { ...INITIAL_CLUB, ...parsed }
-
-      // Deep merge de horarios: garantiza que cada día tenga apertura, cierre y activo
-      // aunque el registro guardado sea de una versión anterior o incompleta
-      merged.horarios = Object.fromEntries(
-        DIAS_SEMANA.map((dia) => [
-          dia,
-          {
-            ...INITIAL_CLUB.horarios[dia],
-            ...(parsed.horarios?.[dia] ?? {}),
-          },
-        ])
-      )
-
-      applyColorsToDOM(merged.colorPrimario, merged.colorSecundario, merged.fontFamilia)
-      return merged
-    }
-  } catch {
-    // ignorar error de parseo
-  }
-  return INITIAL_CLUB
-}
-
 const useClubStore = create((set, get) => ({
-  club: loadPersistedClub(),
+  club: INITIAL_CLUB,
 
   updateClub: (data) => {
     set((state) => ({ club: { ...state.club, ...data } }))
@@ -141,17 +112,15 @@ const useClubStore = create((set, get) => ({
   },
 
   updateHorario: (dia, data) => {
-    set((state) => {
-      const updated = {
+    set((state) => ({
+      club: {
         ...state.club,
         horarios: {
           ...state.club.horarios,
           [dia]: { ...state.club.horarios[dia], ...data },
         },
-      }
-      localStorage.setItem('club_config', JSON.stringify(updated))
-      return { club: updated }
-    })
+      },
+    }))
   },
 
   setCantidadCanchas: (n) => {
@@ -169,30 +138,40 @@ const useClubStore = create((set, get) => ({
     })
   },
 
-  // Carga config desde backend y la fusiona con los defaults
-  loadFromBackend: (backendConfig) => {
-    if (!backendConfig) return
-    set((state) => {
+  // Carga club completo desde backend (config + canchas reales)
+  loadFromBackend: (backendClub) => {
+    if (!backendClub) return
+    const config = backendClub.config ?? {}
+    const canchasDB = backendClub.canchas ?? []
+    set(() => {
       const merged = {
-        ...state.club,
-        ...backendConfig,
+        ...INITIAL_CLUB,
+        ...config,
         horarios: Object.fromEntries(
           DIAS_SEMANA.map((dia) => [
             dia,
-            { ...HORARIOS_DEFAULT[dia], ...(backendConfig.horarios?.[dia] ?? {}) },
+            { ...HORARIOS_DEFAULT[dia], ...(config.horarios?.[dia] ?? {}) },
           ])
         ),
+        ...(canchasDB.length > 0 && {
+          canchas: canchasDB.map((c) => ({
+            id: c.id,
+            nombre: c.nombre,
+            tipo: c.tipo ?? 'Cristal',
+            indoor: c.indoor ?? true,
+            activa: c.activo,
+            precioTurno: c.precioTurno ?? 0,
+          })),
+        }),
       }
-      localStorage.setItem('club_config', JSON.stringify(merged))
       applyColorsToDOM(merged.colorPrimario, merged.colorSecundario, merged.fontFamilia)
       return { club: merged }
     })
   },
 
-  // Guarda en localStorage + DOM + opcionalmente en el backend (si se pasa el token)
+  // Guarda en el backend y actualiza DOM — sin localStorage
   saveClub: (token) => {
     const { club } = get()
-    localStorage.setItem('club_config', JSON.stringify(club))
     applyColorsToDOM(club.colorPrimario, club.colorSecundario, club.fontFamilia)
     if (token) {
       const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
@@ -200,7 +179,7 @@ const useClubStore = create((set, get) => ({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ config: club }),
-      }).catch(() => { /* silent — localStorage ya guardó */ })
+      }).catch(() => {})
     }
   },
 }))

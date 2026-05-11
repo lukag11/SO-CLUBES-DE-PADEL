@@ -3,6 +3,7 @@ import { User, Lock, Save, Eye, EyeOff, CheckCircle, AlertCircle, ChevronDown, M
 import usePlayerStore from '../store/playerStore'
 import { DIAS, HORARIOS, POSICIONES, MANOS, CATEGORIAS, FRECUENCIAS } from '../hooks/useRegisterForm'
 import { useProvincias, useMunicipios } from '../hooks/useGeoref'
+import { api } from '../lib/api'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -154,7 +155,7 @@ const SectionCard = ({ title, children }) => (
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
-const DatosTab = ({ player, updatePlayer }) => {
+const DatosTab = ({ player, updatePlayer, token }) => {
   const [form, setForm] = useState({
     nombre:              player?.nombre              || '',
     apellido:            player?.apellido            || '',
@@ -200,15 +201,20 @@ const DatosTab = ({ player, updatePlayer }) => {
   const { provincias, loading: loadingProvincias } = useProvincias()
   const { municipios, loading: loadingMunicipios } = useMunicipios(form.provincia)
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const errs = validateProfileForm(form)
     if (Object.keys(errs).length > 0) {
       setErrors(errs)
       return
     }
-    updatePlayer(form)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    try {
+      const updated = await api.patch('/jugadores/me', form, { Authorization: `Bearer ${token}` })
+      updatePlayer(updated)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch {
+      setErrors({ general: 'No se pudo guardar. Intentá de nuevo.' })
+    }
   }
 
   return (
@@ -562,7 +568,7 @@ const TABS = [
 
 const PlayerProfilePage = () => {
   const [activeTab, setActiveTab] = useState('datos')
-  const { player, updatePlayer } = usePlayerStore()
+  const { player, updatePlayer, token } = usePlayerStore()
 
 
   const initials = player
@@ -609,7 +615,7 @@ const PlayerProfilePage = () => {
 
       {/* Contenido del tab */}
       {activeTab === 'datos'
-        ? <DatosTab player={player} updatePlayer={updatePlayer} />
+        ? <DatosTab player={player} updatePlayer={updatePlayer} token={token} />
         : <PasswordTab />
       }
     </div>

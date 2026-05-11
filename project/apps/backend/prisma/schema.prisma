@@ -18,11 +18,12 @@ model Club {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  admins    Admin[]
-  jugadores Jugador[]
-  canchas   Cancha[]
-  reservas  Reserva[]
-  torneos   Torneo[]
+  admins       Admin[]
+  jugadores    Jugador[]
+  canchas      Cancha[]
+  reservas     Reserva[]
+  torneos      Torneo[]
+  turnosFijos  TurnoFijo[]
 
   @@map("clubs")
 }
@@ -67,8 +68,9 @@ model Jugador {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  club     Club      @relation(fields: [clubId], references: [id])
-  reservas Reserva[]
+  club        Club        @relation(fields: [clubId], references: [id])
+  reservas    Reserva[]
+  turnosFijos TurnoFijo[]
 
   @@unique([clubId, dni])
   @@map("jugadores")
@@ -82,8 +84,9 @@ model Cancha {
   indoor  Boolean @default(true)
   activo  Boolean @default(true)
 
-  club     Club      @relation(fields: [clubId], references: [id])
-  reservas Reserva[]
+  club        Club        @relation(fields: [clubId], references: [id])
+  reservas    Reserva[]
+  turnosFijos TurnoFijo[]
 
   @@map("canchas")
 }
@@ -110,6 +113,30 @@ model Reserva {
   jugador Jugador? @relation(fields: [jugadorId], references: [id])
 
   @@map("reservas")
+}
+
+model TurnoFijo {
+  id                  String   @id @default(cuid())
+  clubId              String
+  canchaId            String
+  jugadorId           String?
+  dia                 String   // 'Lunes' | 'Martes' | ... | 'Domingo'
+  horaInicio          String   // 'HH:MM'
+  horaFin             String   // 'HH:MM'
+  precio              Float?
+  estado              String   @default("pendiente") // pendiente | confirmado | inactivo
+  diasAusentes        String[] // fechas YYYY-MM-DD excluidas (ausencia confirmada)
+  ausenciasPendientes String[] // fechas pendientes de aprobación del admin
+  desde               String   // YYYY-MM-DD — fecha desde la que rige el turno
+  notas               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  club    Club     @relation(fields: [clubId], references: [id])
+  cancha  Cancha   @relation(fields: [canchaId], references: [id])
+  jugador Jugador? @relation(fields: [jugadorId], references: [id])
+
+  @@map("turnos_fijos")
 }
 
 model Torneo {

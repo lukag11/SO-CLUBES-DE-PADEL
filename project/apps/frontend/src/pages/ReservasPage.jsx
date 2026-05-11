@@ -1259,83 +1259,64 @@ const diaSemanaDeISO = (fechaISO) => {
   return dias[new Date(fechaISO + 'T12:00:00').getDay()]
 }
 
-const PanelAlertas = ({ notificaciones, onMarcarLeida, onEliminar, onMarcarTodas, onLiberacionAprobada }) => {
+const PanelAlertas = ({
+  notificaciones, reservasPendientes = [], adminToken: panelAdminToken,
+  onMarcarLeida, onEliminar, onMarcarTodas, onLiberacionAprobada,
+  onReservasPendientesChange,
+}) => {
   const [modalNotif, setModalNotif] = useState(null)
-  const confirmarReserva = useReservasStore((s) => s.confirmarReserva)
-  const playerReservas = useReservasStore((s) => s.reservas)
-  const addTurnoFijo = useTurnosFijosStore((s) => s.addTurnoFijo)
+  const [aprobandoId, setAprobandoId] = useState(null)
   const ausentarDia = useTurnosFijosStore((s) => s.ausentarDia)
-  const { addReservaConfirmada, addSolicitudAprobada, addAusenciaConfirmada } = usePlayerNotificationsStore()
-  const deleteReservaAdmin = useReservasAdminStore((s) => s.deleteReserva)
+  const { addReservaConfirmada, addAusenciaConfirmada } = usePlayerNotificationsStore()
 
-  const sinLeer = notificaciones.filter((n) => !n.leida).length
-  if (!sinLeer && !notificaciones.length) return null
+  // Notificaciones que NO son reservas normales (esas las manejamos directo desde backend)
+  const notifFiltradas = notificaciones.filter((n) =>
+    n.tipo !== 'nueva_reserva' && n.tipo !== 'inscripcion_torneo' && n.tipo !== 'baja_torneo' && n.tipo !== 'actualizacion_torneo'
+  )
+  const sinLeer = notificaciones.filter((n) => !n.leida && n.tipo !== 'nueva_reserva').length
 
-  const handleAprobar = (notifId) => {
-    const notif = modalNotif
+  const hayContenido = reservasPendientes.length > 0 || notifFiltradas.length > 0
+  if (!hayContenido) return null
 
-    if (notif?.tipo === 'liberacion_turno') {
-      // Confirmar ausencia puntual: libera el slot solo para esa fecha
-      if (notif.turnoFijoId && notif.fecha) {
-        ausentarDia(Number(notif.turnoFijoId), notif.fecha)
-        // Notificar al jugador que su ausencia fue confirmada
-        addAusenciaConfirmada?.({
-          canchaNombre: notif.cancha,
-          fecha: notif.fecha,
-          inicio: notif.inicio,
-          fin: notif.fin,
-        })
-        // Navegar la grilla del admin a la fecha liberada para verla libre
-        onLiberacionAprobada?.(notif.fecha)
-      }
-      onEliminar(notifId)
-      setModalNotif(null)
-      return
+  // Aprobar reserva del backend
+  const handleAprobarReserva = async (reserva) => {
+    setAprobandoId(reserva.id)
+    try {
+      await api.patch(`/reservas/${reserva.id}/estado`, { estado: 'confirmada' }, { Authorization: `Bearer ${panelAdminToken}` })
+      addReservaConfirmada({
+        canchaNombre: reserva.cancha?.nombre ?? '',
+        fecha: reserva.fecha,
+        hora: reserva.horaInicio,
+        horaFin: reserva.horaFin,
+      })
+      onReservasPendientesChange?.()
+    } catch (err) {
+      alert(err.message || 'No se pudo aprobar la reserva')
     }
+    setAprobandoId(null)
+  }
 
-    // Buscar la reserva pendiente que coincida — usar canchaId + hora + fecha + tipo
-    const esTurnoFijoNotif = notif?.tipo === 'solicitud_turno_fijo'
-    const reserva = playerReservas.find(
-      (r) => r.estado === 'pendiente' &&
-             r.hora === notif?.inicio &&
-             r.fecha === notif?.fecha &&
-             r.esTurnoFijo === esTurnoFijoNotif &&
-             (notif?.canchaId == null || Number(r.canchaId) === Number(notif.canchaId))
-    )
-    if (reserva) {
-      // Limpiar el slot pendiente de la grilla del admin —
-      // playerReservasDia / turnosFijosDia toman el relevo tras la aprobación
-      if (reserva.adminSlotId) {
-        deleteReservaAdmin(reserva.adminSlotId)
-      }
-      if (reserva.esTurnoFijo) {
-        confirmarReserva(reserva.id)
-        addTurnoFijo({
-          canchaId: reserva.canchaId,
-          canchaNombre: reserva.canchaNombre,
-          canchaInfo: reserva.canchaInfo,
-          dia: diaSemanaDeISO(reserva.fecha),
-          inicio: reserva.inicio || reserva.hora,
-          fin: reserva.horaFin,
-          precio: reserva.precio,
-          jugador: reserva.jugador,
-          reservaId: reserva.id,
-        })
-        addSolicitudAprobada?.({
-          canchaNombre: reserva.canchaNombre,
-          dia: diaSemanaDeISO(reserva.fecha),
-          inicio: reserva.hora,
-          fin: reserva.horaFin,
-        })
-      } else {
-        confirmarReserva(reserva.id)
-        addReservaConfirmada({
-          canchaNombre: reserva.canchaNombre,
-          fecha: reserva.fecha,
-          hora: reserva.hora,
-          horaFin: reserva.horaFin,
-        })
-      }
+  // Rechazar reserva del backend
+  const handleRechazarReserva = async (reserva) => {
+    setAprobandoId(reserva.id)
+    try {
+      await api.patch(`/reservas/${reserva.id}/estado`, { estado: 'cancelada' }, { Authorization: `Bearer ${panelAdminToken}` })
+      onReservasPendientesChange?.()
+    } catch (err) {
+      alert(err.message || 'No se pudo rechazar la reserva')
+    }
+    setAprobandoId(null)
+  }
+
+  // Aprobar notificación de liberación de turno fijo (sigue en localStorage)
+  const handleAprobar = async (notifId) => {
+    const notif = modalNotif
+    if (notif?.tipo === 'liberacion_turno' && notif.turnoFijoId && notif.fecha) {
+      api.patch(`/turnos-fijos/${notif.turnoFijoId}/ausencia/${notif.fecha}`, {}, { Authorization: `Bearer ${panelAdminToken}` })
+        .catch(() => {})
+      ausentarDia(notif.turnoFijoId, notif.fecha)
+      addAusenciaConfirmada?.({ canchaNombre: notif.cancha, fecha: notif.fecha, inicio: notif.inicio, fin: notif.fin })
+      onLiberacionAprobada?.(notif.fecha)
     }
     onEliminar(notifId)
     setModalNotif(null)
@@ -1362,41 +1343,81 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onEliminar, onMarcarTodas
           <div className="flex items-center gap-2">
             <Bell size={15} className="text-amber-500" />
             <span className="text-amber-700 font-semibold text-sm">Avisos de jugadores</span>
-            {sinLeer > 0 && (
+            {(reservasPendientes.length + sinLeer) > 0 && (
               <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                {sinLeer} nuevo{sinLeer > 1 ? 's' : ''}
+                {reservasPendientes.length + sinLeer} nuevo{(reservasPendientes.length + sinLeer) > 1 ? 's' : ''}
               </span>
             )}
           </div>
-          <button
-            onClick={onMarcarTodas}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs font-semibold transition-colors border border-amber-200"
-          >
-            <CheckCircle size={13} />
-            Marcar todas como vistas
-          </button>
+          {sinLeer > 0 && (
+            <button
+              onClick={onMarcarTodas}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs font-semibold transition-colors border border-amber-200"
+            >
+              <CheckCircle size={13} />
+              Marcar como vistas
+            </button>
+          )}
         </div>
 
+        {/* Reservas pendientes desde el backend — fuente de verdad */}
+        {reservasPendientes.length > 0 && (
+          <div className="divide-y divide-slate-50 border-b border-slate-100">
+            {reservasPendientes.map((r) => {
+              const jugadorNombre = r.jugador ? `${r.jugador.nombre} ${r.jugador.apellido}` : ''
+              const fechaFmt = new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
+              const cargando = aprobandoId === r.id
+              return (
+                <div key={r.id} className="px-5 py-3.5 flex items-start gap-3 bg-blue-50/40">
+                  <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-blue-500" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-slate-700 text-sm font-medium">
+                      <span className="text-blue-600 font-semibold">Nueva reserva</span>
+                      {jugadorNombre && <span className="text-slate-700 font-semibold"> · {jugadorNombre}</span>}
+                      {r.precio && <span className="text-slate-400 font-normal"> · ${Number(r.precio).toLocaleString('es-AR')}</span>}
+                    </p>
+                    <p className="text-slate-400 text-xs mt-0.5">{r.cancha?.nombre} · {r.horaInicio}–{r.horaFin} · {fechaFmt}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        disabled={cargando}
+                        onClick={() => handleAprobarReserva(r)}
+                        className="flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                      >
+                        <CheckCircle size={12} />
+                        {cargando ? 'Aprobando…' : 'Aprobar'}
+                      </button>
+                      <button
+                        disabled={cargando}
+                        onClick={() => handleRechazarReserva(r)}
+                        className="flex items-center gap-1 px-3 py-1 rounded-lg bg-red-100 text-red-600 text-xs font-semibold hover:bg-red-200 transition-colors border border-red-200 disabled:opacity-50"
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
         <div className="divide-y divide-slate-50">
-          {notificaciones.filter((n) => n.tipo !== 'inscripcion_torneo' && n.tipo !== 'baja_torneo' && n.tipo !== 'actualizacion_torneo').map((n) => {
-            const esNuevaReserva = n.tipo === 'nueva_reserva'
+          {notifFiltradas.map((n) => {
             const esSolicitudFijo = n.tipo === 'solicitud_turno_fijo'
             const esLiberacion = n.tipo === 'liberacion_turno'
             const esCancelacion = n.tipo === 'cancelacion_reserva'
             const esNuevaClaseProf = n.tipo === 'nueva_clase_profesor'
             const esCancelClaseProf = n.tipo === 'cancelacion_clase_profesor'
             const dotColor = n.leida ? 'bg-slate-300'
-              : esNuevaReserva ? 'bg-blue-500'
               : esSolicitudFijo ? 'bg-amber-500'
               : esNuevaClaseProf ? 'bg-orange-400'
               : esCancelClaseProf ? 'bg-orange-600'
               : 'bg-red-500'
             const rowBg = n.leida ? ''
-              : esNuevaReserva ? 'bg-blue-50/40'
               : esSolicitudFijo ? 'bg-amber-50/40'
               : esNuevaClaseProf || esCancelClaseProf ? 'bg-orange-50/40'
               : 'bg-red-50/30'
-            const esClickeable = (esSolicitudFijo || esNuevaReserva || esLiberacion) && !n.leida
+            const esClickeable = (esSolicitudFijo || esLiberacion) && !n.leida
             const fechaReserva = n.fecha
               ? new Date(n.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
               : new Date(n.timestamp).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
@@ -1414,22 +1435,6 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onEliminar, onMarcarTodas
               >
                 <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dotColor}`} />
                 <div className="flex-1 min-w-0">
-                  {esNuevaReserva && (
-                    <>
-                      <p className="text-slate-700 text-sm font-medium">
-                        <span className="text-blue-600 font-semibold">Nueva reserva</span>
-                        {n.jugador && <span className="text-slate-700 font-semibold"> · {n.jugador}</span>}
-                        {n.precio && <span className="text-slate-400 font-normal"> · ${Number(n.precio).toLocaleString('es-AR')}</span>}
-                      </p>
-                      <p className="text-slate-400 text-xs mt-0.5">{n.cancha} · {n.inicio}–{n.fin} · {fechaReserva}</p>
-                      {!n.leida && (
-                        <p className="text-blue-500 text-[10px] mt-1 font-medium flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" />
-                          Clic para aprobar o rechazar
-                        </p>
-                      )}
-                    </>
-                  )}
                   {esSolicitudFijo && (
                     <>
                       <p className="text-slate-700 text-sm font-medium">
@@ -1496,7 +1501,7 @@ const PanelAlertas = ({ notificaciones, onMarcarLeida, onEliminar, onMarcarTodas
                       <p className="text-orange-500 text-[10px] mt-1 font-medium">El slot quedó libre</p>
                     </>
                   )}
-                  {!esNuevaReserva && !esSolicitudFijo && !esLiberacion && !esCancelacion && !esNuevaClaseProf && !esCancelClaseProf && (
+                  {!esSolicitudFijo && !esLiberacion && !esCancelacion && !esNuevaClaseProf && !esCancelClaseProf && (
                     <p className="text-slate-500 text-sm">{n.jugador}</p>
                   )}
                 </div>
@@ -1533,11 +1538,42 @@ const DIAS_LABEL = {
 const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase }) => {
   const turnosFijosJugadores = useTurnosFijosStore((s) => s.turnosFijos)
   const liberarTurno = useTurnosFijosStore((s) => s.liberarTurno)
+  const updateTurnoFijo = useTurnosFijosStore((s) => s.updateTurnoFijo)
+  const adminToken = useAuthStore((s) => s.token)
   const fijos = turnosFijosJugadores.filter((t) => t.activo)
+  const pendientes = turnosFijosJugadores.filter((t) => t.estado === 'pendiente')
   const hoy = todayISO()
   const [mostrarForm, setMostrarForm] = useState(false)
   const [formClase, setFormClase] = useState(EMPTY_CLASE)
   const [errorForm, setErrorForm] = useState('')
+
+  const handleAprobarTurnoFijo = async (id) => {
+    try {
+      const updated = await api.patch(`/turnos-fijos/${id}/estado`, { estado: 'confirmado' }, { Authorization: `Bearer ${adminToken}` })
+      updateTurnoFijo(id, { estado: 'confirmado', activo: true, desde: updated.desde })
+    } catch { /* fallback: actualizar local */ updateTurnoFijo(id, { estado: 'confirmado', activo: true }) }
+  }
+
+  const handleRechazarTurnoFijo = async (id) => {
+    try {
+      await api.patch(`/turnos-fijos/${id}/estado`, { estado: 'inactivo' }, { Authorization: `Bearer ${adminToken}` })
+    } catch { /* ignore */ }
+    updateTurnoFijo(id, { estado: 'inactivo', activo: false })
+  }
+
+  const handleLiberarTurnoFijo = async (id) => {
+    try {
+      await api.patch(`/turnos-fijos/${id}/estado`, { estado: 'inactivo' }, { Authorization: `Bearer ${adminToken}` })
+    } catch { /* ignore */ }
+    liberarTurno(id)
+  }
+
+  const handleConfirmarAusenciaAdmin = async (turnoId, fecha) => {
+    try {
+      const updated = await api.patch(`/turnos-fijos/${turnoId}/ausencia/${fecha}`, {}, { Authorization: `Bearer ${adminToken}` })
+      updateTurnoFijo(turnoId, { diasAusentes: updated.diasAusentes, ausenciasPendientes: updated.ausenciasPendientes })
+    } catch { /* fallback */ updateTurnoFijo(turnoId, { diasAusentes: [...(turnosFijosJugadores.find(t=>t.id===turnoId)?.diasAusentes??[]), fecha] }) }
+  }
 
   const handleGuardarClase = () => {
     if (!formClase.profesor.trim()) { setErrorForm('El nombre del profesor es requerido'); return }
@@ -1551,6 +1587,43 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase }) => {
 
   return (
     <div className="flex flex-col gap-5">
+
+      {/* ── Pendientes de aprobación ── */}
+      {pendientes.length > 0 && (
+        <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-amber-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock size={15} className="text-amber-500" />
+              <span className="text-slate-700 font-semibold text-sm">Solicitudes pendientes</span>
+            </div>
+            <span className="text-amber-500 text-xs font-medium">{pendientes.length} por aprobar</span>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {pendientes.map((t) => (
+              <div key={t.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-slate-700 text-sm font-medium">{t.jugador || '—'}</p>
+                  <p className="text-slate-400 text-xs">{t.canchaNombre} · {DIAS_LABEL[t.dia] ?? t.dia} {t.inicio}–{t.fin}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => handleAprobarTurnoFijo(t.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                  >
+                    Aprobar
+                  </button>
+                  <button
+                    onClick={() => handleRechazarTurnoFijo(t.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
+                  >
+                    Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Turnos fijos jugadores ── */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -1609,7 +1682,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase }) => {
                       </td>
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => liberarTurno(t.id)}
+                          onClick={() => handleLiberarTurnoFijo(t.id)}
                           className="text-slate-300 hover:text-red-400 transition-colors"
                           title="Liberar turno fijo"
                         >
@@ -1819,6 +1892,20 @@ const ReservasPage = () => {
       .then((data) => setReservasBackend(data))
       .catch(() => setReservasBackend([]))
   }, [fecha, adminToken])
+
+  // Reservas pendientes de aprobación (todas las fechas)
+  const [reservasPendientes, setReservasPendientes] = useState([])
+
+  const fetchReservasPendientes = () => {
+    if (!adminToken) return
+    api.get('/reservas/pendientes', { Authorization: `Bearer ${adminToken}` })
+      .then((data) => setReservasPendientes(Array.isArray(data) ? data : []))
+      .catch(() => setReservasPendientes([]))
+  }
+
+  useEffect(() => {
+    fetchReservasPendientes()
+  }, [adminToken])
 
   // Transforma una reserva de la DB al formato de la grilla admin
   const mapBackendReserva = (r) => ({
@@ -2060,14 +2147,18 @@ const ReservasPage = () => {
         </div>
       </div>
 
-      {/* Alertas de jugadores — solo si hay sin leer */}
-      {notificaciones.some((n) => !n.leida) && (
+      {/* Alertas de jugadores — reservas pendientes del backend + otras notificaciones */}
+      {(reservasPendientes.length > 0 || notificaciones.some((n) => !n.leida && n.tipo !== 'nueva_reserva')) && (
         <PanelAlertas
           notificaciones={notificaciones}
+          reservasPendientes={reservasPendientes}
+          adminToken={adminToken}
           onMarcarLeida={marcarLeida}
           onEliminar={eliminarNotificacion}
           onMarcarTodas={marcarTodasLeidas}
           onLiberacionAprobada={setFecha}
+          onReservasPendientesChange={fetchReservasPendientes}
+          onFechaChange={setFecha}
         />
       )}
 

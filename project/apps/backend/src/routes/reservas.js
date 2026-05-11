@@ -23,7 +23,12 @@ const overlaps = (aIni, aFin, bIni, bFin) => {
 router.get('/me', requireAuth, requireRole('jugador'), async (req, res) => {
   try {
     const reservas = await prisma.reserva.findMany({
-      where: { jugadorId: req.user.id, clubId: req.user.clubId },
+      where: {
+        jugadorId: req.user.id,
+        clubId: req.user.clubId,
+        esTurnoFijo: false, // los turnos fijos se gestionan via /turnos-fijos
+        estado: { not: 'cancelada' },
+      },
       include: { cancha: true },
       orderBy: [{ fecha: 'desc' }, { horaInicio: 'asc' }],
     })
@@ -31,6 +36,25 @@ router.get('/me', requireAuth, requireRole('jugador'), async (req, res) => {
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al obtener reservas' })
+  }
+})
+
+// GET /api/reservas/pendientes   — admin ve todas las reservas pendientes de aprobación
+router.get('/pendientes', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const reservas = await prisma.reserva.findMany({
+      where: {
+        clubId: req.user.clubId,
+        estado: 'pendiente',
+        esTurnoFijo: false,
+      },
+      include: { cancha: true, jugador: { select: { id: true, nombre: true, apellido: true } } },
+      orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
+    })
+    res.json(reservas)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener reservas pendientes' })
   }
 })
 

@@ -146,7 +146,7 @@ const PlayerReservasPage = () => {
   const club = useClubStore((s) => s.club)
   const { reservas, addReserva, cancelarReserva } = useReservasStore()
   const addSolicitudEnviada = usePlayerNotificationsStore((s) => s.addSolicitudEnviada)
-  const turnosFijos = useTurnosFijosStore((s) => s.turnosFijos)
+  const { turnosFijos, addTurnoFijoFromApi } = useTurnosFijosStore()
   const reservasAdmin = useReservasAdminStore((s) => s.reservas)
   const torneos = useTorneosStore((s) => s.torneos)
   const token = usePlayerStore((s) => s.token)
@@ -246,13 +246,13 @@ const PlayerReservasPage = () => {
     fetchReservasDia(fechaSeleccionada)
   }, [fechaSeleccionada, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Turnos fijos activos: excluye solo diasAusentes (confirmadas por admin)
-  // Los que tienen ausenciasPendientes siguen bloqueando el slot para otros jugadores
+  // Turnos fijos activos: confirmados + pendientes bloquean el slot
+  // Excluye solo diasAusentes confirmados por admin
   const turnosFijosActivos = useMemo(() => {
     const diaKey = getDiaSemanaKey(fechaSeleccionada)
     return turnosFijos.filter(
       (t) =>
-        t.activo &&
+        (t.activo || t.estado === 'pendiente') &&
         t.dia === diaKey &&
         !(t.diasAusentes || []).includes(fechaSeleccionada)
     )
@@ -312,7 +312,7 @@ const PlayerReservasPage = () => {
     }
 
     return reservas
-      .filter((r) => (r.estado === 'confirmada' || r.estado === 'pendiente') && r.fecha >= fmtDate(hoy))
+      .filter((r) => (r.estado === 'confirmada' || r.estado === 'pendiente') && r.fecha >= fmtDate(hoy) && !r.esTurnoFijo)
       .map((r) => {
         if (!r.esTurnoFijo) return { ...r, turnoFijoEstado: null }
         const turno = turnosFijos.find((t) => t.reservaId === r.id)
@@ -343,40 +343,55 @@ const PlayerReservasPage = () => {
     if (esTurnoFijo && yaTimeTurnoFijoEnCancha) return
 
     setSubmitting(true)
-    // Intentar guardar en el backend si tenemos el cuid de la cancha y el token
-    if (canchaDBId && token) {
-      try {
-        await api.post(
-          '/reservas',
-          { clubId, canchaId: canchaDBId, fecha: fechaSeleccionada, horaInicio: slotSeleccionado, horaFin: slotFin, precio, esTurnoFijo },
-          { Authorization: `Bearer ${token}` }
-        )
-        // Recarga disponibilidad para que otros jugadores vean el slot ocupado
-        fetchReservasDia(fechaSeleccionada)
-      } catch (err) {
-        setErrorReserva(err.message || 'No se pudo guardar la reserva')
-        setSubmitting(false)
-        return
-      }
-    }
 
-    // Actualizar store local para feedback inmediato en "mis reservas"
-    addReserva({
-      canchaId: canchaActual.id,
-      canchaNombre: canchaActual.nombre,
-      canchaInfo: `${canchaActual.tipo} · ${canchaActual.indoor ? 'Indoor' : 'Outdoor'}`,
-      fecha: fechaSeleccionada,
-      hora: slotSeleccionado,
-      horaFin: slotFin,
-      precio,
-      esTurnoFijo,
-    })
-    addSolicitudEnviada({
-      canchaNombre: canchaActual.nombre,
-      fecha: fechaSeleccionada,
-      hora: slotSeleccionado,
-      horaFin: slotFin,
-    })
+    if (esTurnoFijo) {
+      // ── Solicitud de turno fijo → POST /turnos-fijos ──────────────────────
+      if (canchaDBId && token) {
+        try {
+          const turno = await api.post(
+            '/turnos-fijos',
+            { canchaId: canchaDBId, dia: getDiaSemanaKey(fechaSeleccionada), horaInicio: slotSeleccionado, horaFin: slotFin, precio },
+            { Authorization: `Bearer ${token}` }
+          )
+          addTurnoFijoFromApi(turno)
+        } catch (err) {
+          setErrorReserva(err.message || 'No se pudo enviar la solicitud de turno fijo')
+          setSubmitting(false)
+          return
+        }
+      }
+      addSolicitudEnviada({ canchaNombre: canchaActual.nombre, fecha: fechaSeleccionada, hora: slotSeleccionado, horaFin: slotFin })
+    } else {
+      // ── Reserva eventual → POST /reservas ────────────────────────────────
+      let backendReservaId = null
+      if (canchaDBId && token) {
+        try {
+          const reservaBackend = await api.post(
+            '/reservas',
+            { clubId, canchaId: canchaDBId, fecha: fechaSeleccionada, horaInicio: slotSeleccionado, horaFin: slotFin, precio, esTurnoFijo: false },
+            { Authorization: `Bearer ${token}` }
+          )
+          backendReservaId = reservaBackend?.id ?? null
+          fetchReservasDia(fechaSeleccionada)
+        } catch (err) {
+          setErrorReserva(err.message || 'No se pudo guardar la reserva')
+          setSubmitting(false)
+          return
+        }
+      }
+      addReserva({
+        canchaId: canchaActual.id,
+        canchaNombre: canchaActual.nombre,
+        canchaInfo: `${canchaActual.tipo} · ${canchaActual.indoor ? 'Indoor' : 'Outdoor'}`,
+        fecha: fechaSeleccionada,
+        hora: slotSeleccionado,
+        horaFin: slotFin,
+        precio,
+        esTurnoFijo: false,
+        backendReservaId,
+      })
+      addSolicitudEnviada({ canchaNombre: canchaActual.nombre, fecha: fechaSeleccionada, hora: slotSeleccionado, horaFin: slotFin })
+    }
     setModalAbierto(false)
     setSlotSeleccionado(null)
     setConfirmadoEsFijo(esTurnoFijo)

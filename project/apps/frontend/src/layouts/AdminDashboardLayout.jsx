@@ -4,6 +4,7 @@ import { LayoutDashboard, CalendarDays, Trophy, CreditCard, Info } from 'lucide-
 import useAuthStore from '../store/authStore'
 import useNotificacionesStore from '../store/notificacionesStore'
 import useClubStore from '../store/clubStore'
+import useTurnosFijosStore from '../store/turnosFijosStore'
 import Sidebar from '../components/ui/Sidebar'
 import Navbar from '../components/ui/Navbar'
 import usePageTitle from '../hooks/usePageTitle'
@@ -67,19 +68,38 @@ const BottomNav = ({ visible }) => {
 const DashboardLayout = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const token = useAuthStore((s) => s.token)
+  const setUser = useAuthStore((s) => s.setUser)
+  const clubId = useAuthStore((s) => s.user?.club?.id)
   const loadFromBackend = useClubStore((s) => s.loadFromBackend)
+  const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
   const title = usePageTitle()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [navVisible, setNavVisible] = useState(true)
   const mainRef = useRef(null)
 
-  // Carga config del club desde el backend al montar el layout
+  // Carga datos actualizados del admin desde el backend
+  useEffect(() => {
+    if (!token) return
+    api.get('/auth/admin/me', { Authorization: `Bearer ${token}` })
+      .then((data) => { if (data?.id) setUser(data) })
+      .catch(() => {})
+  }, [token])
+
+  // Carga config del club desde el backend al montar el layout (con canchas reales)
   useEffect(() => {
     if (!token) return
     api.get('/clubs/me', { Authorization: `Bearer ${token}` })
-      .then((data) => { if (data?.config) loadFromBackend(data.config) })
-      .catch(() => { /* mantiene config local como fallback */ })
+      .then((data) => { if (data?.id) loadFromBackend(data) })
+      .catch(() => {})
   }, [token])
+
+  // Carga turnos fijos del club desde el backend al montar
+  useEffect(() => {
+    if (!token || !clubId) return
+    api.get(`/turnos-fijos?clubId=${clubId}`, { Authorization: `Bearer ${token}` })
+      .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
+      .catch(() => {})
+  }, [token, clubId])
 
   useEffect(() => {
     const el = mainRef.current

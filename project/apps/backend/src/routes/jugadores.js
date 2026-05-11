@@ -6,6 +6,61 @@ const router = Router()
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
+// GET /api/jugadores/me — datos actualizados del jugador autenticado
+router.get('/me', requireAuth, requireRole('jugador'), async (req, res) => {
+  try {
+    const jugador = await prisma.jugador.findUnique({
+      where: { id: req.user.id },
+      include: { club: { select: { id: true, nombre: true } } },
+    })
+    if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' })
+    const { password: _, ...rest } = jugador
+    res.json({ ...rest, role: 'jugador', club: { id: jugador.club.id, nombre: jugador.club.nombre } })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener jugador' })
+  }
+})
+
+// PATCH /api/jugadores/me — actualiza perfil del jugador autenticado
+router.patch('/me', requireAuth, requireRole('jugador'), async (req, res) => {
+  const {
+    nombre, apellido, email, telefono, apodo, genero, fechaNacimiento,
+    provincia, ciudad, posicion, mano, categoria, frecuencia,
+    diasDisponibles, horariosDisponibles, perfilPublico,
+  } = req.body
+
+  try {
+    const updated = await prisma.jugador.update({
+      where: { id: req.user.id },
+      data: {
+        ...(nombre             !== undefined && { nombre }),
+        ...(apellido           !== undefined && { apellido }),
+        ...(email              !== undefined && { email }),
+        ...(telefono           !== undefined && { telefono }),
+        ...(apodo              !== undefined && { apodo }),
+        ...(genero             !== undefined && { genero }),
+        ...(fechaNacimiento    !== undefined && { fechaNacimiento }),
+        ...(provincia          !== undefined && { provincia }),
+        ...(ciudad             !== undefined && { ciudad }),
+        ...(posicion           !== undefined && { posicion }),
+        ...(mano               !== undefined && { mano }),
+        ...(categoria          !== undefined && { categoria }),
+        ...(frecuencia         !== undefined && { frecuencia }),
+        ...(diasDisponibles    !== undefined && { diasDisponibles }),
+        ...(horariosDisponibles !== undefined && { horariosDisponibles }),
+        ...(perfilPublico      !== undefined && { perfilPublico }),
+      },
+      include: { club: { select: { id: true, nombre: true } } },
+    })
+    const { password: _, ...rest } = updated
+    res.json({ ...rest, role: 'jugador', club: { id: updated.club.id, nombre: updated.club.nombre } })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al actualizar perfil' })
+  }
+})
+
 // GET /api/jugadores/me/stats — estadísticas reales del jugador autenticado
 router.get('/me/stats', requireAuth, requireRole('jugador'), async (req, res) => {
   const jugadorId = req.user.id

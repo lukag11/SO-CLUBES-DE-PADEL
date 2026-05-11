@@ -79,15 +79,12 @@
 | `admin_notificaciones_v2` | notificacionesStore | Avisos admin (UI efímero) |
 | `player_notificaciones` | playerNotificationsStore | Notificaciones jugador (UI efímero) |
 | `player_token` | playerStore | Token de sesión jugador |
-| `player_data` | playerStore | Datos del jugador logueado |
-| `club_config` | clubStore | Config club (fallback; backend es fuente de verdad) |
 | `token` | authStore | Token del admin |
-| `admin_user` | authStore | Objeto user completo (incluye clubId) — necesario para sobrevivir refresh |
 | `admin_sidebar_collapsed` | AdminDashboardLayout | Estado del sidebar desktop |
 
-**Eliminados de localStorage (migrado a backend):** `torneos_v1`, `player_reservas`, `reservas_admin`, `turnos_fijos`, `profesores`
+**Eliminados de localStorage (migrado a backend):** `torneos_v1`, `player_reservas`, `reservas_admin`, `turnos_fijos`, `profesores`, `player_data`, `admin_user`, `club_config`
 
-> Para limpiar localStorage en pruebas: incrementar `APP_VERSION` en `main.jsx` (versión actual: 16.0).
+> Para limpiar localStorage en pruebas: incrementar `APP_VERSION` en `main.jsx` (versión actual: 84.0).
 
 ---
 
@@ -241,7 +238,7 @@
 
 ---
 
-## Último bloque completado (2026-05-11) — Migración completa a backend real
+## Último bloque completado (2026-05-11) — Migración completa a backend real + Fix landing
 
 ### Objetivo
 Eliminar todo uso de localStorage para datos de negocio. Todo a Supabase via backend. localStorage solo para tokens, prefs UI y notificaciones efímeras.
@@ -284,6 +281,35 @@ Eliminar todo uso de localStorage para datos de negocio. Todo a Supabase via bac
 - Default `tabActiva` cambiado a `'proximos'` (torneos draft/open/closed)
 - Tras el fetch: si hay `in_progress` → salta a `'en_curso'`; si no → queda en `'proximos'`
 - Antes: al navegar y volver se reseteaba a `'en_curso'` y los torneos nuevos "desaparecían"
+
+### Nuevos endpoints backend (bloque migración)
+- `GET /api/auth/admin/me` — datos actualizados del admin autenticado
+- `GET /api/jugadores/me` — datos del jugador autenticado (sin password)
+- `PATCH /api/jugadores/me` — actualiza perfil del jugador (todos los campos opcionales)
+- `GET /api/reservas/pendientes` — reservas pendientes del club (admin only, excluye turnos fijos)
+- `GET /api/jugadores/me/stats` — estadísticas reales del jugador (reservas + torneos)
+
+### Stores migrados (eliminado localStorage)
+- `authStore` — `user: null` al iniciar; `AdminDashboardLayout` recarga desde `GET /auth/admin/me`
+- `playerStore` — `player: null` al iniciar; `PlayerLayout` recarga desde `GET /jugadores/me`
+- `clubStore` — `loadFromBackend()` rediseñado para aceptar objeto club completo; sin escritura a localStorage
+
+### LandingPage — siempre sincronizada con backend
+- `LandingPage.jsx` hace `GET /clubs/{VITE_CLUB_SLUG}` al montar
+- Llama `loadFromBackend(data)` → aplica colores CSS, templateId y config sin necesitar admin logueado
+- `.env` creado con `VITE_CLUB_SLUG=club-demo`
+
+### PanelAlertas — ahora lee del backend
+- Reservas pendientes: `GET /api/reservas/pendientes` (admin only)
+- Aprobación/rechazo: `PATCH /api/reservas/:id` con `{ estado }`
+- Eliminado: lectura de `notificacionesStore` para reservas (era localStorage)
+
+### Perfil jugador conectado al backend
+- `DatosTab.handleSave` → `PATCH /jugadores/me` antes de actualizar store
+- `PlayerProfilePage` pasa `token` al componente `DatosTab`
+
+### APP_VERSION
+- Bumpeado a `84.0` para limpiar localStorage stale en todos los browsers
 
 ---
 

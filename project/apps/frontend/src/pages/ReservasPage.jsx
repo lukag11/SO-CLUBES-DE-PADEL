@@ -1888,12 +1888,25 @@ const ReservasPage = () => {
   // Reservas reales desde el backend (jugadores que reservaron online)
   const [reservasBackend, setReservasBackend] = useState([])
 
-  useEffect(() => {
+  const fetchReservasBackend = (f = fecha) => {
     if (!adminToken) return
-    api.get(`/reservas?clubId=${clubId}&fecha=${fecha}`, { Authorization: `Bearer ${adminToken}` })
+    api.get(`/reservas?clubId=${clubId}&fecha=${f}`, { Authorization: `Bearer ${adminToken}` })
       .then((data) => setReservasBackend(data))
-      .catch(() => setReservasBackend([]))
-  }, [fecha, adminToken])
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    fetchReservasBackend()
+    // Refresca la grilla cada 30 segundos para reflejar cancelaciones/confirmaciones en tiempo real
+    const interval = setInterval(() => fetchReservasBackend(), 30_000)
+    // También refresca cuando el usuario vuelve al tab
+    const onFocus = () => fetchReservasBackend()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [fecha, adminToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reservas pendientes de aprobación (todas las fechas)
   const [reservasPendientes, setReservasPendientes] = useState([])
@@ -1907,7 +1920,13 @@ const ReservasPage = () => {
 
   useEffect(() => {
     fetchReservasPendientes()
-  }, [adminToken])
+    const interval = setInterval(fetchReservasPendientes, 30_000)
+    window.addEventListener('focus', fetchReservasPendientes)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', fetchReservasPendientes)
+    }
+  }, [adminToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Transforma una reserva de la DB al formato de la grilla admin
   const mapBackendReserva = (r) => ({
@@ -2137,7 +2156,7 @@ const ReservasPage = () => {
           onEliminar={eliminarNotificacion}
           onMarcarTodas={marcarTodasLeidas}
           onLiberacionAprobada={setFecha}
-          onReservasPendientesChange={fetchReservasPendientes}
+          onReservasPendientesChange={() => { fetchReservasPendientes(); fetchReservasBackend() }}
           onFechaChange={setFecha}
         />
       )}

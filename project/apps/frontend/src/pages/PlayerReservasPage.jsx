@@ -902,7 +902,14 @@ const PlayerReservasPage = () => {
               </div>
 
               <button
-                onClick={() => { cancelarReserva(reservaACancelar.id); setReservaACancelar(null) }}
+                onClick={async () => {
+                  const id = reservaACancelar.id
+                  setReservaACancelar(null)
+                  try {
+                    await api.patch(`/reservas/${id}/estado`, { estado: 'cancelada' }, { Authorization: `Bearer ${token}` })
+                  } catch { /* si falla el backend igual cancela local */ }
+                  cancelarReserva(id)
+                }}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all bg-red-500 text-white hover:bg-red-400 active:scale-[0.98] shadow-lg shadow-red-500/20"
               >
                 <XCircle size={15} />

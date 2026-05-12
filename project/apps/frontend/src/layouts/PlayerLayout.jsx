@@ -38,9 +38,14 @@ const PlayerLayout = () => {
       .catch(() => {})
   }, [token])
 
-  // Carga config del club (canchas, precios, horarios) desde el backend
+  // Carga config del club (canchas, precios, horarios) desde el backend.
+  // Si el admin ya cargó datos reales en esta sesión (canchas con IDs de DB),
+  // no re-fetcheamos para no pisar sus cambios locales de horarios.
   useEffect(() => {
     if (!token) return
+    const { club } = useClubStore.getState()
+    const yaConDatosReales = club.canchas.some((c) => typeof c.id === 'string')
+    if (yaConDatosReales) return
     api.get('/clubs/info', { Authorization: `Bearer ${token}` })
       .then((data) => { if (data?.id) loadFromBackend(data) })
       .catch((err) => console.error('[PlayerLayout] Error cargando club:', err))

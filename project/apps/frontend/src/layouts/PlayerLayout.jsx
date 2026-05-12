@@ -38,25 +38,23 @@ const PlayerLayout = () => {
       .catch(() => {})
   }, [token])
 
-  // Carga config del club (canchas, precios, horarios) desde el backend.
-  // Si el admin ya cargó datos reales en esta sesión (canchas con IDs de DB),
-  // no re-fetcheamos para no pisar sus cambios locales de horarios.
+  // Carga config del club al montar. Si hay cambios locales sin guardar (_dirty=true),
+  // no re-fetcheamos para no pisar lo que el admin acaba de configurar.
   useEffect(() => {
     if (!token) return
-    const { club } = useClubStore.getState()
-    const yaConDatosReales = club.canchas.some((c) => typeof c.id === 'string')
-    if (yaConDatosReales) return
+    if (useClubStore.getState()._dirty) return
     api.get('/clubs/info', { Authorization: `Bearer ${token}` })
       .then((data) => { if (data?.id) loadFromBackend(data) })
-      .catch((err) => console.error('[PlayerLayout] Error cargando club:', err))
+      .catch(() => {})
   }, [token])
 
-  // Re-fetch config del club cuando el usuario vuelve a esta pestaña
-  // (por si el admin guardó cambios de horarios en otra pestaña)
+  // Cuando el usuario vuelve a esta pestaña (cambios admin guardados en otra pestaña),
+  // re-fetcheamos solo si NO hay cambios locales pendientes.
   useEffect(() => {
     if (!token) return
     const recargar = () => {
       if (document.hidden) return
+      if (useClubStore.getState()._dirty) return
       api.get('/clubs/info', { Authorization: `Bearer ${token}` })
         .then((data) => { if (data?.id) loadFromBackend(data) })
         .catch(() => {})

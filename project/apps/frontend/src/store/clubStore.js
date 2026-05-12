@@ -97,9 +97,12 @@ const applyColorsToDOM = (colorPrimario, colorSecundario, fontFamilia = 'Inter')
 
 const useClubStore = create((set, get) => ({
   club: INITIAL_CLUB,
+  // true cuando hay cambios locales sin guardar en el backend.
+  // Impide que PlayerLayout pise esos cambios al re-fetchear.
+  _dirty: false,
 
   updateClub: (data) => {
-    set((state) => ({ club: { ...state.club, ...data } }))
+    set((state) => ({ club: { ...state.club, ...data }, _dirty: true }))
   },
 
   updateCancha: (id, data) => {
@@ -108,6 +111,7 @@ const useClubStore = create((set, get) => ({
         ...state.club,
         canchas: state.club.canchas.map((c) => (c.id === id ? { ...c, ...data } : c)),
       },
+      _dirty: true,
     }))
   },
 
@@ -120,6 +124,7 @@ const useClubStore = create((set, get) => ({
           [dia]: { ...state.club.horarios[dia], ...data },
         },
       },
+      _dirty: true,
     }))
   },
 
@@ -166,7 +171,7 @@ const useClubStore = create((set, get) => ({
         }),
       }
       applyColorsToDOM(merged.colorPrimario, merged.colorSecundario, merged.fontFamilia)
-      return { club: merged }
+      return { club: merged, _dirty: false }
     })
   },
 
@@ -200,11 +205,12 @@ const useClubStore = create((set, get) => ({
                 horarios: c.horarios ?? null,
               })),
             },
+            _dirty: false,
           }))
         }
       }
     } catch {
-      // fallo silencioso
+      // fallo silencioso — _dirty sigue true si el save falló
     }
   },
 }))

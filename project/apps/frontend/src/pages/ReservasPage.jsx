@@ -123,8 +123,8 @@ const Select = ({ label, children, ...props }) => (
 
 // ─── Stats bar ────────────────────────────────────────────────────────────────
 
-const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos, canchasCount }) => {
-  const total = (canchasCount || 4) * FRANJAS.length
+const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos, canchasCount, franjasCount = FRANJAS.length }) => {
+  const total = (canchasCount || 4) * franjasCount
 
   // Turnos ocupados: slots únicos de reservas + clases (bloqueados también ocupan)
   const ocupadosSet = new Set([
@@ -313,7 +313,7 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick }) => {
 
 // ─── Grilla ───────────────────────────────────────────────────────────────────
 
-const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [] }) => (
+const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], franjas = FRANJAS }) => (
   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
     <div className="overflow-x-auto">
       <table className="w-full min-w-[540px] border-collapse text-sm">
@@ -331,7 +331,7 @@ const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [] }) => (
           </tr>
         </thead>
         <tbody>
-          {FRANJAS.map((franja) => {
+          {franjas.map((franja) => {
             const pasado = esPasado(fecha, franja.fin)
             return (
               <tr key={franja.inicio} className={pasado ? 'opacity-50' : ''}>
@@ -420,7 +420,7 @@ const CeldaMobile = ({ reserva, franja, cancha, onClick, pasado }) => {
   )
 }
 
-const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [] }) => {
+const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], franjas = FRANJAS }) => {
   const [page, setPage] = useState(0)
   const totalPages = Math.ceil(canchas.length / 2)
   const canchasVisible = canchas.slice(page * 2, page * 2 + 2)
@@ -461,7 +461,7 @@ const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [] }
       </div>
 
       {/* Filas por franja */}
-      {FRANJAS.map((franja) => {
+      {franjas.map((franja) => {
         const pasado = esPasado(fecha, franja.fin)
         return (
           <div key={franja.inicio} className={`flex border-b border-slate-50 last:border-0 ${pasado ? 'opacity-50' : ''}`}>
@@ -1884,6 +1884,26 @@ const ReservasPage = () => {
   const adminToken = useAuthStore((s) => s.token)
   const clubId = useAuthStore((s) => s.user?.club?.id) ?? 'cmoryx4a900008t4qmzdzuiee'
   const canchas = useClubStore((s) => s.club.canchas)
+  const horarios = useClubStore((s) => s.club.horarios)
+
+  // Franjas del día filtradas según el horario configurado del club
+  const franjasDia = useMemo(() => {
+    const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+    const diaNombre = DIAS[new Date(fecha + 'T12:00:00').getDay()]
+    const horario = horarios?.[diaNombre]
+    if (!horario?.activo) return []
+    const apMin = toMin(horario.apertura || '08:00')
+    const ciStr = horario.cierre || '23:00'
+    const ciMin = ciStr === '00:00' ? 1440 : toMin(ciStr)
+    const ciAdj = ciMin <= apMin ? ciMin + 1440 : ciMin  // horario cross-midnight
+    return FRANJAS.filter((f) => {
+      const fi = toMin(f.inicio)
+      const ff = toMin(f.fin) || 1440  // '00:00' → 1440
+      const fiAdj = fi >= apMin ? fi : fi + 1440  // franjas del "día siguiente" en horario cross-midnight
+      const ffAdj = ff <= fi ? ff + 1440 : ff    // franja cross-midnight (ej: 23:30-01:00)
+      return fiAdj >= apMin && fiAdj < ciAdj && ffAdj <= ciAdj
+    })
+  }, [fecha, horarios])
 
   // Reservas reales desde el backend (jugadores que reservaron online)
   const [reservasBackend, setReservasBackend] = useState([])
@@ -2162,7 +2182,7 @@ const ReservasPage = () => {
       )}
 
       {/* Stats */}
-      <StatsBar reservasDia={reservasDia} clasesDia={clasesDia} totalTurnosFijos={totalTurnosFijos} canchasCount={canchas.length} />
+      <StatsBar reservasDia={reservasDia} clasesDia={clasesDia} totalTurnosFijos={totalTurnosFijos} canchasCount={canchas.length} franjasCount={franjasDia.length} />
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
@@ -2203,13 +2223,13 @@ const ReservasPage = () => {
 
           {/* Vista mobile: 2 canchas por página */}
           <div className="md:hidden">
-            <GrillaMobile reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchas} />
+            <GrillaMobile reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchas} franjas={franjasDia} />
           </div>
 
           {/* Vista desktop: tabla completa + panel lateral */}
           <div className="hidden md:flex gap-4 flex-1 min-h-0">
             <div className="flex-1 overflow-auto min-w-0">
-              <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchas} />
+              <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchas} franjas={franjasDia} />
             </div>
             {seleccion && !editando && (
               <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">

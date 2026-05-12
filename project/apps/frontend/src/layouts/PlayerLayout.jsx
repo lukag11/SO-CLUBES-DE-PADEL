@@ -46,6 +46,20 @@ const PlayerLayout = () => {
       .catch((err) => console.error('[PlayerLayout] Error cargando club:', err))
   }, [token])
 
+  // Re-fetch config del club cuando el usuario vuelve a esta pestaña
+  // (por si el admin guardó cambios de horarios en otra pestaña)
+  useEffect(() => {
+    if (!token) return
+    const recargar = () => {
+      if (document.hidden) return
+      api.get('/clubs/info', { Authorization: `Bearer ${token}` })
+        .then((data) => { if (data?.id) loadFromBackend(data) })
+        .catch(() => {})
+    }
+    document.addEventListener('visibilitychange', recargar)
+    return () => document.removeEventListener('visibilitychange', recargar)
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Carga las reservas propias del jugador desde el backend al montar el layout
   useEffect(() => {
     if (!token) return

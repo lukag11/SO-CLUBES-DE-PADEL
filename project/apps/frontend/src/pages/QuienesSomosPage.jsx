@@ -674,15 +674,22 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
 const _toMin = (t) => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m }
 const _toTime = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
 
-// Retorna opciones válidas de cierre: apertura + N×90, hasta medianoche (00:00)
+// Retorna opciones válidas de cierre: apertura + N×90
+// El límite garantiza siempre al menos 3 slots disponibles.
+// Para aperturas tardías (ej: 22:00) esto extiende naturalmente pasada medianoche.
 const getCierreOpciones = (apertura) => {
   if (!apertura) return []
   const ap = _toMin(apertura)
+  const limit = 1440 + 90 * 2  // 2 slots extra pasada medianoche (hasta ~03:00)
   const opts = []
   let cur = ap + 90
   let n = 1
-  while (cur <= 1440) {
-    opts.push({ value: cur === 1440 ? '00:00' : _toTime(cur), label: `${cur === 1440 ? '00:00' : _toTime(cur)} — ${n} turno${n !== 1 ? 's' : ''}` })
+  while (cur <= limit) {
+    const isTomorrow = cur > 1440
+    const displayMin = cur % 1440
+    const value = displayMin === 0 ? '00:00' : _toTime(displayMin)
+    const label = `${value}${isTomorrow ? ' (+1d)' : ''} — ${n} turno${n !== 1 ? 's' : ''}`
+    opts.push({ value, label })
     cur += 90; n++
   }
   return opts

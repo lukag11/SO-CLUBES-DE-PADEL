@@ -52,12 +52,15 @@ const snapHalfHour = (t) => {
 
 const snapCierreToSlots = (apRaw, ciRaw) => {
   const ap = toMin(apRaw)
-  const ci = ciRaw === '00:00' ? 1440 : toMin(ciRaw)
+  let ci = ciRaw === '00:00' ? 1440 : toMin(ciRaw)
+  if (ci < ap) ci += 1440  // cruce de medianoche
   const diff = ci - ap
-  if (diff < 90) return toTime(ap + 90 >= 1440 ? 1440 : ap + 90)
+  if (diff < 90) {
+    const s = ap + 90
+    return toTime(s % 1440)
+  }
   const n = Math.max(1, Math.round(diff / 90))
-  const snapped = ap + n * 90
-  return snapped >= 1440 ? '00:00' : toTime(snapped)
+  return toTime((ap + n * 90) % 1440)
 }
 
 const generarSlots = (apertura, cierre, canchaId, fechaStr, misReservas, turnosFijosActivos, turnosFijosConPendiente, reservasAdmin, turnosFijosAll, reservasReales = []) => {
@@ -68,11 +71,13 @@ const generarSlots = (apertura, cierre, canchaId, fechaStr, misReservas, turnosF
   const diaKey = getDiaSemanaKey(fechaStr)
 
   const apMin = toMin(ap)
-  const ciMin = ci === '00:00' ? 1440 : toMin(ci)
+  const ciMinRaw = ci === '00:00' ? 1440 : toMin(ci)
+  // Si cierre < apertura en minutos → cruce de medianoche (ej: apertura 22:00, cierre 01:30)
+  const ciMin = ciMinRaw < apMin ? ciMinRaw + 1440 : ciMinRaw
   const franjas = []
   let cur = ciMin - 90
   while (cur >= apMin) {
-    franjas.unshift({ inicio: toTime(cur), fin: toTime(cur + 90) })
+    franjas.unshift({ inicio: toTime(cur % 1440), fin: toTime((cur + 90) % 1440) })
     cur -= 90
   }
 

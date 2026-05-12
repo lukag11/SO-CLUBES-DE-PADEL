@@ -8,6 +8,8 @@ import torneosRouter from './routes/torneos.js'
 import jugadoresRouter from './routes/jugadores.js'
 import clubsRouter from './routes/clubs.js'
 import turnosFijosRouter from './routes/turnos-fijos.js'
+import notificacionesRouter from './routes/notificaciones.js'
+import cargosRouter from './routes/cargos.js'
 
 const app = express()
 
@@ -32,5 +34,7 @@ app.use('/api/torneos', torneosRouter)
 app.use('/api/jugadores', jugadoresRouter)
 app.use('/api/clubs', clubsRouter)
 app.use('/api/turnos-fijos', turnosFijosRouter)
+app.use('/api/notificaciones', notificacionesRouter)
+app.use('/api/cargos', cargosRouter)
 
 export default app

@@ -18,12 +18,14 @@ model Club {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  admins       Admin[]
-  jugadores    Jugador[]
-  canchas      Cancha[]
-  reservas     Reserva[]
-  torneos      Torneo[]
-  turnosFijos  TurnoFijo[]
+  admins         Admin[]
+  jugadores      Jugador[]
+  canchas        Cancha[]
+  reservas       Reserva[]
+  torneos        Torneo[]
+  turnosFijos    TurnoFijo[]
+  notificaciones Notificacion[]
+  cargos         Cargo[]
 
   @@map("clubs")
 }
@@ -68,21 +70,25 @@ model Jugador {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  club        Club        @relation(fields: [clubId], references: [id])
-  reservas    Reserva[]
-  turnosFijos TurnoFijo[]
+  club           Club           @relation(fields: [clubId], references: [id])
+  reservas       Reserva[]
+  turnosFijos    TurnoFijo[]
+  notificaciones Notificacion[]
+  cargos         Cargo[]
 
   @@unique([clubId, dni])
   @@map("jugadores")
 }
 
 model Cancha {
-  id      String  @id @default(cuid())
-  clubId  String
-  nombre  String
-  tipo    String  @default("Cristal")
-  indoor  Boolean @default(true)
-  activo  Boolean @default(true)
+  id           String  @id @default(cuid())
+  clubId       String
+  nombre       String
+  tipo         String  @default("Cristal")
+  indoor       Boolean @default(true)
+  activo       Boolean @default(true)
+  precioTurno  Int     @default(0)
+  horarios     Json?
 
   club        Club        @relation(fields: [clubId], references: [id])
   reservas    Reserva[]
@@ -171,6 +177,37 @@ model Torneo {
   parejas Pareja[]
 
   @@map("torneos")
+}
+
+model Cargo {
+  id        String   @id @default(cuid())
+  clubId    String
+  jugadorId String
+  reservaId String?
+  concepto  String
+  monto     Float
+  estado    String   @default("pendiente") // pendiente | pagado | condonado
+  createdAt DateTime @default(now())
+
+  club    Club    @relation(fields: [clubId], references: [id])
+  jugador Jugador @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
+
+  @@map("cargos")
+}
+
+model Notificacion {
+  id        String   @id @default(cuid())
+  clubId    String
+  jugadorId String
+  tipo      String   // reserva_cancelada_admin | reserva_confirmada | turno_fijo_confirmado | turno_fijo_rechazado
+  leida     Boolean  @default(false)
+  data      Json?
+  createdAt DateTime @default(now())
+
+  club    Club    @relation(fields: [clubId], references: [id])
+  jugador Jugador @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
+
+  @@map("notificaciones")
 }
 
 model Pareja {

@@ -161,6 +161,7 @@ const useClubStore = create((set, get) => ({
             indoor: c.indoor ?? true,
             activa: c.activo,
             precioTurno: c.precioTurno ?? 0,
+            horarios: c.horarios ?? null,
           })),
         }),
       }
@@ -170,16 +171,40 @@ const useClubStore = create((set, get) => ({
   },
 
   // Guarda en el backend y actualiza DOM — sin localStorage
-  saveClub: (token) => {
+  saveClub: async (token) => {
     const { club } = get()
     applyColorsToDOM(club.colorPrimario, club.colorSecundario, club.fontFamilia)
-    if (token) {
-      const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
-      fetch(`${BASE}/clubs/me`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ config: club }),
-      }).catch(() => {})
+    if (!token) return
+    const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+    try {
+      // Guarda config JSON + sincroniza canchas en paralelo
+      const [, canchasRes] = await Promise.all([
+        fetch(`${BASE}/clubs/me`, { method: 'PATCH', headers, body: JSON.stringify({ config: club }) }),
+        fetch(`${BASE}/clubs/me/canchas`, { method: 'PATCH', headers, body: JSON.stringify({ canchas: club.canchas }) }),
+      ])
+      // Actualiza solo las canchas con sus IDs reales (evita reload completo que reinicia el formulario)
+      if (canchasRes.ok) {
+        const { canchas: canchasDB } = await canchasRes.json()
+        if (Array.isArray(canchasDB)) {
+          set((state) => ({
+            club: {
+              ...state.club,
+              canchas: canchasDB.map((c) => ({
+                id: c.id,
+                nombre: c.nombre,
+                tipo: c.tipo ?? 'Cristal',
+                indoor: c.indoor ?? true,
+                activa: c.activo,
+                precioTurno: c.precioTurno ?? 0,
+                horarios: c.horarios ?? null,
+              })),
+            },
+          }))
+        }
+      }
+    } catch {
+      // fallo silencioso
     }
   },
 }))

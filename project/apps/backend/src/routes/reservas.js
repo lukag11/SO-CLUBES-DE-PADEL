@@ -179,6 +179,25 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
       data: { estado },
       include: { cancha: true, jugador: { select: { id: true, nombre: true, apellido: true } } },
     })
+
+    // Notificar al jugador si la reserva tiene jugadorId
+    if (updated.jugadorId && (estado === 'confirmada' || estado === 'cancelada')) {
+      const tipo = estado === 'confirmada' ? 'reserva_confirmada' : 'reserva_cancelada_admin'
+      prisma.notificacion.create({
+        data: {
+          clubId: updated.clubId,
+          jugadorId: updated.jugadorId,
+          tipo,
+          data: {
+            canchaNombre: updated.cancha.nombre,
+            fecha: updated.fecha,
+            horaInicio: updated.horaInicio,
+            horaFin: updated.horaFin,
+          },
+        },
+      }).catch(() => {}) // fire-and-forget, no bloquea la respuesta
+    }
+
     res.json(updated)
   } catch (err) {
     console.error(err)
@@ -213,7 +232,7 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   }
 })
 
-// DELETE /api/reservas/:id   — admin cancela/elimina reserva
+// DELETE /api/reservas/:id   — jugador o admin cancela reserva
 router.delete('/:id', requireAuth, async (req, res) => {
   const { id } = req.params
 
@@ -222,14 +241,67 @@ router.delete('/:id', requireAuth, async (req, res) => {
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
     if (reserva.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
 
-    // Jugador solo puede cancelar sus propias reservas (pendiente o confirmada)
+    if (!['pendiente', 'confirmada'].includes(reserva.estado)) {
+      return res.status(400).json({ error: 'La reserva ya está cancelada' })
+    }
+
+    // Jugador solo puede cancelar sus propias reservas
     if (req.user.role === 'jugador') {
       if (reserva.jugadorId !== req.user.id) return res.status(403).json({ error: 'Sin permisos' })
-      if (!['pendiente', 'confirmada'].includes(reserva.estado)) return res.status(400).json({ error: 'La reserva ya está cancelada' })
+
+      // Política de cancelación: verificar ventana horaria
+      const club = await prisma.club.findUnique({ where: { id: reserva.clubId }, select: { config: true } })
+      const horasMinimas = club?.config?.horasCancelacion ?? 0
+
+      if (horasMinimas > 0) {
+        // Construir datetime del turno en zona local del servidor
+        const [y, m, d] = reserva.fecha.split('-').map(Number)
+        const [h, min] = reserva.horaInicio.split(':').map(Number)
+        const fechaTurno = new Date(y, m - 1, d, h, min)
+        const horasRestantes = (fechaTurno - new Date()) / (1000 * 60 * 60)
+
+        if (horasRestantes < 0) {
+          return res.status(400).json({ error: 'El turno ya pasó' })
+        }
+
+        if (horasRestantes < horasMinimas) {
+          // Fuera del plazo: cancelar pero registrar cargo
+          await prisma.reserva.update({ where: { id }, data: { estado: 'cancelada' } })
+
+          const cargo = await prisma.cargo.create({
+            data: {
+              clubId: reserva.clubId,
+              jugadorId: req.user.id,
+              reservaId: id,
+              concepto: `Cancelación fuera de plazo — ${reserva.fecha} ${reserva.horaInicio}`,
+              monto: reserva.precio ?? 0,
+              estado: 'pendiente',
+            },
+          })
+
+          // Notificar al jugador del cargo
+          prisma.notificacion.create({
+            data: {
+              clubId: reserva.clubId,
+              jugadorId: req.user.id,
+              tipo: 'cargo_cancelacion',
+              data: {
+                fecha: reserva.fecha,
+                horaInicio: reserva.horaInicio,
+                horaFin: reserva.horaFin,
+                monto: reserva.precio ?? 0,
+                horasMinimas,
+              },
+            },
+          }).catch(() => {})
+
+          return res.json({ ok: true, cargoAplicado: true, cargo })
+        }
+      }
     }
 
     await prisma.reserva.update({ where: { id }, data: { estado: 'cancelada' } })
-    res.json({ ok: true })
+    res.json({ ok: true, cargoAplicado: false })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al cancelar reserva' })

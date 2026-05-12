@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-11
+**Última actualización:** 2026-05-12
 
 ---
 
@@ -12,16 +12,16 @@
 | Login admin | ✅ Completo | Conectado al backend real. admin@club.com / 123456 |
 | Landing pública (5 templates) | ✅ Completo | Personalizable desde panel admin |
 | Dashboard admin completo | ✅ Completo | Stats, navegación, sidebar colapsable |
-| Gestión reservas (admin) | ✅ Frontend completo | Grilla semanal, aprobación, turnos fijos — falta backend (Bloque 3) |
+| Gestión reservas (admin) | ✅ Completo | Grilla semanal, aprobación, turnos fijos. Backend conectado. Política de cancelación con cargo automático |
 | Gestión pagos (admin) | ✅ Frontend completo | Registro de pagos por turno — falta backend |
 | Edición del club / Quiénes Somos | ✅ Completo | Logo, colores, plantillas, horarios, canchas |
 | Registro jugador (stepper 3 pasos) | ✅ Completo | Conectado al backend real. Validaciones, georef API, toggle perfil público |
 | Login jugador | ✅ Completo | Conectado al backend real (DNI + password + clubId) |
 | Perfil jugador | ✅ Completo | Editable, banner "completá tu perfil", georef API, perfilPublico |
 | Dashboard jugador completo | ✅ Completo | Resumen, reservas, turnos fijos, stats, torneos |
-| Reservas jugador (grilla + modal) | ✅ Frontend completo | Slots 1.5h — falta backend (Bloque 3) |
+| Reservas jugador (grilla + modal) | ✅ Completo | Slots 1.5h. GET /reservas/me al montar. Cancelación con política de cargo. Sin localStorage |
 | Turnos fijos (pendiente → aprobación) | ✅ Frontend completo | Flujo completo — falta backend (Bloque 3) |
-| Notificaciones admin + jugador | ✅ Frontend completo | Badge, centro de notificaciones — falta backend |
+| Notificaciones admin + jugador | ✅ Backend completo | Tabla `notificaciones` en Supabase. Triggers en reservas + turnos fijos. GET/PATCH endpoints. playerNotificationsStore reescrito sin localStorage |
 | Dashboard profesor (agenda + disponibilidad) | ✅ Frontend completo | Portal separado `/dashboardProfesor` — falta backend |
 | Módulo torneos admin | ✅ Frontend completo | CRUD, grupos, bracket, horarios — falta backend (Bloque 4) |
 | Módulo torneos jugador | ✅ Frontend completo | Inscripción, historial, sinCompanero, disponibilidad, notificaciones separadas — falta backend (Bloque 4) |
@@ -77,12 +77,12 @@
 | Clave | Store | Contenido |
 |---|---|---|
 | `admin_notificaciones_v2` | notificacionesStore | Avisos admin (UI efímero) |
-| `player_notificaciones` | playerNotificationsStore | Notificaciones jugador (UI efímero) |
+| ~~`player_notificaciones`~~ | ~~playerNotificationsStore~~| **Eliminado** — migrado a tabla `notificaciones` en Supabase |
 | `player_token` | playerStore | Token de sesión jugador |
 | `token` | authStore | Token del admin |
 | `admin_sidebar_collapsed` | AdminDashboardLayout | Estado del sidebar desktop |
 
-**Eliminados de localStorage (migrado a backend):** `torneos_v1`, `player_reservas`, `reservas_admin`, `turnos_fijos`, `profesores`, `player_data`, `admin_user`, `club_config`
+**Eliminados de localStorage (migrado a backend):** `torneos_v1`, `player_reservas`, `reservas_admin`, `turnos_fijos`, `profesores`, `player_data`, `admin_user`, `club_config`, `player_notificaciones`
 
 > Para limpiar localStorage en pruebas: incrementar `APP_VERSION` en `main.jsx` (versión actual: 84.0).
 
@@ -235,6 +235,114 @@
 **Visualización disponibilidad horaria**
 - Botón reloj en `MiTorneoCard` → despliega panel inline con los slots del jugador
 - Muestra día + horaDesde, nota "mismo día" si aplica, mensaje ámbar si sinCompanero
+
+---
+
+## Último bloque completado (2026-05-12) — Horarios: selector inteligente + horarios por cancha + fix slots
+
+### Objetivo
+Eliminar el input libre de tiempo (causaba valores inválidos como 08:59) y reemplazarlo con selectores que solo permitan combinaciones exactas de 1.5h.
+
+### Cambios en QuienesSomosPage (admin)
+
+**Nuevo componente `HorarioSelect`**
+- Apertura: selector de hora (00–23) + minuto (00 / 30 únicamente)
+- Cierre: select que muestra solo opciones válidas → `apertura + N×90` (ej: 08:00 → 09:30, 11:00, ..., 23:00, 00:00)
+- Cada opción de cierre muestra la cantidad de turnos: `"23:00 — 10 turnos"`
+- Al cambiar apertura, el cierre se ajusta automáticamente a la opción más cercana válida (`snapCierre`)
+- Imposible guardar una combinación que genere slots desalineados
+
+**Horarios personalizados por cancha**
+- Toggle en `CanchaRow` para habilitar horario propio (override del horario general del club)
+- Cuando está activo: grilla de 7 días con `HorarioSelect` por día
+- `null` en `cancha.horarios` = hereda horario del club
+- Indicador visual "Horario propio" en la cabecera de la cancha cuando está activo
+
+**Info box simplificado**
+- Eliminado el warning ámbar (ya no necesario porque el selector garantiza combinaciones exactas)
+- Info box azul explica la regla de 1.5h y el comportamiento del selector
+
+### Cambios en PlayerReservasPage
+
+**`snapHalfHour` + `snapCierreToSlots` en `generarSlots`**
+- Sanea valores legacy con minutos arbitrarios (ej: 08:59 → 09:00, cierre 22:29 → 22:30)
+- `snapHalfHour`: redondea apertura al :00/:30 más cercano
+- `snapCierreToSlots`: ajusta cierre al múltiplo exacto de 90 desde apertura saneada
+- `'00:00'` se trata como 1440 (medianoche) en toda la cadena — no se convierte a '23:00' accidentalmente
+- Fix: `ciMin = ci === '00:00' ? 1440 : toMin(ci)` garantiza que el while loop procesa medianoche correctamente
+
+### Cambios en backend y store
+
+**Prisma schema**
+- `Cancha`: nuevo campo `horarios Json?` — null = hereda club, objeto = horario propio por día
+
+**`/api/clubs/me/canchas` (PATCH)**
+- `horarios: c.horarios ?? null` en upsert → persiste horario por cancha en Supabase
+
+**`clubStore`**
+- `loadFromBackend` y `saveClub`: mapean `horarios` de cada cancha correctamente
+
+**`PlayerReservasPage` — fallback por cancha**
+- `horarioDia = canchaActual?.horarios?.[diaNombre] ?? club.horarios?.[diaNombre]`
+- Si la cancha tiene horario propio, lo usa; si no, hereda el del club
+
+---
+
+## Último bloque completado (2026-05-11 sesión 2) — Notificaciones backend + Política de cancelación
+
+### Objetivo
+Todo dato de negocio en Supabase. Cero localStorage para datos de negocio.
+
+### Nuevas tablas en Prisma (db push aplicado)
+- `Notificacion` — id, clubId, jugadorId, tipo, leida, data (Json), createdAt
+- `Cargo` — id, clubId, jugadorId, reservaId, concepto, monto, estado (pendiente/pagado/condonado), createdAt
+
+### Tipos de notificación implementados
+- `reserva_confirmada` — admin aprueba reserva del jugador
+- `reserva_cancelada_admin` — admin cancela reserva del jugador
+- `turno_fijo_confirmado` — admin aprueba turno fijo
+- `turno_fijo_rechazado` — admin rechaza turno fijo
+- `cargo_cancelacion` — jugador cancela fuera del plazo → cargo registrado
+
+### Nuevos endpoints backend
+- `GET /api/notificaciones/me` — jugador lee sus notificaciones (últimas 50)
+- `PATCH /api/notificaciones/:id/leida` — marca una como leída
+- `PATCH /api/notificaciones/leidas` — marca todas como leídas
+- `GET /api/cargos/me` — jugador ve sus cargos pendientes
+- `GET /api/cargos` — admin ve todos los cargos del club
+- `PATCH /api/cargos/:id/estado` — admin marca cargo como pagado o condonado
+
+### Triggers automáticos en backend
+- `PATCH /reservas/:id/estado` → crea Notificacion al jugador (confirmada/cancelada)
+- `PATCH /turnos-fijos/:id/estado` → crea Notificacion al jugador (confirmado/inactivo)
+- `DELETE /reservas/:id` con cargo → crea Notificacion tipo `cargo_cancelacion`
+
+### playerNotificationsStore — reescrito sin localStorage
+- `fetchNotificaciones()` → `GET /api/notificaciones/me`
+- `marcarLeida(id)` → optimista UI + `PATCH /api/notificaciones/:id/leida`
+- `marcarTodasLeidas()` → optimista UI + `PATCH /api/notificaciones/leidas`
+- `notificaciones[]` = backend; `locales[]` = UI efímero (addSolicitudEnviada)
+- Métodos legacy (addReservaConfirmada, etc.) convertidos en no-ops para compatibilidad
+
+### PlayerLayout — polling notificaciones
+- Fetch al montar + cada 60s (setInterval)
+- sinLeer = count de notificaciones + locales no leídas
+
+### PlayerReservasPage — misReservasDB
+- Fetch `GET /api/reservas/me` al montar
+- Mapeado CUID canchaId → numeric ID via nombre de cancha
+- Reemplaza uso de `reservas` del store Zustand para lista y grilla
+- Refetch después de crear y cancelar
+
+### Política de cancelación
+- Campo `horasCancelacion` en config JSON del Club (admin lo configura en tab Canchas)
+- Backend valida: si cancela dentro del plazo → cancela + crea Cargo + Notificacion
+- Frontend modal: muestra aviso amarillo + precio del cargo si está fuera de plazo
+- Botón cambia a "Cancelar con cargo ($X)" en color ámbar
+
+### IMPORTANTE: regenerar cliente Prisma
+- Después de agregar Notificacion y Cargo: `npx prisma generate` con backend detenido
+- El backend necesita reiniciarse para que los nuevos modelos estén disponibles
 
 ---
 

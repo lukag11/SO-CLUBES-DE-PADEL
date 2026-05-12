@@ -5,6 +5,7 @@ import usePlayerStore from '../store/playerStore'
 import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 import useReservasStore from '../store/reservasStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
+import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
 
 const navItems = [
@@ -21,7 +22,9 @@ const PlayerLayout = () => {
   const { isAuthenticated, player, token } = usePlayerStore()
   const logout = usePlayerStore((s) => s.logout)
   const setPlayer = usePlayerStore((s) => s.setPlayer)
-  const sinLeer = usePlayerNotificationsStore((s) => s.notificaciones.filter((n) => !n.leida).length)
+  const { notificaciones, locales, fetchNotificaciones } = usePlayerNotificationsStore()
+  const sinLeer = [...notificaciones, ...locales].filter((n) => !n.leida).length
+  const loadFromBackend = useClubStore((s) => s.loadFromBackend)
   const setReservas = useReservasStore((s) => s.setReservas)
   const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
   const navigate = useNavigate()
@@ -33,6 +36,14 @@ const PlayerLayout = () => {
     api.get('/jugadores/me', { Authorization: `Bearer ${token}` })
       .then((data) => { if (data?.id) setPlayer(data) })
       .catch(() => {})
+  }, [token])
+
+  // Carga config del club (canchas, precios, horarios) desde el backend
+  useEffect(() => {
+    if (!token) return
+    api.get('/clubs/info', { Authorization: `Bearer ${token}` })
+      .then((data) => { if (data?.id) loadFromBackend(data) })
+      .catch((err) => console.error('[PlayerLayout] Error cargando club:', err))
   }, [token])
 
   // Carga las reservas propias del jugador desde el backend al montar el layout
@@ -66,6 +77,14 @@ const PlayerLayout = () => {
       .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
       .catch(() => {})
   }, [token])
+
+  // Carga notificaciones del backend al montar y refresca cada 60s
+  useEffect(() => {
+    if (!token) return
+    fetchNotificaciones()
+    const interval = setInterval(fetchNotificaciones, 60_000)
+    return () => clearInterval(interval)
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isAuthenticated) {
     return <Navigate to="/dashboardJugadores" replace />

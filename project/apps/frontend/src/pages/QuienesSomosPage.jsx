@@ -7,7 +7,7 @@ import {
   Images, Wrench, Users, HelpCircle, CalendarDays,
   Plus, Trash2, User, Check,
   ShowerHead, Car, GraduationCap, Coffee, Dumbbell,
-  Shield, Wind, Utensils, Music,
+  Shield, Wind, Utensils, Music, Info,
 } from 'lucide-react'
 import useClubStore from '../store/clubStore'
 import useProfesoresStore from '../store/profesoresStore'
@@ -669,13 +669,121 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
 // ─── Tab: Canchas & Tarifas ──────────────────────────────────────────────────
 
 
+// ─── Horario select helpers ──────────────────────────────────────────────────
+
+const _toMin = (t) => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m }
+const _toTime = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+
+// Retorna opciones válidas de cierre: apertura + N×90, hasta medianoche (00:00)
+const getCierreOpciones = (apertura) => {
+  if (!apertura) return []
+  const ap = _toMin(apertura)
+  const opts = []
+  let cur = ap + 90
+  let n = 1
+  while (cur <= 1440) {
+    opts.push({ value: cur === 1440 ? '00:00' : _toTime(cur), label: `${cur === 1440 ? '00:00' : _toTime(cur)} — ${n} turno${n !== 1 ? 's' : ''}` })
+    cur += 90; n++
+  }
+  return opts
+}
+
+// Encuentra la opción de cierre más cercana al valor actual tras cambiar apertura
+const snapCierre = (cierre, opts) => {
+  if (!opts.length) return ''
+  if (opts.find((o) => o.value === cierre)) return cierre
+  const curM = cierre === '00:00' ? 1440 : _toMin(cierre)
+  return opts.reduce((best, o) => {
+    const om = o.value === '00:00' ? 1440 : _toMin(o.value)
+    const bm = best.value === '00:00' ? 1440 : _toMin(best.value)
+    return Math.abs(om - curM) < Math.abs(bm - curM) ? o : best
+  }).value
+}
+
+const HORAS_SELECT = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+
+// Selector apertura (hora+minuto) + cierre (solo opciones válidas)
+const HorarioSelect = ({ apertura, cierre, onAperturaChange, onCierreChange, size = 'sm' }) => {
+  const [apH, apM] = apertura ? apertura.split(':') : ['08', '00']
+  const opts = getCierreOpciones(apertura)
+  const cierreVal = opts.find((o) => o.value === cierre) ? cierre : (opts[opts.length - 1]?.value ?? '')
+
+  const cls = size === 'xs'
+    ? 'border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 outline-none focus:border-blue-400 transition-colors appearance-none bg-white'
+    : 'border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors appearance-none bg-white'
+
+  const handleHora = (newH) => {
+    const newAp = `${newH}:${apM}`
+    const newOpts = getCierreOpciones(newAp)
+    onAperturaChange(newAp)
+    onCierreChange(snapCierre(cierre, newOpts))
+  }
+  const handleMin = (newM) => {
+    const newAp = `${apH}:${newM}`
+    const newOpts = getCierreOpciones(newAp)
+    onAperturaChange(newAp)
+    onCierreChange(snapCierre(cierre, newOpts))
+  }
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className={`text-slate-400 ${size === 'xs' ? 'text-xs' : 'text-xs'}`}>Apertura</span>
+      <div className="flex items-center gap-1">
+        <select value={apH} onChange={(e) => handleHora(e.target.value)} className={cls}>
+          {HORAS_SELECT.map((h) => <option key={h} value={h}>{h}</option>)}
+        </select>
+        <span className="text-slate-300 text-sm">:</span>
+        <select value={apM} onChange={(e) => handleMin(e.target.value)} className={cls}>
+          <option value="00">00</option>
+          <option value="30">30</option>
+        </select>
+      </div>
+      <span className="text-slate-200">—</span>
+      <span className={`text-slate-400 ${size === 'xs' ? 'text-xs' : 'text-xs'}`}>Cierre</span>
+      <select value={cierreVal} onChange={(e) => onCierreChange(e.target.value)} className={`${cls} min-w-[140px]`}>
+        {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  )
+}
+
+const HORARIOS_CANCHA_DEFAULT = Object.fromEntries(
+  DIAS.map((dia, i) => [
+    dia,
+    {
+      apertura: i < 5 ? '08:00' : '09:00',
+      cierre: i === 6 ? '21:00' : i === 5 ? '22:00' : '23:00',
+      activo: true,
+    },
+  ])
+)
+
 const CanchaRow = ({ cancha, onUpdate }) => {
   const [editing, setEditing] = useState(false)
   const [local, setLocal] = useState({ ...cancha })
+  const tieneHorariosCustom = !!local.horarios
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
     setLocal((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
+  }
+
+  const handleToggleHorarios = () => {
+    if (tieneHorariosCustom) {
+      setLocal((prev) => ({ ...prev, horarios: null }))
+    } else {
+      setLocal((prev) => ({ ...prev, horarios: { ...HORARIOS_CANCHA_DEFAULT } }))
+    }
+  }
+
+  const handleHorarioCancha = (dia, data) => {
+    setLocal((prev) => ({
+      ...prev,
+      horarios: {
+        ...prev.horarios,
+        [dia]: { ...prev.horarios[dia], ...data },
+      },
+    }))
   }
 
   const handleSave = () => {
@@ -702,6 +810,12 @@ const CanchaRow = ({ cancha, onUpdate }) => {
             <span className={`text-xs font-medium ${cancha.activa ? 'text-emerald-500' : 'text-slate-400'}`}>
               {cancha.activa ? 'Activa' : 'Inactiva'}
             </span>
+            {cancha.horarios && (
+              <>
+                <span className="text-slate-200">·</span>
+                <span className="text-xs font-medium text-blue-500">Horario propio</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -722,7 +836,7 @@ const CanchaRow = ({ cancha, onUpdate }) => {
 
       {/* Formulario edición */}
       {editing && (
-        <div className="px-4 py-4 border-t border-slate-100 bg-white">
+        <div className="px-4 py-4 border-t border-slate-100 bg-white flex flex-col gap-4">
           <div className="grid sm:grid-cols-3 gap-4">
 
             <div>
@@ -763,7 +877,7 @@ const CanchaRow = ({ cancha, onUpdate }) => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 mt-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" name="indoor" checked={local.indoor} onChange={handleChange} className="rounded accent-emerald-500" />
               <span className="text-sm text-slate-600">Indoor</span>
@@ -772,15 +886,70 @@ const CanchaRow = ({ cancha, onUpdate }) => {
               <input type="checkbox" name="activa" checked={local.activa} onChange={handleChange} className="rounded accent-emerald-500" />
               <span className="text-sm text-slate-600">Cancha activa</span>
             </label>
-            <div className="ml-auto">
+          </div>
+
+          {/* Toggle horarios personalizados */}
+          <div className="border border-slate-100 rounded-xl overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 bg-slate-50">
               <button
-                onClick={handleSave}
-                className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+                onClick={handleToggleHorarios}
+                className={[
+                  'relative w-10 h-5 rounded-full transition-all duration-300 shrink-0',
+                  tieneHorariosCustom ? 'bg-blue-500' : 'bg-slate-200',
+                ].join(' ')}
               >
-                <Save size={13} />
-                Guardar
+                <div className={[
+                  'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300',
+                  tieneHorariosCustom ? 'left-5' : 'left-0.5',
+                ].join(' ')} />
               </button>
+              <div>
+                <p className="text-slate-700 font-medium text-sm">Horarios personalizados</p>
+                <p className="text-slate-400 text-xs">
+                  {tieneHorariosCustom ? 'Esta cancha tiene su propio horario' : 'Heredando horario general del club'}
+                </p>
+              </div>
             </div>
+
+            {tieneHorariosCustom && local.horarios && (
+              <div className="px-4 py-3 border-t border-slate-100 flex flex-col gap-2">
+                {DIAS.map((dia) => {
+                  const h = local.horarios[dia] ?? { apertura: '08:00', cierre: '23:00', activo: true }
+                  return (
+                    <div key={dia} className={`rounded-xl transition-colors ${h.activo ? 'bg-slate-50' : 'bg-slate-50/40 opacity-60'}`}>
+                      <div className="flex items-center gap-3 px-3 py-2.5">
+                        <button
+                          onClick={() => handleHorarioCancha(dia, { activo: !h.activo })}
+                          className={['relative w-9 h-[18px] rounded-full transition-all duration-300 shrink-0', h.activo ? 'bg-emerald-500' : 'bg-slate-200'].join(' ')}
+                        >
+                          <div className={['absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow-sm transition-all duration-300', h.activo ? 'left-[18px]' : 'left-0.5'].join(' ')} />
+                        </button>
+                        <span className="text-slate-700 font-medium text-xs w-20 shrink-0">{dia}</span>
+                        {h.activo && (
+                          <HorarioSelect
+                            apertura={h.apertura}
+                            cierre={h.cierre}
+                            onAperturaChange={(v) => handleHorarioCancha(dia, { apertura: v })}
+                            onCierreChange={(v) => handleHorarioCancha(dia, { cierre: v })}
+                            size="xs"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={handleSave}
+              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+            >
+              <Save size={13} />
+              Guardar
+            </button>
           </div>
         </div>
       )}
@@ -788,9 +957,10 @@ const CanchaRow = ({ cancha, onUpdate }) => {
   )
 }
 
-const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, saveClub }) => {
+const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, saveClub, updateClub }) => {
   const [saved, setSaved] = useState(false)
   const cantidad = club.canchas.length
+  const horasCancelacion = club.horasCancelacion ?? 0
 
   const handleSave = () => {
     saveClub()
@@ -802,8 +972,35 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
     <div className="flex flex-col gap-4">
 
       {/* Configuración general */}
-      <SectionCard title="Configuración general" subtitle="Cantidad de canchas y modalidad de tarifas">
+      <SectionCard title="Configuración general" subtitle="Cantidad de canchas y política de cancelación">
         <div className="flex flex-col gap-4">
+
+          {/* Política de cancelación */}
+          <div className="flex flex-col gap-2 p-3 md:p-4 bg-slate-50 rounded-xl">
+            <div>
+              <p className="text-slate-700 font-medium text-sm">Plazo mínimo de cancelación</p>
+              <p className="text-slate-400 text-xs mt-0.5">
+                Si el jugador cancela con menos de este tiempo de anticipación, se registra un cargo automático.
+                Ponê 0 para deshabilitar.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 mt-1">
+              <input
+                type="number"
+                min={0}
+                max={168}
+                value={horasCancelacion}
+                onChange={(e) => updateClub({ horasCancelacion: Number(e.target.value) })}
+                className="w-24 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 font-semibold text-center focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+              <span className="text-slate-500 text-sm">horas de anticipación</span>
+              {horasCancelacion > 0 && (
+                <span className="text-emerald-600 text-xs font-medium bg-emerald-50 px-2 py-1 rounded-lg">
+                  Cargo = precio del turno
+                </span>
+              )}
+            </div>
+          </div>
 
           {/* Cantidad de canchas */}
           <div className="flex items-center justify-between p-3 md:p-4 bg-slate-50 rounded-xl">
@@ -881,6 +1078,16 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
 
       {/* Horarios de apertura */}
       <SectionCard title="Horarios de apertura" subtitle="Configurá los horarios del club por día">
+
+        {/* Info box */}
+        <div className="flex gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-3">
+          <Info size={15} className="text-blue-400 shrink-0 mt-0.5" />
+          <div className="text-xs text-blue-600 leading-relaxed">
+            <span className="font-semibold">Los turnos son de 1.5h.</span> El cierre muestra solo las opciones exactas
+            (apertura + múltiplos de 1.5h), así el sistema garantiza que todos los turnos queden perfectamente alineados.
+          </div>
+        </div>
+
         <div className="flex flex-col gap-2">
           {DIAS.map((dia) => {
             const h = club.horarios[dia]
@@ -889,8 +1096,7 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
                 key={dia}
                 className={`rounded-xl transition-colors ${h.activo ? 'bg-slate-50' : 'bg-slate-50/40 opacity-60'}`}
               >
-                {/* Fila 1: toggle + nombre día (siempre visible) */}
-                <div className="flex items-center gap-3 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-3 px-4 py-3">
                   <button
                     onClick={() => updateHorario(dia, { activo: !h.activo })}
                     className={[
@@ -905,49 +1111,17 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
                   </button>
                   <span className="text-slate-700 font-medium text-sm w-24 shrink-0">{dia}</span>
 
-                  {/* Desktop: inputs en la misma fila */}
                   {h.activo ? (
-                    <div className="hidden sm:flex items-center gap-3 flex-1">
-                      <span className="text-slate-400 text-xs">Apertura</span>
-                      <input
-                        type="time"
-                        value={h.apertura}
-                        onChange={(e) => updateHorario(dia, { apertura: e.target.value })}
-                        className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
-                      />
-                      <span className="text-slate-200">—</span>
-                      <span className="text-slate-400 text-xs">Cierre</span>
-                      <input
-                        type="time"
-                        value={h.cierre}
-                        onChange={(e) => updateHorario(dia, { cierre: e.target.value })}
-                        className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
-                      />
-                      <span className="text-xs text-slate-400 ml-auto">{h.apertura} a {h.cierre}</span>
-                    </div>
+                    <HorarioSelect
+                      apertura={h.apertura}
+                      cierre={h.cierre}
+                      onAperturaChange={(v) => updateHorario(dia, { apertura: v })}
+                      onCierreChange={(v) => updateHorario(dia, { cierre: v })}
+                    />
                   ) : (
                     <span className="text-slate-400 text-sm italic">Cerrado</span>
                   )}
                 </div>
-
-                {/* Fila 2 mobile: inputs debajo (solo cuando activo) */}
-                {h.activo && (
-                  <div className="sm:hidden flex items-center gap-2 px-4 pb-3">
-                    <input
-                      type="time"
-                      value={h.apertura}
-                      onChange={(e) => updateHorario(dia, { apertura: e.target.value })}
-                      className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
-                    />
-                    <span className="text-slate-300 shrink-0">—</span>
-                    <input
-                      type="time"
-                      value={h.cierre}
-                      onChange={(e) => updateHorario(dia, { cierre: e.target.value })}
-                      className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
-                    />
-                  </div>
-                )}
               </div>
             )
           })}
@@ -2091,7 +2265,7 @@ const QuienesSomosPage = () => {
 
       {/* Contenido */}
       {activeTab === 'info'       && <TabInfo       club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
-      {activeTab === 'canchas'    && <TabCanchas    club={club} updateCancha={updateCancha} setCantidadCanchas={setCantidadCanchas} updateHorario={updateHorario} saveClub={boundSaveClub} />}
+      {activeTab === 'canchas'    && <TabCanchas    club={club} updateCancha={updateCancha} setCantidadCanchas={setCantidadCanchas} updateHorario={updateHorario} saveClub={boundSaveClub} updateClub={updateClub} />}
       {activeTab === 'historia'   && <TabHistoria   club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
       {activeTab === 'hero'       && <TabHero       club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
       {activeTab === 'galeria'    && <TabGaleria    club={club} updateClub={updateClub} saveClub={boundSaveClub} />}

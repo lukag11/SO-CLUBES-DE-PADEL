@@ -5,6 +5,23 @@ import { requireAuth, requireRole } from '../middleware/auth.js'
 const router = Router()
 const prisma = new PrismaClient()
 
+const crearNotifTurnoFijo = (turno, tipo) => {
+  if (!turno.jugadorId) return
+  prisma.notificacion.create({
+    data: {
+      clubId: turno.clubId,
+      jugadorId: turno.jugadorId,
+      tipo,
+      data: {
+        canchaNombre: turno.cancha?.nombre ?? '',
+        dia: turno.dia,
+        horaInicio: turno.horaInicio,
+        horaFin: turno.horaFin,
+      },
+    },
+  }).catch(() => {})
+}
+
 const INCLUDE_CANCHA = {
   cancha: { select: { id: true, nombre: true, tipo: true, indoor: true } },
   jugador: { select: { id: true, nombre: true, apellido: true, dni: true } },
@@ -126,6 +143,10 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
       data: { estado },
       include: INCLUDE_CANCHA,
     })
+
+    if (estado === 'confirmado') crearNotifTurnoFijo(updated, 'turno_fijo_confirmado')
+    if (estado === 'inactivo')   crearNotifTurnoFijo(updated, 'turno_fijo_rechazado')
+
     res.json(mapTurno(updated))
   } catch (e) {
     res.status(500).json({ error: e.message })

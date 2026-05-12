@@ -1948,11 +1948,15 @@ const ReservasPage = () => {
     [fecha, horarios, diaNombre]
   )
 
+  const tieneHorarioPropio = (c) =>
+    c.horarios && typeof c.horarios === 'object' &&
+    Object.values(c.horarios).some((d) => d && 'activo' in d)
+
   // Canchas sin horario propio → grilla principal (usa horario global)
-  const canchasSinCustom = useMemo(() => canchas.filter((c) => !c.horarios), [canchas])
+  const canchasSinCustom = useMemo(() => canchas.filter((c) => !tieneHorarioPropio(c)), [canchas])
 
   // Canchas con horario propio → sub-grillas independientes
-  const canchasConCustom = useMemo(() => canchas.filter((c) => !!c.horarios), [canchas])
+  const canchasConCustom = useMemo(() => canchas.filter((c) => tieneHorarioPropio(c)), [canchas])
 
   // Franjas por cancha con horario propio
   const franjasCustomPorCancha = useMemo(

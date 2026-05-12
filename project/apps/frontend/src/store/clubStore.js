@@ -2,6 +2,13 @@ import { create } from 'zustand'
 
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
+// Normaliza horarios de cancha: {} o sin días configurados → null (sin horario propio)
+const normalizeHorarios = (h) => {
+  if (!h || typeof h !== 'object') return null
+  const tieneAlgunDia = Object.values(h).some((d) => d && typeof d === 'object' && 'activo' in d)
+  return tieneAlgunDia ? h : null
+}
+
 const HORARIOS_DEFAULT = Object.fromEntries(
   DIAS_SEMANA.map((dia, i) => [
     dia,
@@ -166,7 +173,7 @@ const useClubStore = create((set, get) => ({
             indoor: c.indoor ?? true,
             activa: c.activo,
             precioTurno: c.precioTurno ?? 0,
-            horarios: c.horarios ?? null,
+            horarios: normalizeHorarios(c.horarios),
           })),
         }),
       }
@@ -202,7 +209,7 @@ const useClubStore = create((set, get) => ({
                 indoor: c.indoor ?? true,
                 activa: c.activo,
                 precioTurno: c.precioTurno ?? 0,
-                horarios: c.horarios ?? null,
+                horarios: normalizeHorarios(c.horarios),
               })),
             },
             _dirty: false,

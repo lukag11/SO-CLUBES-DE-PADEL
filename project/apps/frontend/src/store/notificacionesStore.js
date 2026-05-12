@@ -258,7 +258,7 @@ const useNotificacionesStore = create((set, get) => ({
     })
   },
 
-  sinLeer: () => get().notificaciones.filter((n) => !n.leida && n.tipo !== 'inscripcion_torneo' && n.tipo !== 'baja_torneo' && n.tipo !== 'actualizacion_torneo').length,
+  sinLeer: () => get().notificaciones.filter((n) => !n.leida && !['inscripcion_torneo', 'baja_torneo', 'actualizacion_torneo', 'completacion_torneo', 'nueva_reserva'].includes(n.tipo)).length,
   sinLeerTorneos: () => get().notificaciones.filter((n) => !n.leida && (n.tipo === 'inscripcion_torneo' || n.tipo === 'baja_torneo' || n.tipo === 'actualizacion_torneo' || n.tipo === 'completacion_torneo')).length,
 }))
 

@@ -17,7 +17,7 @@ import useProfesoresStore from '../store/profesoresStore'
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
-import { overlaps, toMin } from '../utils/timeUtils'
+import { overlaps, toMin, toTime } from '../utils/timeUtils'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1886,7 +1886,8 @@ const ReservasPage = () => {
   const canchas = useClubStore((s) => s.club.canchas)
   const horarios = useClubStore((s) => s.club.horarios)
 
-  // Franjas del día filtradas según el horario configurado del club
+  // Genera franjas del día dinámicamente desde apertura/cierre configurados.
+  // Idéntico al algoritmo del jugador → mismos horarios exactos en ambas grillas.
   const franjasDia = useMemo(() => {
     const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
     const diaNombre = DIAS[new Date(fecha + 'T12:00:00').getDay()]
@@ -1896,13 +1897,13 @@ const ReservasPage = () => {
     const ciStr = horario.cierre || '23:00'
     const ciMin = ciStr === '00:00' ? 1440 : toMin(ciStr)
     const ciAdj = ciMin <= apMin ? ciMin + 1440 : ciMin  // horario cross-midnight
-    return FRANJAS.filter((f) => {
-      const fi = toMin(f.inicio)
-      const ff = toMin(f.fin) || 1440  // '00:00' → 1440
-      const fiAdj = fi >= apMin ? fi : fi + 1440  // franjas del "día siguiente" en horario cross-midnight
-      const ffAdj = ff <= fi ? ff + 1440 : ff    // franja cross-midnight (ej: 23:30-01:00)
-      return fiAdj >= apMin && fiAdj < ciAdj && ffAdj <= ciAdj
-    })
+    const franjas = []
+    let cur = ciAdj - 90
+    while (cur >= apMin) {
+      franjas.unshift({ inicio: toTime(cur % 1440), fin: toTime((cur + 90) % 1440) })
+      cur -= 90
+    }
+    return franjas
   }, [fecha, horarios])
 
   // Reservas reales desde el backend (jugadores que reservaron online)

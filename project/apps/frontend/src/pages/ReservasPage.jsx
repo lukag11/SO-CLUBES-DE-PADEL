@@ -2288,7 +2288,12 @@ const ReservasPage = () => {
           {/* Vista mobile: 2 canchas por página */}
           <div className="md:hidden flex flex-col gap-5">
             {canchasSinCustom.length > 0 && (
-              <GrillaMobile reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchasSinCustom} franjas={franjasDia} />
+              franjasDia.length > 0
+                ? <GrillaMobile reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchasSinCustom} franjas={franjasDia} />
+                : <div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 text-sm text-slate-400">
+                    <span className="font-medium text-slate-500">Día cerrado (horario general):</span>{' '}
+                    {canchasSinCustom.map((c) => c.nombre).join(', ')}
+                  </div>
             )}
             {canchasConCustom.map((cancha) => {
               const { franjas } = franjasCustomPorCancha.find((f) => f.canchaId === cancha.id) ?? { franjas: [] }
@@ -2302,7 +2307,12 @@ const ReservasPage = () => {
           <div className="hidden md:flex gap-4 flex-1 min-h-0">
             <div className="flex-1 overflow-auto min-w-0 flex flex-col gap-6">
               {canchasSinCustom.length > 0 && (
-                <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchasSinCustom} franjas={franjasDia} />
+                franjasDia.length > 0
+                  ? <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchasSinCustom} franjas={franjasDia} />
+                  : <div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 text-sm text-slate-400">
+                      <span className="font-medium text-slate-500">Día cerrado (horario general):</span>{' '}
+                      {canchasSinCustom.map((c) => c.nombre).join(', ')}
+                    </div>
               )}
               {canchasConCustom.map((cancha) => {
                 const { franjas } = franjasCustomPorCancha.find((f) => f.canchaId === cancha.id) ?? { franjas: [] }

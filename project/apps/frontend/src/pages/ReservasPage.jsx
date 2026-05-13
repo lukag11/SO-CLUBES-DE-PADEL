@@ -509,6 +509,30 @@ const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], 
   )
 }
 
+// ─── Sección de cancha con horario general (modo personalización activa) ──────
+
+const GrillaSeccionGeneral = ({ cancha, franjas, reservas, clasesDia, fecha, onCeldaClick }) => (
+  <div className="flex flex-col gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-sm font-semibold text-slate-700">{cancha.nombre}</span>
+      {!cancha.activa && (
+        <span className="text-xs font-medium text-slate-400 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">Inactiva</span>
+      )}
+      {franjas.length > 0 && (
+        <span className="text-xs text-slate-400">
+          {franjas[0].inicio}–{franjas[franjas.length - 1].fin} · {franjas.length} turno{franjas.length !== 1 ? 's' : ''}
+        </span>
+      )}
+    </div>
+    <div className="md:hidden">
+      <GrillaMobile reservas={reservas} clasesDia={clasesDia} fecha={fecha} onCeldaClick={onCeldaClick} canchas={[cancha]} franjas={franjas} />
+    </div>
+    <div className="hidden md:block">
+      <Grilla reservas={reservas} clasesDia={clasesDia} fecha={fecha} onCeldaClick={onCeldaClick} canchas={[cancha]} franjas={franjas} />
+    </div>
+  </div>
+)
+
 // ─── Sub-grilla para cancha con horario propio ───────────────────────────────
 
 const GrillaConHorarioPropio = ({ cancha, franjas, reservas, clasesDia, fecha, onCeldaClick }) => (
@@ -1948,6 +1972,13 @@ const ReservasPage = () => {
     [fecha, horarios, diaNombre]
   )
 
+  // En admin, siempre mostrar la grilla aunque el día esté cerrado (fallback 08:00-23:00)
+  const diaCerradoGeneral = horarios?.[diaNombre]?.activo === false
+  const franjasMainGrilla = useMemo(
+    () => franjasDia.length > 0 ? franjasDia : generateFranjas({ apertura: '08:00', cierre: '23:00', activo: true }),
+    [franjasDia]
+  )
+
   // Una cancha usa sub-grilla SOLO si tiene horario propio activo para el día actual
   const usaHorarioPropioHoy = (c) => c.horarios?.[diaNombre]?.activo === true
 
@@ -2285,41 +2316,51 @@ const ReservasPage = () => {
             />
           )}
 
-          {/* Vista mobile: 2 canchas por página */}
+          {/* Vista mobile: todas las canchas en orden */}
           <div className="md:hidden flex flex-col gap-5">
-            {canchasSinCustom.length > 0 && (
-              franjasDia.length > 0
-                ? <GrillaMobile reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchasSinCustom} franjas={franjasDia} />
-                : <div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 text-sm text-slate-400">
-                    <span className="font-medium text-slate-500">Día cerrado (horario general):</span>{' '}
-                    {canchasSinCustom.map((c) => c.nombre).join(', ')}
+            {canchasConCustom.length === 0 ? (
+              <GrillaMobile reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchas} franjas={franjasMainGrilla} />
+            ) : (
+              <>
+                {diaCerradoGeneral && canchasSinCustom.length > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
+                    <Ban size={13} className="text-slate-400 shrink-0" />
+                    <span>Día cerrado (horario general) · Las canchas con horario propio siguen activas</span>
                   </div>
+                )}
+                {canchas.map((cancha) => {
+                  if (usaHorarioPropioHoy(cancha)) {
+                    const { franjas } = franjasCustomPorCancha.find((f) => f.canchaId === cancha.id) ?? { franjas: [] }
+                    return <GrillaConHorarioPropio key={cancha.id} cancha={cancha} franjas={franjas} reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} />
+                  }
+                  return <GrillaSeccionGeneral key={cancha.id} cancha={cancha} franjas={franjasMainGrilla} reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} />
+                })}
+              </>
             )}
-            {canchasConCustom.map((cancha) => {
-              const { franjas } = franjasCustomPorCancha.find((f) => f.canchaId === cancha.id) ?? { franjas: [] }
-              return (
-                <GrillaConHorarioPropio key={cancha.id} cancha={cancha} franjas={franjas} reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} />
-              )
-            })}
           </div>
 
           {/* Vista desktop: tabla completa + panel lateral */}
           <div className="hidden md:flex gap-4 flex-1 min-h-0">
             <div className="flex-1 overflow-auto min-w-0 flex flex-col gap-6">
-              {canchasSinCustom.length > 0 && (
-                franjasDia.length > 0
-                  ? <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchasSinCustom} franjas={franjasDia} />
-                  : <div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 text-sm text-slate-400">
-                      <span className="font-medium text-slate-500">Día cerrado (horario general):</span>{' '}
-                      {canchasSinCustom.map((c) => c.nombre).join(', ')}
+              {canchasConCustom.length === 0 ? (
+                <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchas} franjas={franjasMainGrilla} />
+              ) : (
+                <>
+                  {diaCerradoGeneral && canchasSinCustom.length > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
+                      <Ban size={13} className="text-slate-400 shrink-0" />
+                      <span>Día cerrado (horario general) · Las canchas con horario propio siguen activas</span>
                     </div>
+                  )}
+                  {canchas.map((cancha) => {
+                    if (usaHorarioPropioHoy(cancha)) {
+                      const { franjas } = franjasCustomPorCancha.find((f) => f.canchaId === cancha.id) ?? { franjas: [] }
+                      return <GrillaConHorarioPropio key={cancha.id} cancha={cancha} franjas={franjas} reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} />
+                    }
+                    return <GrillaSeccionGeneral key={cancha.id} cancha={cancha} franjas={franjasMainGrilla} reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} />
+                  })}
+                </>
               )}
-              {canchasConCustom.map((cancha) => {
-                const { franjas } = franjasCustomPorCancha.find((f) => f.canchaId === cancha.id) ?? { franjas: [] }
-                return (
-                  <GrillaConHorarioPropio key={cancha.id} cancha={cancha} franjas={franjas} reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} />
-                )
-              })}
             </div>
             {seleccion && !editando && (
               <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">

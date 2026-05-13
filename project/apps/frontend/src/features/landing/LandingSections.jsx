@@ -9,12 +9,9 @@ import {
   Dumbbell, Shield, Wind, Utensils, Music, Wrench,
   CalendarDays, CheckCircle, Lock, Trophy,
 } from 'lucide-react'
-import useReservasStore from '../../store/reservasStore'
-import useTurnosFijosStore from '../../store/turnosFijosStore'
-import useReservasAdminStore from '../../store/reservasAdminStore'
 import usePlayerStore from '../../store/playerStore'
 import useTorneosStore from '../../store/torneosStore'
-import { inRange, overlaps } from '../../utils/timeUtils'
+import { overlaps, generateFranjas } from '../../utils/timeUtils'
 
 // ─── TorneoBanner ─────────────────────────────────────────────────────────────
 
@@ -397,35 +394,18 @@ const DIAS_LARGOS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Vier
 const fmtDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const addDaysTo = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 
-const FRANJAS = [
-  { inicio: '07:00', fin: '08:30' }, { inicio: '08:30', fin: '10:00' },
-  { inicio: '10:00', fin: '11:30' }, { inicio: '11:30', fin: '13:00' },
-  { inicio: '13:00', fin: '14:30' }, { inicio: '14:30', fin: '16:00' },
-  { inicio: '16:00', fin: '17:30' }, { inicio: '17:30', fin: '19:00' },
-  { inicio: '19:00', fin: '20:30' }, { inicio: '20:30', fin: '22:00' },
-  { inicio: '22:00', fin: '23:30' },
-]
-
 const DIAS_SEMANA_KEY = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
 const getDiaKey = (date) => DIAS_SEMANA_KEY[date.getDay()]
 
-const calcSlotsConFranjas = (canchaId, fechaStr, diaKey, apertura, cierre, reservasConfirmadas, turnosFijos, reservasAdmin) =>
-  FRANJAS.filter((f) => inRange(f.inicio, f.fin, apertura, cierre)).map((f) => {
-    const tieneReserva = reservasConfirmadas.some(
-      (r) => !r.esTurnoFijo && Number(r.canchaId) === Number(canchaId) &&
-             r.fecha === fechaStr && overlaps(r.hora, r.horaFin || r.hora, f.inicio, f.fin)
-    )
-    const tieneTurnoFijo = turnosFijos.some(
-      (t) => t.activo && Number(t.canchaId) === Number(canchaId) && t.dia === diaKey &&
-             overlaps(t.inicio, t.fin || t.inicio, f.inicio, f.fin) &&
-             !(t.diasAusentes || []).includes(fechaStr)
-    )
-    const tieneReservaAdmin = (reservasAdmin || []).some(
-      (r) => Number(r.canchaId) === Number(canchaId) && r.fecha === fechaStr &&
-             r.estado !== 'cancelada' && overlaps(r.inicio, r.fin, f.inicio, f.fin)
-    )
-    return { ...f, libre: !tieneReserva && !tieneTurnoFijo && !tieneReservaAdmin }
-  })
+// Calcula slots usando generateFranjas (misma lógica que el admin) + ocupa desde backend
+// ocupados: [{ canchaId, horaInicio, horaFin }]
+const calcSlots = (horarioDia, canchaId, ocupados) =>
+  generateFranjas(horarioDia).map((f) => ({
+    ...f,
+    libre: !(ocupados || []).some(
+      (r) => r.canchaId === canchaId && overlaps(r.horaInicio, r.horaFin, f.inicio, f.fin)
+    ),
+  }))
 
 // Keyframes inyectados una sola vez al DOM
 const KEYFRAMES = `
@@ -462,13 +442,11 @@ const KEYFRAMES = `
 
 export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dark = true }) => {
   const navigate = useNavigate()
-  const reservas = useReservasStore((s) => s.reservas)
-  const turnosFijos = useTurnosFijosStore((s) => s.turnosFijos)
-  const reservasAdmin = useReservasAdminStore((s) => s.reservas)
   const isAuthenticated = usePlayerStore((s) => s.isAuthenticated)
   const torneos = useTorneosStore((s) => s.torneos)
   const [diaOffset, setDiaOffset] = useState(0)
-  const [recentlyFreed, setRecentlyFreed] = useState([]) // [{ canchaId, canchaNombre, slot, freeSince }]
+  const [recentlyFreed, setRecentlyFreed] = useState([])
+  const [ocupados, setOcupados] = useState([]) // slots ocupados desde el backend público
   const prevDataRef = useRef(null)
   const cp = colorPrimario || '#10b981'
 
@@ -480,15 +458,24 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
   const horarioDia = horarios?.[diaNombreLargo]
   const canchasActivas = (canchas ?? []).filter((c) => c.activa)
 
-  const reservasConfirmadas = useMemo(() => reservas.filter((r) => r.estado === 'confirmada'), [reservas])
+  // Fetcha los slots ocupados desde el endpoint público (sin auth)
+  useEffect(() => {
+    const slug = import.meta.env.VITE_CLUB_SLUG
+    if (!slug || !fechaStr) return
+    const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+    fetch(`${BASE}/clubs/${slug}/disponibilidad?fecha=${fechaStr}`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setOcupados(Array.isArray(data) ? data : []))
+      .catch(() => setOcupados([]))
+  }, [fechaStr])
 
   const dataPorCancha = useMemo(() => {
     if (!horarioDia?.activo) return []
     return canchasActivas.map((c) => {
-      const slots = calcSlotsConFranjas(c.id, fechaStr, diaKey, horarioDia.apertura, horarioDia.cierre, reservasConfirmadas, turnosFijos, reservasAdmin)
+      const slots = calcSlots(horarioDia, c.id, ocupados)
       return { cancha: c, slots, libres: slots.filter((s) => s.libre).length }
     })
-  }, [canchasActivas, fechaStr, diaKey, horarioDia, reservasConfirmadas, turnosFijos, reservasAdmin])
+  }, [canchasActivas, horarioDia, ocupados])
 
   const totalLibres = dataPorCancha.reduce((sum, d) => sum + d.libres, 0)
 

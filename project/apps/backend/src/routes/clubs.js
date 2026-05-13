@@ -115,12 +115,42 @@ router.get('/info', requireAuth, requireRole('jugador'), async (req, res) => {
   }
 })
 
-// GET /api/clubs/:slug   — público, info básica del club para la landing
+// GET /api/clubs/:slug/disponibilidad?fecha=YYYY-MM-DD  — público, slots ocupados del día para la landing
+router.get('/:slug/disponibilidad', async (req, res) => {
+  const { fecha } = req.query
+  if (!fecha) return res.status(400).json({ error: 'fecha requerida' })
+
+  try {
+    const club = await prisma.club.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, activo: true },
+    })
+    if (!club || !club.activo) return res.status(404).json({ error: 'Club no encontrado' })
+
+    const reservas = await prisma.reserva.findMany({
+      where: {
+        clubId: club.id,
+        fecha,
+        estado: { in: ['pendiente', 'confirmada'] },
+      },
+      select: { canchaId: true, horaInicio: true, horaFin: true },
+    })
+    res.json(reservas)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener disponibilidad' })
+  }
+})
+
+// GET /api/clubs/:slug   — público, info básica del club + canchas activas para la landing
 router.get('/:slug', async (req, res) => {
   try {
     const club = await prisma.club.findUnique({
       where: { slug: req.params.slug },
-      select: { id: true, nombre: true, slug: true, logoUrl: true, config: true, activo: true },
+      select: {
+        id: true, nombre: true, slug: true, logoUrl: true, config: true, activo: true,
+        canchas: { where: { activo: true }, orderBy: { nombre: 'asc' } },
+      },
     })
     if (!club || !club.activo) return res.status(404).json({ error: 'Club no encontrado' })
     res.json(club)

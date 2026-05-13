@@ -1957,7 +1957,7 @@ const ReservasPage = () => {
   const updateReservaAdmin = useReservasAdminStore((s) => s.updateReserva)
 
   const adminToken = useAuthStore((s) => s.token)
-  const clubId = useAuthStore((s) => s.user?.club?.id) ?? 'cmoryx4a900008t4qmzdzuiee'
+  const clubId = useAuthStore((s) => s.user?.club?.id)
   const canchas = useClubStore((s) => s.club.canchas)
   const horarios = useClubStore((s) => s.club.horarios)
 
@@ -2005,16 +2005,15 @@ const ReservasPage = () => {
 
   const fetchReservasBackend = (f = fecha) => {
     if (!adminToken) return
-    api.get(`/reservas?clubId=${clubId}&fecha=${f}`, { Authorization: `Bearer ${adminToken}` })
-      .then((data) => setReservasBackend(data))
+    api.get(`/reservas?fecha=${f}`, { Authorization: `Bearer ${adminToken}` })
+      .then((data) => setReservasBackend(Array.isArray(data) ? data : []))
       .catch(() => {})
   }
 
   useEffect(() => {
+    if (!adminToken) return
     fetchReservasBackend()
-    // Refresca la grilla cada 30 segundos para reflejar cancelaciones/confirmaciones en tiempo real
     const interval = setInterval(() => fetchReservasBackend(), 30_000)
-    // También refresca cuando el usuario vuelve al tab
     const onFocus = () => fetchReservasBackend()
     window.addEventListener('focus', onFocus)
     return () => {
@@ -2230,7 +2229,7 @@ const ReservasPage = () => {
   const sinLeer = notificaciones.filter((n) => !n.leida && n.tipo === 'solicitud_turno_fijo').length
 
   return (
-    <div className="flex flex-col gap-5 h-full">
+    <div className="flex flex-col gap-5">
 
       {/* Header + navegación de fecha */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -2340,8 +2339,8 @@ const ReservasPage = () => {
           </div>
 
           {/* Vista desktop: tabla completa + panel lateral */}
-          <div className="hidden md:flex gap-4 flex-1 min-h-0">
-            <div className="flex-1 overflow-auto min-w-0 flex flex-col gap-6">
+          <div className="hidden md:flex gap-4">
+            <div className="flex-1 min-w-0 flex flex-col gap-6">
               {canchasConCustom.length === 0 ? (
                 <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchas} franjas={franjasMainGrilla} />
               ) : (
@@ -2363,7 +2362,7 @@ const ReservasPage = () => {
               )}
             </div>
             {seleccion && !editando && (
-              <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">
+              <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col">
                 {seleccion.tipo === 'detalle' ? (
                   <div className="flex flex-col">
                     <DetalleReserva reserva={seleccion.reserva} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} onAprobar={handleAprobarBackend} />
@@ -2381,7 +2380,7 @@ const ReservasPage = () => {
               </aside>
             )}
             {editando && (
-              <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col lg:h-full lg:max-h-full lg:overflow-hidden">
+              <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col">
                 <EditarReserva reserva={editando} onSave={handleGuardarEdicion} onCancel={() => setEditando(null)} />
               </aside>
             )}

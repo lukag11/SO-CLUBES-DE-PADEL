@@ -58,9 +58,11 @@ router.get('/pendientes', requireAuth, requireRole('admin'), async (req, res) =>
   }
 })
 
-// GET /api/reservas?clubId=&fecha=   — admin o jugador (disponibilidad)
+// GET /api/reservas?fecha=   — admin usa su clubId del JWT; jugador pasa clubId como query
 router.get('/', requireAuth, async (req, res) => {
-  const { clubId, fecha } = req.query
+  const { fecha } = req.query
+  // Admin: clubId viene del JWT (seguro). Jugador/otro: acepta query param.
+  const clubId = req.user.role === 'admin' ? req.user.clubId : req.query.clubId
   if (!clubId) return res.status(400).json({ error: 'clubId requerido' })
 
   try {

@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-12
+**Última actualización:** 2026-05-12 (sesión landing + fixes grilla admin)
 
 ---
 
@@ -10,9 +10,9 @@
 |---|---|---|
 | Base frontend + design system | ✅ Completo | Tailwind, componentes UI, dark/light themes |
 | Login admin | ✅ Completo | Conectado al backend real. admin@club.com / 123456 |
-| Landing pública (5 templates) | ✅ Completo | Personalizable desde panel admin |
+| Landing pública (5 templates) | ✅ Completo | Personalizable desde panel admin. Datos reales desde Supabase (clubs/:slug). Spinner mientras carga. Slots disponibilidad desde endpoint público. |
 | Dashboard admin completo | ✅ Completo | Stats, navegación, sidebar colapsable |
-| Gestión reservas (admin) | ✅ Completo | Grilla semanal, aprobación, turnos fijos. Backend conectado. Política de cancelación con cargo automático |
+| Gestión reservas (admin) | ✅ Completo | Grilla semanal, aprobación, turnos fijos. Backend conectado. Política de cancelación con cargo automático. Fix: fetch usa JWT clubId (sin fallback hardcodeado). Scroll libre (sin h-full). |
 | Gestión pagos (admin) | ✅ Frontend completo | Registro de pagos por turno — falta backend |
 | Edición del club / Quiénes Somos | ✅ Completo | Logo, colores, plantillas, horarios, canchas |
 | Registro jugador (stepper 3 pasos) | ✅ Completo | Conectado al backend real. Validaciones, georef API, toggle perfil público |
@@ -235,6 +235,54 @@
 **Visualización disponibilidad horaria**
 - Botón reloj en `MiTorneoCard` → despliega panel inline con los slots del jugador
 - Muestra día + horaDesde, nota "mismo día" si aplica, mensaje ámbar si sinCompanero
+
+---
+
+## Último bloque completado (2026-05-12 sesión 2) — Grilla admin: horarios mixtos por cancha
+
+### Objetivo
+Cuando una cancha tiene horario propio activo para el día, mostrarla en una sub-grilla independiente manteniendo el orden y visibilidad de todas las canchas.
+
+### Cambios en `ReservasPage.jsx`
+
+**`generateFranjas(horarioDia)`** — genera slots 1.5h dinámicos desde apertura hasta cierre. Cross-midnight aware. Reemplaza FRANJAS_DEFAULT estática para la grilla admin.
+
+**`GrillaConHorarioPropio`** — componente para canchas con horario propio activo hoy:
+- Header con nombre, badge azul "Horario propio", rango de horarios y cantidad de turnos
+- Si `franjas.length === 0`: mensaje "Día cerrado según horario propio"
+- Maneja mobile/desktop internamente (`md:hidden` / `hidden md:block`)
+
+**`GrillaSeccionGeneral`** — componente equivalente para canchas con horario general en modo mixto:
+- Header con nombre de cancha (sin badge) y rango de franjas
+- Maneja mobile/desktop internamente
+- Garantiza visibilidad aunque el día esté cerrado en el horario global
+
+**Computed values en el componente:**
+- `diaNombre` — nombre del día en español según la fecha seleccionada
+- `franjasDia` — franjas del horario global del club para ese día
+- `franjasMainGrilla` — `franjasDia` si tiene slots, sino fallback `08:00-23:00` (admin siempre ve la grilla)
+- `diaCerradoGeneral` — `horarios[diaNombre].activo === false`
+- `usaHorarioPropioHoy(c)` — `c.horarios?.[diaNombre]?.activo === true` (day-specific)
+- `canchasSinCustom` / `canchasConCustom` — split por horario propio activo HOY
+
+**Lógica de render (mobile + desktop idéntica):**
+- Si `canchasConCustom.length === 0` → grilla normal multi-columna con TODAS las canchas (comportamiento original sin cambios)
+- Si hay canchas con horario propio → itera `canchas` en orden del store:
+  - Cancha con horario propio hoy → `GrillaConHorarioPropio`
+  - Cancha con horario general → `GrillaSeccionGeneral`
+  - Banner informativo si `diaCerradoGeneral && canchasSinCustom.length > 0`
+
+### Cambios en `notificacionesStore.js`
+
+**`sinLeer()`** corregido: excluye `nueva_reserva` y `completacion_torneo` del contador del badge de Reservas.
+- `nueva_reserva`: manejada por el panel de reservas pendientes (backend), no por el store local
+- `completacion_torneo`: pertenece al badge de Torneos (`sinLeerTorneos`)
+
+### Cambios en `clubStore.js`
+
+**`normalizeHorarios(h)`** — convierte `{}` (objeto vacío que retorna el backend para canchas sin horario propio) a `null`. Aplicado en `loadFromBackend` y `saveClub` al mapear canchas.
+
+**`_dirty` flag** — `true` cuando hay cambios locales sin guardar. Impide que `PlayerLayout` pise cambios admin al re-fetchear.
 
 ---
 

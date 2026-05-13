@@ -104,9 +104,8 @@ const applyColorsToDOM = (colorPrimario, colorSecundario, fontFamilia = 'Inter')
 
 const useClubStore = create((set, get) => ({
   club: INITIAL_CLUB,
-  // true cuando hay cambios locales sin guardar en el backend.
-  // Impide que PlayerLayout pise esos cambios al re-fetchear.
-  _dirty: false,
+  _dirty: false,   // true cuando hay cambios locales sin guardar en el backend
+  _loaded: false,  // true una vez que llegaron datos reales del backend
 
   updateClub: (data) => {
     set((state) => ({ club: { ...state.club, ...data }, _dirty: true }))
@@ -178,7 +177,7 @@ const useClubStore = create((set, get) => ({
         }),
       }
       applyColorsToDOM(merged.colorPrimario, merged.colorSecundario, merged.fontFamilia)
-      return { club: merged, _dirty: false }
+      return { club: merged, _dirty: false, _loaded: true }
     })
   },
 

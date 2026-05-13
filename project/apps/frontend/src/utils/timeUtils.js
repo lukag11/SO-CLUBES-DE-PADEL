@@ -103,10 +103,11 @@ export const inRange = (slotInicio, slotFin, apertura, cierre) => {
     return si >= ap && sf <= ci
   } else {
     // Rango cross-midnight: slot puede estar en la primera o segunda parte
-    // Primera parte: slotInicio >= apertura (mismo día)
+    // Primera parte: slotInicio >= apertura (mismo día, ej 22:00 con cierre 01:00)
     if (si >= ap) return sf <= ci
-    // Segunda parte: slotFin <= cierre (día siguiente, representado como si+1440)
-    return si + 1440 >= ap && sf <= ci
+    // Segunda parte: slot post-medianoche (ej 00:30—02:00 con cierre 02:00)
+    // Desplazamos AMBOS extremos del slot +1440 para comparar en el espacio extendido
+    return (si + 1440) >= ap && (sf + 1440) <= ci
   }
 }
 
@@ -172,3 +173,24 @@ export const offsetFecha = (fechaISO, n) => {
  * @returns {boolean}
  */
 export const cruzaMedianoche = (inicio, fin) => toMin(fin) <= toMin(inicio)
+
+/**
+ * Genera los slots de 1.5h para un día dado, respetando apertura y cierre.
+ * Idéntico al generateFranjas de ReservasPage — fuente única de verdad.
+ * @param {{ apertura: string, cierre: string, activo: boolean }} horarioDia
+ * @returns {{ inicio: string, fin: string }[]}
+ */
+export const generateFranjas = (horarioDia) => {
+  if (!horarioDia?.activo) return []
+  const apMin = toMin(horarioDia.apertura || '08:00')
+  const ciStr = horarioDia.cierre || '23:00'
+  const ciMin = ciStr === '00:00' ? 1440 : toMin(ciStr)
+  const ciAdj = ciMin <= apMin ? ciMin + 1440 : ciMin
+  const franjas = []
+  let cur = ciAdj - 90
+  while (cur >= apMin) {
+    franjas.unshift({ inicio: toTime(cur % 1440), fin: toTime((cur + 90) % 1440) })
+    cur -= 90
+  }
+  return franjas
+}

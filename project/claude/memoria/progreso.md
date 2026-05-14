@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-13 (sesión turnos fijos — backend protección + notificaciones + liberar día)
+**Última actualización:** 2026-05-14 (sesión turnos fijos — flujo manual completo + landing disponibilidad + nodemon)
 
 ---
 
@@ -513,9 +513,65 @@ Corregir y completar el flujo de turnos fijos: política de cancelación con car
 ### Frontend — `PlayerLayout.jsx`
 - Polling notificaciones reducido de 60s a 30s
 
-### Pendiente (seguir mañana)
-- **"Turno manual admin → Mis turnos fijos"**: el backend crea el TurnoFijo pero el store del jugador (`turnosFijosStore`) no hace re-fetch automáticamente al llegar la notificación. Hay que agregar un fetch de `/turnos-fijos/me` desde `PlayerTurnosFijosPage` al montar (o al recibir la notificación). También revisar el flujo de `handleLiberarTurnoFijo` en la grilla admin — puede que la reserva de tipo fijo en la grilla no tenga el `jugadorId` correcto al momento de derivar el TurnoFijo.
-- **Diagnóstico root cause**: cuando admin libera desde grilla, el `PATCH /reservas/:id/estado` necesita encontrar el TurnoFijo por `canchaId + dia + jugadorId`. Verificar que la reserva en grilla tiene `jugadorId` populated correctamente (puede que sea null en algunas reservas manuales viejas).
+### Completado en sesión 2026-05-14 — ver bloque debajo.
+
+---
+
+## Último bloque completado (2026-05-14) — Flujo turno fijo manual completo + landing disponibilidad
+
+### Objetivo
+Cerrar el flujo de turno fijo manual del admin: creación → notificación → aparece en "Mis turnos fijos" jugador → liberación desde grilla admin funciona correctamente. También: diferenciación de notificaciones por origen de la ausencia, landing muestra turnos fijos del jugador aprobados.
+
+### Backend — `routes/turnos-fijos.js`
+- **`mapTurno`**: agregado `diasAusentesJugador: t.diasAusentesJugador ?? []` para exponer el campo al frontend
+- **`PATCH /:id/ausencia/:fecha`** (admin confirma ausencia):
+  - Agrega `fecha` a `diasAusentesJugador` solo cuando era una ausencia pendiente del jugador (`eraAusenciaPendiente`)
+  - Cancela la `Reserva` puntual asociada si existe (`esTurnoFijo: true, jugadorId`)
+  - Siempre notifica al jugador con tipo diferenciado: `ausencia_confirmada` (jugador lo pidió) vs `ausencia_admin_directa` (admin lo liberó directo)
+
+### Backend — `routes/reservas.js`
+- **`PATCH /:id/estado`** cuando `estado='cancelada'` y `esTurnoFijo=true`:
+  - Busca el TurnoFijo por `canchaId + dia + jugadorId + estado=confirmado`
+  - Agrega la fecha a `diasAusentes` del TurnoFijo (liberación puntual, turno sigue activo)
+  - Envía notificación `ausencia_admin_directa` al jugador
+
+### Backend — `routes/clubs.js`
+- **`GET /:slug/disponibilidad`**: ahora incluye TurnoFijos confirmados para el día de la semana (no solo Reservas puntuales)
+  - Query: `{ clubId, dia, estado: 'confirmado' }` + filtro `diasAusentes` + filtro `desde`
+  - Fix crítico: antes los TurnoFijos del jugador (que no crean Reserva) nunca aparecían en la landing
+
+### Backend — `prisma/schema.prisma`
+- **`TurnoFijo`**: nuevo campo `diasAusentesJugador String[]` — fechas solicitadas por el jugador y confirmadas por admin (para diferenciar de ausencias directas del admin)
+- Aplicado con `npx prisma db push`
+
+### Frontend — `ReservasPage.jsx` (admin)
+- **`reservasDia` orden corregido**: `[...reservas, ...reservasBackendDia, ...turnosFijosDia]` — `reservasBackendDia` antes que `turnosFijosDia` para que `handleCancelar` llegue al branch correcto
+- **`handleCancelar` branch `fijo_player_`**: cambiado `Number(id)` → `String(id)` (TF IDs son CUIDs, `Number('clxxx...')` daba NaN → turnosFijos.find nunca encontraba nada)
+- **`handleCancelar` branch `fijo_player_`**: agrega llamada al backend `PATCH /turnos-fijos/:id/ausencia/:fecha` + refresca grilla
+- **`handleAprobar` en PanelAlertas**: ahora `await` la llamada API antes de llamar `fetchReservasBackend()` (antes fire-and-forget causaba que la Reserva no estuviera cancelada cuando el frontend refrescaba)
+- **`handleConfirmarAusenciaAdmin`**: agrega `fetchReservasBackend()` después de confirmar
+- **Formulario nueva reserva (tipo fijo)**: eliminado el campo "Vigencia hasta" — el backend gestiona el `desde` automáticamente igual que el flujo del jugador
+
+### Frontend — `PlayerTurnosFijosPage.jsx`
+- Cards de turno activo diferencian entre ausencias según `diasAusentesJugador`:
+  - `esAusenteJugador = true` → "Tu ausencia fue confirmada"
+  - `esAusenteJugador = false` → "El club liberó tu turno este día"
+- Fetch de `/turnos-fijos/me` al montar (en `useEffect`) para cargar TurnosFijos actualizados desde backend
+
+### Frontend — `playerNotificationsStore.js`
+- Nuevo tipo `ausencia_confirmada`: título "Tu ausencia fue confirmada", ícono CheckCircle, color emerald
+- `formatCuerpo` actualizado para construir el cuerpo de `ausencia_confirmada`
+
+### Frontend — `PlayerNotificacionesPage.jsx`
+- `ausencia_confirmada`: CheckCircle icon, color emerald
+- `ausencia_admin_directa`: CalendarDays icon, color amber (diferente de la confirmación del jugador)
+
+### Causa raíz del bug de landing
+El backend corría con código viejo (proceso Node.js iniciado antes de aplicar el fix en `clubs.js`). Solución: usar siempre `npm run dev` (nodemon) en lugar de `node src/index.js` para que los cambios de archivo se recarguen automáticamente.
+
+### Limpieza
+- Eliminados archivos basura en raíz creados por hooks de `@claude-flow/cli` (`t.activo`, `f.canchaId`, etc.)
+- Agregados `.claude-flow/`, `.swarm/` al `.gitignore`
 
 ---
 

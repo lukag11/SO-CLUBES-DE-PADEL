@@ -10,6 +10,7 @@ const TITULOS = {
   turno_fijo_rechazado:    'Solicitud de turno fijo rechazada',
   turno_fijo_baja:         'El club dio de baja tu turno fijo',
   ausencia_admin_directa:  'El club liberó tu turno de esta semana',
+  ausencia_confirmada:     'Tu ausencia fue confirmada',
   cargo_cancelacion:       'Cargo por cancelación fuera de plazo',
 }
 
@@ -22,6 +23,7 @@ const formatCuerpo = (tipo, data = {}) => {
   if (tipo === 'turno_fijo_rechazado')    return `${canchaNombre} · ${dia} · ${horaInicio} a ${horaFin}`
   if (tipo === 'turno_fijo_baja')         return `${canchaNombre} · todos los ${dia} · ${horaInicio} a ${horaFin}`
   if (tipo === 'ausencia_admin_directa')  return `${canchaNombre} · ${fecha} · ${horaInicio} a ${horaFin} · el slot quedó libre`
+  if (tipo === 'ausencia_confirmada')     return `${canchaNombre} · ${fecha} · ${horaInicio} a ${horaFin} · tu solicitud fue aprobada`
   if (tipo === 'cargo_cancelacion')       return `${fecha} ${horaInicio} · Cargo pendiente: $${monto != null ? Number(monto).toLocaleString('es-AR') : 0}`
   return ''
 }

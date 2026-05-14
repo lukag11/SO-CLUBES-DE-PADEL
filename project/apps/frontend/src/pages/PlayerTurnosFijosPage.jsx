@@ -263,11 +263,13 @@ const PlayerTurnosFijosPage = () => {
             {activos.map((turno) => {
               const pendientes = turno.ausenciasPendientes || []
               const ausentes = turno.diasAusentes || []
+              const ausentesJugador = turno.diasAusentesJugador || []
 
               const proxFecha = getFechaDisponible(turno.dia, turno.inicio)
               const proxISO = localISO(proxFecha)
               const esPendiente = pendientes.includes(proxISO)
               const esAusente = ausentes.includes(proxISO)
+              const esAusenteJugador = ausentesJugador.includes(proxISO)
               const bloqueado = esPendiente || esAusente
 
               return (
@@ -295,7 +297,9 @@ const PlayerTurnosFijosPage = () => {
                     {esAusente && (
                       <div className="flex items-center gap-1.5 mt-1">
                         <Clock size={10} className="text-white/30" />
-                        <span className="text-white/30 text-[10px]">Ausencia confirmada por el admin</span>
+                        <span className="text-white/30 text-[10px]">
+                          {esAusenteJugador ? 'Tu ausencia fue confirmada' : 'El club liberó tu turno este día'}
+                        </span>
                       </div>
                     )}
                   </div>

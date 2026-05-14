@@ -54,15 +54,15 @@ const TIPO_META = {
   },
   ausencia_admin_directa: {
     icon: CalendarDays,
-    color: 'text-sky-400',
-    bg: 'bg-sky-400/10',
-    border: 'border-sky-400/20',
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/10',
+    border: 'border-amber-400/20',
   },
   ausencia_confirmada: {
-    icon: UserCheck,
-    color: 'text-sky-400',
-    bg: 'bg-sky-400/10',
-    border: 'border-sky-400/20',
+    icon: CheckCircle,
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-400/10',
+    border: 'border-emerald-400/20',
   },
   cargo_cancelacion: {
     icon: XCircle,

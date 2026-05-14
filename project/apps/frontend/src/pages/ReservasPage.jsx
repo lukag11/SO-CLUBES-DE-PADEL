@@ -693,15 +693,6 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
           </div>
         </div>
 
-        {/* Recurrencia hasta (solo si fijo) */}
-        {form.tipo === 'fijo' && (
-          <Input
-            label="Vigente hasta"
-            type="date"
-            value={form.recurrenciaHasta}
-            onChange={(e) => set('recurrenciaHasta', e.target.value)}
-          />
-        )}
 
         {/* Selector de profesor (solo si clase) */}
         {form.tipo === 'clase' && (
@@ -818,7 +809,7 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
         {/* Helper contextual */}
         <InfoBlock label="¿Cómo funciona esta reserva?" variant="light">
           {form.tipo === 'eventual' && <p><span className="font-medium text-slate-700">Eventual</span> — reserva puntual para un solo día. El jugador queda registrado en la grilla y recibe una notificación si tiene cuenta en el sistema.</p>}
-          {form.tipo === 'fijo' && <p><span className="font-medium text-slate-700">Turno fijo</span> — se repite cada semana en este horario hasta la fecha indicada. Aparece en la grilla todos los {new Date().toLocaleDateString('es-AR', { weekday: 'long' })}.</p>}
+          {form.tipo === 'fijo' && <p><span className="font-medium text-slate-700">Turno fijo</span> — se repite cada semana en este horario hasta que el admin lo dé de baja. Aparece en la grilla todos los {new Date().toLocaleDateString('es-AR', { weekday: 'long' })}.</p>}
           {form.tipo === 'clase' && <p><span className="font-medium text-slate-700">Clase</span> — franja reservada para actividad con profesor. No requiere jugador registrado. Aparece en la grilla como referencia.</p>}
           <p>El campo <span className="font-medium text-slate-700">"A nombre de"</span> busca jugadores registrados en el club. Si no está registrado, escribí el nombre libremente.</p>
         </InfoBlock>
@@ -958,12 +949,10 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
             <CalendarDays size={14} className="text-slate-400 shrink-0" />
             <span className="text-slate-600">{formatFecha(reserva.fecha)}</span>
           </div>
-          {reserva.tipo === 'fijo' && reserva.recurrencia && (
+          {reserva.tipo === 'fijo' && (
             <div className="flex items-center gap-2 text-sm">
               <Repeat size={14} className="text-violet-400 shrink-0" />
-              <span className="text-violet-600 font-medium text-xs">
-                Turno fijo — vigente hasta {new Date(reserva.recurrencia.hasta + 'T12:00:00').toLocaleDateString('es-AR')}
-              </span>
+              <span className="text-violet-600 font-medium text-xs">Turno fijo semanal</span>
             </div>
           )}
         </div>
@@ -1547,11 +1536,13 @@ const PanelAlertas = ({
   const handleAprobar = async (notifId) => {
     const notif = modalNotif
     if (notif?.tipo === 'liberacion_turno' && notif.turnoFijoId && notif.fecha) {
-      api.patch(`/turnos-fijos/${notif.turnoFijoId}/ausencia/${notif.fecha}`, {}, { Authorization: `Bearer ${panelAdminToken}` })
-        .catch(() => {})
+      try {
+        await api.patch(`/turnos-fijos/${notif.turnoFijoId}/ausencia/${notif.fecha}`, {}, { Authorization: `Bearer ${panelAdminToken}` })
+      } catch { /* ignore */ }
       ausentarDia(notif.turnoFijoId, notif.fecha)
       addAusenciaConfirmada?.({ canchaNombre: notif.cancha, fecha: notif.fecha, inicio: notif.inicio, fin: notif.fin })
       onLiberacionAprobada?.(notif.fecha)
+      onReservasPendientesChange?.()
     }
     onEliminar(notifId)
     setModalNotif(null)
@@ -1848,6 +1839,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [] }) => 
     try {
       const updated = await api.patch(`/turnos-fijos/${turnoId}/ausencia/${fecha}`, {}, { Authorization: `Bearer ${adminToken}` })
       updateTurnoFijo(turnoId, { diasAusentes: updated.diasAusentes, ausenciasPendientes: updated.ausenciasPendientes })
+      fetchReservasBackend()
     } catch { /* fallback */ updateTurnoFijo(turnoId, { diasAusentes: [...(turnosFijosJugadores.find(t=>t.id===turnoId)?.diasAusentes??[]), fecha] }) }
   }
 
@@ -2199,6 +2191,7 @@ const ReservasPage = () => {
   const turnosFijos = useTurnosFijosStore((s) => s.turnosFijos)
   const setTurnosFijosAdmin = useTurnosFijosStore((s) => s.setTurnosFijos)
   const ausentarDiaStore = useTurnosFijosStore((s) => s.ausentarDia)
+  const updateTurnoFijoAdmin = useTurnosFijosStore((s) => s.updateTurnoFijo)
   const { addReservaCanceladaAdmin, addTurnoFijoLiberadoAdmin } = usePlayerNotificationsStore()
 
   // Store compartido con el dashboard del profesor
@@ -2356,7 +2349,7 @@ const ReservasPage = () => {
   )
 
   const reservasDia = useMemo(
-    () => [...reservas.filter((r) => r.fecha === fecha), ...turnosFijosDia, ...reservasBackendDia],
+    () => [...reservas.filter((r) => r.fecha === fecha), ...reservasBackendDia, ...turnosFijosDia],
     [reservas, fecha, turnosFijosDia, reservasBackendDia]
   )
 
@@ -2441,9 +2434,16 @@ const ReservasPage = () => {
     // Reserva del backend: id = 'backend_<reservaId>'
     if (String(id).startsWith('backend_')) {
       const backendId = String(id).replace('backend_', '')
+      const reservaRaw = reservasBackend.find((r) => r.id === backendId)
       api.patch(`/reservas/${backendId}/estado`, { estado: 'cancelada' }, { Authorization: `Bearer ${adminToken}` })
         .then(() => {
           setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, estado: 'cancelada' } : r))
+          // Si era turno fijo: refrescar store para que diasAusentes se actualice en la grilla
+          if (reservaRaw?.esTurnoFijo) {
+            api.get('/turnos-fijos', { Authorization: `Bearer ${adminToken}` })
+              .then((data) => { if (Array.isArray(data)) setTurnosFijosAdmin(data) })
+              .catch(() => {})
+          }
           showToast('cancelada', 'Reserva cancelada correctamente')
         })
         .catch((err) => alert(err.message || 'No se pudo cancelar'))
@@ -2471,8 +2471,14 @@ const ReservasPage = () => {
 
     // Turno fijo del jugador: id = 'fijo_player_<turnoFijoId>' → ausencia puntual para ese día
     if (String(id).startsWith('fijo_player_')) {
-      const turnoFijoId = Number(String(id).replace('fijo_player_', ''))
-      const turno = turnosFijos.find((t) => t.id === turnoFijoId)
+      const turnoFijoId = String(id).replace('fijo_player_', '')
+      const turno = turnosFijos.find((t) => String(t.id) === turnoFijoId)
+      api.patch(`/turnos-fijos/${turnoFijoId}/ausencia/${fecha}`, {}, { Authorization: `Bearer ${adminToken}` })
+        .then((updated) => {
+          if (updated?.diasAusentes) updateTurnoFijoAdmin(turnoFijoId, { diasAusentes: updated.diasAusentes })
+          fetchReservasBackend()
+        })
+        .catch(() => {})
       ausentarDiaStore(turnoFijoId, fecha)
       if (turno) {
         addTurnoFijoLiberadoAdmin({

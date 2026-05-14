@@ -135,7 +135,22 @@ router.get('/:slug/disponibilidad', async (req, res) => {
       },
       select: { canchaId: true, horaInicio: true, horaFin: true },
     })
-    res.json(reservas)
+
+    // Incluir TurnoFijos confirmados para ese día de la semana (excluyendo ausencias)
+    const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+    const [fy, fm, fd] = fecha.split('-').map(Number)
+    const dia = DIAS[new Date(fy, fm - 1, fd).getDay()]
+
+    const turnosFijos = await prisma.turnoFijo.findMany({
+      where: { clubId: club.id, dia, estado: 'confirmado' },
+      select: { canchaId: true, horaInicio: true, horaFin: true, diasAusentes: true, desde: true },
+    })
+
+    const slotsTF = turnosFijos
+      .filter((t) => !t.diasAusentes.includes(fecha) && (!t.desde || t.desde <= fecha))
+      .map(({ canchaId, horaInicio, horaFin }) => ({ canchaId, horaInicio, horaFin }))
+
+    res.json([...reservas, ...slotsTF])
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al obtener disponibilidad' })

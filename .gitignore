@@ -39,3 +39,9 @@ Thumbs.db
 .parcel-cache/
 .eslintcache
 *.tsbuildinfo
+
+# Claude Flow / hooks artifacts (archivos basura generados por hooks de claude-flow)
+.claude-flow/
+.swarm/
+sync.sh
+dev.log

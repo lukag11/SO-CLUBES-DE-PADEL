@@ -42,6 +42,7 @@ const mapTurno = (t) => ({
   estado: t.estado,
   activo: t.estado === 'confirmado',
   diasAusentes: t.diasAusentes ?? [],
+  diasAusentesJugador: t.diasAusentesJugador ?? [],
   ausenciasPendientes: t.ausenciasPendientes ?? [],
   desde: t.desde,
   notas: t.notas ?? '',
@@ -261,18 +262,36 @@ router.patch('/:id/ausencia/:fecha', requireAuth, requireRole('admin'), async (r
       where: { id },
       data: {
         diasAusentes: { push: fecha },
+        ...(eraAusenciaPendiente && { diasAusentesJugador: { push: fecha } }),
         ausenciasPendientes: turno.ausenciasPendientes.filter((f) => f !== fecha),
       },
       include: INCLUDE_CANCHA,
     })
 
-    // Notificar al jugador solo cuando el admin libera directamente (no es una confirmación de solicitud)
-    if (!eraAusenciaPendiente && turno.jugadorId) {
+    // Cancelar la Reserva puntual asociada (creada cuando el admin asignó el turno fijo manualmente)
+    if (turno.jugadorId) {
+      const reservaAsociada = await prisma.reserva.findFirst({
+        where: {
+          canchaId: turno.canchaId,
+          fecha,
+          jugadorId: turno.jugadorId,
+          esTurnoFijo: true,
+          estado: { not: 'cancelada' },
+        },
+      })
+      if (reservaAsociada) {
+        await prisma.reserva.update({ where: { id: reservaAsociada.id }, data: { estado: 'cancelada' } })
+      }
+    }
+
+    // Notificar al jugador según quién inició la liberación
+    if (turno.jugadorId) {
+      const tipo = eraAusenciaPendiente ? 'ausencia_confirmada' : 'ausencia_admin_directa'
       prisma.notificacion.create({
         data: {
           clubId: turno.clubId,
           jugadorId: turno.jugadorId,
-          tipo: 'ausencia_admin_directa',
+          tipo,
           data: {
             canchaNombre: updated.cancha?.nombre ?? '',
             dia: turno.dia,

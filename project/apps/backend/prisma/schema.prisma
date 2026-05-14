@@ -131,7 +131,8 @@ model TurnoFijo {
   horaFin             String   // 'HH:MM'
   precio              Float?
   estado              String   @default("pendiente") // pendiente | confirmado | inactivo
-  diasAusentes        String[] // fechas YYYY-MM-DD excluidas (ausencia confirmada)
+  diasAusentes        String[] // fechas YYYY-MM-DD excluidas (cualquier ausencia)
+  diasAusentesJugador String[] // fechas solicitadas por el jugador y confirmadas por admin
   ausenciasPendientes String[] // fechas pendientes de aprobación del admin
   desde               String   // YYYY-MM-DD — fecha desde la que rige el turno
   notas               String?

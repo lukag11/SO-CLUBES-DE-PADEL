@@ -1,7 +1,8 @@
-import { Trophy, Swords, CheckCircle, XCircle, Flame, Target, TrendingUp, CalendarDays, ArrowRight, Clock } from 'lucide-react'
+import { Trophy, Swords, CheckCircle, XCircle, Flame, Target, TrendingUp, CalendarDays, ArrowRight, Clock, Repeat } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import usePlayerStore from '../store/playerStore'
 import useReservasStore from '../store/reservasStore'
+import useTurnosFijosStore from '../store/turnosFijosStore'
 
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
 const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -28,9 +29,15 @@ const mockOpponents = [
   { nombre: 'Ruiz / Díaz', partidos: 3, ganados: 3 },
 ]
 
+const DIAS_LABEL = {
+  domingo: 'Domingo', lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles',
+  jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado',
+}
+
 const PlayerDashboardPage = () => {
   const player = usePlayerStore((s) => s.player)
   const reservas = useReservasStore((s) => s.reservas)
+  const turnosFijos = useTurnosFijosStore((s) => s.turnosFijos)
   const navigate = useNavigate()
 
   const hoy = fmtDate(new Date())
@@ -38,6 +45,9 @@ const PlayerDashboardPage = () => {
     .filter((r) => (r.estado === 'confirmada' || r.estado === 'pendiente') && r.fecha >= hoy)
     .sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora))
     .slice(0, 3)
+
+  const turnosFijosActivos = turnosFijos.filter((t) => t.activo).slice(0, 3)
+  const turnosFijosPendientes = turnosFijos.filter((t) => t.estado === 'pendiente')
 
   const initials = player
     ? `${player.nombre?.[0] || ''}${player.apellido?.[0] || ''}`.toUpperCase()
@@ -149,6 +159,67 @@ const PlayerDashboardPage = () => {
                 </div>
               )
             })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Widget turnos fijos ── */}
+      <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-white/6 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Repeat size={15} className="text-violet-400" />
+            <h3 className="text-white font-semibold text-sm">Mis turnos fijos</h3>
+            {turnosFijosPendientes.length > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                {turnosFijosPendientes.length} pendiente{turnosFijosPendientes.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => navigate('/dashboardJugadores/turnos-fijos')}
+            className="flex items-center gap-1 text-violet-400 text-xs font-medium hover:text-violet-300 transition-colors"
+          >
+            Ver todos <ArrowRight size={12} />
+          </button>
+        </div>
+
+        {turnosFijosActivos.length === 0 && turnosFijosPendientes.length === 0 ? (
+          <div className="px-5 py-5 flex items-center justify-between">
+            <p className="text-white/30 text-sm">No tenés turnos fijos asignados</p>
+            <button
+              onClick={() => navigate('/dashboardJugadores/reservas')}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/15 transition-colors"
+            >
+              Solicitar turno fijo
+            </button>
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {turnosFijosActivos.map((t) => (
+              <div key={t.id} className="px-5 py-3.5 flex items-center gap-4">
+                <div className="w-1.5 h-10 rounded-full bg-violet-500/60 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-semibold truncate">{t.canchaNombre}</p>
+                  <p className="text-white/40 text-xs mt-0.5">
+                    {DIAS_LABEL[t.dia] ?? t.dia} · {t.inicio} a {t.fin}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-violet-400 font-bold text-sm">${t.precio?.toLocaleString('es-AR')}</p>
+                  <p className="text-white/25 text-[10px]">por turno</p>
+                </div>
+              </div>
+            ))}
+            {turnosFijosPendientes.length > 0 && turnosFijosActivos.length === 0 && (
+              <div className="px-5 py-3.5 flex items-center gap-3">
+                <Clock size={14} className="text-amber-400 animate-pulse shrink-0" />
+                <p className="text-amber-300 text-sm">
+                  {turnosFijosPendientes.length === 1
+                    ? '1 turno pendiente de aprobación del admin'
+                    : `${turnosFijosPendientes.length} turnos pendientes de aprobación del admin`}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

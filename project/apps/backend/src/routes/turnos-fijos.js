@@ -1,9 +1,8 @@
 import { Router } from 'express'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 
 const router = Router()
-const prisma = new PrismaClient()
 
 const crearNotifTurnoFijo = (turno, tipo) => {
   if (!turno.jugadorId) return
@@ -48,6 +47,27 @@ const mapTurno = (t) => ({
   notas: t.notas ?? '',
 })
 
+// ── GET /slots-ocupados?clubId= — jugador: slots bloqueados por turnos fijos del club (sin datos personales) ──
+router.get('/slots-ocupados', requireAuth, requireRole('jugador'), async (req, res) => {
+  try {
+    // El jugador tiene su clubId embebido en el JWT vía el club al que pertenece
+    // Lo obtenemos a través de su perfil
+    const jugador = await prisma.jugador.findUnique({
+      where: { id: req.user.id },
+      select: { clubId: true },
+    })
+    if (!jugador?.clubId) return res.json([])
+
+    const turnos = await prisma.turnoFijo.findMany({
+      where: { clubId: jugador.clubId, estado: 'confirmado' },
+      select: { canchaId: true, dia: true, horaInicio: true, horaFin: true, diasAusentes: true, desde: true },
+    })
+    res.json(turnos)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // ── GET /me — jugador: sus turnos fijos ──────────────────────────────────────
 router.get('/me', requireAuth, requireRole('jugador'), async (req, res) => {
   try {
@@ -65,9 +85,8 @@ router.get('/me', requireAuth, requireRole('jugador'), async (req, res) => {
 // ── GET /?clubId= — admin: todos los turnos del club ─────────────────────────
 router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
   try {
-    const { clubId } = req.query
+    const clubId = req.user.clubId  // siempre del JWT, ignorar query param
     if (!clubId) return res.status(400).json({ error: 'clubId requerido' })
-    if (req.user.club?.id !== clubId) return res.status(403).json({ error: 'Acceso denegado' })
 
     const turnos = await prisma.turnoFijo.findMany({
       where: { clubId, estado: { not: 'inactivo' } },
@@ -136,7 +155,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
 
     const turno = await prisma.turnoFijo.findUnique({ where: { id: req.params.id } })
     if (!turno) return res.status(404).json({ error: 'Turno fijo no encontrado' })
-    if (turno.clubId !== req.user.club?.id) return res.status(403).json({ error: 'Acceso denegado' })
+    if (turno.clubId !== req.user.clubId) return res.status(403).json({ error: 'Acceso denegado' })
 
     const updated = await prisma.turnoFijo.update({
       where: { id: req.params.id },
@@ -145,7 +164,11 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
     })
 
     if (estado === 'confirmado') crearNotifTurnoFijo(updated, 'turno_fijo_confirmado')
-    if (estado === 'inactivo')   crearNotifTurnoFijo(updated, 'turno_fijo_rechazado')
+    if (estado === 'inactivo') {
+      // Si era confirmado → baja permanente. Si era pendiente → rechazo.
+      const tipoNotif = turno.estado === 'confirmado' ? 'turno_fijo_baja' : 'turno_fijo_rechazado'
+      crearNotifTurnoFijo(updated, tipoNotif)
+    }
 
     res.json(mapTurno(updated))
   } catch (e) {
@@ -168,25 +191,68 @@ router.post('/:id/ausencia', requireAuth, requireRole('jugador'), async (req, re
       return res.status(409).json({ error: 'La ausencia para esa fecha ya fue registrada' })
     }
 
+    // Política de cancelación: verificar ventana horaria
+    const club = await prisma.club.findUnique({ where: { id: turno.clubId }, select: { config: true } })
+    const horasMinimas = club?.config?.horasCancelacion ?? 0
+    let cargoAplicado = false
+    let cargo = null
+
+    if (horasMinimas > 0) {
+      const [y, m, d] = fecha.split('-').map(Number)
+      const [h, min] = turno.horaInicio.split(':').map(Number)
+      const fechaTurno = new Date(y, m - 1, d, h, min)
+      const horasRestantes = (fechaTurno - new Date()) / (1000 * 60 * 60)
+
+      if (horasRestantes >= 0 && horasRestantes < horasMinimas) {
+        cargoAplicado = true
+        cargo = await prisma.cargo.create({
+          data: {
+            clubId: turno.clubId,
+            jugadorId: req.user.id,
+            concepto: `Ausencia fuera de plazo — turno fijo ${turno.dia} ${turno.horaInicio} (${fecha})`,
+            monto: turno.precio ?? 0,
+            estado: 'pendiente',
+          },
+        })
+
+        prisma.notificacion.create({
+          data: {
+            clubId: turno.clubId,
+            jugadorId: req.user.id,
+            tipo: 'cargo_cancelacion',
+            data: {
+              fecha,
+              horaInicio: turno.horaInicio,
+              horaFin: turno.horaFin,
+              monto: turno.precio ?? 0,
+              horasMinimas,
+            },
+          },
+        }).catch(() => {})
+      }
+    }
+
     const updated = await prisma.turnoFijo.update({
       where: { id: req.params.id },
       data: { ausenciasPendientes: { push: fecha } },
       include: INCLUDE_CANCHA,
     })
-    res.json(mapTurno(updated))
+    res.json({ ...mapTurno(updated), cargoAplicado, monto: turno.precio ?? 0 })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
 })
 
-// ── PATCH /:id/ausencia/:fecha — admin: confirmar ausencia puntual ────────────
+// ── PATCH /:id/ausencia/:fecha — admin: confirmar o crear ausencia puntual ────
 router.patch('/:id/ausencia/:fecha', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     const { id, fecha } = req.params
 
     const turno = await prisma.turnoFijo.findUnique({ where: { id } })
     if (!turno) return res.status(404).json({ error: 'Turno fijo no encontrado' })
-    if (turno.clubId !== req.user.club?.id) return res.status(403).json({ error: 'Acceso denegado' })
+    if (turno.clubId !== req.user.clubId) return res.status(403).json({ error: 'Acceso denegado' })
+
+    const eraAusenciaPendiente = turno.ausenciasPendientes.includes(fecha)
 
     const updated = await prisma.turnoFijo.update({
       where: { id },
@@ -196,6 +262,25 @@ router.patch('/:id/ausencia/:fecha', requireAuth, requireRole('admin'), async (r
       },
       include: INCLUDE_CANCHA,
     })
+
+    // Notificar al jugador solo cuando el admin libera directamente (no es una confirmación de solicitud)
+    if (!eraAusenciaPendiente && turno.jugadorId) {
+      prisma.notificacion.create({
+        data: {
+          clubId: turno.clubId,
+          jugadorId: turno.jugadorId,
+          tipo: 'ausencia_admin_directa',
+          data: {
+            canchaNombre: updated.cancha?.nombre ?? '',
+            dia: turno.dia,
+            horaInicio: turno.horaInicio,
+            horaFin: turno.horaFin,
+            fecha,
+          },
+        },
+      }).catch(() => {})
+    }
+
     res.json(mapTurno(updated))
   } catch (e) {
     res.status(500).json({ error: e.message })

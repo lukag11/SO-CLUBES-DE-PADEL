@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import {
   ChevronLeft, ChevronRight, Plus, X, Save, Check,
   CalendarDays, DollarSign, Lock, Repeat, Clock,
-  Users, AlertCircle, CheckCircle, Ban, Pencil, Bell, GraduationCap, Trash2, XCircle, MapPin,
+  Users, AlertCircle, CheckCircle, Ban, Pencil, Bell, GraduationCap, Trash2, XCircle, MapPin, HelpCircle,
 } from 'lucide-react'
 import {
   FRANJAS,
@@ -18,6 +18,7 @@ import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
 import { overlaps, toMin, toTime } from '../utils/timeUtils'
+import InfoBlock from '../components/InfoBlock'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -53,11 +54,11 @@ const horaActual = () => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-const esPasado = (fecha, fin) => {
+const esPasado = (fecha, inicio) => {
   const hoy = todayISO()
   if (fecha < hoy) return true
   if (fecha > hoy) return false
-  return toMin(fin) <= toMin(horaActual())
+  return toMin(inicio) <= toMin(horaActual())
 }
 
 // Devuelve el día de semana de una fecha ISO en formato normalizado ('lunes', 'miercoles', etc.)
@@ -186,7 +187,7 @@ const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos, canchasCount, fran
 // ─── Celda de la grilla ───────────────────────────────────────────────────────
 
 const Celda = ({ reserva, franja, cancha, fecha, onClick }) => {
-  const pasado = esPasado(fecha, franja.fin)
+  const pasado = esPasado(fecha, franja.inicio)
 
   if (!reserva) {
     return (
@@ -350,7 +351,7 @@ const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], franja
         </thead>
         <tbody>
           {franjas.map((franja) => {
-            const pasado = esPasado(fecha, franja.fin)
+            const pasado = esPasado(fecha, franja.inicio)
             return (
               <tr key={franja.inicio} className={pasado ? 'opacity-50' : ''}>
                 <td className="px-4 py-0 border border-slate-100 bg-slate-50/50 whitespace-nowrap">
@@ -480,7 +481,7 @@ const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], 
 
       {/* Filas por franja */}
       {franjas.map((franja) => {
-        const pasado = esPasado(fecha, franja.fin)
+        const pasado = esPasado(fecha, franja.inicio)
         return (
           <div key={franja.inicio} className={`flex border-b border-slate-50 last:border-0 ${pasado ? 'opacity-50' : ''}`}>
             <div className="w-14 shrink-0 px-2 py-1.5 bg-slate-50/50 flex flex-col justify-center border-r border-slate-100">
@@ -571,28 +572,47 @@ const GrillaConHorarioPropio = ({ cancha, franjas, reservas, clasesDia, fecha, o
 const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
   const todosLosProfesores = useProfesoresStore((s) => s.profesores)
   const profesoresActivos = todosLosProfesores.filter((p) => p.activo)
+  const adminToken = useAuthStore((s) => s.token)
+
   const [form, setForm] = useState({
     tipo: 'eventual',
-    jugadores: ['', '', '', ''],
     pago: 'pendiente',
     metodoPago: 'Efectivo',
-    monto: 12000,
+    monto: cancha.precioTurno ?? 0,
     notas: '',
     recurrenciaHasta: '',
     profesorId: '',
   })
 
+  // Búsqueda de jugador registrado
+  const [query, setQuery] = useState('')
+  const [resultados, setResultados] = useState([])
+  const [jugadorSel, setJugadorSel] = useState(null) // { id, nombre, apellido, dni }
+  const [buscando, setBuscando] = useState(false)
+  const [errorNombre, setErrorNombre] = useState(false)
+
+  useEffect(() => {
+    if (jugadorSel) return
+    if (query.trim().length < 2) { setResultados([]); return }
+    const t = setTimeout(async () => {
+      setBuscando(true)
+      try {
+        const data = await api.get(`/jugadores/buscar?q=${encodeURIComponent(query.trim())}`, { Authorization: `Bearer ${adminToken}` })
+        setResultados(Array.isArray(data) ? data : [])
+      } catch { setResultados([]) }
+      finally { setBuscando(false) }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [query, jugadorSel, adminToken])
+
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }))
-  const setJugador = (i, v) => {
-    const arr = [...form.jugadores]
-    arr[i] = v
-    setForm((p) => ({ ...p, jugadores: arr }))
-  }
 
   const handleSave = () => {
     const esClase = form.tipo === 'clase'
-    const jugadores = form.jugadores.filter(Boolean)
-    if (!esClase && !jugadores.length) return
+    if (!esClase && !jugadorSel && !query.trim()) {
+      setErrorNombre(true)
+      return
+    }
 
     const profesor = form.profesorId
       ? profesoresActivos.find((p) => p.id === Number(form.profesorId))
@@ -607,12 +627,12 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
       recurrencia: form.tipo === 'fijo' && form.recurrenciaHasta
         ? { dia: new Date().toLocaleDateString('es-AR', { weekday: 'long' }), hasta: form.recurrenciaHasta }
         : null,
-      jugadores: esClase ? [] : jugadores,
+      jugadorId: jugadorSel?.id ?? null,
+      jugadores: esClase ? [] : (jugadorSel ? [`${jugadorSel.nombre} ${jugadorSel.apellido}`] : [query.trim()]),
       estado: 'confirmada',
       pago: esClase ? null : form.pago,
       monto: esClase ? 0 : Number(form.monto),
       notas: form.notas,
-      // Datos de clase
       ...(esClase && {
         creadoPor: 'admin',
         profesorId: profesor?.id ?? null,
@@ -623,7 +643,7 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
         <div>
           <h3 className="text-slate-800 font-bold text-base">Nueva reserva</h3>
@@ -636,7 +656,7 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
+      <div className="px-5 py-4 flex flex-col gap-4">
 
         {/* Tipo */}
         <div>
@@ -696,22 +716,59 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
           </div>
         )}
 
-        {/* Jugadores (no aplica a clases) */}
+        {/* Jugador (no aplica a clases) */}
         {form.tipo !== 'clase' && (
           <div>
-            <FieldLabel>Jugadores <span className="text-slate-300">(hasta 4)</span></FieldLabel>
-            <div className="flex flex-col gap-2">
-              {form.jugadores.map((j, i) => (
+            <FieldLabel>A nombre de <span className="text-red-400">*</span></FieldLabel>
+            {jugadorSel ? (
+              <div className="flex items-center justify-between gap-2 px-3 py-2.5 border border-emerald-300 bg-emerald-50 rounded-xl">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-emerald-800 truncate">{jugadorSel.nombre} {jugadorSel.apellido}</p>
+                  {jugadorSel.dni && <p className="text-xs text-emerald-600">DNI {jugadorSel.dni}</p>}
+                </div>
+                <button type="button" onClick={() => { setJugadorSel(null); setQuery(''); setResultados([]) }} className="text-emerald-400 hover:text-emerald-600 shrink-0">
+                  <X size={15} />
+                </button>
+              </div>
+            ) : (
+              <div className={`relative ${errorNombre ? 'animate-shake' : ''}`} onAnimationEnd={() => {}}>
                 <input
-                  key={i}
                   type="text"
-                  placeholder={`Jugador ${i + 1}${i === 0 ? ' *' : ''}`}
-                  value={j}
-                  onChange={(e) => setJugador(i, e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/10 transition-all placeholder:text-slate-300"
+                  placeholder="Buscar por nombre o DNI..."
+                  value={query}
+                  onChange={(e) => { setQuery(e.target.value); setResultados([]); setErrorNombre(false) }}
+                  className={`w-full border rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:ring-2 ${
+                    errorNombre
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-400/10'
+                      : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/10'
+                  }`}
                 />
-              ))}
-            </div>
+                {buscando && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-slate-300 border-t-emerald-400 rounded-full animate-spin" />
+                )}
+                {resultados.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                    {resultados.map((j) => (
+                      <button
+                        key={j.id}
+                        type="button"
+                        onClick={() => { setJugadorSel(j); setQuery(''); setResultados([]) }}
+                        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-emerald-50 transition-colors text-left"
+                      >
+                        <span className="text-sm font-medium text-slate-700">{j.nombre} {j.apellido}</span>
+                        {j.dni && <span className="text-xs text-slate-400 shrink-0">DNI {j.dni}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {query.trim().length >= 2 && !buscando && resultados.length === 0 && (
+                  <p className="mt-1.5 text-xs text-slate-400 px-1">No encontrado — se guardará como texto libre</p>
+                )}
+                {errorNombre && (
+                  <p className="mt-1.5 text-xs text-red-500 px-1 font-medium">Completá el nombre del jugador para continuar</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -747,6 +804,14 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
             className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/10 transition-all resize-none placeholder:text-slate-300"
           />
         </div>
+
+        {/* Helper contextual */}
+        <InfoBlock label="¿Cómo funciona esta reserva?" variant="light">
+          {form.tipo === 'eventual' && <p><span className="font-medium text-slate-700">Eventual</span> — reserva puntual para un solo día. El jugador queda registrado en la grilla y recibe una notificación si tiene cuenta en el sistema.</p>}
+          {form.tipo === 'fijo' && <p><span className="font-medium text-slate-700">Turno fijo</span> — se repite cada semana en este horario hasta la fecha indicada. Aparece en la grilla todos los {new Date().toLocaleDateString('es-AR', { weekday: 'long' })}.</p>}
+          {form.tipo === 'clase' && <p><span className="font-medium text-slate-700">Clase</span> — franja reservada para actividad con profesor. No requiere jugador registrado. Aparece en la grilla como referencia.</p>}
+          <p>El campo <span className="font-medium text-slate-700">"A nombre de"</span> busca jugadores registrados en el club. Si no está registrado, escribí el nombre libremente.</p>
+        </InfoBlock>
       </div>
 
       <div className="px-5 py-4 border-t border-slate-100 flex gap-2">
@@ -791,7 +856,7 @@ const FormBloqueo = ({ franja, cancha, onSave, onCancel }) => {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
         <div>
           <h3 className="text-slate-800 font-bold text-base">Bloquear franja</h3>
@@ -804,7 +869,7 @@ const FormBloqueo = ({ franja, cancha, onSave, onCancel }) => {
         </button>
       </div>
 
-      <div className="flex-1 px-5 py-4 flex flex-col gap-4">
+      <div className="px-5 py-4 flex flex-col gap-4">
         <Select label="Razón" value={razon} onChange={(e) => setRazon(e.target.value)}>
           {RAZONES_BLOQUEO.map((r) => <option key={r}>{r}</option>)}
         </Select>
@@ -858,7 +923,7 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
   const estadoCfg = ESTADO_CONFIG[reserva.estado]
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <div className={`w-2.5 h-2.5 rounded-full ${tipoCfg.dot}`} />
@@ -1046,8 +1111,8 @@ const PanelContent = ({ seleccion, fecha, onSave, onBloquear, onCancelar, onPago
   if (!seleccion) return null
   const { tipo, reserva, franja, cancha } = seleccion
 
-  const handleSaveReserva = (data) => { onSave({ id: Date.now(), fecha, ...data }) }
-  const handleSaveBloqueo = (data) => { onBloquear({ id: Date.now(), fecha, ...data }) }
+  const handleSaveReserva = (data) => { onSave({ id: Date.now(), fecha, canchaNombre: cancha.nombre, ...data }) }
+  const handleSaveBloqueo = (data) => { onBloquear({ id: Date.now(), fecha, canchaNombre: cancha.nombre, ...data }) }
 
   if (tipo === 'detalle') {
     return <DetalleReserva reserva={reserva} onCancelar={onCancelar} onPago={onPago} onClose={onClose} />
@@ -1114,57 +1179,136 @@ const Leyenda = () => (
 // ─── Editar reserva ───────────────────────────────────────────────────────────
 
 const EditarReserva = ({ reserva, onSave, onCancel }) => {
+  const adminToken = useAuthStore((s) => s.token)
   const [form, setForm] = useState({
-    jugadores: [...reserva.jugadores],
-    monto: reserva.monto,
-    pago: reserva.pago,
-    notas: reserva.notas,
+    monto: reserva.monto ?? 0,
+    pago: reserva.pago ?? 'pendiente',
+    metodoPago: reserva.metodoPago ?? 'Efectivo',
+    notas: reserva.notas ?? '',
   })
+  const [query, setQuery] = useState(reserva.jugadores?.[0] ?? '')
+  const [jugadorSel, setJugadorSel] = useState(null)
+  const [resultados, setResultados] = useState([])
+  const [buscando, setBuscando] = useState(false)
+  const [errorNombre, setErrorNombre] = useState(false)
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }))
-  const setJugador = (i, v) => {
-    const arr = [...form.jugadores]
-    arr[i] = v
-    setForm((p) => ({ ...p, jugadores: arr }))
+
+  useEffect(() => {
+    if (jugadorSel) { setResultados([]); return }
+    if (!query || query.trim().length < 2) { setResultados([]); return }
+    setBuscando(true)
+    const t = setTimeout(async () => {
+      try {
+        const data = await api.get(`/jugadores/buscar?q=${encodeURIComponent(query.trim())}`, { Authorization: `Bearer ${adminToken}` })
+        setResultados(Array.isArray(data) ? data : [])
+      } catch { setResultados([]) }
+      finally { setBuscando(false) }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [query, jugadorSel, adminToken])
+
+  const handleSave = () => {
+    if (!jugadorSel && !query.trim()) {
+      setErrorNombre(true)
+      return
+    }
+    const jugadoresArr = jugadorSel
+      ? [`${jugadorSel.nombre} ${jugadorSel.apellido}`]
+      : query.trim() ? [query.trim()] : []
+    onSave(reserva.id, {
+      jugadores: jugadoresArr,
+      jugadorId: jugadorSel?.id ?? null,
+      monto: Number(form.monto),
+      pago: form.pago,
+      metodoPago: form.metodoPago,
+      notas: form.notas,
+    })
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
         <div>
           <h3 className="text-slate-800 font-bold text-base">Editar reserva</h3>
-          <p className="text-slate-400 text-xs mt-0.5">{reserva.inicio}–{reserva.fin}</p>
+          <p className="text-slate-400 text-xs mt-0.5">
+            {reserva.canchaNombre} · {reserva.inicio}–{reserva.fin}
+          </p>
         </div>
         <button onClick={onCancel} className="text-slate-300 hover:text-slate-500 transition-colors p-1">
           <X size={18} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
-        {/* Jugadores */}
+      <div className="px-5 py-4 flex flex-col gap-4">
+
+        {/* A nombre de */}
         <div>
-          <FieldLabel>Jugadores</FieldLabel>
-          <div className="flex flex-col gap-2">
-            {[0,1,2,3].map((i) => (
+          <FieldLabel>A nombre de <span className="text-red-400">*</span></FieldLabel>
+          {jugadorSel ? (
+            <div className="flex items-center justify-between gap-2 px-3 py-2.5 border border-emerald-300 bg-emerald-50 rounded-xl">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-emerald-800 truncate">{jugadorSel.nombre} {jugadorSel.apellido}</p>
+                {jugadorSel.dni && <p className="text-xs text-emerald-600">DNI {jugadorSel.dni}</p>}
+              </div>
+              <button type="button" onClick={() => { setJugadorSel(null); setQuery('') }} className="text-emerald-400 hover:text-emerald-600 shrink-0">
+                <X size={15} />
+              </button>
+            </div>
+          ) : (
+            <div className={`relative ${errorNombre ? 'animate-shake' : ''}`} onAnimationEnd={() => {}}>
               <input
-                key={i}
                 type="text"
-                placeholder={`Jugador ${i + 1}${i === 0 ? ' *' : ''}`}
-                value={form.jugadores[i] || ''}
-                onChange={(e) => setJugador(i, e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/10 transition-all placeholder:text-slate-300"
+                placeholder="Buscar por nombre o DNI..."
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setErrorNombre(false) }}
+                className={`w-full border rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:ring-2 ${
+                  errorNombre
+                    ? 'border-red-400 focus:border-red-400 focus:ring-red-400/10'
+                    : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/10'
+                }`}
               />
-            ))}
-          </div>
+              {buscando && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-slate-300 border-t-emerald-400 rounded-full animate-spin" />
+              )}
+              {(resultados.length > 0 || buscando) && (
+                <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                  {buscando && <p className="px-3 py-2 text-xs text-slate-400">Buscando...</p>}
+                  {resultados.map((j) => (
+                    <button
+                      key={j.id}
+                      type="button"
+                      onClick={() => { setJugadorSel(j); setQuery(''); setResultados([]) }}
+                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-emerald-50 transition-colors text-left border-b border-slate-50 last:border-0"
+                    >
+                      <span className="text-sm font-medium text-slate-700">{j.nombre} {j.apellido}</span>
+                      {j.dni && <span className="text-xs text-slate-400 shrink-0">DNI {j.dni}</span>}
+                    </button>
+                  ))}
+                  {!buscando && resultados.length === 0 && query.trim().length >= 2 && (
+                    <p className="px-3 py-2 text-xs text-slate-400">No encontrado — se guardará como texto libre</p>
+                  )}
+                </div>
+              )}
+              {errorNombre && (
+                <p className="mt-1.5 text-xs text-red-500 px-1 font-medium">Completá el nombre del jugador para continuar</p>
+              )}
+            </div>
+          )}
         </div>
 
         <Input label="Monto (ARS)" type="number" value={form.monto} onChange={(e) => set('monto', e.target.value)} />
 
-        <Select label="Estado de pago" value={form.pago} onChange={(e) => set('pago', e.target.value)}>
-          <option value="pagado">Pagado</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="debe">Debe</option>
-        </Select>
+        <div className="grid grid-cols-2 gap-3">
+          <Select label="Estado de pago" value={form.pago} onChange={(e) => set('pago', e.target.value)}>
+            <option value="pagado">Pagado</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="debe">Debe</option>
+          </Select>
+          <Select label="Método de pago" value={form.metodoPago} onChange={(e) => set('metodoPago', e.target.value)}>
+            {METODOS_PAGO.map((m) => <option key={m}>{m}</option>)}
+          </Select>
+        </div>
 
         <div>
           <FieldLabel>Notas</FieldLabel>
@@ -1172,9 +1316,14 @@ const EditarReserva = ({ reserva, onSave, onCancel }) => {
             rows={2}
             value={form.notas}
             onChange={(e) => set('notas', e.target.value)}
-            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 resize-none placeholder:text-slate-300"
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/10 transition-all resize-none placeholder:text-slate-300"
           />
         </div>
+
+        <InfoBlock label="¿Qué datos puedo editar?" variant="light">
+          <p>Podés cambiar el jugador asignado, el monto, el estado de pago y las notas. El horario y la cancha no se modifican desde aquí.</p>
+          <p>Si el jugador está registrado en el sistema, buscalo por nombre o DNI para vincularlo correctamente y que reciba notificaciones.</p>
+        </InfoBlock>
       </div>
 
       <div className="px-5 py-4 border-t border-slate-100 flex gap-2">
@@ -1182,7 +1331,7 @@ const EditarReserva = ({ reserva, onSave, onCancel }) => {
           Cancelar
         </button>
         <button
-          onClick={() => onSave(reserva.id, { ...form, jugadores: form.jugadores.filter(Boolean), monto: Number(form.monto) })}
+          onClick={handleSave}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors"
         >
           <Save size={14} />
@@ -1611,6 +1760,36 @@ const DIAS_LABEL = {
   jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo',
 }
 
+const DIAS_INDEX = {
+  domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6,
+}
+
+const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+
+const getProximaFechaTurno = (diaKey, horaInicio) => {
+  const ahora = new Date()
+  const target = DIAS_INDEX[diaKey]
+  if (ahora.getDay() === target) {
+    const [h, m] = horaInicio.split(':').map(Number)
+    if (ahora.getHours() * 60 + ahora.getMinutes() < h * 60 + m) {
+      // Hoy y la hora aún no pasó → es hoy
+      return ahora.toISOString().split('T')[0]
+    }
+  }
+  const base = new Date(ahora)
+  base.setHours(0, 0, 0, 0)
+  const diff = (target - base.getDay() + 7) % 7
+  base.setDate(base.getDate() + (diff === 0 ? 7 : diff))
+  return base.toISOString().split('T')[0]
+}
+
+const fmtFechaCorta = (iso) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  const fecha = new Date(y, m - 1, d)
+  const diaNombre = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'][fecha.getDay()]
+  return `${DIAS_LABEL[diaNombre]} ${d} ${MESES_CORTOS[m - 1]}`
+}
+
 const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [] }) => {
   const turnosFijosJugadores = useTurnosFijosStore((s) => s.turnosFijos)
   const liberarTurno = useTurnosFijosStore((s) => s.liberarTurno)
@@ -1622,6 +1801,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [] }) => 
   const [mostrarForm, setMostrarForm] = useState(false)
   const [formClase, setFormClase] = useState(() => makeEmptyClase(canchas))
   const [errorForm, setErrorForm] = useState('')
+  const [confirmarBaja, setConfirmarBaja] = useState(null) // turno a dar de baja
 
   const handleAprobarTurnoFijo = async (id) => {
     try {
@@ -1637,11 +1817,21 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [] }) => 
     updateTurnoFijo(id, { estado: 'inactivo', activo: false })
   }
 
-  const handleLiberarTurnoFijo = async (id) => {
+  const handleLiberarTurnoFijo = async () => {
+    if (!confirmarBaja) return
+    const fecha = getProximaFechaTurno(confirmarBaja.dia, confirmarBaja.inicio)
     try {
-      await api.patch(`/turnos-fijos/${id}/estado`, { estado: 'inactivo' }, { Authorization: `Bearer ${adminToken}` })
+      const updated = await api.patch(
+        `/turnos-fijos/${confirmarBaja.id}/ausencia/${fecha}`,
+        {},
+        { Authorization: `Bearer ${adminToken}` }
+      )
+      updateTurnoFijo(confirmarBaja.id, {
+        diasAusentes: updated.diasAusentes,
+        ausenciasPendientes: updated.ausenciasPendientes,
+      })
     } catch { /* ignore */ }
-    liberarTurno(id)
+    setConfirmarBaja(null)
   }
 
   const handleConfirmarAusenciaAdmin = async (turnoId, fecha) => {
@@ -1663,6 +1853,51 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [] }) => 
 
   return (
     <div className="flex flex-col gap-5">
+
+      {/* ── Modal confirmación baja turno fijo ── */}
+      {confirmarBaja && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirmarBaja(null)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
+                <Trash2 size={15} className="text-amber-500" />
+              </div>
+              <div>
+                <p className="text-slate-800 font-bold text-sm">¿Liberar el turno de esta semana?</p>
+                <p className="text-slate-400 text-xs mt-0.5">El turno fijo seguirá activo para las próximas semanas</p>
+              </div>
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-3">
+              <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-xs text-slate-600 leading-relaxed space-y-1">
+                <p><span className="font-semibold text-slate-700">Jugador:</span> {confirmarBaja.jugador}</p>
+                <p><span className="font-semibold text-slate-700">Cancha:</span> {confirmarBaja.canchaNombre}</p>
+                <p><span className="font-semibold text-slate-700">Horario:</span> {confirmarBaja.inicio} a {confirmarBaja.fin}</p>
+                <p><span className="font-semibold text-slate-700">Fecha liberada:</span> {fmtFechaCorta(getProximaFechaTurno(confirmarBaja.dia, confirmarBaja.inicio))}</p>
+              </div>
+              <p className="text-slate-500 text-xs leading-relaxed">
+                El slot quedará disponible para reserva eventual. El jugador recibirá una notificación.
+              </p>
+              <button
+                onClick={handleLiberarTurnoFijo}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+              >
+                <Trash2 size={14} />
+                Liberar turno
+              </button>
+              <button
+                onClick={() => setConfirmarBaja(null)}
+                className="text-slate-400 hover:text-slate-600 text-xs text-center transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Pendientes de aprobación ── */}
       {pendientes.length > 0 && (
@@ -1758,9 +1993,9 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [] }) => 
                       </td>
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => handleLiberarTurnoFijo(t.id)}
+                          onClick={() => setConfirmarBaja(t)}
                           className="text-slate-300 hover:text-red-400 transition-colors"
-                          title="Liberar turno fijo"
+                          title="Dar de baja turno fijo"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -1941,6 +2176,12 @@ const ReservasPage = () => {
   const [seleccion, setSeleccion] = useState(null)
   const [editando, setEditando] = useState(null)
   const [tabActiva, setTabActiva] = useState('grilla') // 'grilla' | 'fijos'
+  const [toast, setToast] = useState(null) // { tipo: 'reserva'|'bloqueo'|'cancelada', msg: '' }
+
+  const showToast = (tipo, msg) => {
+    setToast({ tipo, msg })
+    setTimeout(() => setToast(null), 3500)
+  }
 
   const { notificaciones, marcarLeida, marcarTodasLeidas, eliminarNotificacion } = useNotificacionesStore()
   const playerReservas = useReservasStore((s) => s.reservas)
@@ -2141,8 +2382,30 @@ const ReservasPage = () => {
     setSeleccion(sel)
   }
 
-  const handleSave = (nueva) => {
-    addReservaAdmin(nueva)
+  const handleSave = async (nueva) => {
+    try {
+      await api.post('/reservas/admin', {
+        canchaId: nueva.canchaId,
+        fecha: nueva.fecha,
+        horaInicio: nueva.inicio,
+        horaFin: nueva.fin,
+        tipo: nueva.tipo,
+        jugadores: nueva.jugadores ?? [],
+        precio: nueva.monto,
+        notas: nueva.notas || '',
+        esTurnoFijo: nueva.tipo === 'fijo',
+        ...(nueva.jugadorId && { jugadorId: nueva.jugadorId }),
+      }, { Authorization: `Bearer ${adminToken}` })
+      fetchReservasBackend()
+      if (nueva.tipo === 'bloqueado') {
+        showToast('bloqueo', `Franja bloqueada · ${nueva.canchaNombre} ${nueva.inicio}–${nueva.fin}`)
+      } else {
+        const jugador = nueva.jugadorNombre || nueva.jugadores?.[0] || 'Sin jugador'
+        showToast('reserva', `Reserva creada · ${nueva.canchaNombre} ${nueva.inicio}–${nueva.fin} · ${jugador}`)
+      }
+    } catch (err) {
+      alert(err.message || 'No se pudo crear la reserva')
+    }
     setSeleccion(null)
   }
 
@@ -2162,7 +2425,10 @@ const ReservasPage = () => {
     if (String(id).startsWith('backend_')) {
       const backendId = String(id).replace('backend_', '')
       api.patch(`/reservas/${backendId}/estado`, { estado: 'cancelada' }, { Authorization: `Bearer ${adminToken}` })
-        .then(() => setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, estado: 'cancelada' } : r)))
+        .then(() => {
+          setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, estado: 'cancelada' } : r))
+          showToast('cancelada', 'Reserva cancelada correctamente')
+        })
         .catch((err) => alert(err.message || 'No se pudo cancelar'))
       setSeleccion(null)
       return
@@ -2181,6 +2447,7 @@ const ReservasPage = () => {
           fin: reserva.horaFin,
         })
       }
+      showToast('cancelada', 'Reserva cancelada correctamente')
       setSeleccion(null)
       return
     }
@@ -2198,6 +2465,7 @@ const ReservasPage = () => {
           fin: turno.fin,
         })
       }
+      showToast('cancelada', 'Turno liberado correctamente')
       setSeleccion(null)
       return
     }
@@ -2218,18 +2486,50 @@ const ReservasPage = () => {
     setSeleccion(null)
   }
 
-  const handleGuardarEdicion = (id, data) => {
-    updateReservaAdmin(id, data)
+  const handleGuardarEdicion = async (id, data) => {
+    if (String(id).startsWith('backend_')) {
+      const backendId = String(id).replace('backend_', '')
+      try {
+        await api.patch(`/reservas/${backendId}`, {
+          notas: data.notas,
+          precio: data.monto,
+          jugadores: data.jugadores,
+          jugadorId: data.jugadorId ?? null,
+          metodoPago: data.metodoPago,
+          pago: data.pago,
+        }, { Authorization: `Bearer ${adminToken}` })
+        fetchReservasBackend()
+      } catch { /* fallo silencioso */ }
+    }
     setEditando(null)
   }
 
   const handleAddClase = (nueva) => setClases((prev) => [...prev, nueva])
   const handleDeleteClase = (id) => setClases((prev) => prev.filter((c) => c.id !== id))
 
-  const sinLeer = notificaciones.filter((n) => !n.leida && n.tipo === 'solicitud_turno_fijo').length
+  const sinLeer = turnosFijos.filter((t) => t.estado === 'pendiente').length
+  const [ayudaAbierta, setAyudaAbierta] = useState(false)
 
   return (
     <div className="flex flex-col gap-5">
+
+      {/* Toast de confirmación */}
+      {toast && (
+        <div className={[
+          'fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-sm font-medium',
+          toast.tipo === 'reserva'  && 'bg-emerald-500 text-white',
+          toast.tipo === 'bloqueo'  && 'bg-slate-700 text-white',
+          toast.tipo === 'cancelada' && 'bg-red-500 text-white',
+        ].filter(Boolean).join(' ')}>
+          {toast.tipo === 'reserva'   && <CheckCircle size={16} className="shrink-0" />}
+          {toast.tipo === 'bloqueo'   && <Lock size={16} className="shrink-0" />}
+          {toast.tipo === 'cancelada' && <XCircle size={16} className="shrink-0" />}
+          <span>{toast.msg}</span>
+          <button onClick={() => setToast(null)} className="ml-2 opacity-70 hover:opacity-100 transition-opacity">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Header + navegación de fecha */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -2278,41 +2578,158 @@ const ReservasPage = () => {
       {/* Stats */}
       <StatsBar reservasDia={reservasDia} clasesDia={clasesDia} totalTurnosFijos={totalTurnosFijos} canchasCount={canchas.filter((c) => c.activa).length} franjasCount={franjasDia.length} />
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        {[
-          { key: 'grilla', label: 'Grilla del día', icon: CalendarDays },
-          { key: 'fijos',  label: 'Turnos fijos',   icon: Repeat,
-            badge: sinLeer > 0 ? sinLeer : null },
-        ].map(({ key, label, icon: Icon, badge }) => (
-          <button
-            key={key}
-            onClick={() => setTabActiva(key)}
-            className={['flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              tabActiva === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600',
-            ].join(' ')}
-          >
-            <Icon size={14} />
-            {label}
-            {badge && (
-              <span className="bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                {badge}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Tabs + botón ayuda */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+          {[
+            { key: 'grilla', label: 'Grilla del día', icon: CalendarDays },
+            { key: 'fijos',  label: 'Turnos fijos',   icon: Repeat,
+              badge: sinLeer > 0 ? sinLeer : null },
+          ].map(({ key, label, icon: Icon, badge }) => (
+            <button
+              key={key}
+              onClick={() => setTabActiva(key)}
+              className={['flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                tabActiva === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600',
+              ].join(' ')}
+            >
+              <Icon size={14} />
+              {label}
+              {badge && (
+                <span className="bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Botón ayuda — futuro: asistente IA */}
+        <button
+          onClick={() => setAyudaAbierta((v) => !v)}
+          title="Ayuda"
+          className={['w-9 h-9 rounded-xl border flex items-center justify-center transition-all shrink-0',
+            ayudaAbierta
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-600'
+              : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300',
+          ].join(' ')}
+        >
+          <HelpCircle size={16} />
+        </button>
       </div>
+
+      {/* Panel de ayuda */}
+      {ayudaAbierta && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                <HelpCircle size={14} className="text-emerald-600" />
+              </div>
+              <h3 className="text-slate-800 font-semibold text-sm">¿Cómo funciona la grilla?</h3>
+            </div>
+            <button onClick={() => setAyudaAbierta(false)} className="text-slate-300 hover:text-slate-500 transition-colors">
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Tipos de reserva */}
+          <div>
+            <p className="text-xs font-semibold text-slate-600 mb-2.5">Tipos de reserva</p>
+            <div className="flex flex-col gap-2">
+              {[
+                { color: 'bg-emerald-500', nombre: 'Online', desc: 'El jugador reservó desde la app. Requiere aprobación del admin.' },
+                { color: 'bg-blue-500',    nombre: 'Eventual', desc: 'Reserva manual creada por el admin para un día puntual, sin recurrencia.' },
+                { color: 'bg-violet-500',  nombre: 'Fijo', desc: 'Turno semanal recurrente aprobado por el admin. Se repite cada semana en el mismo horario.' },
+                { color: 'bg-slate-400',   nombre: 'Bloqueado', desc: 'Franja cerrada. Impide reservas en ese horario. Se puede indicar el motivo.' },
+                { color: 'bg-orange-400',  nombre: 'Clase', desc: 'Clase con profesor registrada. Se gestiona desde la pestaña "Turnos fijos".' },
+              ].map(({ color, nombre, desc }) => (
+                <div key={nombre} className="flex items-start gap-2.5">
+                  <div className={`w-2 h-2 rounded-full ${color} mt-1 shrink-0`} />
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    <span className="font-medium text-slate-700">{nombre}</span> — {desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Acciones rápidas */}
+          <div className="pt-4 border-t border-slate-100">
+            <p className="text-xs font-semibold text-slate-600 mb-2.5">Acciones</p>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-start gap-2.5">
+                <div className="w-2 h-2 rounded-sm bg-slate-200 mt-1 shrink-0" />
+                <p className="text-xs text-slate-500"><span className="font-medium text-slate-700">Celda vacía</span> — abre el formulario para crear una reserva manual o bloquear la franja.</p>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <div className="w-2 h-2 rounded-sm bg-slate-400 mt-1 shrink-0" />
+                <p className="text-xs text-slate-500"><span className="font-medium text-slate-700">Reserva existente</span> — muestra el detalle. Desde ahí podés editar datos o cancelar el turno.</p>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <div className="w-2 h-2 rounded-sm bg-amber-400 mt-1 shrink-0" />
+                <p className="text-xs text-slate-500"><span className="font-medium text-slate-700">Panel de alertas</span> — aparece cuando hay reservas pendientes de jugadores para aprobar o rechazar.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Estado de pago */}
+          <div className="pt-4 border-t border-slate-100">
+            <p className="text-xs font-semibold text-slate-600 mb-2.5">Estado de pago</p>
+            <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className="text-xs font-medium text-emerald-700">Pagado</span>
+                <span className="text-xs text-emerald-500">— ya abonó</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <span className="text-xs font-medium text-amber-700">Pendiente</span>
+                <span className="text-xs text-amber-500">— sin confirmar</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 border border-red-200">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                <span className="text-xs font-medium text-red-700">Debe</span>
+                <span className="text-xs text-red-400">— deuda pendiente</span>
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-300 text-center">
+            Próximamente: asistente IA para gestión inteligente de canchas
+          </p>
+        </div>
+      )}
 
       {tabActiva === 'grilla' && (
         <>
           <Leyenda />
 
-          {/* Overlay mobile cuando hay panel abierto */}
+          {/* Modal centrado — nueva reserva / detalle / editar */}
           {(seleccion || editando) && (
             <div
-              className="fixed inset-0 bg-black/40 z-40 lg:hidden"
-              onClick={() => { setSeleccion(null); setEditando(null) }}
-            />
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+              onClick={(e) => { if (e.target === e.currentTarget) { setSeleccion(null); setEditando(null) } }}
+            >
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4">
+                {editando ? (
+                  <EditarReserva reserva={editando} onSave={handleGuardarEdicion} onCancel={() => setEditando(null)} />
+                ) : seleccion.tipo === 'detalle' ? (
+                  <div className="flex flex-col">
+                    <DetalleReserva reserva={seleccion.reserva} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} onAprobar={handleAprobarBackend} />
+                    {seleccion.reserva.tipo !== 'bloqueado' && seleccion.reserva.tipo !== 'clase' && seleccion.reserva.estado !== 'cancelada' && (
+                      <div className="px-5 pb-4">
+                        <button onClick={() => handleEditar(seleccion.reserva)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 transition-colors">
+                          <Pencil size={14} /> Editar reserva
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <PanelContent seleccion={seleccion} fecha={fecha} onSave={handleSave} onBloquear={handleSave} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} />
+                )}
+              </div>
+            </div>
           )}
 
           {/* Vista mobile: todas las canchas en orden */}
@@ -2338,9 +2755,9 @@ const ReservasPage = () => {
             )}
           </div>
 
-          {/* Vista desktop: tabla completa + panel lateral */}
-          <div className="hidden md:flex gap-4">
-            <div className="flex-1 min-w-0 flex flex-col gap-6">
+          {/* Vista desktop: tabla completa */}
+          <div className="hidden md:block">
+            <div className="flex flex-col gap-6">
               {canchasConCustom.length === 0 ? (
                 <Grilla reservas={reservasDia} clasesDia={clasesDia} fecha={fecha} onCeldaClick={handleCeldaClick} canchas={canchas} franjas={franjasMainGrilla} />
               ) : (
@@ -2361,57 +2778,7 @@ const ReservasPage = () => {
                 </>
               )}
             </div>
-            {seleccion && !editando && (
-              <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col">
-                {seleccion.tipo === 'detalle' ? (
-                  <div className="flex flex-col">
-                    <DetalleReserva reserva={seleccion.reserva} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} onAprobar={handleAprobarBackend} />
-                    {seleccion.reserva.tipo !== 'bloqueado' && seleccion.reserva.tipo !== 'clase' && seleccion.reserva.estado !== 'cancelada' && (
-                      <div className="px-5 pb-4">
-                        <button onClick={() => handleEditar(seleccion.reserva)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 transition-colors">
-                          <Pencil size={14} /> Editar reserva
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <Panel seleccion={seleccion} fecha={fecha} onSave={handleSave} onBloquear={handleSave} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} />
-                )}
-              </aside>
-            )}
-            {editando && (
-              <aside className="lg:static lg:w-80 lg:shrink-0 lg:border-l lg:border-slate-100 lg:flex lg:flex-col">
-                <EditarReserva reserva={editando} onSave={handleGuardarEdicion} onCancel={() => setEditando(null)} />
-              </aside>
-            )}
           </div>
-
-          {/* Panels mobile (fixed bottom sheet, fuera del hidden parent) */}
-          {seleccion && !editando && (
-            <aside className="fixed bottom-0 inset-x-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white shadow-2xl md:hidden">
-              <PanelContent
-                seleccion={seleccion}
-                fecha={fecha}
-                onSave={handleSave}
-                onBloquear={handleSave}
-                onCancelar={handleCancelar}
-                onPago={handlePago}
-                onClose={() => setSeleccion(null)}
-              />
-              {seleccion.tipo === 'detalle' && seleccion.reserva.tipo !== 'bloqueado' && seleccion.reserva.tipo !== 'clase' && seleccion.reserva.estado !== 'cancelada' && (
-                <div className="px-5 pb-4">
-                  <button onClick={() => handleEditar(seleccion.reserva)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 transition-colors">
-                    <Pencil size={14} /> Editar reserva
-                  </button>
-                </div>
-              )}
-            </aside>
-          )}
-          {editando && (
-            <aside className="fixed bottom-0 inset-x-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white shadow-2xl md:hidden">
-              <EditarReserva reserva={editando} onSave={handleGuardarEdicion} onCancel={() => setEditando(null)} />
-            </aside>
-          )}
         </>
       )}
 

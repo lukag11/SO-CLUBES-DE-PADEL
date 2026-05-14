@@ -87,19 +87,25 @@ const PlayerLayout = () => {
       .catch(() => { /* mantiene reservas en memoria como fallback */ })
   }, [token])
 
-  // Carga turnos fijos del jugador desde el backend al montar
+  // Carga turnos fijos del jugador + polling cada 30s
   useEffect(() => {
     if (!token) return
-    api.get('/turnos-fijos/me', { Authorization: `Bearer ${token}` })
-      .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
-      .catch(() => {})
+    const fetch = () =>
+      api.get('/turnos-fijos/me', { Authorization: `Bearer ${token}` })
+        .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
+        .catch(() => {})
+    fetch()
+    const interval = setInterval(fetch, 30_000)
+    const onFocus = () => fetch()
+    window.addEventListener('focus', onFocus)
+    return () => { clearInterval(interval); window.removeEventListener('focus', onFocus) }
   }, [token])
 
-  // Carga notificaciones del backend al montar y refresca cada 60s
+  // Carga notificaciones del backend al montar y refresca cada 30s
   useEffect(() => {
     if (!token) return
     fetchNotificaciones()
-    const interval = setInterval(fetchNotificaciones, 60_000)
+    const interval = setInterval(fetchNotificaciones, 30_000)
     return () => clearInterval(interval)
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 

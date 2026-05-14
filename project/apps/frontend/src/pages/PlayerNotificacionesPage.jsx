@@ -16,6 +16,12 @@ const TIPO_META = {
     bg: 'bg-[#afca0b]/10',
     border: 'border-[#afca0b]/20',
   },
+  reserva_admin_manual: {
+    icon: CalendarDays,
+    color: 'text-sky-400',
+    bg: 'bg-sky-400/10',
+    border: 'border-sky-400/20',
+  },
   reserva_cancelada_admin: {
     icon: XCircle,
     color: 'text-red-400',
@@ -39,6 +45,18 @@ const TIPO_META = {
     color: 'text-red-400',
     bg: 'bg-red-400/10',
     border: 'border-red-400/20',
+  },
+  turno_fijo_baja: {
+    icon: XCircle,
+    color: 'text-orange-400',
+    bg: 'bg-orange-400/10',
+    border: 'border-orange-400/20',
+  },
+  ausencia_admin_directa: {
+    icon: CalendarDays,
+    color: 'text-sky-400',
+    bg: 'bg-sky-400/10',
+    border: 'border-sky-400/20',
   },
   ausencia_confirmada: {
     icon: UserCheck,

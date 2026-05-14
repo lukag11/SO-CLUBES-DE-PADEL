@@ -172,7 +172,7 @@ const PlayerReservasPage = () => {
   const { addReserva, cancelarReserva } = useReservasStore()
   const addSolicitudEnviada = usePlayerNotificationsStore((s) => s.addSolicitudEnviada)
   const { turnosFijos, addTurnoFijoFromApi } = useTurnosFijosStore()
-  const reservasAdmin = useReservasAdminStore((s) => s.reservas)
+  // Bloqueos ya no vienen del store local — todo desde el backend (reservasDBParaCancha)
   const torneos = useTorneosStore((s) => s.torneos)
   const token = usePlayerStore((s) => s.token)
 
@@ -181,6 +181,8 @@ const PlayerReservasPage = () => {
   const [reservasDB, setReservasDB] = useState([])
   const [misReservasDB, setMisReservasDB] = useState([])
   const [errorReserva, setErrorReserva] = useState(null)
+
+  const [slotsOcupadosClub, setSlotsOcupadosClub] = useState([])
 
   const clubId = club.id || 'cmoryx4a900008t4qmzdzuiee'
 
@@ -268,8 +270,9 @@ const PlayerReservasPage = () => {
   const dayObj = addDays(hoy, fechaOffset)
   const diaNombre = DIAS_LARGOS[dayObj.getDay()]
   const canchaActual = canchasActivas.find((c) => c.id === canchaId)
-  // Usa horario propio de la cancha si tiene personalización; si no, hereda el del club
-  const horarioDia = canchaActual?.horarios?.[diaNombre] ?? club.horarios?.[diaNombre]
+  // Usa horario propio de la cancha SOLO si está activo para hoy; si no, hereda el del club
+  const canchaHorarioDia = canchaActual?.horarios?.[diaNombre]
+  const horarioDia = (canchaHorarioDia?.activo ? canchaHorarioDia : null) ?? club.horarios?.[diaNombre]
 
   // canchaDBId: cuid real de la cancha en la DB (para llamadas a la API)
   const canchaDBId = useMemo(
@@ -323,22 +326,47 @@ const PlayerReservasPage = () => {
     fetchMisReservas()
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Recarga reservas cuando cambia la fecha
+  // Carga slots ocupados por turnos fijos activos del club + polling cada 30s
+  useEffect(() => {
+    if (!token) return
+    const fetch = () =>
+      api.get('/turnos-fijos/slots-ocupados', { Authorization: `Bearer ${token}` })
+        .then((data) => { if (Array.isArray(data)) setSlotsOcupadosClub(data) })
+        .catch(() => {})
+    fetch()
+    const interval = setInterval(fetch, 30_000)
+    return () => clearInterval(interval)
+  }, [token])
+
+  // Recarga reservas cuando cambia la fecha + polling cada 30s para reflejar cambios del admin
   useEffect(() => {
     fetchReservasDia(fechaSeleccionada)
+    const interval = setInterval(() => fetchReservasDia(fechaSeleccionada), 30_000)
+    return () => clearInterval(interval)
   }, [fechaSeleccionada, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Turnos fijos activos: confirmados + pendientes bloquean el slot
+  // Turnos fijos activos: los propios + los de otros jugadores del club (para bloquear grilla)
   // Excluye solo diasAusentes confirmados por admin
   const turnosFijosActivos = useMemo(() => {
     const diaKey = getDiaSemanaKey(fechaSeleccionada)
-    return turnosFijos.filter(
+    const misTurnos = turnosFijos.filter(
       (t) =>
         (t.activo || t.estado === 'pendiente') &&
         t.dia === diaKey &&
         !(t.diasAusentes || []).includes(fechaSeleccionada)
     )
-  }, [turnosFijos, fechaSeleccionada])
+    const ajenosActivos = slotsOcupadosClub.filter(
+      (s) =>
+        s.canchaId &&
+        s.horaInicio &&
+        s.horaFin &&
+        s.horaFin !== s.horaInicio &&
+        s.dia === diaKey &&
+        !(s.diasAusentes || []).includes(fechaSeleccionada) &&
+        (!s.desde || s.desde <= fechaSeleccionada)
+    )
+    return [...misTurnos, ...ajenosActivos]
+  }, [turnosFijos, slotsOcupadosClub, fechaSeleccionada])
 
   // Turnos fijos con cancelación pendiente de aprobación del admin
   const turnosFijosConPendiente = useMemo(() => {
@@ -353,8 +381,8 @@ const PlayerReservasPage = () => {
 
   const slots = useMemo(() => {
     if (!horarioDia?.activo || !canchaActual) return []
-    return generarSlots(horarioDia.apertura, horarioDia.cierre, canchaId, fechaSeleccionada, misReservasMapped, turnosFijosActivos, turnosFijosConPendiente, reservasAdmin, turnosFijos, reservasDBParaCancha)
-  }, [horarioDia, canchaId, fechaSeleccionada, misReservasMapped, canchaActual, turnosFijosActivos, turnosFijosConPendiente, reservasAdmin, turnosFijos, reservasDBParaCancha])
+    return generarSlots(horarioDia.apertura, horarioDia.cierre, canchaId, fechaSeleccionada, misReservasMapped, turnosFijosActivos, turnosFijosConPendiente, [], turnosFijos, reservasDBParaCancha)
+  }, [horarioDia, canchaId, fechaSeleccionada, misReservasMapped, canchaActual, turnosFijosActivos, turnosFijosConPendiente, turnosFijos, reservasDBParaCancha])
 
   // horaFin del slot seleccionado (ej: '10:00' → '11:30')
   const slotFin = useMemo(

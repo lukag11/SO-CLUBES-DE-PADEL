@@ -2,7 +2,8 @@ import { Repeat, AlertTriangle, CalendarDays, X, Clock } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import useNotificacionesStore from '../store/notificacionesStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
-import { useState, useEffect } from 'react'
+import useClubStore from '../store/clubStore'
+import { useState, useEffect, useMemo } from 'react'
 import { api } from '../lib/api'
 
 const DIAS_LABEL = {
@@ -52,8 +53,17 @@ const fmtFechaLegible = (d) =>
 
 // ─── Modal ausencia ───────────────────────────────────────────────────────────
 
-const ModalAusencia = ({ turno, fecha, onConfirmar, onCerrar }) => {
+const ModalAusencia = ({ turno, fecha, horasMinimas, onConfirmar, onCerrar }) => {
   const esHoy = localISO(fecha) === localISO(new Date())
+
+  const fueraDePlazo = useMemo(() => {
+    if (!horasMinimas) return false
+    const [y, m, d] = localISO(fecha).split('-').map(Number)
+    const [h, min] = turno.inicio.split(':').map(Number)
+    const fechaTurno = new Date(y, m - 1, d, h, min)
+    const horasRestantes = (fechaTurno - new Date()) / (1000 * 60 * 60)
+    return horasRestantes >= 0 && horasRestantes < horasMinimas
+  }, [turno.inicio, fecha, horasMinimas])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCerrar}>
@@ -86,6 +96,18 @@ const ModalAusencia = ({ turno, fecha, onConfirmar, onCerrar }) => {
               : 'Tu aviso se enviará al admin para que libere el turno de esa fecha.'}
           </p>
 
+          {/* Aviso de cargo si está fuera de plazo */}
+          {fueraDePlazo && (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-amber-500/8 border border-amber-500/25">
+              <AlertTriangle size={15} className="text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-amber-300 text-xs leading-relaxed">
+                Avisás con menos de <span className="font-bold">{horasMinimas}h</span> de anticipación.
+                Se registrará un cargo de{' '}
+                <span className="font-bold text-amber-200">${turno.precio?.toLocaleString('es-AR')}</span> en tu cuenta.
+              </p>
+            </div>
+          )}
+
           {/* Fecha destacada */}
           <div className="flex items-center gap-4 px-4 py-4 rounded-2xl bg-red-500/8 border border-red-500/20">
             <div className="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center shrink-0">
@@ -110,7 +132,9 @@ const ModalAusencia = ({ turno, fecha, onConfirmar, onCerrar }) => {
               bg-red-500 text-white hover:bg-red-400 active:scale-[0.98] shadow-lg shadow-red-500/20"
           >
             <AlertTriangle size={15} />
-            Confirmar ausencia
+            {fueraDePlazo
+              ? `Confirmar ausencia (cargo $${turno.precio?.toLocaleString('es-AR')})`
+              : 'Confirmar ausencia'}
           </button>
 
           <button onClick={onCerrar} className="text-white/25 hover:text-white/50 text-xs text-center transition-colors">
@@ -129,6 +153,7 @@ const PlayerTurnosFijosPage = () => {
   const token = usePlayerStore((s) => s.token)
   const liberarTurnoNotif = useNotificacionesStore((s) => s.liberarTurno)
   const { turnosFijos, setTurnosFijos, registrarAusenciaPendiente, updateTurnoFijo } = useTurnosFijosStore()
+  const horasMinimas = useClubStore((s) => s.club?.horasCancelacion ?? 0)
 
   const [modalTurno, setModalTurno] = useState(null)
   const [enviando, setEnviando] = useState(false)
@@ -180,6 +205,7 @@ const PlayerTurnosFijosPage = () => {
         <ModalAusencia
           turno={modalTurno}
           fecha={getFechaDisponible(modalTurno.dia, modalTurno.inicio)}
+          horasMinimas={horasMinimas}
           onConfirmar={handleConfirmarAusencia}
           onCerrar={() => setModalTurno(null)}
         />

@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-12 (sesión landing + fixes grilla admin)
+**Última actualización:** 2026-05-13 (sesión turnos fijos — backend protección + notificaciones + liberar día)
 
 ---
 
@@ -466,6 +466,56 @@ Eliminar todo uso de localStorage para datos de negocio. Todo a Supabase via bac
 
 ### APP_VERSION
 - Bumpeado a `84.0` para limpiar localStorage stale en todos los browsers
+
+---
+
+## Último bloque completado (2026-05-13) — Turnos fijos: protección doble + notificaciones + liberar día
+
+### Objetivos
+Corregir y completar el flujo de turnos fijos: política de cancelación con cargo, turno manual admin → jugador ve en "Mis turnos fijos", protección doble contra solapamientos, confirmación antes de liberar, y "Liberar este día" desde grilla admin.
+
+### Backend — `routes/turnos-fijos.js`
+- **`GET /slots-ocupados`** (jugador): devuelve todos los TurnoFijos `confirmado` del club sin datos personales (`{ canchaId, dia, horaInicio, horaFin, diasAusentes, desde }`). Permite bloqueo visual en grilla del jugador.
+- **`POST /:id/ausencia`**: ahora aplica política de cancelación (`horasCancelacion` del club). Si fuera de plazo: crea `Cargo` + notificación `cargo_cancelacion`. Respuesta incluye `{ cargoAplicado, monto }`.
+- **`PATCH /:id/ausencia/:fecha`**: detecta si fue acción directa del admin (`!eraAusenciaPendiente`) → envía notificación `ausencia_admin_directa` al jugador.
+- **`PATCH /:id/estado`**: diferencia notificaciones: `turno_fijo_baja` (era confirmado) vs `turno_fijo_rechazado` (era pendiente).
+
+### Backend — `routes/reservas.js`
+- **`POST /admin`**: cuando `esTurnoFijo: true` + `jugadorId`: crea `TurnoFijo` confirmado (derivando `dia` desde `fecha`) + notificación `turno_fijo_confirmado`. Protección: no duplica si ya existe uno activo para esa cancha+dia.
+- **`POST /`** (jugador): antes de crear, verifica TurnoFijos activos. Devuelve 409 si hay conflicto de horario con un turno fijo que no tiene ausencia para esa fecha.
+- **`PATCH /:id/estado`** (admin cancela): cuando `estado === 'cancelada'` y `esTurnoFijo === true`:
+  1. Busca el TurnoFijo correspondiente (canchaId + dia + jugadorId + confirmado)
+  2. Agrega `fecha` a `diasAusentes` del TurnoFijo → slot libre esa semana, turno sigue activo
+  3. Envía `ausencia_admin_directa` (no `reserva_cancelada_admin`)
+
+### Frontend — `PlayerTurnosFijosPage.jsx`
+- `ModalAusencia` recibe `horasMinimas` desde clubStore y calcula `fueraDePlazo` internamente
+- Si fuera de plazo: bloque ámbar de aviso + texto del botón cambia a "Confirmar ausencia (cargo $precio)"
+
+### Frontend — `PlayerReservasPage.jsx`
+- `slotsOcupadosClub`: fetch `GET /turnos-fijos/slots-ocupados` al montar + polling 30s
+- `turnosFijosActivos`: fusiona propios + ajenos. Filtro defensivo: descarta entradas sin `canchaId`, `horaInicio`, `horaFin` nulo o `horaFin === horaInicio`
+- `generarSlots` bloquea visualmente los slots de otros jugadores con turno fijo activo
+
+### Frontend — `ReservasPage.jsx` (admin — TabTurnosFijos)
+- Botón papelera ahora abre modal de confirmación antes de liberar (antes ejecutaba directo)
+- `handleLiberarTurnoFijo`: calcula próxima ocurrencia y llama `PATCH /turnos-fijos/:id/ausencia/:fecha` (ausencia puntual, no baja permanente)
+- Modal confirmación: ámbar, muestra fecha que se libera, aclara que el turno sigue activo para semanas siguientes
+
+### Frontend — `PlayerDashboardPage.jsx`
+- Widget "Mis turnos fijos" entre "Próximas reservas" y el grid principal
+- Muestra hasta 3 turnos activos (violeta), badge de pendientes, link "Ver todos"
+
+### Frontend — `PlayerNotificacionesPage.jsx` + `playerNotificationsStore.js`
+- Nuevos tipos: `turno_fijo_baja` (naranja), `ausencia_admin_directa` (sky), `turno_fijo_rechazado`
+- `formatCuerpo` actualizado para estos tipos
+
+### Frontend — `PlayerLayout.jsx`
+- Polling notificaciones reducido de 60s a 30s
+
+### Pendiente (seguir mañana)
+- **"Turno manual admin → Mis turnos fijos"**: el backend crea el TurnoFijo pero el store del jugador (`turnosFijosStore`) no hace re-fetch automáticamente al llegar la notificación. Hay que agregar un fetch de `/turnos-fijos/me` desde `PlayerTurnosFijosPage` al montar (o al recibir la notificación). También revisar el flujo de `handleLiberarTurnoFijo` en la grilla admin — puede que la reserva de tipo fijo en la grilla no tenga el `jugadorId` correcto al momento de derivar el TurnoFijo.
+- **Diagnóstico root cause**: cuando admin libera desde grilla, el `PATCH /reservas/:id/estado` necesita encontrar el TurnoFijo por `canchaId + dia + jugadorId`. Verificar que la reserva en grilla tiene `jugadorId` populated correctamente (puede que sea null en algunas reservas manuales viejas).
 
 ---
 

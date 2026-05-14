@@ -5,8 +5,11 @@ import usePlayerStore from './playerStore'
 const TITULOS = {
   reserva_confirmada:      '¡Reserva confirmada!',
   reserva_cancelada_admin: 'Reserva cancelada por el club',
+  reserva_admin_manual:    'El club te realizó una reserva',
   turno_fijo_confirmado:   '¡Turno fijo aprobado!',
-  turno_fijo_rechazado:    'Turno fijo rechazado',
+  turno_fijo_rechazado:    'Solicitud de turno fijo rechazada',
+  turno_fijo_baja:         'El club dio de baja tu turno fijo',
+  ausencia_admin_directa:  'El club liberó tu turno de esta semana',
   cargo_cancelacion:       'Cargo por cancelación fuera de plazo',
 }
 
@@ -14,8 +17,11 @@ const formatCuerpo = (tipo, data = {}) => {
   const { canchaNombre = '', fecha = '', horaInicio = '', horaFin = '', dia = '', monto } = data
   if (tipo === 'reserva_confirmada')      return `${canchaNombre} · ${horaInicio} a ${horaFin} · ${fecha}`
   if (tipo === 'reserva_cancelada_admin') return `${canchaNombre} · ${horaInicio} a ${horaFin} · ${fecha}`
+  if (tipo === 'reserva_admin_manual')    return `${canchaNombre} · ${horaInicio} a ${horaFin} · ${fecha}`
   if (tipo === 'turno_fijo_confirmado')   return `${canchaNombre} · todos los ${dia} · ${horaInicio} a ${horaFin}`
   if (tipo === 'turno_fijo_rechazado')    return `${canchaNombre} · ${dia} · ${horaInicio} a ${horaFin}`
+  if (tipo === 'turno_fijo_baja')         return `${canchaNombre} · todos los ${dia} · ${horaInicio} a ${horaFin}`
+  if (tipo === 'ausencia_admin_directa')  return `${canchaNombre} · ${fecha} · ${horaInicio} a ${horaFin} · el slot quedó libre`
   if (tipo === 'cargo_cancelacion')       return `${fecha} ${horaInicio} · Cargo pendiente: $${monto != null ? Number(monto).toLocaleString('es-AR') : 0}`
   return ''
 }

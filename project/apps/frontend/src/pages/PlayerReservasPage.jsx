@@ -148,15 +148,26 @@ const generarSlots = (apertura, cierre, canchaId, fechaStr, misReservas, turnosF
           (t) => t.canchaId === canchaId && (t.horaInicio ?? t.inicio) === f.inicio
         )
 
+      // Slot cubierto por el propio TurnoFijo activo (fechas futuras sin Reserva específica)
+      const miTurnoFijoActivo = !miReservaConfirmada && (turnosFijosAll || []).some(
+        (t) =>
+          t.activo &&
+          t.canchaId === canchaId &&
+          t.dia === diaKey &&
+          overlaps(t.inicio ?? t.horaInicio, t.fin ?? t.horaFin, f.inicio, f.fin) &&
+          !(t.diasAusentes || []).includes(fechaStr) &&
+          (!t.desde || t.desde <= fechaStr)
+      )
+
       const miReserva = miReservaConfirmada || miReservaPendiente
       const [hI, mI] = f.inicio.split(':').map(Number)
       const esPasado = esHoy && (hI * 60 + mI) < minutosAhora
       return {
         hora: f.inicio,
         horaFin: f.fin,
-        pasado: esPasado && !miReserva,
-        ocupado: ((esOcupadoReal && !eraSlotFijoLiberado) || esOcupadoFijo || esOcupadoAdmin) && !miReserva,
-        miReserva: !!miReservaConfirmada && !miTurnoFijoCancelacionPendiente,
+        pasado: esPasado && !miReserva && !miTurnoFijoActivo,
+        ocupado: ((esOcupadoReal && !eraSlotFijoLiberado) || esOcupadoFijo || esOcupadoAdmin) && !miReserva && !miTurnoFijoActivo,
+        miReserva: (!!miReservaConfirmada && !miTurnoFijoCancelacionPendiente) || miTurnoFijoActivo,
         miReservaPendiente: !!miReservaPendiente,
         miTurnoFijoCancelacionPendiente,
         miReservaId: miReserva?.id,
@@ -394,13 +405,20 @@ const PlayerReservasPage = () => {
 
   // RN-51: un jugador no puede tener más de un turno fijo activo en la misma cancha el mismo día.
   // Se permite tener varios turnos fijos el mismo día siempre que sean en canchas distintas.
+  // Solo deshabilitar el toggle de TF cuando el slot seleccionado tiene conflicto de horario con un TF propio
   const yaTimeTurnoFijoEnCancha = useMemo(() => {
-    if (!canchaActual) return false
+    if (!canchaActual || !slotSeleccionado) return false
     const diaKey = getDiaSemanaKey(fechaSeleccionada)
+    const slotFinActual = slots.find((s) => s.hora === slotSeleccionado)?.horaFin ?? ''
+    if (!slotFinActual) return false
     return turnosFijos.some(
-      (t) => t.activo && t.canchaId === canchaActual.id && t.dia === diaKey
+      (t) =>
+        t.activo &&
+        t.canchaId === canchaActual.id &&
+        t.dia === diaKey &&
+        overlaps(t.inicio ?? t.horaInicio, t.fin ?? t.horaFin, slotSeleccionado, slotFinActual)
     )
-  }, [turnosFijos, canchaActual, fechaSeleccionada])
+  }, [turnosFijos, canchaActual, fechaSeleccionada, slotSeleccionado, slots])
 
   const proximasReservas = useMemo(() => {
     const DIAS_INDEX = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 }

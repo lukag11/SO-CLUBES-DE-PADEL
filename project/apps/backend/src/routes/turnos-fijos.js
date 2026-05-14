@@ -107,16 +107,19 @@ router.post('/', requireAuth, requireRole('jugador'), async (req, res) => {
       return res.status(400).json({ error: 'canchaId, dia, horaInicio y horaFin son requeridos' })
     }
 
-    // RN-51: máximo 1 turno fijo activo/pendiente por cancha por día
-    const existente = await prisma.turnoFijo.findFirst({
-      where: {
-        canchaId,
-        dia,
-        estado: { in: ['pendiente', 'confirmado'] },
-      },
+    // RN-51: no puede haber un turno fijo con horario solapado en la misma cancha el mismo día
+    const existentes = await prisma.turnoFijo.findMany({
+      where: { canchaId, dia, estado: { in: ['pendiente', 'confirmado'] } },
+      select: { horaInicio: true, horaFin: true },
     })
-    if (existente) {
-      return res.status(409).json({ error: `Ya existe un turno fijo ${existente.estado} para esa cancha ese día` })
+    const toMinBE = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+    const nsMin = toMinBE(horaInicio), nfMin = toMinBE(horaFin)
+    const hayConflicto = existentes.some((t) => {
+      const esMin = toMinBE(t.horaInicio), efMin = toMinBE(t.horaFin)
+      return esMin < nfMin && nsMin < efMin
+    })
+    if (hayConflicto) {
+      return res.status(409).json({ error: 'Ya existe un turno fijo activo o pendiente en ese horario para esa cancha' })
     }
 
     const hoy = new Date()

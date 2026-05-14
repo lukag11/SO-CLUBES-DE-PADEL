@@ -2197,6 +2197,7 @@ const ReservasPage = () => {
   const playerReservas = useReservasStore((s) => s.reservas)
   const cancelarReservaStore = useReservasStore((s) => s.cancelarReserva)
   const turnosFijos = useTurnosFijosStore((s) => s.turnosFijos)
+  const setTurnosFijosAdmin = useTurnosFijosStore((s) => s.setTurnosFijos)
   const ausentarDiaStore = useTurnosFijosStore((s) => s.ausentarDia)
   const { addReservaCanceladaAdmin, addTurnoFijoLiberadoAdmin } = usePlayerNotificationsStore()
 
@@ -2407,6 +2408,12 @@ const ReservasPage = () => {
         ...(nueva.jugadorId && { jugadorId: nueva.jugadorId }),
       }, { Authorization: `Bearer ${adminToken}` })
       fetchReservasBackend()
+      // Refrescar tab Turnos fijos inmediatamente al crear un turno fijo manual
+      if (nueva.tipo === 'fijo') {
+        api.get('/turnos-fijos', { Authorization: `Bearer ${adminToken}` })
+          .then((data) => { if (Array.isArray(data)) setTurnosFijosAdmin(data) })
+          .catch(() => {})
+      }
       if (nueva.tipo === 'bloqueado') {
         showToast('bloqueo', `Franja bloqueada · ${nueva.canchaNombre} ${nueva.inicio}–${nueva.fin}`)
       } else {

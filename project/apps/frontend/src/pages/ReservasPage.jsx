@@ -609,7 +609,13 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
 
   const handleSave = () => {
     const esClase = form.tipo === 'clase'
+    const esFijo = form.tipo === 'fijo'
     if (!esClase && !jugadorSel && !query.trim()) {
+      setErrorNombre(true)
+      return
+    }
+    // Para turno fijo: el jugador debe estar vinculado al sistema (no solo texto libre)
+    if (esFijo && !jugadorSel) {
       setErrorNombre(true)
       return
     }
@@ -762,10 +768,14 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
                   </div>
                 )}
                 {query.trim().length >= 2 && !buscando && resultados.length === 0 && (
-                  <p className="mt-1.5 text-xs text-slate-400 px-1">No encontrado — se guardará como texto libre</p>
+                  <p className="mt-1.5 text-xs text-slate-400 px-1">
+                    {form.tipo === 'fijo' ? 'El jugador debe estar registrado en el sistema para crear un turno fijo' : 'No encontrado — se guardará como texto libre'}
+                  </p>
                 )}
                 {errorNombre && (
-                  <p className="mt-1.5 text-xs text-red-500 px-1 font-medium">Completá el nombre del jugador para continuar</p>
+                  <p className="mt-1.5 text-xs text-red-500 px-1 font-medium">
+                    {form.tipo === 'fijo' ? 'Para turno fijo, seleccioná un jugador registrado del buscador' : 'Completá el nombre del jugador para continuar'}
+                  </p>
                 )}
               </div>
             )}

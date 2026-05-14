@@ -208,22 +208,26 @@ router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
       })
 
       if (!existeTF) {
-        prisma.turnoFijo.create({
-          data: {
-            clubId,
-            canchaId,
-            jugadorId,
-            dia,
-            horaInicio,
-            horaFin,
-            precio: precio ? parseFloat(precio) : null,
-            estado: 'confirmado',
-            diasAusentes: [],
-            ausenciasPendientes: [],
-            desde: fecha,
-            notas: notas || null,
-          },
-        }).catch(() => {})
+        try {
+          await prisma.turnoFijo.create({
+            data: {
+              clubId,
+              canchaId,
+              jugadorId,
+              dia,
+              horaInicio,
+              horaFin,
+              precio: precio ? parseFloat(precio) : null,
+              estado: 'confirmado',
+              diasAusentes: [],
+              ausenciasPendientes: [],
+              desde: fecha,
+              notas: notas || null,
+            },
+          })
+        } catch (tfErr) {
+          console.error('[TurnoFijo] Error al crear turno fijo manual:', tfErr.message)
+        }
       }
 
       prisma.notificacion.create({
@@ -238,7 +242,7 @@ router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
             horaFin,
           },
         },
-      }).catch(() => {})
+      }).catch((e) => console.error('[Notif] Error al crear notificacion turno fijo:', e.message))
 
     } else if (jugadorId && tipo !== 'bloqueado') {
       // Reserva eventual asignada por admin

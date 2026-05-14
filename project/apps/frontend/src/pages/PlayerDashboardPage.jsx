@@ -1,8 +1,10 @@
 import { Trophy, Swords, CheckCircle, XCircle, Flame, Target, TrendingUp, CalendarDays, ArrowRight, Clock, Repeat } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import usePlayerStore from '../store/playerStore'
 import useReservasStore from '../store/reservasStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
+import { api } from '../lib/api'
 
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
 const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -36,9 +38,19 @@ const DIAS_LABEL = {
 
 const PlayerDashboardPage = () => {
   const player = usePlayerStore((s) => s.player)
+  const token = usePlayerStore((s) => s.token)
   const reservas = useReservasStore((s) => s.reservas)
   const turnosFijos = useTurnosFijosStore((s) => s.turnosFijos)
+  const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!token) return
+    api
+      .get('/turnos-fijos/me', { Authorization: `Bearer ${token}` })
+      .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
+      .catch(() => {})
+  }, [token])
 
   const hoy = fmtDate(new Date())
   const proximasReservas = reservas

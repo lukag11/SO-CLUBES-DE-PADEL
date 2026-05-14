@@ -6,6 +6,30 @@ const router = Router()
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
+// GET /api/jugadores/buscar?q= — admin busca jugadores de su club (por nombre, apellido o DNI)
+router.get('/buscar', requireAuth, requireRole('admin'), async (req, res) => {
+  const { q } = req.query
+  if (!q || q.trim().length < 2) return res.json([])
+  try {
+    const jugadores = await prisma.jugador.findMany({
+      where: {
+        clubId: req.user.clubId,
+        OR: [
+          { nombre:   { contains: q.trim(), mode: 'insensitive' } },
+          { apellido: { contains: q.trim(), mode: 'insensitive' } },
+          { dni:      { contains: q.trim(), mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, nombre: true, apellido: true, dni: true },
+      take: 8,
+    })
+    res.json(jugadores)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al buscar jugadores' })
+  }
+})
+
 // GET /api/jugadores/me — datos actualizados del jugador autenticado
 router.get('/me', requireAuth, requireRole('jugador'), async (req, res) => {
   try {

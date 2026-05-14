@@ -93,13 +93,19 @@ const DashboardLayout = () => {
       .catch(() => {})
   }, [token])
 
-  // Carga turnos fijos del club desde el backend al montar
+  // Carga turnos fijos del club + polling cada 30s
   useEffect(() => {
-    if (!token || !clubId) return
-    api.get(`/turnos-fijos?clubId=${clubId}`, { Authorization: `Bearer ${token}` })
-      .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
-      .catch(() => {})
-  }, [token, clubId])
+    if (!token) return
+    const fetch = () =>
+      api.get('/turnos-fijos', { Authorization: `Bearer ${token}` })
+        .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
+        .catch(() => {})
+    fetch()
+    const interval = setInterval(fetch, 30_000)
+    const onFocus = () => fetch()
+    window.addEventListener('focus', onFocus)
+    return () => { clearInterval(interval); window.removeEventListener('focus', onFocus) }
+  }, [token])
 
   useEffect(() => {
     const el = mainRef.current

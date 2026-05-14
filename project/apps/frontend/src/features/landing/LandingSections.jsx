@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import usePlayerStore from '../../store/playerStore'
 import useTorneosStore from '../../store/torneosStore'
-import { overlaps, generateFranjas } from '../../utils/timeUtils'
+import { overlaps, generateFranjas, toMin } from '../../utils/timeUtils'
 
 // ─── TorneoBanner ─────────────────────────────────────────────────────────────
 
@@ -471,11 +471,18 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
 
   const dataPorCancha = useMemo(() => {
     if (!horarioDia?.activo) return []
+    // Argentina = UTC-3, sin DST
+    const ahoraArg = new Date(Date.now() - 3 * 60 * 60 * 1000)
+    const minAhora = ahoraArg.getUTCHours() * 60 + ahoraArg.getUTCMinutes()
+    const esHoy = diaOffset === 0
     return canchasActivas.map((c) => {
-      const slots = calcSlots(horarioDia, c.id, ocupados)
-      return { cancha: c, slots, libres: slots.filter((s) => s.libre).length }
+      const slots = calcSlots(horarioDia, c.id, ocupados).map((s) => ({
+        ...s,
+        pasado: esHoy && toMin(s.inicio) <= minAhora,
+      }))
+      return { cancha: c, slots, libres: slots.filter((s) => s.libre && !s.pasado).length }
     })
-  }, [canchasActivas, horarioDia, ocupados])
+  }, [canchasActivas, horarioDia, ocupados, diaOffset])
 
   const totalLibres = dataPorCancha.reduce((sum, d) => sum + d.libres, 0)
 
@@ -485,7 +492,7 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
       prevDataRef.current = dataPorCancha
       if (diaOffset === 0 && dataPorCancha.length > 0) {
         const libres = dataPorCancha.flatMap((d) =>
-          d.slots.filter((s) => s.libre).map((s) => ({ canchaId: d.cancha.id, canchaNombre: d.cancha.nombre, slot: s }))
+          d.slots.filter((s) => s.libre && !s.pasado).map((s) => ({ canchaId: d.cancha.id, canchaNombre: d.cancha.nombre, slot: s }))
         )
         if (libres.length > 0) {
           const pick = libres[Math.floor(Math.random() * libres.length)]
@@ -500,7 +507,7 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
       if (!prev) return
       d.slots.forEach((slot) => {
         const prevSlot = prev.slots.find((s) => s.inicio === slot.inicio)
-        if (prevSlot && !prevSlot.libre && slot.libre)
+        if (prevSlot && !prevSlot.libre && slot.libre && !slot.pasado)
           nuevos.push({ canchaId: d.cancha.id, canchaNombre: d.cancha.nombre, slot, freeSince: Date.now() })
       })
     })
@@ -791,18 +798,21 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
                   <div className="px-4 pb-3 flex flex-col gap-1.5">
                     {slots.map((slot) => {
                       const recienLiberado = isRecienLiberado(cancha.id, slot.inicio)
-                      if (!slot.libre) {
+                      if (!slot.libre || slot.pasado) {
                         return (
                           <div key={slot.inicio}
                             className="h-8 px-3 rounded-xl text-[10px] font-medium flex items-center select-none"
                             style={{
                               backgroundColor: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.03)',
                               color: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.15)',
-                              textDecoration: 'line-through',
+                              textDecoration: slot.pasado ? 'none' : 'line-through',
                               border: dark ? '1px solid rgba(255,255,255,0.04)' : '1px solid rgba(0,0,0,0.05)',
                             }}
                           >
                             {slot.inicio} — {slot.fin}
+                            {slot.pasado && (
+                              <span className="ml-auto text-[8px] uppercase tracking-wider opacity-50">Pasado</span>
+                            )}
                           </div>
                         )
                       }

@@ -1170,6 +1170,7 @@ const Leyenda = () => (
     {[
       { dot: 'bg-violet-500',  label: 'Fijo'      },
       { dot: 'bg-blue-500',    label: 'Eventual'  },
+      { dot: 'bg-emerald-500', label: 'Online'    },
       { dot: 'bg-slate-400',   label: 'Bloqueado' },
       { dot: 'bg-orange-400',  label: 'Clase'     },
       { dot: 'bg-slate-200',   label: 'Libre'     },

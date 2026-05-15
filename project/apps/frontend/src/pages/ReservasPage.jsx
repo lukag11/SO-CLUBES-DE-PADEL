@@ -186,7 +186,7 @@ const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos, canchasCount, fran
 
 // ─── Celda de la grilla ───────────────────────────────────────────────────────
 
-const Celda = ({ reserva, franja, cancha, fecha, onClick }) => {
+const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) => {
   const pasado = esPasado(fecha, franja.inicio)
 
   if (!reserva) {
@@ -212,9 +212,9 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick }) => {
   // Bloqueo, Clase, Online, Solicitud fijo — rowspan
   if (reserva.tipo === 'bloqueado' || reserva.tipo === 'clase' || reserva.tipo === 'online' || reserva.tipo === 'solicitud_fijo') {
     // Primera franja que overlappea con esta reserva (donde se renderiza)
-    const primeraFranja = FRANJAS.find((f) => overlaps(reserva.inicio, reserva.fin, f.inicio, f.fin))
+    const primeraFranja = franjas.find((f) => overlaps(reserva.inicio, reserva.fin, f.inicio, f.fin))
     if (!primeraFranja || primeraFranja.inicio !== franja.inicio) return null
-    const franjasCubiertas = Math.max(1, FRANJAS.filter(
+    const franjasCubiertas = Math.max(1, franjas.filter(
       (f) => overlaps(reserva.inicio, reserva.fin, f.inicio, f.fin)
     ).length)
 
@@ -378,6 +378,7 @@ const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], franja
                       cancha={cancha}
                       fecha={fecha}
                       onClick={onCeldaClick}
+                      franjas={franjas}
                     />
                   )
                 })}

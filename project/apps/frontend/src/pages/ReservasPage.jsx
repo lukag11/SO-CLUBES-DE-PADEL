@@ -286,10 +286,10 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) =
           ) : (
             <>
               <div className="flex items-center gap-1.5">
-                <Lock size={11} className="text-slate-400 shrink-0" />
-                <span className="text-slate-500 text-xs font-semibold truncate">Bloqueado</span>
+                <Lock size={11} className="text-red-400 shrink-0" />
+                <span className="text-red-600 text-xs font-semibold truncate">Bloqueado</span>
               </div>
-              <p className="text-slate-400 text-xs leading-snug line-clamp-2">{reserva.notas}</p>
+              {reserva.notas && <p className="text-red-400 text-xs leading-snug line-clamp-2">{reserva.notas}</p>}
             </>
           )}
         </div>

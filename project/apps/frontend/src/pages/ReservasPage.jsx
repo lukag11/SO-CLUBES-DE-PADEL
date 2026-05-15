@@ -265,6 +265,9 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) =
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                 <span className="text-emerald-700 text-xs font-semibold truncate">Online</span>
               </div>
+              {reserva.jugadores?.[0] && (
+                <p className="text-slate-600 text-[10px] font-medium leading-snug truncate">{reserva.jugadores[0]}</p>
+              )}
               <p className="text-emerald-600 text-[10px] font-medium leading-snug">
                 ${Number(reserva.monto).toLocaleString('es-AR')}
               </p>
@@ -275,6 +278,9 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) =
                 <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                 <span className="text-amber-700 text-xs font-semibold truncate">Solicitud fijo</span>
               </div>
+              {reserva.jugadores?.[0] && (
+                <p className="text-slate-600 text-[10px] font-medium leading-snug truncate">{reserva.jugadores[0]}</p>
+              )}
               <p className="text-amber-600 text-[10px] leading-snug">Pendiente aprobación</p>
             </>
           ) : (
@@ -306,16 +312,21 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) =
       ].join(' ')}
     >
       <div className="h-14 p-2 flex flex-col justify-between overflow-hidden">
-        <div className="flex items-center gap-1">
-          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${tipoCfg.dot}`} />
-          <span className="text-slate-700 text-xs font-semibold truncate leading-tight">
-            {reserva.jugadores[0]}
-          </span>
-          {reserva.tipo === 'fijo' && (
-            <Repeat size={10} className="text-violet-400 shrink-0 ml-auto" />
+        <div>
+          <div className="flex items-center gap-1">
+            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${tipoCfg.dot}`} />
+            <span className={`text-xs font-semibold truncate leading-tight ${reserva.tipo === 'fijo' ? 'text-violet-700' : 'text-blue-700'}`}>
+              {tipoCfg.label}
+            </span>
+            {reserva.tipo === 'fijo' && (
+              <Repeat size={10} className="text-violet-400 shrink-0 ml-auto" />
+            )}
+          </div>
+          {reserva.jugadores?.[0] && (
+            <p className="text-slate-500 text-[10px] leading-snug truncate mt-0.5">{reserva.jugadores[0]}</p>
           )}
         </div>
-        <div className="flex items-center gap-1 mt-auto">
+        <div className="flex items-center gap-1">
           {pagoCfg && (
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${pagoCfg.cls}`}>
               {pagoCfg.label}

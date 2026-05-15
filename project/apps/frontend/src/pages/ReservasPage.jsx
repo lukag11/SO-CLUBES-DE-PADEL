@@ -1181,6 +1181,7 @@ const Leyenda = () => (
       </div>
     ))}
     <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-100">
+      <span className="text-slate-300 text-xs">Estado de pago:</span>
       {Object.entries(PAGO_CONFIG).map(([, { label, cls }]) => (
         <Badge key={label} label={label} cls={cls} />
       ))}

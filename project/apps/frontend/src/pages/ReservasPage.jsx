@@ -70,7 +70,7 @@ const getDiaSemana = (iso) => {
 const TIPO_CONFIG = {
   fijo:          { label: 'Fijo',           dot: 'bg-violet-500',  badge: 'bg-violet-50 text-violet-700 border-violet-200'  },
   eventual:      { label: 'Eventual',       dot: 'bg-blue-500',    badge: 'bg-blue-50 text-blue-700 border-blue-200'        },
-  bloqueado:     { label: 'Bloqueado',      dot: 'bg-slate-400',   badge: 'bg-slate-100 text-slate-500 border-slate-200'    },
+  bloqueado:     { label: 'Bloqueado',      dot: 'bg-red-400',     badge: 'bg-red-50 text-red-600 border-red-100'           },
   clase:         { label: 'Clase',          dot: 'bg-orange-400',  badge: 'bg-orange-50 text-orange-700 border-orange-200'  },
   online:        { label: 'Online',         dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   solicitud_fijo:{ label: 'Solicitud fijo', dot: 'bg-amber-500',   badge: 'bg-amber-50 text-amber-700 border-amber-200'     },
@@ -234,7 +234,7 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) =
           : esNoDisponibilidadProfesor ? 'bg-red-50/60 hover:bg-red-100/50'
           : esOnline ? 'bg-emerald-50/60 hover:bg-emerald-100/50'
           : esSolicitudFijo ? 'bg-amber-50/60 hover:bg-amber-100/50'
-          : 'bg-slate-100 hover:bg-slate-200/60',
+          : 'bg-red-50/60 hover:bg-red-100/50',
         ].join(' ')}
       >
         <div className="h-full min-h-14 p-2 flex flex-col gap-1">
@@ -421,7 +421,7 @@ const CeldaMobile = ({ reserva, franja, cancha, onClick, pasado }) => {
 
   const cfgMap = {
     clase:         { bg: 'bg-orange-50',  text: 'text-orange-600',  dot: 'bg-orange-400',  label: 'Clase'     },
-    bloqueado:     { bg: 'bg-slate-100',  text: 'text-slate-500',   dot: 'bg-slate-400',   label: 'Bloq.'     },
+    bloqueado:     { bg: 'bg-red-50',     text: 'text-red-600',     dot: 'bg-red-400',     label: 'Bloq.'     },
     online:        { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Online'    },
     solicitud_fijo:{ bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-500',   label: 'Solicitud' },
     fijo:          { bg: 'bg-violet-50',  text: 'text-violet-700',  dot: 'bg-violet-500',  label: 'Fijo'      },
@@ -989,7 +989,7 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
 
         {/* Bloqueo */}
         {reserva.tipo === 'bloqueado' && (
-          <div className={`border rounded-xl p-4 ${reserva.creadoPor === 'profesor' ? 'bg-red-50 border-red-100' : 'bg-slate-100 border-slate-200'}`}>
+          <div className="border rounded-xl p-4 bg-red-50 border-red-100">
             <div className="flex items-center gap-2 mb-1">
               {reserva.creadoPor === 'profesor'
                 ? <GraduationCap size={14} className="text-red-500" />
@@ -1166,22 +1166,24 @@ const Panel = (props) => (
 // ─── Leyenda ──────────────────────────────────────────────────────────────────
 
 const Leyenda = () => (
-  <div className="flex items-center gap-4 flex-wrap">
-    <span className="text-slate-500 text-xs font-medium">Tipo de reserva:</span>
-    {[
-      { dot: 'bg-violet-500',  label: 'Fijo'      },
-      { dot: 'bg-blue-500',    label: 'Eventual'  },
-      { dot: 'bg-emerald-500', label: 'Online'    },
-      { dot: 'bg-slate-400',   label: 'Bloqueado' },
-      { dot: 'bg-orange-400',  label: 'Clase'     },
-      { dot: 'bg-slate-200',   label: 'Libre'     },
-    ].map(({ dot, label }) => (
-      <div key={label} className="flex items-center gap-1.5">
-        <div className={`w-2.5 h-2.5 rounded-full ${dot}`} />
-        <span className="text-slate-400 text-xs">{label}</span>
-      </div>
-    ))}
-    <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-100">
+  <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="flex items-center gap-3 flex-wrap">
+      <span className="text-slate-500 text-xs font-medium">Tipo de reserva:</span>
+      {[
+        { dot: 'bg-violet-500',  label: 'Fijo'      },
+        { dot: 'bg-blue-500',    label: 'Eventual'  },
+        { dot: 'bg-emerald-500', label: 'Online'    },
+        { dot: 'bg-red-400',     label: 'Bloqueado' },
+        { dot: 'bg-orange-400',  label: 'Clase'     },
+        { dot: 'bg-slate-300',   label: 'Libre'     },
+      ].map(({ dot, label }) => (
+        <div key={label} className="flex items-center gap-1.5">
+          <div className={`w-2.5 h-2.5 rounded-full ${dot}`} />
+          <span className="text-slate-400 text-xs">{label}</span>
+        </div>
+      ))}
+    </div>
+    <div className="flex items-center gap-1.5">
       <span className="text-slate-500 text-xs font-medium">Estado de pago:</span>
       {Object.entries(PAGO_CONFIG).map(([, { label, cls }]) => (
         <Badge key={label} label={label} cls={cls} />

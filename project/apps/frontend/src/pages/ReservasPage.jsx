@@ -2689,7 +2689,7 @@ const ReservasPage = () => {
                 { color: 'bg-emerald-500', nombre: 'Online', desc: 'El jugador reservó desde la app. Requiere aprobación del admin.' },
                 { color: 'bg-blue-500',    nombre: 'Eventual', desc: 'Reserva manual creada por el admin para un día puntual, sin recurrencia.' },
                 { color: 'bg-violet-500',  nombre: 'Fijo', desc: 'Turno semanal recurrente aprobado por el admin. Se repite cada semana en el mismo horario.' },
-                { color: 'bg-slate-400',   nombre: 'Bloqueado', desc: 'Franja cerrada. Impide reservas en ese horario. Se puede indicar el motivo.' },
+                { color: 'bg-red-400',     nombre: 'Bloqueado', desc: 'Franja cerrada. Impide reservas en ese horario. Se puede indicar el motivo.' },
                 { color: 'bg-orange-400',  nombre: 'Clase', desc: 'Clase con profesor registrada. Se gestiona desde la pestaña "Turnos fijos".' },
               ].map(({ color, nombre, desc }) => (
                 <div key={nombre} className="flex items-start gap-2.5">

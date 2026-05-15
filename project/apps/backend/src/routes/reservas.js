@@ -178,6 +178,13 @@ router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
     const cancha = await prisma.cancha.findFirst({ where: { id: canchaId, clubId } })
     if (!cancha) return res.status(404).json({ error: 'Cancha no encontrada' })
 
+    // Validar solapamiento con reservas existentes
+    const existentes = await prisma.reserva.findMany({
+      where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
+    })
+    const hayConflicto = existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
+    if (hayConflicto) return res.status(409).json({ error: 'El horario ya está reservado' })
+
     const reserva = await prisma.reserva.create({
       data: {
         clubId,
@@ -220,6 +227,7 @@ router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
               precio: precio ? parseFloat(precio) : null,
               estado: 'confirmado',
               diasAusentes: [],
+              diasAusentesJugador: [],
               ausenciasPendientes: [],
               desde: fecha,
               notas: notas || null,

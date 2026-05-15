@@ -1490,7 +1490,7 @@ const PanelAlertas = ({
 }) => {
   const [modalNotif, setModalNotif] = useState(null)
   const [aprobandoId, setAprobandoId] = useState(null)
-  const ausentarDia = useTurnosFijosStore((s) => s.ausentarDia)
+  const updateTurnoFijoPanel = useTurnosFijosStore((s) => s.updateTurnoFijo)
   const { addReservaConfirmada, addAusenciaConfirmada } = usePlayerNotificationsStore()
 
   // Notificaciones que NO son reservas normales (esas las manejamos directo desde backend)
@@ -1537,9 +1537,13 @@ const PanelAlertas = ({
     const notif = modalNotif
     if (notif?.tipo === 'liberacion_turno' && notif.turnoFijoId && notif.fecha) {
       try {
-        await api.patch(`/turnos-fijos/${notif.turnoFijoId}/ausencia/${notif.fecha}`, {}, { Authorization: `Bearer ${panelAdminToken}` })
+        const updated = await api.patch(`/turnos-fijos/${notif.turnoFijoId}/ausencia/${notif.fecha}`, {}, { Authorization: `Bearer ${panelAdminToken}` })
+        if (updated) updateTurnoFijoPanel(notif.turnoFijoId, {
+          diasAusentes: updated.diasAusentes ?? [],
+          ausenciasPendientes: updated.ausenciasPendientes ?? [],
+          diasAusentesJugador: updated.diasAusentesJugador ?? [],
+        })
       } catch { /* ignore */ }
-      ausentarDia(notif.turnoFijoId, notif.fecha)
       addAusenciaConfirmada?.({ canchaNombre: notif.cancha, fecha: notif.fecha, inicio: notif.inicio, fin: notif.fin })
       onLiberacionAprobada?.(notif.fecha)
       onReservasPendientesChange?.()
@@ -2475,7 +2479,11 @@ const ReservasPage = () => {
       const turno = turnosFijos.find((t) => String(t.id) === turnoFijoId)
       api.patch(`/turnos-fijos/${turnoFijoId}/ausencia/${fecha}`, {}, { Authorization: `Bearer ${adminToken}` })
         .then((updated) => {
-          if (updated?.diasAusentes) updateTurnoFijoAdmin(turnoFijoId, { diasAusentes: updated.diasAusentes })
+          if (updated) updateTurnoFijoAdmin(turnoFijoId, {
+            diasAusentes: updated.diasAusentes ?? [],
+            ausenciasPendientes: updated.ausenciasPendientes ?? [],
+            diasAusentesJugador: updated.diasAusentesJugador ?? [],
+          })
           fetchReservasBackend()
         })
         .catch(() => {})

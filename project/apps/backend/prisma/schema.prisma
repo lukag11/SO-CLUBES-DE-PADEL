@@ -126,7 +126,7 @@ model TurnoFijo {
   clubId              String
   canchaId            String
   jugadorId           String?
-  dia                 String   // 'Lunes' | 'Martes' | ... | 'Domingo'
+  dia                 String   // 'lunes' | 'martes' | ... | 'domingo'
   horaInicio          String   // 'HH:MM'
   horaFin             String   // 'HH:MM'
   precio              Float?

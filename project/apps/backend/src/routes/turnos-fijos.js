@@ -137,6 +137,7 @@ router.post('/', requireAuth, requireRole('jugador'), async (req, res) => {
         precio: precio ? Number(precio) : null,
         estado: 'pendiente',
         diasAusentes: [],
+        diasAusentesJugador: [],
         ausenciasPendientes: [],
         desde,
         notas: notas ?? null,

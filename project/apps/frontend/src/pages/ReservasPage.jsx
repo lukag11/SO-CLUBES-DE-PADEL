@@ -209,6 +209,8 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) =
     )
   }
 
+  const pagoCfgEarly = reserva.pago ? PAGO_CONFIG[reserva.pago] : null
+
   // Bloqueo, Clase, Online, Solicitud fijo — rowspan
   if (reserva.tipo === 'bloqueado' || reserva.tipo === 'clase' || reserva.tipo === 'online' || reserva.tipo === 'solicitud_fijo') {
     // Primera franja que overlappea con esta reserva (donde se renderiza)
@@ -261,22 +263,25 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) =
             </>
           ) : esOnline ? (
             <>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 flex-wrap">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                 <span className="text-emerald-700 text-xs font-semibold truncate">Online</span>
+                {pagoCfgEarly && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${pagoCfgEarly.cls}`}>{pagoCfgEarly.label}</span>
+                )}
               </div>
               {reserva.jugadores?.[0] && (
                 <p className="text-slate-600 text-[10px] font-medium leading-snug truncate">{reserva.jugadores[0]}</p>
               )}
-              <p className="text-emerald-600 text-[10px] font-medium leading-snug">
-                ${Number(reserva.monto).toLocaleString('es-AR')}
-              </p>
             </>
           ) : esSolicitudFijo ? (
             <>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 flex-wrap">
                 <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                 <span className="text-amber-700 text-xs font-semibold truncate">Solicitud fijo</span>
+                {pagoCfgEarly && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${pagoCfgEarly.cls}`}>{pagoCfgEarly.label}</span>
+                )}
               </div>
               {reserva.jugadores?.[0] && (
                 <p className="text-slate-600 text-[10px] font-medium leading-snug truncate">{reserva.jugadores[0]}</p>
@@ -311,31 +316,27 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) =
         reserva.estado === 'pendiente' ? 'opacity-80' : '',
       ].join(' ')}
     >
-      <div className="h-14 p-2 flex flex-col justify-between overflow-hidden">
-        <div>
-          <div className="flex items-center gap-1">
-            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${tipoCfg.dot}`} />
-            <span className={`text-xs font-semibold truncate leading-tight ${reserva.tipo === 'fijo' ? 'text-violet-700' : 'text-blue-700'}`}>
-              {tipoCfg.label}
-            </span>
-            {reserva.tipo === 'fijo' && (
-              <Repeat size={10} className="text-violet-400 shrink-0 ml-auto" />
-            )}
-          </div>
-          {reserva.jugadores?.[0] && (
-            <p className="text-slate-500 text-[10px] leading-snug truncate mt-0.5">{reserva.jugadores[0]}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
+      <div className="h-14 p-2 flex flex-col gap-0.5 overflow-hidden">
+        <div className="flex items-center gap-1 flex-wrap">
+          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${tipoCfg.dot}`} />
+          <span className={`text-xs font-semibold truncate leading-tight ${reserva.tipo === 'fijo' ? 'text-violet-700' : 'text-blue-700'}`}>
+            {tipoCfg.label}
+          </span>
           {pagoCfg && (
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${pagoCfg.cls}`}>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${pagoCfg.cls}`}>
               {pagoCfg.label}
             </span>
           )}
-          {reserva.estado === 'pendiente' && (
-            <AlertCircle size={10} className="text-amber-500 ml-auto shrink-0" />
+          {reserva.tipo === 'fijo' && (
+            <Repeat size={10} className="text-violet-400 shrink-0 ml-auto" />
           )}
         </div>
+        {reserva.jugadores?.[0] && (
+          <p className="text-slate-500 text-[10px] leading-snug truncate">{reserva.jugadores[0]}</p>
+        )}
+        {reserva.estado === 'pendiente' && (
+          <AlertCircle size={10} className="text-amber-500 shrink-0" />
+        )}
       </div>
     </td>
   )
@@ -435,17 +436,17 @@ const CeldaMobile = ({ reserva, franja, cancha, onClick, pasado }) => {
       onClick={() => onClick({ tipo: 'detalle', reserva, franja, cancha })}
       className={`flex-1 border-l border-slate-100 cursor-pointer min-h-[44px] p-1.5 flex flex-col gap-0.5 ${cfg.bg} hover:brightness-95 transition-all`}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 flex-wrap">
         <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
         <span className={`text-[10px] font-semibold truncate ${cfg.text}`}>{cfg.label}</span>
+        {pagoCfg && (
+          <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full border shrink-0 ${pagoCfg.cls} leading-none`}>
+            {pagoCfg.label}
+          </span>
+        )}
       </div>
       {reserva.jugadores?.[0] && (
         <span className="text-[9px] text-slate-500 truncate leading-none">{reserva.jugadores[0]}</span>
-      )}
-      {pagoCfg && (
-        <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full border ${pagoCfg.cls} self-start leading-none mt-auto`}>
-          {pagoCfg.label}
-        </span>
       )}
     </div>
   )

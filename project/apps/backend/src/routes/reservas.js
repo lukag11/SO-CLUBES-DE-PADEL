@@ -209,9 +209,16 @@ router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
       const [fy, fm, fd] = fecha.split('-').map(Number)
       const dia = DIAS[new Date(fy, fm - 1, fd).getDay()]
 
-      // Verificar que no exista ya un turno fijo activo para esa cancha+dia
-      const existeTF = await prisma.turnoFijo.findFirst({
+      // Verificar solapamiento de horario en esa cancha+dia
+      const tfsDia = await prisma.turnoFijo.findMany({
         where: { canchaId, dia, estado: { in: ['pendiente', 'confirmado'] } },
+        select: { horaInicio: true, horaFin: true, jugadorId: true },
+      })
+      const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+      const nsMin = toMin(horaInicio), nfMin = toMin(horaFin)
+      const existeTF = tfsDia.find((t) => {
+        const esMin = toMin(t.horaInicio), efMin = toMin(t.horaFin)
+        return esMin < nfMin && nsMin < efMin
       })
 
       if (!existeTF) {

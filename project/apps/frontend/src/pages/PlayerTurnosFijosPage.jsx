@@ -163,7 +163,7 @@ const PlayerTurnosFijosPage = () => {
     if (!token) return
     api.get('/turnos-fijos/me', { Authorization: `Bearer ${token}` })
       .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
-      .catch(() => {})
+      .catch((err) => console.error('[TurnosFijos] Error al cargar:', err.message))
   }, [token])
 
   const activos = turnosFijos.filter((t) => t.activo)

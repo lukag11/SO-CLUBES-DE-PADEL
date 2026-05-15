@@ -1167,6 +1167,7 @@ const Panel = (props) => (
 
 const Leyenda = () => (
   <div className="flex items-center gap-4 flex-wrap">
+    <span className="text-slate-500 text-xs font-medium">Tipo de reserva:</span>
     {[
       { dot: 'bg-violet-500',  label: 'Fijo'      },
       { dot: 'bg-blue-500',    label: 'Eventual'  },

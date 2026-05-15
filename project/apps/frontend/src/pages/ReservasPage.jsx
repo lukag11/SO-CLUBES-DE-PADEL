@@ -196,7 +196,7 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) =
         className={[
           'border border-slate-100 transition-colors',
           pasado
-            ? 'bg-slate-50/60 cursor-not-allowed'
+            ? 'bg-slate-50/60 cursor-default'
             : 'hover:bg-emerald-50/60 cursor-pointer group',
         ].join(' ')}
       >
@@ -364,7 +364,7 @@ const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], franja
           {franjas.map((franja) => {
             const pasado = esPasado(fecha, franja.inicio)
             return (
-              <tr key={franja.inicio} className={pasado ? 'opacity-50' : ''}>
+              <tr key={franja.inicio} className={pasado ? 'opacity-65' : ''}>
                 <td className="px-4 py-0 border border-slate-100 bg-slate-50/50 whitespace-nowrap">
                   <span className="text-slate-500 text-xs font-mono">{franja.inicio}</span>
                   <span className="text-slate-300 text-xs mx-0.5">–</span>
@@ -411,7 +411,7 @@ const CeldaMobile = ({ reserva, franja, cancha, onClick, pasado }) => {
         onClick={() => !pasado && onClick({ tipo: 'libre', franja, cancha })}
         className={[
           'flex-1 border-l border-slate-100 flex items-center justify-center min-h-[44px] transition-colors',
-          pasado ? 'bg-slate-50/60 cursor-not-allowed' : 'hover:bg-emerald-50/60 cursor-pointer group',
+          pasado ? 'bg-slate-50/60 cursor-default' : 'hover:bg-emerald-50/60 cursor-pointer group',
         ].join(' ')}
       >
         {!pasado && <Plus size={11} className="text-slate-200 group-hover:text-emerald-400 transition-colors" />}
@@ -495,7 +495,7 @@ const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], 
       {franjas.map((franja) => {
         const pasado = esPasado(fecha, franja.inicio)
         return (
-          <div key={franja.inicio} className={`flex border-b border-slate-50 last:border-0 ${pasado ? 'opacity-50' : ''}`}>
+          <div key={franja.inicio} className={`flex border-b border-slate-50 last:border-0 ${pasado ? 'opacity-65' : ''}`}>
             <div className="w-14 shrink-0 px-2 py-1.5 bg-slate-50/50 flex flex-col justify-center border-r border-slate-100">
               <span className="text-slate-500 text-[10px] font-mono leading-none">{franja.inicio}</span>
               <span className="text-slate-300 text-[9px] font-mono leading-none mt-0.5">{franja.fin}</span>

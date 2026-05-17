@@ -843,110 +843,121 @@ const CanchaRow = ({ cancha, onUpdate }) => {
 
       {/* Formulario edición */}
       {editing && (
-        <div className="px-4 py-4 border-t border-slate-100 bg-white flex flex-col gap-4">
-          <div className="grid sm:grid-cols-3 gap-4">
+        <div className="px-4 py-4 border-t border-slate-100 bg-white flex flex-col gap-5">
 
-            <div>
-              <label className="block text-slate-500 text-xs font-medium mb-1.5">Nombre</label>
-              <input
-                name="nombre"
-                value={local.nombre}
-                onChange={handleChange}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
-              />
-            </div>
+          {/* ── Datos de la cancha ── */}
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Datos de la cancha</p>
 
-            <div>
-              <label className="block text-slate-500 text-xs font-medium mb-1.5">Tipo</label>
-              <div className="relative">
-                <select
-                  name="tipo"
-                  value={local.tipo}
-                  onChange={handleChange}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 appearance-none transition-colors"
-                >
-                  <option>Cristal</option>
-                  <option>Pared</option>
-                </select>
-                <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-slate-500 text-xs font-medium mb-1.5">Precio turno (ARS)</label>
-              <input
-                name="precioTurno"
-                type="number"
-                value={local.precioTurno}
-                onChange={handleChange}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" name="indoor" checked={local.indoor} onChange={handleChange} className="rounded accent-emerald-500" />
-              <span className="text-sm text-slate-600">Indoor</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" name="activa" checked={local.activa} onChange={handleChange} className="rounded accent-emerald-500" />
-              <span className="text-sm text-slate-600">Cancha activa</span>
-            </label>
-          </div>
-
-          {/* Toggle horarios personalizados */}
-          <div className="border border-slate-100 rounded-xl overflow-hidden">
-            <div className="flex items-center gap-3 px-4 py-3 bg-slate-50">
-              <button
-                onClick={handleToggleHorarios}
-                className={[
-                  'relative w-10 h-5 rounded-full transition-all duration-300 shrink-0',
-                  tieneHorariosCustom ? 'bg-blue-500' : 'bg-slate-200',
-                ].join(' ')}
-              >
-                <div className={[
-                  'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300',
-                  tieneHorariosCustom ? 'left-5' : 'left-0.5',
-                ].join(' ')} />
-              </button>
+            <div className="grid sm:grid-cols-3 gap-4">
               <div>
-                <p className="text-slate-700 font-medium text-sm">Horarios personalizados</p>
-                <p className="text-slate-400 text-xs">
-                  {tieneHorariosCustom ? 'Esta cancha tiene su propio horario' : 'Heredando horario general del club'}
-                </p>
+                <label className="block text-slate-500 text-xs font-medium mb-1.5">Nombre</label>
+                <input
+                  name="nombre"
+                  value={local.nombre}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-500 text-xs font-medium mb-1.5">Tipo</label>
+                <div className="relative">
+                  <select
+                    name="tipo"
+                    value={local.tipo}
+                    onChange={handleChange}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 appearance-none transition-colors"
+                  >
+                    <option>Cristal</option>
+                    <option>Pared</option>
+                  </select>
+                  <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-500 text-xs font-medium mb-1.5">Precio turno (ARS)</label>
+                <input
+                  name="precioTurno"
+                  type="number"
+                  value={local.precioTurno}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
+                />
               </div>
             </div>
 
-            {tieneHorariosCustom && local.horarios && (
-              <div className="px-4 py-3 border-t border-slate-100 flex flex-col gap-2">
-                {DIAS.map((dia) => {
-                  const h = local.horarios[dia] ?? { apertura: '08:00', cierre: '23:00', activo: true }
-                  return (
-                    <div key={dia} className={`rounded-xl transition-colors ${h.activo ? 'bg-slate-50' : 'bg-slate-50/40 opacity-60'}`}>
-                      <div className="flex items-center gap-3 px-3 py-2.5">
-                        <button
-                          onClick={() => handleHorarioCancha(dia, { activo: !h.activo })}
-                          className={['relative w-9 h-[18px] rounded-full transition-all duration-300 shrink-0', h.activo ? 'bg-emerald-500' : 'bg-slate-200'].join(' ')}
-                        >
-                          <div className={['absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow-sm transition-all duration-300', h.activo ? 'left-[18px]' : 'left-0.5'].join(' ')} />
-                        </button>
-                        <span className="text-slate-700 font-medium text-xs w-20 shrink-0">{dia}</span>
-                        {h.activo && (
-                          <HorarioSelect
-                            apertura={h.apertura}
-                            cierre={h.cierre}
-                            onAperturaChange={(v) => handleHorarioCancha(dia, { apertura: v })}
-                            onCierreChange={(v) => handleHorarioCancha(dia, { cierre: v })}
-                            size="xs"
-                          />
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="indoor" checked={local.indoor} onChange={handleChange} className="rounded accent-emerald-500" />
+                <span className="text-sm text-slate-600">Indoor</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="activa" checked={local.activa} onChange={handleChange} className="rounded accent-emerald-500" />
+                <span className="text-sm text-slate-600">Cancha activa</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100" />
+
+          {/* ── Horario de apertura ── */}
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Horario de apertura</p>
+
+            <div className="border border-slate-100 rounded-xl overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3 bg-slate-50">
+                <button
+                  onClick={handleToggleHorarios}
+                  className={[
+                    'relative w-10 h-5 rounded-full transition-all duration-300 shrink-0',
+                    tieneHorariosCustom ? 'bg-blue-500' : 'bg-slate-200',
+                  ].join(' ')}
+                >
+                  <div className={[
+                    'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300',
+                    tieneHorariosCustom ? 'left-5' : 'left-0.5',
+                  ].join(' ')} />
+                </button>
+                <div>
+                  <p className="text-slate-700 font-medium text-sm">Horario propio de esta cancha</p>
+                  <p className="text-slate-400 text-xs">
+                    {tieneHorariosCustom ? 'Esta cancha tiene su propio horario de apertura' : 'Hereda el horario general del club'}
+                  </p>
+                </div>
               </div>
-            )}
+
+              {tieneHorariosCustom && local.horarios && (
+                <div className="px-4 py-3 border-t border-slate-100 flex flex-col gap-2">
+                  {DIAS.map((dia) => {
+                    const h = local.horarios[dia] ?? { apertura: '08:00', cierre: '23:00', activo: true }
+                    return (
+                      <div key={dia} className={`rounded-xl transition-colors ${h.activo ? 'bg-slate-50' : 'bg-slate-50/40 opacity-60'}`}>
+                        <div className="flex items-center gap-3 px-3 py-2.5">
+                          <button
+                            onClick={() => handleHorarioCancha(dia, { activo: !h.activo })}
+                            className={['relative w-9 h-[18px] rounded-full transition-all duration-300 shrink-0', h.activo ? 'bg-emerald-500' : 'bg-slate-200'].join(' ')}
+                          >
+                            <div className={['absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow-sm transition-all duration-300', h.activo ? 'left-[18px]' : 'left-0.5'].join(' ')} />
+                          </button>
+                          <span className="text-slate-700 font-medium text-xs w-20 shrink-0">{dia}</span>
+                          {h.activo && (
+                            <HorarioSelect
+                              apertura={h.apertura}
+                              cierre={h.cierre}
+                              onAperturaChange={(v) => handleHorarioCancha(dia, { apertura: v })}
+                              onCierreChange={(v) => handleHorarioCancha(dia, { cierre: v })}
+                              size="xs"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex justify-end">

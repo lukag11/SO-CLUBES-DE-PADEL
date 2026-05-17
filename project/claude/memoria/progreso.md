@@ -131,6 +131,19 @@
 
 ---
 
+## Último bloque completado (2026-05-17 sesión 3b) — Reorganización visual CanchaRow
+
+### Funcionalidades implementadas
+
+**Reorganización visual del formulario CanchaRow (QuienesSomosPage)**
+- Separación visual en dos secciones con label + divider horizontal:
+  - "Datos de la cancha" — Nombre, Tipo, Precio turno, Indoor, Cancha activa
+  - "Horario de apertura" — Toggle "Horario propio de esta cancha" + selects por día
+- El toggle renombrado: de "Horarios personalizados" a "Horario propio de esta cancha"
+- Sin cambios de lógica — solo reorganización estructural
+
+---
+
 ## Último bloque completado (2026-05-17 sesión 3) — Fixes grilla, landing y admin TF
 
 ### Funcionalidades implementadas

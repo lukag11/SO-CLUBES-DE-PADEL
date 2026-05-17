@@ -16,6 +16,12 @@
 - Bloqueo de slots por admin (mantenimiento, torneo, etc.)
 - Protección doble: no se puede reservar sobre un turno fijo activo
 - Turno fijo manual admin → aparece en "Mis turnos fijos" del jugador
+- **Alta rápida inline**: al crear reserva/TF, si el jugador no existe → dar de alta rápida (nombre/apellido/DNI) sin salir del formulario
+- **Buscador solo acepta jugador seleccionado**: texto libre bloqueado al confirmar (requiere jugadorSel o alta rápida)
+- **Botón cancelar bloqueado post-turno**: si el turno ya terminó, cancelar/liberar queda deshabilitado para preservar historial y cargos
+- **Historial en drawer jugador**: cards de Turnos fijos y Reservas expandibles con detalle (fecha, cancha, horario, estado)
+- **Endpoints nuevos**: `GET /reservas/jugador/:id` y `GET /turnos-fijos/jugador/:id` (admin — historial por jugador)
+- **Fix conteo doble**: `_count.reservas` excluye `esTurnoFijo:true` en directorio de jugadores
 
 ## Usuarios / Jugadores ✅ Completo
 
@@ -28,6 +34,7 @@
 - **Match por DNI**: si admin pre-registró al jugador, el registro activa la cuenta y une el historial
 - **requireActive middleware**: rutas del jugador verifican activo=true en cada request
 - **Modal de cuenta desactivada**: jugador logueado que fue dado de baja ve modal al primer click
+- **Validación form alta rápida**: nombre/apellido bloquea números en tiempo real (hint ámbar), DNI máx 8 dígitos, pre-fill inteligente según tipo de query
 
 ## Torneos ✅ Completo
 

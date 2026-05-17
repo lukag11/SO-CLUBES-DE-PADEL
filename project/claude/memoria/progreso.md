@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-17 (sesión Jugadores admin — bloque completo + protección cuentas inactivas)
+**Última actualización:** 2026-05-17 (sesión 2 — alta rápida reservas, validación form, historial drawer, fixes grilla)
 
 ---
 
@@ -573,6 +573,40 @@ El backend corría con código viejo (proceso Node.js iniciado antes de aplicar 
 ### Limpieza
 - Eliminados archivos basura en raíz creados por hooks de `@claude-flow/cli` (`t.activo`, `f.canchaId`, etc.)
 - Agregados `.claude-flow/`, `.swarm/` al `.gitignore`
+
+---
+
+## Último bloque completado (2026-05-17 sesión 2) — Alta rápida, validación form, historial drawer, fixes grilla
+
+### Funcionalidades implementadas
+
+**ReservasPage — Alta rápida de jugador**
+- Buscador de jugador en `FormNuevaReserva` y `EditarReserva`: si no se encuentra → botón "+ Dar de alta rápida"
+- Mini-form inline: nombre, apellido, DNI. Crea jugador con `cuentaActiva: false` y lo auto-selecciona
+- Pre-fill inteligente: si la query es solo dígitos → va al campo DNI; si es texto → al campo nombre
+- Validación por campo con patrón `form-validation.md`: hint ámbar (desaparece 2s) + error rojo persistente
+  - Nombre/apellido: bloquea dígitos en tiempo real
+  - DNI: solo números, máx 8 dígitos (enforced en buscador y en el campo)
+- Confirmar reserva/TF requiere `jugadorSel` — texto libre en buscador sin selección bloquea el submit
+
+**ReservasPage — Botón cancelar bloqueado post-turno**
+- `yaTermino = esPasado(reserva.fecha, reserva.fin)` — true cuando la hora de fin del turno ya pasó
+- Botones "Cancelar reserva", "Liberar este día", "Cancelar clase" → deshabilitados con aviso explicativo
+- "Marcar como pagado" sigue activo (se necesita cobrar aunque el turno haya terminado)
+
+**JugadoresAdminPage — Historial expandible en drawer**
+- Cards "Turnos fijos" y "Reservas" son ahora botones con ChevronDown toggle
+- Al primer click: fetch bajo demanda al backend, datos cacheados en estado local
+- Lista con día/fecha, horario, cancha y estado por cada registro
+
+**Backend**
+- `GET /api/reservas/jugador/:id` — admin: historial de reservas eventuales de un jugador
+- `GET /api/turnos-fijos/jugador/:id` — admin: turnos fijos de un jugador
+- `_count.reservas` en `GET /api/jugadores` excluye `esTurnoFijo:true` (fix doble conteo)
+
+**Pendientes guardados en memoria para bloque pagos**
+- Cargos/deudas deben filtrarse por `jugadorId` FK (no texto libre)
+- Dar de baja / eliminar jugador bloqueado si tiene cargos pendientes
 
 ---
 

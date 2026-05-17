@@ -972,15 +972,27 @@ const PlayerReservasPage = () => {
                       </span>
                     </div>
                   </div>
-                  {!r.esTurnoFijo && (
-                    <button
-                      onClick={() => setReservaACancelar(r)}
-                      className="text-white/20 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-400/8 shrink-0"
-                      title="Cancelar reserva"
-                    >
-                      <XCircle size={16} />
-                    </button>
-                  )}
+                  {(() => {
+                    const [y, m, d] = r.fecha.split('-').map(Number)
+                    const [h, min] = (r.horaFin || r.hora).split(':').map(Number)
+                    const yaJugo = new Date(y, m - 1, d, h, min) < new Date()
+                    if (yaJugo) return (
+                      <span className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white/5 border border-white/8 text-white/25 text-xs font-medium shrink-0">
+                        <CheckCircle size={12} />
+                        Finalizado
+                      </span>
+                    )
+                    if (r.esTurnoFijo) return null
+                    return (
+                      <button
+                        onClick={() => setReservaACancelar(r)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-red-400/70 hover:text-red-400 hover:bg-red-400/8 border border-red-400/0 hover:border-red-400/15 text-xs font-medium transition-all shrink-0"
+                      >
+                        <XCircle size={13} />
+                        Cancelar
+                      </button>
+                    )
+                  })()}
                 </div>
               )
             })}

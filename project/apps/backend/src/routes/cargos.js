@@ -1,11 +1,11 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
-import { requireAuth, requireRole } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 
 const router = Router()
 
 // GET /api/cargos/me — jugador ve sus cargos pendientes
-router.get('/me', requireAuth, requireRole('jugador'), async (req, res) => {
+router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   try {
     const cargos = await prisma.cargo.findMany({
       where: { jugadorId: req.user.id, clubId: req.user.clubId },

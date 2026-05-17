@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
-import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X } from 'lucide-react'
+import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X, Users } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
 import useClubStore from '../../store/clubStore'
 
 const navItems = [
-  { to: '/dashboardAdmin/club',     label: 'Club',     icon: Info },
-  { to: '/dashboardAdmin/reservas', label: 'Reservas', icon: CalendarDays },
-  { to: '/dashboardAdmin/torneos',  label: 'Torneos',  icon: Trophy },
-  { to: '/dashboardAdmin/pagos',    label: 'Pagos',    icon: CreditCard },
+  { to: '/dashboardAdmin/club',      label: 'Club',      icon: Info },
+  { to: '/dashboardAdmin/reservas',  label: 'Reservas',  icon: CalendarDays },
+  { to: '/dashboardAdmin/jugadores', label: 'Jugadores', icon: Users },
+  { to: '/dashboardAdmin/torneos',   label: 'Torneos',   icon: Trophy },
+  { to: '/dashboardAdmin/pagos',     label: 'Pagos',     icon: CreditCard },
 ]
 
 const Sidebar = ({ mobileOpen, onMobileClose }) => {

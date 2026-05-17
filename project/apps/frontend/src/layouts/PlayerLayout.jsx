@@ -29,6 +29,21 @@ const PlayerLayout = () => {
   const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [cuentaBajaMsg, setCuentaBajaMsg] = useState(null)
+
+  // Intercepta evento de cuenta dada de baja
+  useEffect(() => {
+    const handler = (e) => {
+      setCuentaBajaMsg(e.detail || 'Tu cuenta fue dada de baja. Contactá al club.')
+    }
+    window.addEventListener('jugador:cuenta-inactiva', handler)
+    return () => window.removeEventListener('jugador:cuenta-inactiva', handler)
+  }, [])
+
+  const handleCuentaBajaConfirm = () => {
+    logout()
+    navigate('/jugadores')
+  }
 
   // Carga datos actualizados del jugador desde el backend
   useEffect(() => {
@@ -124,6 +139,33 @@ const PlayerLayout = () => {
 
   return (
     <div className="public-font min-h-screen bg-[#0a0e1a] flex">
+
+      {/* Modal cuenta dada de baja */}
+      {cuentaBajaMsg && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm rounded-2xl overflow-hidden text-center"
+            style={{ background: 'linear-gradient(135deg, #0f1922 0%, #0d1117 100%)', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 25px 50px rgba(0,0,0,0.7), 0 0 40px rgba(239,68,68,0.12)' }}
+          >
+            <div className="px-6 pt-8 pb-6 flex flex-col items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-red-500/15 flex items-center justify-center">
+                <LogOut size={28} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white mb-1">Cuenta desactivada</h3>
+                <p className="text-sm text-slate-400">{cuentaBajaMsg}</p>
+              </div>
+              <button
+                onClick={handleCuentaBajaConfirm}
+                className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-all"
+              >
+                Entendido, salir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Overlay mobile */}
       {sidebarOpen && (

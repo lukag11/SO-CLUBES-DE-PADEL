@@ -129,6 +129,8 @@ const PlayerAuthPage = () => {
               value={form.dni}
               onChange={handleChange}
               icon={CreditCard}
+              maxLength={8}
+              inputMode="numeric"
               required
             />
 

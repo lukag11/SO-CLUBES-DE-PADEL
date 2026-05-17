@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
-import { requireAuth, requireRole } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -350,7 +350,7 @@ router.delete('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req
 })
 
 // POST /api/torneos/:id/inscribir   — jugador se inscribe solo
-router.post('/:id/inscribir', requireAuth, requireRole('jugador'), async (req, res) => {
+router.post('/:id/inscribir', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   const { id: torneoId } = req.params
   const { jugador1, jugador2, jugador1Dni, jugador2Dni, categoria, disponibilidad, prefiereMismoDia } = req.body
 
@@ -388,7 +388,7 @@ router.post('/:id/inscribir', requireAuth, requireRole('jugador'), async (req, r
 })
 
 // PATCH /api/torneos/:id/inscribir/:pid   — jugador edita su inscripción
-router.patch('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), async (req, res) => {
+router.patch('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   const { id: torneoId, pid } = req.params
   const { jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia } = req.body
 
@@ -415,7 +415,7 @@ router.patch('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), async (
 })
 
 // DELETE /api/torneos/:id/inscribir/:pid   — jugador cancela su inscripción
-router.delete('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), async (req, res) => {
+router.delete('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   const { id: torneoId, pid } = req.params
 
   try {

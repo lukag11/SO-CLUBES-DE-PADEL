@@ -103,11 +103,14 @@ router.post('/jugador/login', async (req, res) => {
     if (!jugador) {
       return res.status(401).json({ error: 'DNI no registrado' })
     }
+    if (!jugador.cuentaActiva) {
+      return res.status(403).json({ error: 'Esta cuenta aún no fue activada. Completá el registro.' })
+    }
     if (!(await bcrypt.compare(password, jugador.password))) {
       return res.status(401).json({ error: 'Contraseña incorrecta' })
     }
     if (!jugador.activo) {
-      return res.status(403).json({ error: 'Cuenta inactiva' })
+      return res.status(403).json({ error: 'Tu cuenta fue dada de baja. Contactá al club.' })
     }
 
     const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId })
@@ -135,11 +138,40 @@ router.post('/jugador/registro', async (req, res) => {
     const existe = await prisma.jugador.findUnique({
       where: { clubId_dni: { clubId, dni } },
     })
+
+    const passwordHash = await bcrypt.hash(password, 10)
+
+    // Si el admin lo pre-registró (cuentaActiva: false) → merge activando la cuenta
+    if (existe && !existe.cuentaActiva) {
+      const jugador = await prisma.jugador.update({
+        where: { id: existe.id },
+        data: {
+          password: passwordHash,
+          cuentaActiva: true,
+          // Solo sobreescribir campos que el jugador completó en el stepper
+          nombre, apellido, email: email ?? existe.email, telefono: telefono ?? existe.telefono,
+          genero:              genero              ?? existe.genero,
+          apodo:               apodo               ?? existe.apodo,
+          fechaNacimiento:     fechaNacimiento     ?? existe.fechaNacimiento,
+          provincia:           provincia           ?? existe.provincia,
+          ciudad:              ciudad              ?? existe.ciudad,
+          posicion:            posicion            ?? existe.posicion,
+          mano:                mano                ?? existe.mano,
+          categoria:           categoria           ?? existe.categoria,
+          frecuencia:          frecuencia          ?? existe.frecuencia,
+          diasDisponibles:     diasDisponibles     ?? existe.diasDisponibles,
+          horariosDisponibles: horariosDisponibles ?? existe.horariosDisponibles,
+          perfilPublico:       perfilPublico       ?? existe.perfilPublico,
+        },
+        include: { club: true },
+      })
+      const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId })
+      return res.status(201).json({ token, user: jugadorPublico(jugador) })
+    }
+
     if (existe) {
       return res.status(409).json({ error: 'Ya existe un jugador con ese DNI en este club' })
     }
-
-    const passwordHash = await bcrypt.hash(password, 10)
 
     const jugador = await prisma.jugador.create({
       data: {

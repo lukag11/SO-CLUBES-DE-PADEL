@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
-import { requireAuth, requireRole } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -20,7 +20,7 @@ router.get('/buscar', requireAuth, requireRole('admin'), async (req, res) => {
           { dni:      { contains: q.trim(), mode: 'insensitive' } },
         ],
       },
-      select: { id: true, nombre: true, apellido: true, dni: true },
+      select: { id: true, nombre: true, apellido: true, dni: true, cuentaActiva: true },
       take: 8,
     })
     res.json(jugadores)
@@ -31,7 +31,7 @@ router.get('/buscar', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // GET /api/jugadores/me — datos actualizados del jugador autenticado
-router.get('/me', requireAuth, requireRole('jugador'), async (req, res) => {
+router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   try {
     const jugador = await prisma.jugador.findUnique({
       where: { id: req.user.id },
@@ -47,7 +47,7 @@ router.get('/me', requireAuth, requireRole('jugador'), async (req, res) => {
 })
 
 // PATCH /api/jugadores/me — actualiza perfil del jugador autenticado
-router.patch('/me', requireAuth, requireRole('jugador'), async (req, res) => {
+router.patch('/me', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   const {
     nombre, apellido, email, telefono, apodo, genero, fechaNacimiento,
     provincia, ciudad, posicion, mano, categoria, frecuencia,
@@ -86,7 +86,7 @@ router.patch('/me', requireAuth, requireRole('jugador'), async (req, res) => {
 })
 
 // GET /api/jugadores/me/stats — estadísticas reales del jugador autenticado
-router.get('/me/stats', requireAuth, requireRole('jugador'), async (req, res) => {
+router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   const jugadorId = req.user.id
   const clubId = req.user.clubId
 
@@ -171,6 +171,131 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), async (req, res) =>
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al calcular estadísticas' })
+  }
+})
+
+// ── GET / — admin: lista todos los jugadores del club ────────────────────────
+router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const jugadores = await prisma.jugador.findMany({
+      where: { clubId: req.user.clubId },
+      select: {
+        id: true,
+        nombre: true,
+        apellido: true,
+        dni: true,
+        email: true,
+        telefono: true,
+        categoria: true,
+        cuentaActiva: true,
+        activo: true,
+        createdAt: true,
+        _count: {
+          select: {
+            turnosFijos: { where: { estado: 'confirmado' } },
+            reservas: { where: { estado: 'confirmada' } },
+          },
+        },
+      },
+      orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
+    })
+    res.json(jugadores)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── POST / — admin: dar de alta un jugador manualmente ───────────────────────
+router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
+  const { nombre, apellido, dni, email, telefono, categoria } = req.body
+  if (!nombre || !apellido || !dni) {
+    return res.status(400).json({ error: 'nombre, apellido y dni son requeridos' })
+  }
+
+  try {
+    const existente = await prisma.jugador.findUnique({
+      where: { clubId_dni: { clubId: req.user.clubId, dni } },
+    })
+    if (existente) {
+      return res.status(409).json({ error: 'Ya existe un jugador con ese DNI en el club' })
+    }
+
+    const jugador = await prisma.jugador.create({
+      data: {
+        clubId: req.user.clubId,
+        nombre,
+        apellido,
+        dni,
+        email: email ?? null,
+        telefono: telefono ?? null,
+        categoria: categoria ?? null,
+        cuentaActiva: false,
+      },
+      select: {
+        id: true, nombre: true, apellido: true, dni: true,
+        email: true, telefono: true, categoria: true,
+        cuentaActiva: true, activo: true, createdAt: true,
+        _count: {
+          select: {
+            turnosFijos: { where: { estado: 'confirmado' } },
+            reservas: { where: { estado: 'confirmada' } },
+          },
+        },
+      },
+    })
+    res.status(201).json(jugador)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── PATCH /:id — admin: editar datos de un jugador ───────────────────────────
+router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const { nombre, apellido, email, telefono, categoria, activo } = req.body
+  try {
+    const jugador = await prisma.jugador.findUnique({ where: { id: req.params.id } })
+    if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' })
+    if (jugador.clubId !== req.user.clubId) return res.status(403).json({ error: 'Acceso denegado' })
+
+    const updated = await prisma.jugador.update({
+      where: { id: req.params.id },
+      data: {
+        ...(nombre    !== undefined && { nombre }),
+        ...(apellido  !== undefined && { apellido }),
+        ...(email     !== undefined && { email }),
+        ...(telefono  !== undefined && { telefono }),
+        ...(categoria !== undefined && { categoria }),
+        ...(activo    !== undefined && { activo }),
+      },
+      select: {
+        id: true, nombre: true, apellido: true, dni: true,
+        email: true, telefono: true, categoria: true,
+        cuentaActiva: true, activo: true, createdAt: true,
+        _count: {
+          select: {
+            turnosFijos: { where: { estado: 'confirmado' } },
+            reservas: { where: { estado: 'confirmada' } },
+          },
+        },
+      },
+    })
+    res.json(updated)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── DELETE /:id — admin: eliminar jugador sin cuenta ─────────────────────────
+router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const jugador = await prisma.jugador.findUnique({ where: { id: req.params.id } })
+    if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' })
+    if (jugador.clubId !== req.user.clubId) return res.status(403).json({ error: 'Acceso denegado' })
+    if (jugador.cuentaActiva) return res.status(400).json({ error: 'No se puede eliminar un jugador con cuenta activa' })
+    await prisma.jugador.delete({ where: { id: req.params.id } })
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
   }
 })
 

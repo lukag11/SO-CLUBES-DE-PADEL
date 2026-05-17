@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
-import { requireAuth, requireRole } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -49,7 +49,7 @@ const mapTurno = (t) => ({
 })
 
 // ── GET /slots-ocupados?clubId= — jugador: slots bloqueados por turnos fijos del club (sin datos personales) ──
-router.get('/slots-ocupados', requireAuth, requireRole('jugador'), async (req, res) => {
+router.get('/slots-ocupados', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   try {
     // El jugador tiene su clubId embebido en el JWT vía el club al que pertenece
     // Lo obtenemos a través de su perfil
@@ -70,7 +70,7 @@ router.get('/slots-ocupados', requireAuth, requireRole('jugador'), async (req, r
 })
 
 // ── GET /me — jugador: sus turnos fijos ──────────────────────────────────────
-router.get('/me', requireAuth, requireRole('jugador'), async (req, res) => {
+router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   try {
     const turnos = await prisma.turnoFijo.findMany({
       where: { jugadorId: req.user.id, estado: { not: 'inactivo' } },
@@ -101,7 +101,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // ── POST / — jugador: solicitar turno fijo ───────────────────────────────────
-router.post('/', requireAuth, requireRole('jugador'), async (req, res) => {
+router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   try {
     const { canchaId, dia, horaInicio, horaFin, precio, notas } = req.body
     if (!canchaId || !dia || !horaInicio || !horaFin) {
@@ -144,6 +144,24 @@ router.post('/', requireAuth, requireRole('jugador'), async (req, res) => {
       },
       include: INCLUDE_CANCHA,
     })
+
+    prisma.notificacion.create({
+      data: {
+        clubId: req.user.clubId,
+        jugadorId: null,
+        tipo: 'solicitud_turno_fijo',
+        data: {
+          jugador: turno.jugador ? `${turno.jugador.nombre} ${turno.jugador.apellido ?? ''}`.trim() : '',
+          canchaNombre: turno.cancha?.nombre ?? '',
+          dia,
+          horaInicio,
+          horaFin,
+          precio: precio ? Number(precio) : null,
+          turnoFijoId: turno.id,
+        },
+      },
+    }).catch(() => {})
+
     res.status(201).json(mapTurno(turno))
   } catch (e) {
     res.status(500).json({ error: e.message })
@@ -182,7 +200,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
 })
 
 // ── POST /:id/ausencia — jugador: solicitar ausencia puntual ─────────────────
-router.post('/:id/ausencia', requireAuth, requireRole('jugador'), async (req, res) => {
+router.post('/:id/ausencia', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   try {
     const { fecha } = req.body
     if (!fecha) return res.status(400).json({ error: 'fecha requerida (YYYY-MM-DD)' })
@@ -242,6 +260,24 @@ router.post('/:id/ausencia', requireAuth, requireRole('jugador'), async (req, re
       data: { ausenciasPendientes: { push: fecha } },
       include: INCLUDE_CANCHA,
     })
+
+    prisma.notificacion.create({
+      data: {
+        clubId: turno.clubId,
+        jugadorId: null,
+        tipo: 'liberacion_turno',
+        data: {
+          turnoFijoId: turno.id,
+          fecha,
+          jugador: updated.jugador ? `${updated.jugador.nombre} ${updated.jugador.apellido ?? ''}`.trim() : '',
+          canchaNombre: updated.cancha?.nombre ?? '',
+          dia: turno.dia,
+          horaInicio: turno.horaInicio,
+          horaFin: turno.horaFin,
+        },
+      },
+    }).catch(() => {})
+
     res.json({ ...mapTurno(updated), cargoAplicado, monto: turno.precio ?? 0 })
   } catch (e) {
     res.status(500).json({ error: e.message })

@@ -9,6 +9,7 @@ const Input = ({
   icon: Icon,
   disabled = false,
   required = false,
+  ...rest
 }) => {
   return (
     <div className="flex flex-col gap-1.5">
@@ -35,6 +36,7 @@ const Input = ({
           onChange={onChange}
           disabled={disabled}
           required={required}
+          {...rest}
           className={[
             'w-full py-2.5 text-sm text-slate-800 bg-white border rounded-xl outline-none transition-all duration-200',
             'placeholder:text-slate-400',

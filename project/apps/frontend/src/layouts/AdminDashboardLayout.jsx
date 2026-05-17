@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, Navigate, NavLink } from 'react-router-dom'
-import { LayoutDashboard, CalendarDays, Trophy, CreditCard, Info } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Trophy, CreditCard, Users } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useNotificacionesStore from '../store/notificacionesStore'
 import useClubStore from '../store/clubStore'
@@ -11,11 +11,11 @@ import usePageTitle from '../hooks/usePageTitle'
 import { api } from '../lib/api'
 
 const BOTTOM_NAV_ITEMS = [
-  { to: '/dashboardAdmin',          label: 'Inicio',    icon: LayoutDashboard, exact: true },
-  { to: '/dashboardAdmin/reservas', label: 'Reservas',  icon: CalendarDays },
-  { to: '/dashboardAdmin/torneos',  label: 'Torneos',   icon: Trophy },
-  { to: '/dashboardAdmin/pagos',    label: 'Pagos',     icon: CreditCard },
-  { to: '/dashboardAdmin/club',     label: 'Club',      icon: Info },
+  { to: '/dashboardAdmin',           label: 'Inicio',     icon: LayoutDashboard, exact: true },
+  { to: '/dashboardAdmin/reservas',  label: 'Reservas',   icon: CalendarDays },
+  { to: '/dashboardAdmin/jugadores', label: 'Jugadores',  icon: Users },
+  { to: '/dashboardAdmin/torneos',   label: 'Torneos',    icon: Trophy },
+  { to: '/dashboardAdmin/pagos',     label: 'Pagos',      icon: CreditCard },
 ]
 
 const BottomNav = ({ visible }) => {
@@ -72,6 +72,7 @@ const DashboardLayout = () => {
   const clubId = useAuthStore((s) => s.user?.club?.id)
   const loadFromBackend = useClubStore((s) => s.loadFromBackend)
   const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
+  const fetchNotificaciones = useNotificacionesStore((s) => s.fetchNotificaciones)
   const title = usePageTitle()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [navVisible, setNavVisible] = useState(true)
@@ -103,6 +104,16 @@ const DashboardLayout = () => {
     fetch()
     const interval = setInterval(fetch, 30_000)
     const onFocus = () => fetch()
+    window.addEventListener('focus', onFocus)
+    return () => { clearInterval(interval); window.removeEventListener('focus', onFocus) }
+  }, [token])
+
+  // Carga notificaciones admin desde backend + polling cada 30s
+  useEffect(() => {
+    if (!token) return
+    fetchNotificaciones(token)
+    const interval = setInterval(() => fetchNotificaciones(token), 30_000)
+    const onFocus = () => fetchNotificaciones(token)
     window.addEventListener('focus', onFocus)
     return () => { clearInterval(interval); window.removeEventListener('focus', onFocus) }
   }, [token])

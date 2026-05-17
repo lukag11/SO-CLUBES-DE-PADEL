@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
-import { requireAuth, requireRole } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -28,7 +28,7 @@ const overlaps = (aIni, aFin, bIni, bFin) => {
 }
 
 // GET /api/reservas/me   — jugador ve sus propias reservas
-router.get('/me', requireAuth, requireRole('jugador'), async (req, res) => {
+router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   try {
     const reservas = await prisma.reserva.findMany({
       where: {
@@ -90,7 +90,7 @@ router.get('/', requireAuth, async (req, res) => {
 })
 
 // POST /api/reservas   — jugador crea reserva
-router.post('/', requireAuth, requireRole('jugador'), async (req, res) => {
+router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   const { clubId, canchaId, fecha, horaInicio, horaFin, precio, esTurnoFijo, notas } = req.body
   const jugadorId = req.user.id
 
@@ -147,8 +147,27 @@ router.post('/', requireAuth, requireRole('jugador'), async (req, res) => {
         notas: notas || '',
         jugadores: [],
       },
-      include: { cancha: true },
+      include: { cancha: true, jugador: { select: { nombre: true, apellido: true } } },
     })
+
+    // Notificar al admin del club
+    const tipo = esTurnoFijo ? 'solicitud_turno_fijo' : 'nueva_reserva'
+    prisma.notificacion.create({
+      data: {
+        clubId,
+        jugadorId: null,
+        tipo,
+        data: {
+          jugador: reserva.jugador ? `${reserva.jugador.nombre} ${reserva.jugador.apellido}`.trim() : '',
+          canchaNombre: cancha.nombre,
+          fecha,
+          horaInicio,
+          horaFin,
+          precio: precio ? parseFloat(precio) : null,
+          backendReservaId: reserva.id,
+        },
+      },
+    }).catch(() => {})
 
     res.status(201).json(reserva)
   } catch (err) {
@@ -399,7 +418,10 @@ router.delete('/:id', requireAuth, async (req, res) => {
   const { id } = req.params
 
   try {
-    const reserva = await prisma.reserva.findUnique({ where: { id } })
+    const reserva = await prisma.reserva.findUnique({
+      where: { id },
+      include: { cancha: { select: { nombre: true } } },
+    })
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
     if (reserva.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
 
@@ -463,6 +485,27 @@ router.delete('/:id', requireAuth, async (req, res) => {
     }
 
     await prisma.reserva.update({ where: { id }, data: { estado: 'cancelada' } })
+
+    // Notificar al admin si el jugador cancela
+    if (req.user.role === 'jugador') {
+      const jugador = await prisma.jugador.findUnique({ where: { id: req.user.id }, select: { nombre: true, apellido: true } })
+      prisma.notificacion.create({
+        data: {
+          clubId: reserva.clubId,
+          jugadorId: null,
+          tipo: 'cancelacion_reserva',
+          data: {
+            jugador: jugador ? `${jugador.nombre} ${jugador.apellido}`.trim() : '',
+            canchaNombre: reserva.cancha?.nombre ?? '',
+            fecha: reserva.fecha,
+            horaInicio: reserva.horaInicio,
+            horaFin: reserva.horaFin,
+            backendReservaId: id,
+          },
+        },
+      }).catch(() => {})
+    }
+
     res.json({ ok: true, cargoAplicado: false })
   } catch (err) {
     console.error(err)

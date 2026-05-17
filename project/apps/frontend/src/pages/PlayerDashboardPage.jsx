@@ -1,9 +1,10 @@
-import { Trophy, Swords, CheckCircle, XCircle, Flame, Target, TrendingUp, CalendarDays, ArrowRight, Clock, Repeat } from 'lucide-react'
+import { Trophy, Swords, CheckCircle, XCircle, Flame, Target, TrendingUp, CalendarDays, ArrowRight, Clock, Repeat, X, Info } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import usePlayerStore from '../store/playerStore'
 import useReservasStore from '../store/reservasStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
+import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
 
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
@@ -40,15 +41,53 @@ const PlayerDashboardPage = () => {
   const player = usePlayerStore((s) => s.player)
   const token = usePlayerStore((s) => s.token)
   const reservas = useReservasStore((s) => s.reservas)
+  const setReservas = useReservasStore((s) => s.setReservas)
+  const cancelarReserva = useReservasStore((s) => s.cancelarReserva)
   const turnosFijos = useTurnosFijosStore((s) => s.turnosFijos)
   const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
+  const horasCancelacion = useClubStore((s) => s.club?.horasCancelacion ?? 0)
   const navigate = useNavigate()
+  const [reservaACancelar, setReservaACancelar] = useState(null)
+
+  const cancelacionInfo = useMemo(() => {
+    if (!reservaACancelar) return { horasMinimas: 0, horasRestantes: Infinity, fueraDePlazo: false }
+    const [y, m, d] = reservaACancelar.fecha.split('-').map(Number)
+    const [h, min] = reservaACancelar.hora.split(':').map(Number)
+    const fechaTurno = new Date(y, m - 1, d, h, min)
+    const horasRestantes = (fechaTurno - new Date()) / (1000 * 60 * 60)
+    const fueraDePlazo = horasCancelacion > 0 && horasRestantes < horasCancelacion && horasRestantes >= 0
+    return { horasMinimas: horasCancelacion, horasRestantes, fueraDePlazo }
+  }, [reservaACancelar, horasCancelacion])
+
+  const { horasMinimas, horasRestantes, fueraDePlazo } = cancelacionInfo
 
   useEffect(() => {
     if (!token) return
     api
       .get('/turnos-fijos/me', { Authorization: `Bearer ${token}` })
       .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
+      .catch(() => {})
+  }, [token])
+
+  // Carga mis reservas desde el backend al montar (fuente de verdad para "Próximas reservas")
+  useEffect(() => {
+    if (!token) return
+    api.get('/reservas/me', { Authorization: `Bearer ${token}` })
+      .then((data) => {
+        if (!Array.isArray(data)) return
+        setReservas(data.map((r) => ({
+          id: r.id,
+          canchaId: r.canchaId,
+          canchaNombre: r.cancha?.nombre ?? '',
+          canchaInfo: r.cancha ? `${r.cancha.tipo} · ${r.cancha.indoor ? 'Indoor' : 'Outdoor'}` : '',
+          fecha: r.fecha,
+          hora: r.horaInicio,
+          horaFin: r.horaFin,
+          precio: r.precio ?? 0,
+          esTurnoFijo: r.esTurnoFijo,
+          estado: r.estado,
+        })))
+      })
       .catch(() => {})
   }, [token])
 
@@ -68,6 +107,7 @@ const PlayerDashboardPage = () => {
   const winRate = Math.round((34 / 48) * 100)
 
   return (
+    <>
     <div className="flex flex-col gap-6">
 
       {/* ── Hero perfil ── */}
@@ -141,33 +181,51 @@ const PlayerDashboardPage = () => {
             </button>
           </div>
         ) : (
-          <div className="flex divide-x divide-white/5">
+          <div className="divide-y divide-white/5">
             {proximasReservas.map((r) => {
               const pendiente = r.estado === 'pendiente'
               const esFijo = r.estado === 'confirmada' && r.esTurnoFijo
               return (
-                <div key={r.id} className={`flex-1 px-4 py-4 flex flex-col gap-1 min-w-0 ${pendiente ? 'bg-amber-500/3' : esFijo ? 'bg-violet-500/3' : ''}`}>
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${pendiente ? 'bg-amber-400' : esFijo ? 'bg-violet-400' : 'bg-[#afca0b]'}`} />
-                    <p className="text-white font-semibold text-xs truncate">{r.canchaNombre}</p>
+                <div key={r.id} className={`px-4 py-3.5 flex items-center gap-3 ${pendiente ? 'bg-amber-500/3' : esFijo ? 'bg-violet-500/3' : ''}`}>
+                  <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center shrink-0 ${pendiente ? 'bg-amber-500/10 border border-amber-500/20' : esFijo ? 'bg-violet-500/10 border border-violet-500/20' : 'bg-[#afca0b]/10 border border-[#afca0b]/20'}`}>
+                    <span className={`font-black text-sm leading-none ${pendiente ? 'text-amber-400' : esFijo ? 'text-violet-400' : 'text-[#afca0b]'}`}>{r.fecha.slice(8)}</span>
+                    <span className={`text-[9px] uppercase opacity-60 ${pendiente ? 'text-amber-400' : esFijo ? 'text-violet-400' : 'text-[#afca0b]'}`}>{MESES[parseInt(r.fecha.slice(5,7))-1]}</span>
                   </div>
-                  <p className="text-white/40 text-xs flex items-center gap-1">
-                    <CalendarDays size={10} />
-                    {r.fecha.slice(8)} {MESES[parseInt(r.fecha.slice(5,7))-1]}
-                  </p>
-                  <p className="text-white/40 text-xs flex items-center gap-1">
-                    <Clock size={10} /> {r.hora}{r.horaFin ? ` a ${r.horaFin}` : ''}
-                  </p>
-                  {pendiente && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 mt-0.5 w-fit">
-                      Pendiente
-                    </span>
-                  )}
-                  {esFijo && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20 mt-0.5 w-fit">
-                      Turno fijo
-                    </span>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-white font-semibold text-xs truncate">{r.canchaNombre}</p>
+                      {pendiente && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">Pendiente</span>
+                      )}
+                      {esFijo && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0">Turno fijo</span>
+                      )}
+                    </div>
+                    <p className="text-white/40 text-xs flex items-center gap-1 mt-0.5">
+                      <Clock size={10} /> {r.hora}{r.horaFin ? ` a ${r.horaFin}` : ''}
+                    </p>
+                  </div>
+                  {(() => {
+                    const [y, m, d] = r.fecha.split('-').map(Number)
+                    const [h, min] = (r.horaFin || r.hora).split(':').map(Number)
+                    const yaJugo = new Date(y, m - 1, d, h, min) < new Date()
+                    if (yaJugo) return (
+                      <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/8 text-white/25 text-xs font-medium shrink-0">
+                        <CheckCircle size={11} />
+                        Finalizado
+                      </span>
+                    )
+                    if (esFijo) return null
+                    return (
+                      <button
+                        onClick={() => setReservaACancelar(r)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-red-400/60 hover:text-red-400 hover:bg-red-400/8 border border-red-400/0 hover:border-red-400/15 text-xs font-medium transition-all shrink-0"
+                      >
+                        <XCircle size={12} />
+                        Cancelar
+                      </button>
+                    )
+                  })()}
                 </div>
               )
             })}
@@ -341,6 +399,92 @@ const PlayerDashboardPage = () => {
       </div>
 
     </div>
+
+    {/* ── Modal cancelar reserva ── */}
+    {reservaACancelar && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setReservaACancelar(null)}>
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+        <div
+          className="relative w-full max-w-sm bg-[#0d1117] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-6 py-5 border-b border-white/8">
+            <div className="flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${fueraDePlazo ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
+                <XCircle size={16} className={fueraDePlazo ? 'text-amber-400' : 'text-red-400'} />
+              </div>
+              <div>
+                <p className="text-white font-bold text-sm">Cancelar reserva</p>
+                <p className="text-white/30 text-xs mt-0.5">{reservaACancelar.canchaNombre} · {reservaACancelar.hora} a {reservaACancelar.horaFin}</p>
+              </div>
+            </div>
+            <button onClick={() => setReservaACancelar(null)} className="text-white/20 hover:text-white/60 transition-colors p-1">
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="px-6 py-5 flex flex-col gap-4">
+            {fueraDePlazo ? (
+              <div className="flex items-start gap-3 px-4 py-3.5 rounded-2xl bg-amber-500/8 border border-amber-500/25">
+                <Info size={15} className="text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-amber-300 font-semibold text-xs">Cancelación fuera de plazo</p>
+                  <p className="text-white/40 text-xs mt-1 leading-relaxed">
+                    El club requiere cancelar con al menos <span className="text-amber-300 font-bold">{horasMinimas}h de anticipación</span>.
+                    Se registrará un cargo de <span className="text-amber-300 font-bold">${reservaACancelar.precio?.toLocaleString('es-AR')}</span> en tu cuenta.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-white/50 text-xs leading-relaxed">
+                ¿Estás seguro que deseás cancelar esta reserva? Esta acción no se puede deshacer.
+                {horasMinimas > 0 && (
+                  <span className="block mt-1 text-[#afca0b]/60">
+                    Cancelación gratuita — quedan {Math.floor(horasRestantes)}h de anticipación (mínimo {horasMinimas}h).
+                  </span>
+                )}
+              </p>
+            )}
+
+            <div className="flex items-center gap-4 px-4 py-4 rounded-2xl bg-white/3 border border-white/8">
+              <div className="w-10 h-10 rounded-xl bg-white/8 flex items-center justify-center shrink-0">
+                <CalendarDays size={18} className="text-white/50" />
+              </div>
+              <div>
+                <p className="text-white font-bold text-sm">{reservaACancelar.canchaNombre}</p>
+                <p className="text-white/30 text-xs mt-0.5">
+                  {MESES[parseInt(reservaACancelar.fecha.slice(5, 7)) - 1]} {reservaACancelar.fecha.slice(8)} · {reservaACancelar.hora} a {reservaACancelar.horaFin}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={async () => {
+                const id = reservaACancelar.id
+                setReservaACancelar(null)
+                try {
+                  await api.delete(`/reservas/${id}`, { Authorization: `Bearer ${token}` })
+                } catch { /* ignore */ }
+                cancelarReserva(id)
+              }}
+              className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98] shadow-lg ${
+                fueraDePlazo
+                  ? 'bg-amber-500 text-[#0d1117] hover:bg-amber-400 shadow-amber-500/20'
+                  : 'bg-red-500 text-white hover:bg-red-400 shadow-red-500/20'
+              }`}
+            >
+              <XCircle size={15} />
+              {fueraDePlazo ? `Cancelar con cargo ($${reservaACancelar.precio?.toLocaleString('es-AR')})` : 'Sí, cancelar reserva'}
+            </button>
+
+            <button onClick={() => setReservaACancelar(null)} className="text-white/25 hover:text-white/50 text-xs text-center transition-colors">
+              Volver
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 

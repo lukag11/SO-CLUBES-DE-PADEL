@@ -5,7 +5,6 @@ import {
   Users, AlertCircle, CheckCircle, Ban, Pencil, Bell, GraduationCap, Trash2, XCircle, MapPin, HelpCircle,
 } from 'lucide-react'
 import {
-  FRANJAS,
   RAZONES_BLOQUEO, METODOS_PAGO, CLASES_PROFESOR, DIAS_SEMANA_OPCIONES,
 } from '../features/admin/reservasMockData'
 import useNotificacionesStore from '../store/notificacionesStore'
@@ -142,7 +141,7 @@ const Select = ({ label, children, ...props }) => (
 
 // ─── Stats bar ────────────────────────────────────────────────────────────────
 
-const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos, canchasCount, franjasCount = FRANJAS.length }) => {
+const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos, canchasCount, franjasCount = 0 }) => {
   const total = (canchasCount || 4) * franjasCount
 
   // Turnos ocupados: slots únicos de reservas + clases (bloqueados también ocupan)
@@ -186,7 +185,7 @@ const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos, canchasCount, fran
 
 // ─── Celda de la grilla ───────────────────────────────────────────────────────
 
-const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) => {
+const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = [] }) => {
   const pasado = esPasado(fecha, franja.inicio)
 
   if (!reserva) {
@@ -344,7 +343,7 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = FRANJAS }) =
 
 // ─── Grilla ───────────────────────────────────────────────────────────────────
 
-const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], franjas = FRANJAS }) => (
+const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], franjas = [] }) => (
   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
     <div className="overflow-x-auto">
       <table className="w-full min-w-[540px] border-collapse text-sm">
@@ -452,7 +451,7 @@ const CeldaMobile = ({ reserva, franja, cancha, onClick, pasado }) => {
   )
 }
 
-const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], franjas = FRANJAS }) => {
+const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], franjas = [] }) => {
   const [page, setPage] = useState(0)
   const totalPages = Math.ceil(canchas.length / 2)
   const canchasVisible = canchas.slice(page * 2, page * 2 + 2)
@@ -765,8 +764,11 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
                         onClick={() => { setJugadorSel(j); setQuery(''); setResultados([]) }}
                         className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-emerald-50 transition-colors text-left"
                       >
-                        <span className="text-sm font-medium text-slate-700">{j.nombre} {j.apellido}</span>
-                        {j.dni && <span className="text-xs text-slate-400 shrink-0">DNI {j.dni}</span>}
+                        <div className="min-w-0 flex items-center gap-2">
+                          <span className="text-sm font-medium text-slate-700 truncate">{j.nombre} {j.apellido}</span>
+                          {!j.cuentaActiva && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200 shrink-0">Sin cuenta</span>}
+                        </div>
+                        {j.dni && <span className="text-xs text-slate-400 shrink-0 ml-2">DNI {j.dni}</span>}
                       </button>
                     ))}
                   </div>
@@ -849,7 +851,7 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
 
 // ─── Panel lateral — Formulario bloqueo ──────────────────────────────────────
 
-const FormBloqueo = ({ franja, cancha, onSave, onCancel }) => {
+const FormBloqueo = ({ franja, cancha, franjas = [], onSave, onCancel }) => {
   const [razon, setRazon] = useState(RAZONES_BLOQUEO[0])
   const [notas, setNotas] = useState('')
   const [hasta, setHasta] = useState(franja.fin)
@@ -895,7 +897,7 @@ const FormBloqueo = ({ franja, cancha, onSave, onCancel }) => {
             onChange={(e) => setHasta(e.target.value)}
             className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 appearance-none bg-white"
           >
-            {FRANJAS.filter((f) => f.inicio >= franja.inicio).map((f) => (
+            {franjas.filter((f) => f.inicio >= franja.inicio).map((f) => (
               <option key={f.fin} value={f.fin}>{franja.inicio} – {f.fin}</option>
             ))}
           </select>
@@ -1117,7 +1119,7 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
 
 // ─── Panel lateral contenedor ─────────────────────────────────────────────────
 
-const PanelContent = ({ seleccion, fecha, onSave, onBloquear, onCancelar, onPago, onClose }) => {
+const PanelContent = ({ seleccion, fecha, franjas = [], onSave, onBloquear, onCancelar, onPago, onClose }) => {
   const [modo, setModo] = useState('reserva')
 
   if (!seleccion) return null
@@ -1152,7 +1154,7 @@ const PanelContent = ({ seleccion, fecha, onSave, onBloquear, onCancelar, onPago
       </div>
       {modo === 'reserva'
         ? <FormNuevaReserva franja={franja} cancha={cancha} onSave={handleSaveReserva} onCancel={onClose} />
-        : <FormBloqueo franja={franja} cancha={cancha} onSave={handleSaveBloqueo} onCancel={onClose} />
+        : <FormBloqueo franja={franja} cancha={cancha} franjas={franjas} onSave={handleSaveBloqueo} onCancel={onClose} />
       }
     </>
   )
@@ -1508,8 +1510,14 @@ const PanelAlertas = ({
 }) => {
   const [modalNotif, setModalNotif] = useState(null)
   const [aprobandoId, setAprobandoId] = useState(null)
+  const [toastPanel, setToastPanel] = useState(null)
   const updateTurnoFijoPanel = useTurnosFijosStore((s) => s.updateTurnoFijo)
   const { addReservaConfirmada, addAusenciaConfirmada } = usePlayerNotificationsStore()
+
+  const showPanelToast = (msg, tipo = 'ok') => {
+    setToastPanel({ msg, tipo })
+    setTimeout(() => setToastPanel(null), 3000)
+  }
 
   // Notificaciones que NO son reservas normales (esas las manejamos directo desde backend)
   const notifFiltradas = notificaciones.filter((n) =>
@@ -1550,9 +1558,27 @@ const PanelAlertas = ({
     setAprobandoId(null)
   }
 
-  // Aprobar notificación de liberación de turno fijo (sigue en localStorage)
+  // Aprobar desde el modal de notificación (turno fijo o liberación)
   const handleAprobar = async (notifId) => {
     const notif = modalNotif
+
+    if (notif?.tipo === 'solicitud_turno_fijo' && notif.turnoFijoId) {
+      try {
+        const updated = await api.patch(
+          `/turnos-fijos/${notif.turnoFijoId}/estado`,
+          { estado: 'confirmado' },
+          { Authorization: `Bearer ${panelAdminToken}` }
+        )
+        updateTurnoFijoPanel(notif.turnoFijoId, {
+          estado: 'confirmado',
+          activo: true,
+          desde: updated.desde,
+        })
+        onReservasPendientesChange?.()
+        showPanelToast(`Turno fijo de ${notif.jugador || 'jugador'} confirmado`)
+      } catch { updateTurnoFijoPanel(notif.turnoFijoId, { estado: 'confirmado', activo: true }) }
+    }
+
     if (notif?.tipo === 'liberacion_turno' && notif.turnoFijoId && notif.fecha) {
       try {
         const updated = await api.patch(`/turnos-fijos/${notif.turnoFijoId}/ausencia/${notif.fecha}`, {}, { Authorization: `Bearer ${panelAdminToken}` })
@@ -1566,17 +1592,42 @@ const PanelAlertas = ({
       onLiberacionAprobada?.(notif.fecha)
       onReservasPendientesChange?.()
     }
-    onEliminar(notifId)
+
+    onEliminar(notifId, panelAdminToken)
     setModalNotif(null)
   }
 
-  const handleRechazar = (id) => {
-    onEliminar(id)
+  const handleRechazar = async (id) => {
+    const notif = modalNotif
+    if (notif?.tipo === 'solicitud_turno_fijo' && notif.turnoFijoId) {
+      try {
+        await api.patch(
+          `/turnos-fijos/${notif.turnoFijoId}/estado`,
+          { estado: 'inactivo' },
+          { Authorization: `Bearer ${panelAdminToken}` }
+        )
+        updateTurnoFijoPanel(notif.turnoFijoId, { estado: 'inactivo', activo: false })
+        showPanelToast(`Solicitud de ${notif.jugador || 'jugador'} rechazada`, 'error')
+      } catch { /* ignore */ }
+    }
+    onEliminar(id, panelAdminToken)
     setModalNotif(null)
   }
 
   return (
     <>
+      {/* Toast interno del panel */}
+      {toastPanel && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium transition-all ${
+          toastPanel.tipo === 'error'
+            ? 'bg-red-500 text-white'
+            : 'bg-emerald-500 text-white'
+        }`}>
+          {toastPanel.tipo === 'error' ? <XCircle size={15} /> : <CheckCircle size={15} />}
+          {toastPanel.msg}
+        </div>
+      )}
+
       {modalNotif && (
         <ModalTurnoFijo
           notif={modalNotif}
@@ -1773,9 +1824,9 @@ const PanelAlertas = ({
 
 // ─── Tab turnos fijos ─────────────────────────────────────────────────────────
 
-const makeEmptyClase = (canchas) => ({
+const makeEmptyClase = (canchas, franjas = []) => ({
   profesor: '', canchaId: canchas[0]?.id ?? '', dia: 'lunes',
-  inicio: FRANJAS[0].inicio, fin: FRANJAS[1].fin, hasta: '', activa: true,
+  inicio: franjas[0]?.inicio ?? '09:00', fin: franjas[1]?.fin ?? '10:30', hasta: '', activa: true,
 })
 
 const DIAS_LABEL = {
@@ -1813,7 +1864,7 @@ const fmtFechaCorta = (iso) => {
   return `${DIAS_LABEL[diaNombre]} ${d} ${MESES_CORTOS[m - 1]}`
 }
 
-const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [] }) => {
+const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franjas = [] }) => {
   const turnosFijosJugadores = useTurnosFijosStore((s) => s.turnosFijos)
   const liberarTurno = useTurnosFijosStore((s) => s.liberarTurno)
   const updateTurnoFijo = useTurnosFijosStore((s) => s.updateTurnoFijo)
@@ -1822,7 +1873,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [] }) => 
   const pendientes = turnosFijosJugadores.filter((t) => t.estado === 'pendiente')
   const hoy = todayISO()
   const [mostrarForm, setMostrarForm] = useState(false)
-  const [formClase, setFormClase] = useState(() => makeEmptyClase(canchas))
+  const [formClase, setFormClase] = useState(() => makeEmptyClase(canchas, franjas))
   const [errorForm, setErrorForm] = useState('')
   const [confirmarBaja, setConfirmarBaja] = useState(null) // turno a dar de baja
 
@@ -2091,7 +2142,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [] }) => 
                   onChange={(e) => setFormClase((p) => ({ ...p, inicio: e.target.value }))}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 appearance-none bg-white"
                 >
-                  {FRANJAS.map((f) => <option key={f.inicio} value={f.inicio}>{f.inicio}</option>)}
+                  {franjas.map((f) => <option key={f.inicio} value={f.inicio}>{f.inicio}</option>)}
                 </select>
               </div>
               <div>
@@ -2101,7 +2152,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [] }) => 
                   onChange={(e) => setFormClase((p) => ({ ...p, fin: e.target.value }))}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 appearance-none bg-white"
                 >
-                  {FRANJAS.map((f) => <option key={f.fin} value={f.fin}>{f.fin}</option>)}
+                  {franjas.map((f) => <option key={f.fin} value={f.fin}>{f.fin}</option>)}
                 </select>
               </div>
               <div>
@@ -2327,21 +2378,26 @@ const ReservasPage = () => {
     creadoPor: 'jugador',
   })
 
-  // Mapea la hora del jugador (ej. '10:00') a la franja admin que la contiene
+  // Mapea la hora del TF a la franja real de la grilla del club (no el mock hardcodeado)
   const franjaParaHora = (hora) =>
-    FRANJAS.find((f) => f.inicio <= hora && hora < f.fin) ||
-    FRANJAS.find((f) => f.inicio === hora) ||
-    FRANJAS[0]
-
+    franjasMainGrilla.find((f) => f.inicio <= hora && hora < f.fin) ||
+    franjasMainGrilla.find((f) => f.inicio === hora) ||
+    franjasMainGrilla[0]
 
   // Turnos fijos aprobados → tipo 'fijo' (violeta) en grilla, para el día de semana que corresponde
+  // Se excluyen los que ya tienen una Reserva cubriendo ese slot (evita duplicados)
   const diaSemanaFecha = getDiaSemana(fecha)
   const turnosFijosDia = useMemo(() =>
     turnosFijos
       .filter((t) =>
         t.activo &&
         t.dia === diaSemanaFecha &&
-        !(t.diasAusentes || []).includes(fecha)
+        !(t.diasAusentes || []).includes(fecha) &&
+        !reservasBackend.some((r) =>
+          r.canchaId === t.canchaId &&
+          r.estado !== 'cancelada' &&
+          overlaps(r.horaInicio, r.horaFin, t.inicio, t.fin)
+        )
       )
       .map((t) => {
         const f = franjaParaHora(t.inicio)
@@ -2360,7 +2416,7 @@ const ReservasPage = () => {
           recurrencia: { dia: t.dia, hasta: '2099-12-31' },
         }
       })
-  , [turnosFijos, diaSemanaFecha, fecha])
+  , [turnosFijos, diaSemanaFecha, fecha, reservasBackend, franjasMainGrilla])
 
   // Reservas del backend transformadas, excluyendo canceladas y las que ya están en el store local
   const reservasBackendDia = useMemo(
@@ -2615,9 +2671,9 @@ const ReservasPage = () => {
           notificaciones={notificaciones}
           reservasPendientes={reservasPendientes}
           adminToken={adminToken}
-          onMarcarLeida={marcarLeida}
-          onEliminar={eliminarNotificacion}
-          onMarcarTodas={marcarTodasLeidas}
+          onMarcarLeida={(id) => marcarLeida(id, adminToken)}
+          onEliminar={(id) => eliminarNotificacion(id, adminToken)}
+          onMarcarTodas={() => marcarTodasLeidas(adminToken)}
           onLiberacionAprobada={setFecha}
           onReservasPendientesChange={() => { fetchReservasPendientes(); fetchReservasBackend() }}
           onFechaChange={setFecha}
@@ -2775,7 +2831,7 @@ const ReservasPage = () => {
                     )}
                   </div>
                 ) : (
-                  <PanelContent seleccion={seleccion} fecha={fecha} onSave={handleSave} onBloquear={handleSave} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} />
+                  <PanelContent seleccion={seleccion} fecha={fecha} franjas={franjasMainGrilla} onSave={handleSave} onBloquear={handleSave} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} />
                 )}
               </div>
             </div>
@@ -2837,6 +2893,7 @@ const ReservasPage = () => {
           onAddClase={handleAddClase}
           onDeleteClase={handleDeleteClase}
           canchas={canchas}
+          franjas={franjasMainGrilla}
         />
       )}
     </div>

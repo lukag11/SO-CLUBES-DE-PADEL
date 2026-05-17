@@ -7,13 +7,13 @@
 
 ## Decisiones confirmadas
 
-| Decisión | Opción elegida |
-|---|---|
-| Estados del torneo | Ciclo formal: `draft → open → closed → in_progress → finished` |
+| Decisión             | Opción elegida                                                     |
+| -------------------- | ------------------------------------------------------------------ |
+| Estados del torneo   | Ciclo formal: `draft → open → closed → in_progress → finished`     |
 | Modelo de inscriptos | Pareja como unidad: `{ id, jugador1, jugador2, categoria, fecha }` |
-| Vista de detalle | Por confirmar en Bloque 3 (drawer vs nueva ruta) |
-| Bracket UI | Básico — tabla por rondas, sin árbol visual complejo |
-| Conexión jugador | Bloque 4 (posterior) |
+| Vista de detalle     | Por confirmar en Bloque 3 (drawer vs nueva ruta)                   |
+| Bracket UI           | Básico — tabla por rondas, sin árbol visual complejo               |
+| Conexión jugador     | Bloque 4 (posterior)                                               |
 
 ---
 
@@ -65,7 +65,7 @@
   ganador: Pareja | null,
   estado: 'pendiente' | 'en_curso' | 'finalizado',
   nextMatchId: string | null, // ID del partido que recibe al ganador
-  nextSlot: 0 | 1,            // 0 = pareja1, 1 = pareja2 del próximo partido
+  nextSlot: 0 | 1,            // 0 = pareja1, 1 = pareja2 del próximo partidod
   reservationId: null,        // futuro: link a reserva de cancha
 }
 ```
@@ -74,38 +74,43 @@
 
 ## Mapeo de estados (old → new)
 
-| Estado viejo (TorneosPage actual) | Estado nuevo | Criterio |
-|---|---|---|
-| `proximo` (sin inscripción) | `draft` | `inscripcionAbierta: false` |
-| `proximo` (con inscripción) | `open` | `inscripcionAbierta: true` |
-| `activo` | `in_progress` | — |
-| `finalizado` | `finished` | — |
-| *(nuevo)* | `closed` | Inscripciones cerradas, torneo no empezado aún |
+| Estado viejo (TorneosPage actual) | Estado nuevo  | Criterio                                       |
+| --------------------------------- | ------------- | ---------------------------------------------- |
+| `proximo` (sin inscripción)       | `draft`       | `inscripcionAbierta: false`                    |
+| `proximo` (con inscripción)       | `open`        | `inscripcionAbierta: true`                     |
+| `activo`                          | `in_progress` | —                                              |
+| `finalizado`                      | `finished`    | —                                              |
+| _(nuevo)_                         | `closed`      | Inscripciones cerradas, torneo no empezado aún |
 
 ---
 
 ## Bloques de implementación
 
 ### ✅ Bloque 0 — Relevamiento
+
 Completado. Ver este documento.
 
 ---
 
 ### 🔲 Bloque 1 — Base de datos + Servicio
+
 **Estado: PENDIENTE — plan aprobado por usuario**
 
 **1. CREAR `src/services/torneoService.js`**
+
 - `generateEliminationBracket(parejas)` — BYEs para no-potencia-de-2, `nextMatchId` entre partidos
 - `advanceWinner(bracket, matchId, ganador)` — inmutable, retorna bracket actualizado
 - `isBracketFinished(bracket)` — boolean
 - `getBracketWinner(bracket)` — retorna pareja ganadora del último partido
 
 **2. MODIFICAR `src/features/admin/torneosMockData.js`**
+
 - Inscriptos → formato pareja `{ jugador1, jugador2 }`
 - Estados → ciclo formal
 - Agregar campo `bracket: null` a cada torneo
 
 **3. MODIFICAR `src/pages/TorneosPage.jsx`** (mínimo)
+
 - `ESTADO_CONFIG` con nuevas claves de estado
 - Tabs actualizadas (En curso = `in_progress`, Próximos = `draft|open|closed`, Finalizados = `finished`)
 - Nuevo torneo arranca en `draft`
@@ -114,6 +119,7 @@ Completado. Ver este documento.
 ---
 
 ### 🔲 Bloque 2 — torneosStore
+
 **Estado: PENDIENTE — por planificar**
 
 - CREAR `src/store/torneosStore.js`
@@ -125,6 +131,7 @@ Completado. Ver este documento.
 ---
 
 ### 🔲 Bloque 3 — Vista de detalle + Fixture
+
 **Estado: PENDIENTE — falta confirmar drawer vs nueva ruta**
 
 - Vista de detalle del torneo
@@ -137,6 +144,7 @@ Completado. Ver este documento.
 ---
 
 ### 🔲 Bloque 4 — Conexión jugador
+
 **Estado: PENDIENTE**
 
 - `PlayerTournamentsPage` lee de `torneosStore`
@@ -159,10 +167,12 @@ Completado. Ver este documento.
 
 ## Archivos existentes relacionados
 
-| Archivo | Rol |
-|---|---|
-| `pages/TorneosPage.jsx` | UI admin — CRUD torneos (713 líneas) |
-| `features/admin/torneosMockData.js` | Mock data — 6 torneos |
-| `pages/PlayerTournamentsPage.jsx` | UI jugador — historial (datos hardcodeados) |
-| `flujos/flujo-torneos.md` | Flujo de usuario del módulo |
-| `services/api.js` | Carpeta de servicios (aquí va `torneoService.js`) |
+| Archivo                             | Rol                                               |
+| ----------------------------------- | ------------------------------------------------- |
+| `pages/TorneosPage.jsx`             | UI admin — CRUD torneos (713 líneas)              |
+| `features/admin/torneosMockData.js` | Mock data — 6 torneos                             |
+| `pages/PlayerTournamentsPage.jsx`   | UI jugador — historial (datos hardcodeados)       |
+| `flujos/flujo-torneos.md`           | Flujo de usuario del módulo                       |
+| `services/api.js`                   | Carpeta de servicios (aquí va `torneoService.js`) |
+
+v

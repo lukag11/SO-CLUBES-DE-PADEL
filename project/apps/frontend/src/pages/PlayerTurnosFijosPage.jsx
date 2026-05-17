@@ -1,6 +1,5 @@
 import { Repeat, AlertTriangle, CalendarDays, X, Clock } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
-import useNotificacionesStore from '../store/notificacionesStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
 import useClubStore from '../store/clubStore'
 import { useState, useEffect, useMemo } from 'react'
@@ -151,7 +150,6 @@ const ModalAusencia = ({ turno, fecha, horasMinimas, onConfirmar, onCerrar }) =>
 const PlayerTurnosFijosPage = () => {
   const player = usePlayerStore((s) => s.player)
   const token = usePlayerStore((s) => s.token)
-  const liberarTurnoNotif = useNotificacionesStore((s) => s.liberarTurno)
   const { turnosFijos, setTurnosFijos, registrarAusenciaPendiente, updateTurnoFijo } = useTurnosFijosStore()
   const horasMinimas = useClubStore((s) => s.club?.horasCancelacion ?? 0)
 
@@ -182,14 +180,6 @@ const PlayerTurnosFijosPage = () => {
       } else {
         registrarAusenciaPendiente(modalTurno.id, fecha)
       }
-      liberarTurnoNotif({
-        jugador: `${player?.nombre ?? ''} ${player?.apellido ?? ''}`.trim(),
-        cancha: modalTurno.canchaNombre,
-        fecha,
-        inicio: modalTurno.inicio,
-        fin: modalTurno.fin,
-        turnoFijoId: modalTurno.id,
-      })
     } catch {
       // fallback local si el backend falla
       registrarAusenciaPendiente(modalTurno.id, fecha)

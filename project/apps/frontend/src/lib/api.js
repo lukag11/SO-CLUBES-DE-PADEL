@@ -6,7 +6,12 @@ const request = async (path, { headers, ...rest } = {}) => {
     ...rest,
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'Error del servidor')
+  if (!res.ok) {
+    if (data.error === 'cuenta_inactiva') {
+      window.dispatchEvent(new CustomEvent('jugador:cuenta-inactiva', { detail: data.message }))
+    }
+    throw new Error(data.message || data.error || 'Error del servidor')
+  }
   return data
 }
 

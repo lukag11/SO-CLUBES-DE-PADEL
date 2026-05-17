@@ -52,7 +52,8 @@ model Jugador {
   dni                 String
   email               String?
   telefono            String?
-  password            String
+  password            String?
+  cuentaActiva        Boolean  @default(true)
   activo              Boolean  @default(true)
   // Perfil extendido
   genero              String?
@@ -199,14 +200,14 @@ model Cargo {
 model Notificacion {
   id        String   @id @default(cuid())
   clubId    String
-  jugadorId String
-  tipo      String   // reserva_cancelada_admin | reserva_confirmada | turno_fijo_confirmado | turno_fijo_rechazado
+  jugadorId String?  // null = notificación para el admin del club
+  tipo      String
   leida     Boolean  @default(false)
   data      Json?
   createdAt DateTime @default(now())
 
-  club    Club    @relation(fields: [clubId], references: [id])
-  jugador Jugador @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
+  club    Club     @relation(fields: [clubId], references: [id])
+  jugador Jugador? @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
 
   @@map("notificaciones")
 }

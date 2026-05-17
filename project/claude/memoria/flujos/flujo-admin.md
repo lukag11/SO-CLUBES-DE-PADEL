@@ -123,6 +123,20 @@ El jugador avisa por canal externo — el admin libera ese día directamente:
 
 ---
 
+## Gestión de jugadores (`/dashboardAdmin/jugadores`)
+
+Ver flujo completo en [flujo-jugadores-admin.md](flujo-jugadores-admin.md).
+
+Resumen:
+1. Admin ve el directorio completo: activos (verde), sin cuenta (verde/amarillo), inactivos (rojo)
+2. Alta manual: crea jugador con nombre/apellido/DNI sin password (`cuentaActiva: false`)
+3. Editar: nombre, apellido, email, teléfono, categoría. DNI solo editable si sin cuenta
+4. Dar de baja: `activo: false` → jugador pierde acceso al primer click desde el dashboard
+5. Reactivar: `activo: true` → jugador recupera acceso inmediatamente
+6. Eliminar: solo para jugadores sin cuenta (`cuentaActiva: false`)
+
+---
+
 ## Notificaciones del admin
 
 - Badge rojo en el navbar muestra cantidad de notificaciones no leídas

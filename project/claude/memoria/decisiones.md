@@ -98,6 +98,29 @@ jugadores: id | club_id | nombre | email | ...
 
 ---
 
+## [2026-05-17] Modelo de jugadores — cuentaActiva + activo
+
+Dos campos booleanos separados en la tabla `Jugador`:
+
+- `cuentaActiva: Boolean` — indica si el jugador completó el registro (tiene password). `false` = pre-registrado por admin.
+- `activo: Boolean` — indica si tiene acceso al sistema. `false` = dado de baja por el admin.
+
+**Motivo:** Son conceptos distintos. Un jugador sin cuenta nunca se registró. Un inactivo sí se registró pero fue bloqueado. Mezclarlos en un solo campo imposibilita el match automático por DNI.
+
+**Flujo match:** si el jugador se registra con un DNI que ya tiene `cuentaActiva: false`, el backend hace MERGE (activa + asigna password) en vez de rechazar. El historial (torneos, turnos) queda vinculado automáticamente.
+
+---
+
+## [2026-05-17] Protección de cuentas inactivas — requireActive middleware
+
+Se agrega `requireActive` como tercer middleware en todas las rutas del jugador. Consulta la DB en cada request y devuelve 401 si `activo: false`.
+
+**Motivo:** El JWT no expira al dar de baja. Sin este middleware, un jugador dado de baja puede seguir operando hasta que el token expire naturalmente.
+
+**Diseño elegido:** middleware quirúrgico solo en rutas de jugador (no admin), para no agregar una query extra a cada request del sistema. El costo es mínimo y el beneficio es inmediato.
+
+---
+
 ## [2026-05-04] Onboarding de nuevos clientes — Alta manual (MVP)
 
 En lugar de registro self-service, el equipo PadelOS crea manualmente la cuenta de cada nuevo club.

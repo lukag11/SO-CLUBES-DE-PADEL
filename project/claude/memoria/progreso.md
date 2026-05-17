@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-14 (sesión turnos fijos — flujo manual completo + landing disponibilidad + nodemon)
+**Última actualización:** 2026-05-17 (sesión Jugadores admin — bloque completo + protección cuentas inactivas)
 
 ---
 
@@ -12,6 +12,7 @@
 | Login admin | ✅ Completo | Conectado al backend real. admin@club.com / 123456 |
 | Landing pública (5 templates) | ✅ Completo | Personalizable desde panel admin. Datos reales desde Supabase (clubs/:slug). Spinner mientras carga. Slots disponibilidad desde endpoint público. |
 | Dashboard admin completo | ✅ Completo | Stats, navegación, sidebar colapsable |
+| Jugadores admin (directorio) | ✅ Completo | Alta manual, edición, baja/reactivar, eliminar. Match por DNI al registrarse. requireActive middleware. |
 | Gestión reservas (admin) | ✅ Completo | Grilla semanal, aprobación, turnos fijos. Backend conectado. Política de cancelación con cargo automático. Fix: fetch usa JWT clubId (sin fallback hardcodeado). Scroll libre (sin h-full). |
 | Gestión pagos (admin) | ✅ Frontend completo | Registro de pagos por turno — falta backend |
 | Edición del club / Quiénes Somos | ✅ Completo | Logo, colores, plantillas, horarios, canchas |
@@ -572,6 +573,49 @@ El backend corría con código viejo (proceso Node.js iniciado antes de aplicar 
 ### Limpieza
 - Eliminados archivos basura en raíz creados por hooks de `@claude-flow/cli` (`t.activo`, `f.canchaId`, etc.)
 - Agregados `.claude-flow/`, `.swarm/` al `.gitignore`
+
+---
+
+## Último bloque completado (2026-05-17) — Jugadores admin: directorio completo + protección cuentas
+
+### Funcionalidades implementadas
+
+**Schema Prisma**
+- `Jugador`: `cuentaActiva Boolean @default(true)` y `password String?` (opcional para pre-registro)
+- `Jugador`: `activo Boolean @default(true)` para baja lógica (ya existía)
+
+**Backend — `routes/jugadores.js`**
+- `GET /` — lista todos los jugadores del club con `_count` de turnosFijos y reservas
+- `POST /` — alta manual (cuentaActiva: false, sin password)
+- `PATCH /:id` — edición de datos + acepta `activo: true/false`
+- `DELETE /:id` — eliminar jugadores sin cuenta (cuentaActiva: false)
+- Rutas de jugador añaden `requireActive` middleware
+
+**Backend — `middleware/auth.js`**
+- `requireActive` — verifica `activo: true` en DB antes de procesar rutas de jugador. Devuelve `{ error: 'cuenta_inactiva', message: '...' }` si inactivo.
+
+**Backend — `routes/auth.js`**
+- Registro: detecta DNI existente con `cuentaActiva: false` → merge (activa + asigna password) en vez de 409
+- Login: bloquea con 403 si `activo: false`, mensaje claro "Tu cuenta fue dada de baja. Contactá al club."
+
+**Frontend — `JugadoresAdminPage.jsx`** (nuevo archivo)
+- Lista con avatares de colores, estados visuales por bolita (verde/rojo/gradiente verde-amarillo)
+- `ModalAlta`: validación real-time (nombre/apellido bloquea números, DNI solo dígitos 7-8)
+- `ModalEditar`: misma validación, DNI bloqueado para activos
+- `DrawerJugador`: ficha completa con stats, contacto, estado y acciones (editar/dar de baja/reactivar/eliminar)
+- `ModalConfirm`: ventana custom para confirmar eliminación y baja (reemplaza `window.confirm`)
+- Filtros: todos / activos / sin cuenta / inactivos
+- Leyenda de colores + panel de ayuda (HelpCircle) con explicación de estados y match por DNI
+- Toast de confirmación en alta/edición/baja/reactivación
+
+**Frontend — `api.js`**
+- Detecta `error: 'cuenta_inactiva'` y dispara `CustomEvent('jugador:cuenta-inactiva')`
+
+**Frontend — `PlayerLayout.jsx`**
+- Escucha `jugador:cuenta-inactiva` → muestra modal rojo "Cuenta desactivada" → logout + redirect
+
+**Rutas nuevas:**
+- `/dashboardAdmin/jugadores` → JugadoresAdminPage
 
 ---
 

@@ -193,7 +193,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
         _count: {
           select: {
             turnosFijos: { where: { estado: 'confirmado' } },
-            reservas: { where: { estado: 'confirmada' } },
+            reservas: { where: { estado: 'confirmada', esTurnoFijo: false } },
           },
         },
       },
@@ -238,7 +238,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         _count: {
           select: {
             turnosFijos: { where: { estado: 'confirmado' } },
-            reservas: { where: { estado: 'confirmada' } },
+            reservas: { where: { estado: 'confirmada', esTurnoFijo: false } },
           },
         },
       },
@@ -274,7 +274,7 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
         _count: {
           select: {
             turnosFijos: { where: { estado: 'confirmado' } },
-            reservas: { where: { estado: 'confirmada' } },
+            reservas: { where: { estado: 'confirmada', esTurnoFijo: false } },
           },
         },
       },

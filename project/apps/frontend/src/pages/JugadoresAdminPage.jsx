@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Users, UserPlus, Search, CheckCircle, Clock, Phone, Mail,
-  ChevronRight, X, AlertCircle, Trophy, CalendarDays, Zap, Shield,
-  Pencil, Trash2, UserMinus, HelpCircle,
+  ChevronRight, ChevronDown, X, AlertCircle, Trophy, CalendarDays, Zap, Shield,
+  Pencil, Trash2, UserMinus, HelpCircle, Repeat,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
@@ -392,9 +392,51 @@ const ModalEditar = ({ jugador, onClose, onActualizado }) => {
 // ── Drawer detalle jugador ────────────────────────────────────────────────────
 const DrawerJugador = ({ jugador, onClose, onEditar, onEliminar, onDarDeBaja, onReactivar }) => {
   if (!jugador) return null
+  const adminToken = useAuthStore((s) => s.token)
   const gradient = avatarColor(jugador.id)
   const turnosFijos = jugador._count?.turnosFijos ?? 0
   const reservas = jugador._count?.reservas ?? 0
+
+  const [expandFijos, setExpandFijos] = useState(false)
+  const [expandReservas, setExpandReservas] = useState(false)
+  const [datosFijos, setDatosFijos] = useState(null)
+  const [datosReservas, setDatosReservas] = useState(null)
+  const [loadingFijos, setLoadingFijos] = useState(false)
+  const [loadingReservas, setLoadingReservas] = useState(false)
+
+  const toggleFijos = async () => {
+    const next = !expandFijos
+    setExpandFijos(next)
+    if (next && datosFijos === null) {
+      setLoadingFijos(true)
+      try {
+        const data = await api.get(`/turnos-fijos/jugador/${jugador.id}`, { Authorization: `Bearer ${adminToken}` })
+        setDatosFijos(Array.isArray(data) ? data : [])
+      } catch { setDatosFijos([]) }
+      finally { setLoadingFijos(false) }
+    }
+  }
+
+  const toggleReservas = async () => {
+    const next = !expandReservas
+    setExpandReservas(next)
+    if (next && datosReservas === null) {
+      setLoadingReservas(true)
+      try {
+        const data = await api.get(`/reservas/jugador/${jugador.id}`, { Authorization: `Bearer ${adminToken}` })
+        setDatosReservas(Array.isArray(data) ? data : [])
+      } catch { setDatosReservas([]) }
+      finally { setLoadingReservas(false) }
+    }
+  }
+
+  const DIAS_LABEL = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie', sabado: 'Sáb', domingo: 'Dom' }
+
+  const formatFechaCorta = (iso) => {
+    if (!iso) return ''
+    const [y, m, d] = iso.split('-')
+    return `${d}/${m}/${y}`
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:justify-end" onClick={onClose}>
@@ -447,22 +489,79 @@ const DrawerJugador = ({ jugador, onClose, onEditar, onEliminar, onDarDeBaja, on
           )}
         </div>
 
-        {/* Stats */}
-        <div className="px-6 pb-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="relative overflow-hidden p-4 rounded-2xl bg-violet-500/8 border border-violet-500/15">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-violet-500/10 rounded-full blur-xl -translate-y-1/2 translate-x-1/2" />
-              <CalendarDays size={18} className="text-violet-400 mb-2" />
-              <p className="text-white font-black text-3xl">{turnosFijos}</p>
-              <p className="text-white/35 text-xs mt-0.5">Turnos fijos</p>
+        {/* Stats expandibles */}
+        <div className="px-6 pb-4 flex flex-col gap-2">
+          {/* Card turnos fijos */}
+          <button
+            type="button"
+            onClick={toggleFijos}
+            className="relative overflow-hidden p-4 rounded-2xl bg-violet-500/8 border border-violet-500/15 hover:bg-violet-500/12 transition-all text-left w-full"
+          >
+            <div className="absolute top-0 right-0 w-16 h-16 bg-violet-500/10 rounded-full blur-xl -translate-y-1/2 translate-x-1/2" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Repeat size={16} className="text-violet-400" />
+                <span className="text-white/35 text-xs">Turnos fijos</span>
+              </div>
+              <ChevronDown size={14} className={`text-violet-400/60 transition-transform ${expandFijos ? 'rotate-180' : ''}`} />
             </div>
-            <div className="relative overflow-hidden p-4 rounded-2xl bg-brand-500/8 border border-brand-500/15">
-              <div className="absolute top-0 right-0 w-16 h-16 bg-brand-500/10 rounded-full blur-xl -translate-y-1/2 translate-x-1/2" />
-              <Trophy size={18} className="text-brand-400 mb-2" />
-              <p className="text-white font-black text-3xl">{reservas}</p>
-              <p className="text-white/35 text-xs mt-0.5">Reservas</p>
+            <p className="text-white font-black text-3xl mt-1">{turnosFijos}</p>
+          </button>
+          {expandFijos && (
+            <div className="rounded-2xl bg-violet-500/5 border border-violet-500/10 overflow-hidden">
+              {loadingFijos ? (
+                <p className="text-violet-300/40 text-xs text-center py-4">Cargando...</p>
+              ) : datosFijos?.length === 0 ? (
+                <p className="text-white/20 text-xs text-center py-4">Sin turnos fijos registrados</p>
+              ) : datosFijos?.map((t) => (
+                <div key={t.id} className="flex items-center justify-between px-4 py-3 border-b border-white/4 last:border-0">
+                  <div>
+                    <p className="text-white/80 text-xs font-semibold">{DIAS_LABEL[t.dia] ?? t.dia} · {t.inicio}–{t.fin}</p>
+                    <p className="text-white/30 text-[10px] mt-0.5">{t.canchaNombre}</p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${t.estado === 'confirmado' ? 'bg-violet-500/20 text-violet-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                    {t.estado === 'confirmado' ? 'Activo' : 'Pendiente'}
+                  </span>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
+
+          {/* Card reservas eventuales */}
+          <button
+            type="button"
+            onClick={toggleReservas}
+            className="relative overflow-hidden p-4 rounded-2xl bg-brand-500/8 border border-brand-500/15 hover:bg-brand-500/12 transition-all text-left w-full"
+          >
+            <div className="absolute top-0 right-0 w-16 h-16 bg-brand-500/10 rounded-full blur-xl -translate-y-1/2 translate-x-1/2" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CalendarDays size={16} className="text-brand-400" />
+                <span className="text-white/35 text-xs">Reservas</span>
+              </div>
+              <ChevronDown size={14} className={`text-brand-400/60 transition-transform ${expandReservas ? 'rotate-180' : ''}`} />
+            </div>
+            <p className="text-white font-black text-3xl mt-1">{reservas}</p>
+          </button>
+          {expandReservas && (
+            <div className="rounded-2xl bg-brand-500/5 border border-brand-500/10 overflow-hidden">
+              {loadingReservas ? (
+                <p className="text-brand-300/40 text-xs text-center py-4">Cargando...</p>
+              ) : datosReservas?.length === 0 ? (
+                <p className="text-white/20 text-xs text-center py-4">Sin reservas registradas</p>
+              ) : datosReservas?.map((r) => (
+                <div key={r.id} className="flex items-center justify-between px-4 py-3 border-b border-white/4 last:border-0">
+                  <div>
+                    <p className="text-white/80 text-xs font-semibold">{formatFechaCorta(r.fecha)} · {r.horaInicio}–{r.horaFin}</p>
+                    <p className="text-white/30 text-[10px] mt-0.5">{r.cancha?.nombre ?? ''}</p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${r.estado === 'confirmada' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-500/20 text-slate-300'}`}>
+                    {r.estado === 'confirmada' ? 'Confirmada' : r.estado}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Contacto */}

@@ -84,6 +84,20 @@ router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req
 })
 
 // ── GET /?clubId= — admin: todos los turnos del club ─────────────────────────
+// GET /api/turnos-fijos/jugador/:id   — admin ve los turnos fijos de un jugador específico
+router.get('/jugador/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const turnos = await prisma.turnoFijo.findMany({
+      where: { jugadorId: req.params.id, clubId: req.user.clubId, estado: { not: 'inactivo' } },
+      include: INCLUDE_CANCHA,
+      orderBy: [{ dia: 'asc' }, { horaInicio: 'asc' }],
+    })
+    res.json(turnos.map(mapTurno))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     const clubId = req.user.clubId  // siempre del JWT, ignorar query param

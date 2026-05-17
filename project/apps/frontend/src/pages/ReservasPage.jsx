@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
   ChevronLeft, ChevronRight, Plus, X, Save, Check,
   CalendarDays, DollarSign, Lock, Repeat, Clock,
@@ -18,6 +18,18 @@ import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
 import { overlaps, toMin, toTime } from '../utils/timeUtils'
 import InfoBlock from '../components/InfoBlock'
+
+// ─── Hook: hint de campo (mensaje amber que desaparece en 2s) ───────────────
+const useFieldHint = () => {
+  const [hint, setHint] = useState('')
+  const timer = useRef(null)
+  const show = useCallback((msg) => {
+    setHint(msg)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => setHint(''), 2000)
+  }, [])
+  return [hint, show]
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -603,6 +615,46 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
   const [buscando, setBuscando] = useState(false)
   const [errorNombre, setErrorNombre] = useState(false)
 
+  // Alta rápida de jugador
+  const [altaRapida, setAltaRapida] = useState(false)
+  const [altaForm, setAltaForm] = useState({ nombre: '', apellido: '', dni: '' })
+  const [altaErrors, setAltaErrors] = useState({ nombre: '', apellido: '', dni: '' })
+  const [altaGuardando, setAltaGuardando] = useState(false)
+  const [hintNombre, showHintNombre] = useFieldHint()
+  const [hintApellido, showHintApellido] = useFieldHint()
+  const [hintDni, showHintDni] = useFieldHint()
+  const [hintQuery, showHintQuery] = useFieldHint()
+
+  const setAltaField = (k, v) => {
+    setAltaForm((p) => ({ ...p, [k]: v }))
+    setAltaErrors((p) => ({ ...p, [k]: '' }))
+  }
+
+  const handleAltaRapida = async () => {
+    const errs = { nombre: '', apellido: '', dni: '' }
+    if (!altaForm.nombre.trim()) errs.nombre = 'El nombre es obligatorio'
+    else if (/\d/.test(altaForm.nombre)) errs.nombre = 'El nombre no puede contener números'
+    if (!altaForm.apellido.trim()) errs.apellido = 'El apellido es obligatorio'
+    else if (/\d/.test(altaForm.apellido)) errs.apellido = 'El apellido no puede contener números'
+    if (!altaForm.dni.trim()) errs.dni = 'El DNI es obligatorio'
+    else if (!/^\d{7,8}$/.test(altaForm.dni.trim())) errs.dni = 'El DNI debe tener 7 u 8 dígitos'
+    if (errs.nombre || errs.apellido || errs.dni) { setAltaErrors(errs); return }
+    setAltaGuardando(true)
+    try {
+      const nuevo = await api.post('/jugadores', altaForm, { Authorization: `Bearer ${adminToken}` })
+      setJugadorSel(nuevo)
+      setQuery('')
+      setResultados([])
+      setAltaRapida(false)
+      setAltaForm({ nombre: '', apellido: '', dni: '' })
+      setAltaErrors({ nombre: '', apellido: '', dni: '' })
+    } catch (err) {
+      setAltaErrors((p) => ({ ...p, dni: err.message || 'No se pudo dar de alta' }))
+    } finally {
+      setAltaGuardando(false)
+    }
+  }
+
   useEffect(() => {
     if (jugadorSel) return
     if (query.trim().length < 2) { setResultados([]); return }
@@ -621,13 +673,7 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
 
   const handleSave = () => {
     const esClase = form.tipo === 'clase'
-    const esFijo = form.tipo === 'fijo'
-    if (!esClase && !jugadorSel && !query.trim()) {
-      setErrorNombre(true)
-      return
-    }
-    // Para turno fijo: el jugador debe estar vinculado al sistema (no solo texto libre)
-    if (esFijo && !jugadorSel) {
+    if (!esClase && !jugadorSel) {
       setErrorNombre(true)
       return
     }
@@ -646,7 +692,7 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
         ? { dia: new Date().toLocaleDateString('es-AR', { weekday: 'long' }), hasta: form.recurrenciaHasta }
         : null,
       jugadorId: jugadorSel?.id ?? null,
-      jugadores: esClase ? [] : (jugadorSel ? [`${jugadorSel.nombre} ${jugadorSel.apellido}`] : [query.trim()]),
+      jugadores: esClase ? [] : (jugadorSel ? [`${jugadorSel.nombre} ${jugadorSel.apellido}`] : []),
       estado: 'confirmada',
       pago: esClase ? null : form.pago,
       monto: esClase ? 0 : Number(form.monto),
@@ -745,13 +791,19 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
                   type="text"
                   placeholder="Buscar por nombre o DNI..."
                   value={query}
-                  onChange={(e) => { setQuery(e.target.value); setResultados([]); setErrorNombre(false) }}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    const esSoloDni = /^\d+$/.test(raw)
+                    if (esSoloDni && raw.length > 8) { showHintQuery('El DNI tiene máximo 8 dígitos'); return }
+                    setQuery(raw); setResultados([]); setErrorNombre(false)
+                  }}
                   className={`w-full border rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:ring-2 ${
                     errorNombre
                       ? 'border-red-400 focus:border-red-400 focus:ring-red-400/10'
                       : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/10'
                   }`}
                 />
+                {hintQuery && <p className="text-amber-500 text-xs mt-1 animate-pulse">{hintQuery}</p>}
                 {buscando && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-slate-300 border-t-emerald-400 rounded-full animate-spin" />
                 )}
@@ -773,14 +825,86 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
                     ))}
                   </div>
                 )}
-                {query.trim().length >= 2 && !buscando && resultados.length === 0 && (
-                  <p className="mt-1.5 text-xs text-slate-400 px-1">
-                    {form.tipo === 'fijo' ? 'El jugador debe estar registrado en el sistema para crear un turno fijo' : 'No encontrado — se guardará como texto libre'}
-                  </p>
+                {query.trim().length >= 2 && !buscando && resultados.length === 0 && !altaRapida && (
+                  <div className="mt-1.5 flex items-center justify-between px-1">
+                    <p className="text-xs text-slate-400">No encontrado en el sistema</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+  const q = query.trim()
+  const esDni = /^\d{1,8}$/.test(q)
+  setAltaRapida(true)
+  setAltaForm({ nombre: esDni ? '' : q, apellido: '', dni: esDni ? q : '' })
+  setAltaErrors({ nombre: '', apellido: '', dni: '' })
+}}
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors"
+                    >
+                      + Dar de alta rápida
+                    </button>
+                  </div>
+                )}
+                {altaRapida && (
+                  <div className="mt-2 p-3 border border-emerald-200 bg-emerald-50 rounded-xl flex flex-col gap-2">
+                    <p className="text-xs font-semibold text-emerald-700">Alta rápida de jugador</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <input
+                          placeholder="Nombre *"
+                          value={altaForm.nombre}
+                          onChange={(e) => {
+                            const raw = e.target.value
+                            const filtered = raw.replace(/[0-9]/g, '')
+                            if (raw !== filtered) showHintNombre('El nombre no puede contener números')
+                            setAltaField('nombre', filtered)
+                          }}
+                          className={`w-full border rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all ${altaErrors.nombre ? 'border-red-400 focus:border-red-400 bg-red-50' : 'border-slate-200 focus:border-emerald-400'}`}
+                        />
+                        {hintNombre && <p className="text-[10px] text-amber-500 mt-0.5 animate-pulse">{hintNombre}</p>}
+                        {altaErrors.nombre && !hintNombre && <p className="text-[10px] text-red-500 mt-0.5">{altaErrors.nombre}</p>}
+                      </div>
+                      <div>
+                        <input
+                          placeholder="Apellido *"
+                          value={altaForm.apellido}
+                          onChange={(e) => {
+                            const raw = e.target.value
+                            const filtered = raw.replace(/[0-9]/g, '')
+                            if (raw !== filtered) showHintApellido('El apellido no puede contener números')
+                            setAltaField('apellido', filtered)
+                          }}
+                          className={`w-full border rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all ${altaErrors.apellido ? 'border-red-400 focus:border-red-400 bg-red-50' : 'border-slate-200 focus:border-emerald-400'}`}
+                        />
+                        {hintApellido && <p className="text-[10px] text-amber-500 mt-0.5 animate-pulse">{hintApellido}</p>}
+                        {altaErrors.apellido && !hintApellido && <p className="text-[10px] text-red-500 mt-0.5">{altaErrors.apellido}</p>}
+                      </div>
+                    </div>
+                    <div>
+                      <input
+                        placeholder="DNI (7 u 8 dígitos) *"
+                        value={altaForm.dni}
+                        maxLength={8}
+                        inputMode="numeric"
+                        onChange={(e) => setAltaField('dni', e.target.value.replace(/\D/g, ''))}
+                        className={`w-full border rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all ${altaErrors.dni ? 'border-red-400 focus:border-red-400 bg-red-50' : 'border-slate-200 focus:border-emerald-400'}`}
+                      />
+                      {altaErrors.dni && <p className="text-[10px] text-red-500 mt-0.5">{altaErrors.dni}</p>}
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <button type="button" onClick={() => { setAltaRapida(false); setAltaErrors({ nombre: '', apellido: '', dni: '' }) }} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Cancelar</button>
+                      <button
+                        type="button"
+                        onClick={handleAltaRapida}
+                        disabled={altaGuardando}
+                        className="text-xs font-semibold px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-all disabled:opacity-50"
+                      >
+                        {altaGuardando ? 'Guardando...' : 'Crear y seleccionar'}
+                      </button>
+                    </div>
+                  </div>
                 )}
                 {errorNombre && (
                   <p className="mt-1.5 text-xs text-red-500 px-1 font-medium">
-                    {form.tipo === 'fijo' ? 'Para turno fijo, seleccioná un jugador registrado del buscador' : 'Completá el nombre del jugador para continuar'}
+                    Seleccioná un jugador del buscador o usá "+ Dar de alta rápida"
                   </p>
                 )}
               </div>
@@ -937,6 +1061,8 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
   const tipoCfg = TIPO_CONFIG[reserva.tipo]
   const pagoCfg = reserva.pago ? PAGO_CONFIG[reserva.pago] : null
   const estadoCfg = ESTADO_CONFIG[reserva.estado]
+  // Turno ya terminó: bloquear acciones destructivas para preservar historial y cargos
+  const yaTermino = reserva.fecha && reserva.fin ? esPasado(reserva.fecha, reserva.fin) : false
 
   return (
     <div className="flex flex-col">
@@ -1059,6 +1185,12 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
       {/* Acciones — reservas normales */}
       {reserva.tipo !== 'bloqueado' && reserva.tipo !== 'clase' && reserva.estado !== 'cancelada' && (
         <div className="px-5 py-4 border-t border-slate-100 flex flex-col gap-2">
+          {yaTermino && (
+            <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+              <AlertCircle size={13} className="text-slate-400 shrink-0 mt-0.5" />
+              <p className="text-slate-500 text-xs">El turno ya finalizó. No se puede cancelar para preservar el historial y los cargos.</p>
+            </div>
+          )}
           {/* Botón aprobar: solo para reservas backend pendientes */}
           {reserva._backendId && reserva.estado === 'pendiente' && onAprobar && (
             <button
@@ -1079,8 +1211,13 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
             </button>
           )}
           <button
-            onClick={() => onCancelar(reserva.id)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors"
+            onClick={() => !yaTermino && onCancelar(reserva.id)}
+            disabled={yaTermino}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+              yaTermino
+                ? 'border-slate-200 text-slate-300 cursor-not-allowed bg-slate-50'
+                : 'border-red-200 text-red-500 hover:bg-red-50'
+            }`}
           >
             <Ban size={14} />
             {reserva.tipo === 'fijo' ? 'Liberar este día' : 'Cancelar reserva'}
@@ -1090,10 +1227,21 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
 
       {/* Acciones — clase */}
       {reserva.tipo === 'clase' && (
-        <div className="px-5 py-4 border-t border-slate-100">
+        <div className="px-5 py-4 border-t border-slate-100 flex flex-col gap-2">
+          {yaTermino && (
+            <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+              <AlertCircle size={13} className="text-slate-400 shrink-0 mt-0.5" />
+              <p className="text-slate-500 text-xs">La clase ya finalizó. No se puede cancelar.</p>
+            </div>
+          )}
           <button
-            onClick={() => onCancelar(reserva.id)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors"
+            onClick={() => !yaTermino && onCancelar(reserva.id)}
+            disabled={yaTermino}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+              yaTermino
+                ? 'border-slate-200 text-slate-300 cursor-not-allowed bg-slate-50'
+                : 'border-red-200 text-red-500 hover:bg-red-50'
+            }`}
           >
             <Ban size={14} />
             Cancelar clase
@@ -1210,6 +1358,36 @@ const EditarReserva = ({ reserva, onSave, onCancel }) => {
   const [resultados, setResultados] = useState([])
   const [buscando, setBuscando] = useState(false)
   const [errorNombre, setErrorNombre] = useState(false)
+  const [altaRapida, setAltaRapida] = useState(false)
+  const [altaForm, setAltaForm] = useState({ nombre: '', apellido: '', dni: '' })
+  const [altaErrors, setAltaErrors] = useState({ nombre: '', apellido: '', dni: '' })
+  const [altaGuardando, setAltaGuardando] = useState(false)
+  const [hintNombre, showHintNombre] = useFieldHint()
+  const [hintApellido, showHintApellido] = useFieldHint()
+  const [hintQuery, showHintQuery] = useFieldHint()
+
+  const setAltaField = (k, v) => {
+    setAltaForm((p) => ({ ...p, [k]: v }))
+    setAltaErrors((p) => ({ ...p, [k]: '' }))
+  }
+
+  const handleAltaRapida = async () => {
+    const errs = { nombre: '', apellido: '', dni: '' }
+    if (!altaForm.nombre.trim()) errs.nombre = 'El nombre es obligatorio'
+    else if (/\d/.test(altaForm.nombre)) errs.nombre = 'El nombre no puede contener números'
+    if (!altaForm.apellido.trim()) errs.apellido = 'El apellido es obligatorio'
+    else if (/\d/.test(altaForm.apellido)) errs.apellido = 'El apellido no puede contener números'
+    if (!altaForm.dni.trim()) errs.dni = 'El DNI es obligatorio'
+    else if (!/^\d{7,8}$/.test(altaForm.dni.trim())) errs.dni = 'El DNI debe tener 7 u 8 dígitos'
+    if (errs.nombre || errs.apellido || errs.dni) { setAltaErrors(errs); return }
+    setAltaGuardando(true)
+    try {
+      const nuevo = await api.post('/jugadores', altaForm, { Authorization: `Bearer ${adminToken}` })
+      setJugadorSel(nuevo); setQuery(''); setResultados([]); setAltaRapida(false)
+      setAltaForm({ nombre: '', apellido: '', dni: '' }); setAltaErrors({ nombre: '', apellido: '', dni: '' })
+    } catch (err) { setAltaErrors((p) => ({ ...p, dni: err.message || 'No se pudo dar de alta' })) }
+    finally { setAltaGuardando(false) }
+  }
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }))
 
@@ -1228,16 +1406,13 @@ const EditarReserva = ({ reserva, onSave, onCancel }) => {
   }, [query, jugadorSel, adminToken])
 
   const handleSave = () => {
-    if (!jugadorSel && !query.trim()) {
+    if (!jugadorSel) {
       setErrorNombre(true)
       return
     }
-    const jugadoresArr = jugadorSel
-      ? [`${jugadorSel.nombre} ${jugadorSel.apellido}`]
-      : query.trim() ? [query.trim()] : []
     onSave(reserva.id, {
-      jugadores: jugadoresArr,
-      jugadorId: jugadorSel?.id ?? null,
+      jugadores: [`${jugadorSel.nombre} ${jugadorSel.apellido}`],
+      jugadorId: jugadorSel.id,
       monto: Number(form.monto),
       pago: form.pago,
       metodoPago: form.metodoPago,
@@ -1280,13 +1455,19 @@ const EditarReserva = ({ reserva, onSave, onCancel }) => {
                 type="text"
                 placeholder="Buscar por nombre o DNI..."
                 value={query}
-                onChange={(e) => { setQuery(e.target.value); setErrorNombre(false) }}
+                onChange={(e) => {
+                  const raw = e.target.value
+                  const esSoloDni = /^\d+$/.test(raw)
+                  if (esSoloDni && raw.length > 8) { showHintQuery('El DNI tiene máximo 8 dígitos'); return }
+                  setQuery(raw); setErrorNombre(false)
+                }}
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:ring-2 ${
                   errorNombre
                     ? 'border-red-400 focus:border-red-400 focus:ring-red-400/10'
                     : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/10'
                 }`}
               />
+              {hintQuery && <p className="text-amber-500 text-xs mt-1 animate-pulse">{hintQuery}</p>}
               {buscando && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-slate-300 border-t-emerald-400 rounded-full animate-spin" />
               )}
@@ -1305,13 +1486,90 @@ const EditarReserva = ({ reserva, onSave, onCancel }) => {
                     </button>
                   ))}
                   {!buscando && resultados.length === 0 && query.trim().length >= 2 && (
-                    <p className="px-3 py-2 text-xs text-slate-400">No encontrado — se guardará como texto libre</p>
+                    <div className="px-3 py-2">
+                      <p className="text-xs text-slate-400 mb-1">No encontrado en el sistema</p>
+                      <button
+                        type="button"
+                        onClick={() => setAltaRapida((v) => !v)}
+                        className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+                      >
+                        <span>+</span> Dar de alta rápida
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
               {errorNombre && (
-                <p className="mt-1.5 text-xs text-red-500 px-1 font-medium">Completá el nombre del jugador para continuar</p>
+                <p className="mt-1.5 text-xs text-red-500 px-1 font-medium">Seleccioná un jugador del buscador o usá "+ Dar de alta rápida"</p>
               )}
+            </div>
+          )}
+          {altaRapida && !jugadorSel && (
+            <div className="mt-2 p-3 border border-emerald-200 bg-emerald-50 rounded-xl flex flex-col gap-2">
+              <p className="text-xs font-semibold text-emerald-800">Alta rápida de jugador</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Nombre *"
+                    value={altaForm.nombre}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      const filtered = raw.replace(/[0-9]/g, '')
+                      if (raw !== filtered) showHintNombre('El nombre no puede contener números')
+                      setAltaField('nombre', filtered)
+                    }}
+                    className={`w-full border rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all ${altaErrors.nombre ? 'border-red-400 focus:border-red-400 bg-red-50' : 'border-slate-200 focus:border-emerald-400'}`}
+                  />
+                  {hintNombre && <p className="text-[10px] text-amber-500 mt-0.5 animate-pulse">{hintNombre}</p>}
+                  {altaErrors.nombre && !hintNombre && <p className="text-[10px] text-red-500 mt-0.5">{altaErrors.nombre}</p>}
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Apellido *"
+                    value={altaForm.apellido}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      const filtered = raw.replace(/[0-9]/g, '')
+                      if (raw !== filtered) showHintApellido('El apellido no puede contener números')
+                      setAltaField('apellido', filtered)
+                    }}
+                    className={`w-full border rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all ${altaErrors.apellido ? 'border-red-400 focus:border-red-400 bg-red-50' : 'border-slate-200 focus:border-emerald-400'}`}
+                  />
+                  {hintApellido && <p className="text-[10px] text-amber-500 mt-0.5 animate-pulse">{hintApellido}</p>}
+                  {altaErrors.apellido && !hintApellido && <p className="text-[10px] text-red-500 mt-0.5">{altaErrors.apellido}</p>}
+                </div>
+              </div>
+              <div>
+                <input
+                  type="text"
+                  placeholder="DNI * (7 u 8 dígitos)"
+                  value={altaForm.dni}
+                  maxLength={8}
+                  inputMode="numeric"
+                  onChange={(e) => setAltaField('dni', e.target.value.replace(/\D/g, ''))}
+                  className={`w-full border rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all ${altaErrors.dni ? 'border-red-400 focus:border-red-400 bg-red-50' : 'border-slate-200 focus:border-emerald-400'}`}
+                />
+                {altaErrors.dni && <p className="text-[10px] text-red-500 mt-0.5">{altaErrors.dni}</p>}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleAltaRapida}
+                  disabled={altaGuardando}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold py-2 rounded-lg transition-colors"
+                >
+                  {altaGuardando ? 'Guardando...' : 'Dar de alta y seleccionar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAltaRapida(false); setAltaForm({ nombre: '', apellido: '', dni: '' }); setAltaErrors({ nombre: '', apellido: '', dni: '' }) }}
+                  className="px-3 py-2 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
             </div>
           )}
         </div>

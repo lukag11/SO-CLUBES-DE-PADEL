@@ -47,6 +47,25 @@ router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req
   }
 })
 
+// GET /api/reservas/jugador/:id   — admin ve el historial de reservas eventuales de un jugador
+router.get('/jugador/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const reservas = await prisma.reserva.findMany({
+      where: {
+        jugadorId: req.params.id,
+        clubId: req.user.clubId,
+        esTurnoFijo: false,
+        estado: { not: 'cancelada' },
+      },
+      include: { cancha: { select: { nombre: true } } },
+      orderBy: [{ fecha: 'desc' }, { horaInicio: 'asc' }],
+    })
+    res.json(reservas)
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener reservas del jugador' })
+  }
+})
+
 // GET /api/reservas/pendientes   — admin ve todas las reservas pendientes de aprobación
 router.get('/pendientes', requireAuth, requireRole('admin'), async (req, res) => {
   try {

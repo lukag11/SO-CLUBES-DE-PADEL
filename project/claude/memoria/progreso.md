@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-17 (sesión 2 — alta rápida reservas, validación form, historial drawer, fixes grilla)
+**Última actualización:** 2026-05-17 (sesión 3 — filtros TF admin, fix horario propio landing + grilla, cancha liberada real)
 
 ---
 
@@ -128,6 +128,34 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-05-17 sesión 3) — Fixes grilla, landing y admin TF
+
+### Funcionalidades implementadas
+
+**Filtros en tabla "Turnos fijos — jugadores" (admin)**
+- Buscador de texto: filtra por nombre de jugador en tiempo real
+- Chips de día: muestra solo los días que tienen TF activos; clic para activar/desactivar
+- Dropdown de cancha: visible solo si hay más de una cancha en uso
+- Botón "Limpiar": aparece solo cuando hay algún filtro activo
+- Contador adaptativo: "3 de 6" con filtros, "6 registrados" sin filtros
+- Estado vacío diferenciado: "No hay TF aprobados" vs "Sin resultados para los filtros aplicados"
+
+**Fix: landing — horario propio de cancha**
+- `TurnosDisponibles` en `LandingSections.jsx`: `dataPorCancha` ahora usa `c.horarios?.[diaNombreLargo]` para cada cancha si está activo; hereda el horario general del club si no
+- Eliminado el early return `if (!horarioDia?.activo) return []` — reemplazado por filter per-cancha con `.filter(Boolean)`
+- Cancha 2 con horario propio muestra sus propios slots; Cancha 1 sin personalizar usa el horario general
+
+**Fix: grilla admin — turnosFijosDia en cancha con horario propio**
+- Causa raíz: `franjaParaHora(t.inicio)` usaba `franjasMainGrilla` (horario general 07:30 base) para posicionar el TurnoFijo en la grilla. Si el club usaba franjas de 07:30, "15:30" se mapeaba a 15:00-16:30 (general) que solapaba con la franja custom 14:00-15:30, haciendo aparecer el TF una fila arriba
+- Fix: `turnosFijosDia` usa `t.inicio` y `t.fin` directamente (los TurnoFijos ya tienen horas exactas en DB). Eliminado `franjasMainGrilla` de las dependencias del memo
+
+**Fix: "CANCHA LIBERADA" — eliminar simulación al montar**
+- Antes: al montar el componente, se elegía un slot libre aleatorio y se mostraba como "CANCHA LIBERADA hace instantes" (demo fake)
+- Ahora: solo se muestran liberaciones reales (cuando el poll de 30s detecta transición ocupado → libre)
+- La detección real de liberaciones (comparación entre polls) se mantiene intacta
 
 ---
 

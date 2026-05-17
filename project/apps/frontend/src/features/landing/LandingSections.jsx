@@ -470,35 +470,31 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
   }, [fechaStr])
 
   const dataPorCancha = useMemo(() => {
-    if (!horarioDia?.activo) return []
     // Argentina = UTC-3, sin DST
     const ahoraArg = new Date(Date.now() - 3 * 60 * 60 * 1000)
     const minAhora = ahoraArg.getUTCHours() * 60 + ahoraArg.getUTCMinutes()
     const esHoy = diaOffset === 0
-    return canchasActivas.map((c) => {
-      const slots = calcSlots(horarioDia, c.id, ocupados).map((s) => ({
-        ...s,
-        pasado: esHoy && toMin(s.inicio) <= minAhora,
-      }))
-      return { cancha: c, slots, libres: slots.filter((s) => s.libre && !s.pasado).length }
-    })
-  }, [canchasActivas, horarioDia, ocupados, diaOffset])
+    return canchasActivas
+      .map((c) => {
+        // Usa el horario propio de la cancha si está activo para este día; si no, hereda el del club
+        const canchaHorarioDia = c.horarios?.[diaNombreLargo]
+        const horarioEfectivo = (canchaHorarioDia?.activo ? canchaHorarioDia : null) ?? horarioDia
+        if (!horarioEfectivo?.activo) return null
+        const slots = calcSlots(horarioEfectivo, c.id, ocupados).map((s) => ({
+          ...s,
+          pasado: esHoy && toMin(s.inicio) <= minAhora,
+        }))
+        return { cancha: c, slots, libres: slots.filter((s) => s.libre && !s.pasado).length }
+      })
+      .filter(Boolean)
+  }, [canchasActivas, horarioDia, diaNombreLargo, ocupados, diaOffset])
 
   const totalLibres = dataPorCancha.reduce((sum, d) => sum + d.libres, 0)
 
-  // Detectar transiciones ocupado → libre (y simular una al montar para demo)
+  // Detectar transiciones reales ocupado → libre entre polls (cada 30s)
   useEffect(() => {
     if (!prevDataRef.current) {
       prevDataRef.current = dataPorCancha
-      if (diaOffset === 0 && dataPorCancha.length > 0) {
-        const libres = dataPorCancha.flatMap((d) =>
-          d.slots.filter((s) => s.libre && !s.pasado).map((s) => ({ canchaId: d.cancha.id, canchaNombre: d.cancha.nombre, slot: s }))
-        )
-        if (libres.length > 0) {
-          const pick = libres[Math.floor(Math.random() * libres.length)]
-          setRecentlyFreed([{ ...pick, freeSince: Date.now() }])
-        }
-      }
       return
     }
     const nuevos = []

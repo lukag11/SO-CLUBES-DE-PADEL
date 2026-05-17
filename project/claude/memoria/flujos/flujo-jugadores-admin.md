@@ -113,3 +113,35 @@ Rutas protegidas: reservas, turnos-fijos, jugadores/me, notificaciones, torneos,
 
 `POST /auth/jugador/login` verifica `activo` después de validar password:
 - `!jugador.activo` → 403 "Tu cuenta fue dada de baja. Contactá al club."
+
+---
+
+## Historial expandible en drawer (2026-05-17)
+
+El drawer de un jugador muestra dos cards colapsables: "Turnos fijos" y "Reservas eventuales".
+
+- Al primer click se hace un fetch on-demand al endpoint correspondiente
+- Los datos quedan cacheados en estado local del drawer (no se re-fetchean al volver a abrir)
+- Cada item muestra: día (TF) o fecha (reservas), horario inicio–fin, nombre de cancha, badge de estado
+- Implementado con `ChevronDown` con rotación animada + `Repeat` (ícono turnos fijos)
+
+**Endpoints usados:**
+- `GET /api/turnos-fijos/jugador/:id` — TF no inactivos del jugador
+- `GET /api/reservas/jugador/:id` — reservas eventuales no canceladas del jugador
+
+---
+
+## Fix conteo doble (_count.reservas)
+
+El backend incluye en el select de todos los endpoints de jugadores:
+```js
+_count: { select: { reservas: { where: { estado: 'confirmada', esTurnoFijo: false } } } }
+```
+
+Sin este filtro, cuando el admin creaba un turno fijo manual el backend generaba una `Reserva(esTurnoFijo:true)` + un `TurnoFijo`, y ambos se contaban, mostrando "1 fijo + 1 reserva" incorrectamente.
+
+---
+
+## Alta rápida — jugador sin cuenta
+
+Ver `flujo-reservas-eventuales.md` — sección "Alta rápida inline". El jugador creado vía alta rápida aparece en este directorio con `cuentaActiva: false`. Puede ser buscado, editado y dado de alta como cualquier pre-registro.

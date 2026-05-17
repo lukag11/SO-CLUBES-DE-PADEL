@@ -144,6 +144,24 @@ Al hacer cambios responsive, solo modificar el comportamiento mobile (clases bas
 
 ---
 
+## [2026-05-17] Buscador de jugadores — solo acepta selección real
+
+El campo "A nombre de" en los formularios de reserva y turno fijo no acepta texto libre para confirmar. Siempre se requiere un `jugadorSel` (elegido de resultados de búsqueda o creado vía alta rápida). Intentar guardar sin selección → error "Seleccioná un jugador".
+
+**Motivo:** Texto libre no crea FK en la reserva. Sin `jugadorId`, no hay historial, ni posibilidad de cargar deuda al jugador correcto.
+
+---
+
+## [2026-05-17] Botones destructivos bloqueados post-turno
+
+Si `esPasado(reserva.fecha, reserva.fin) === true` (el turno ya terminó):
+- "Cancelar reserva", "Liberar este día" y "Asignar clase" quedan `disabled` con estilo gris
+- "Marcar como pagado" permanece activo
+
+**Motivo:** Cancelar un turno ya jugado elimina el registro y hace imposible cobrar el cargo. El historial y los cargos deben conservarse.
+
+---
+
 ## [2026-05-04] Navegación mobile admin — Híbrida (bottom nav + hamburger)
 
 Admin mobile usa bottom nav fija (5 ítems) + hamburger que abre el sidebar completo como drawer.

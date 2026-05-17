@@ -1,6 +1,6 @@
 # Features — Estado actual
 
-**Actualizado:** 2026-05-17
+**Actualizado:** 2026-05-17 (sesión 3)
 
 ---
 
@@ -22,6 +22,8 @@
 - **Historial en drawer jugador**: cards de Turnos fijos y Reservas expandibles con detalle (fecha, cancha, horario, estado)
 - **Endpoints nuevos**: `GET /reservas/jugador/:id` y `GET /turnos-fijos/jugador/:id` (admin — historial por jugador)
 - **Fix conteo doble**: `_count.reservas` excluye `esTurnoFijo:true` en directorio de jugadores
+- **Filtros en tabla TF admin**: buscador por jugador + chips de día + dropdown de cancha (con contador adaptativo)
+- **Fix grilla horario propio**: `turnosFijosDia` usa `t.inicio`/`t.fin` directamente en lugar de `franjaParaHora` — elimina posicionamiento incorrecto en canchas con horario personalizado
 
 ## Usuarios / Jugadores ✅ Completo
 
@@ -89,6 +91,8 @@
 - Disponibilidad de canchas en tiempo real
 - Turnos fijos incluidos en disponibilidad
 - 5 templates personalizables
+- **Horario propio por cancha**: si la cancha tiene `horarios` personalizados activos para ese día, la landing usa esos slots en lugar del horario general del club
+- **"Cancha liberada" real**: solo aparece cuando un slot genuinamente pasa de ocupado → libre entre polls (eliminada la simulación aleatoria al montar)
 
 ## Responsive design 🔄 En progreso
 

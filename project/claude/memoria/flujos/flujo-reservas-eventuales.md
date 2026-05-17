@@ -58,3 +58,40 @@ Store: `reservasStore` · Reglas aplicadas: RN-07 a RN-12, RN-52.
 | `pendiente` | Enviada por jugador, esperando aprobación admin |
 | `confirmada` | Aprobada por admin (`_aprobadoPorAdmin: true`) |
 | `cancelada` | Cancelada por el jugador |
+
+---
+
+## Alta rápida inline (admin — formulario de reserva/TF)
+
+Cuando el admin crea una reserva manual y el jugador no existe en el sistema, puede darlo de alta directamente desde el formulario sin salir del flujo:
+
+1. Admin escribe nombre o DNI en el campo "A nombre de"
+2. Si no hay coincidencias → aparece botón "Dar de alta rápida"
+3. Mini-formulario inline: nombre, apellido, DNI (máx 8 dígitos)
+4. Pre-fill inteligente: si el texto del buscador es todo dígitos → va al campo DNI; si es texto → va al campo nombre
+5. Validación en tiempo real: nombre/apellido solo letras (bloquea dígitos con hint ámbar 2s), DNI máx 8 dígitos
+6. Al confirmar alta rápida: `POST /api/jugadores` con `{ cuentaActiva: false }` → crea el jugador
+7. El jugador queda automáticamente seleccionado para la reserva (`jugadorSel`)
+8. El formulario puede continuar normalmente
+
+**Regla clave:** el campo "A nombre de" no acepta texto libre. Siempre se requiere un `jugadorSel` (seleccionado de resultados o creado vía alta rápida). Si el admin intenta confirmar sin selección → error bloqueante.
+
+---
+
+## Acciones bloqueadas post-turno (yaTermino)
+
+Una vez que la hora de fin de la reserva ya pasó (`esPasado(reserva.fecha, reserva.fin) === true`):
+
+- **Deshabilitados:** "Cancelar reserva", "Liberar este día", "Asignar clase"
+- **Habilitados:** "Marcar como pagado" (sigue activo para no perder cobros pendientes)
+- Banner informativo: "Este turno ya finalizó — no se puede modificar para preservar historial y cargos"
+
+**Motivo:** Cancelar un turno ya jugado eliminaría el registro histórico y haría imposible cobrar el cargo.
+
+---
+
+## Endpoints admin — historial por jugador
+
+`GET /api/reservas/jugador/:id` — reservas eventuales (no TF, no canceladas) de un jugador, para cualquier admin del club. Ordenado por fecha desc.
+
+`GET /api/turnos-fijos/jugador/:id` — turnos fijos (no inactivos) de un jugador. Ordenado por día y hora.

@@ -2130,6 +2130,33 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
   const fijos = turnosFijosJugadores.filter((t) => t.activo)
   const pendientes = turnosFijosJugadores.filter((t) => t.estado === 'pendiente')
   const hoy = todayISO()
+
+  // ── Filtros ────────────────────────────────────────────────────────────────
+  const [filtroBusqueda, setFiltroBusqueda] = useState('')
+  const [filtroDia, setFiltroDia] = useState('')
+  const [filtroCancha, setFiltroCancha] = useState('')
+
+  const diasEnUso = useMemo(() => {
+    const set = new Set(fijos.map((t) => t.dia))
+    return ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'].filter((d) => set.has(d))
+  }, [fijos])
+
+  const canchasEnUso = useMemo(() => {
+    const map = new Map()
+    fijos.forEach((t) => { if (t.canchaNombre) map.set(t.canchaNombre, t.canchaNombre) })
+    return [...map.keys()].sort()
+  }, [fijos])
+
+  const fijosFiltrados = useMemo(() => {
+    const q = filtroBusqueda.trim().toLowerCase()
+    return fijos.filter((t) => {
+      if (q && !(t.jugador || '').toLowerCase().includes(q)) return false
+      if (filtroDia && t.dia !== filtroDia) return false
+      if (filtroCancha && t.canchaNombre !== filtroCancha) return false
+      return true
+    })
+  }, [fijos, filtroBusqueda, filtroDia, filtroCancha])
+
   const [mostrarForm, setMostrarForm] = useState(false)
   const [formClase, setFormClase] = useState(() => makeEmptyClase(canchas, franjas))
   const [errorForm, setErrorForm] = useState('')
@@ -2276,11 +2303,73 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
             <Repeat size={15} className="text-violet-500" />
             <span className="text-slate-700 font-semibold text-sm">Turnos fijos — jugadores</span>
           </div>
-          <span className="text-slate-400 text-xs">{fijos.length} registrados</span>
+          <span className="text-slate-400 text-xs">
+            {fijosFiltrados.length !== fijos.length
+              ? `${fijosFiltrados.length} de ${fijos.length}`
+              : `${fijos.length} registrados`}
+          </span>
         </div>
+
+        {/* Barra de filtros */}
+        {fijos.length > 0 && (
+          <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center gap-2">
+            {/* Buscador jugador */}
+            <input
+              type="text"
+              value={filtroBusqueda}
+              onChange={(e) => setFiltroBusqueda(e.target.value)}
+              placeholder="Buscar jugador…"
+              className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 placeholder-slate-300 focus:outline-none focus:border-violet-300 w-44"
+            />
+
+            {/* Chips de día */}
+            <div className="flex items-center gap-1">
+              {diasEnUso.map((dia) => (
+                <button
+                  key={dia}
+                  onClick={() => setFiltroDia((prev) => prev === dia ? '' : dia)}
+                  className={[
+                    'px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors',
+                    filtroDia === dia
+                      ? 'bg-violet-500 text-white border-violet-500'
+                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-violet-300 hover:text-violet-600',
+                  ].join(' ')}
+                >
+                  {DIAS_LABEL[dia].slice(0, 3)}
+                </button>
+              ))}
+            </div>
+
+            {/* Dropdown cancha (solo si hay más de una) */}
+            {canchasEnUso.length > 1 && (
+              <select
+                value={filtroCancha}
+                onChange={(e) => setFiltroCancha(e.target.value)}
+                className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-600 focus:outline-none focus:border-violet-300 bg-white"
+              >
+                <option value="">Todas las canchas</option>
+                {canchasEnUso.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Limpiar filtros */}
+            {(filtroBusqueda || filtroDia || filtroCancha) && (
+              <button
+                onClick={() => { setFiltroBusqueda(''); setFiltroDia(''); setFiltroCancha('') }}
+                className="text-xs text-slate-400 hover:text-slate-600 underline transition-colors ml-1"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
+        )}
 
         {fijos.length === 0 ? (
           <div className="px-5 py-10 text-center text-slate-400 text-sm">No hay turnos fijos aprobados aún</div>
+        ) : fijosFiltrados.length === 0 ? (
+          <div className="px-5 py-10 text-center text-slate-400 text-sm">Sin resultados para los filtros aplicados</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -2292,7 +2381,7 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {fijos.map((t) => (
+                {fijosFiltrados.map((t) => (
                     <tr key={t.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -2657,24 +2746,21 @@ const ReservasPage = () => {
           overlaps(r.horaInicio, r.horaFin, t.inicio, t.fin)
         )
       )
-      .map((t) => {
-        const f = franjaParaHora(t.inicio)
-        return {
-          id: `fijo_player_${t.id}`,
-          canchaId: t.canchaId,
-          fecha,
-          inicio: f.inicio,
-          fin: f.fin,
-          tipo: 'fijo',
-          jugadores: [t.jugador || t.canchaNombre],
-          pago: 'pendiente',
-          monto: t.precio,
-          estado: 'confirmada',
-          notas: 'Turno fijo jugador',
-          recurrencia: { dia: t.dia, hasta: '2099-12-31' },
-        }
-      })
-  , [turnosFijos, diaSemanaFecha, fecha, reservasBackend, franjasMainGrilla])
+      .map((t) => ({
+        id: `fijo_player_${t.id}`,
+        canchaId: t.canchaId,
+        fecha,
+        inicio: t.inicio,
+        fin: t.fin,
+        tipo: 'fijo',
+        jugadores: [t.jugador || t.canchaNombre],
+        pago: 'pendiente',
+        monto: t.precio,
+        estado: 'confirmada',
+        notas: 'Turno fijo jugador',
+        recurrencia: { dia: t.dia, hasta: '2099-12-31' },
+      }))
+  , [turnosFijos, diaSemanaFecha, fecha, reservasBackend])
 
   // Reservas del backend transformadas, excluyendo canceladas y las que ya están en el store local
   const reservasBackendDia = useMemo(

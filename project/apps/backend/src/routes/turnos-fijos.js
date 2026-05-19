@@ -48,6 +48,29 @@ const mapTurno = (t) => ({
   notas: t.notas ?? '',
 })
 
+// ── GET /slots-dia?fecha=YYYY-MM-DD — profesor: TurnosFijos ocupados del club para una fecha concreta ──
+router.get('/slots-dia', requireAuth, requireRole('profesor'), async (req, res) => {
+  const { fecha } = req.query
+  if (!fecha) return res.status(400).json({ error: 'fecha requerida' })
+  const clubId = req.user.clubId
+  if (!clubId) return res.json([])
+  try {
+    const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+    const [fy, fm, fd] = fecha.split('-').map(Number)
+    const dia = DIAS[new Date(fy, fm - 1, fd).getDay()]
+    const turnos = await prisma.turnoFijo.findMany({
+      where: { clubId, dia, estado: 'confirmado' },
+      select: { canchaId: true, horaInicio: true, horaFin: true, diasAusentes: true, desde: true },
+    })
+    const slots = turnos
+      .filter((t) => !t.diasAusentes.includes(fecha) && (!t.desde || t.desde <= fecha))
+      .map(({ canchaId, horaInicio, horaFin }) => ({ canchaId, inicio: horaInicio, fin: horaFin }))
+    res.json(slots)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // ── GET /slots-ocupados?clubId= — jugador: slots bloqueados por turnos fijos del club (sin datos personales) ──
 router.get('/slots-ocupados', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   try {

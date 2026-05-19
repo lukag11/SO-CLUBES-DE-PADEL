@@ -306,6 +306,7 @@ const ProfesorAgendaPage = () => {
   const [windowStart, setWindowStart] = useState(todayISO())
   const [misClases, setMisClases] = useState([])
   const [todasReservasDia, setTodasReservasDia] = useState([])
+  const [turnosFijosDia, setTurnosFijosDia] = useState([])
   const [modalNueva, setModalNueva] = useState(false)
   const [claseEliminar, setClaseEliminar] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -329,6 +330,14 @@ const ProfesorAgendaPage = () => {
       if (Array.isArray(data)) setTodasReservasDia(data.map(normalizar))
     } catch {}
   }, [token, profesor?.clubId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchTurnosFijosDia = useCallback(async (f) => {
+    if (!token) return
+    try {
+      const data = await api.get(`/turnos-fijos/slots-dia?fecha=${f}`, headers)
+      if (Array.isArray(data)) setTurnosFijosDia(data)
+    } catch {}
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSemana = useCallback(async (diasArr) => {
     if (!token) return
@@ -369,8 +378,10 @@ const ProfesorAgendaPage = () => {
 
   useEffect(() => {
     setMisClases([])
+    setTurnosFijosDia([])
     fetchMisClases(fecha)
     fetchTodasDia(fecha)
+    fetchTurnosFijosDia(fecha)
   }, [fecha]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const franjasDelDia = useMemo(() => {
@@ -694,7 +705,7 @@ const ProfesorAgendaPage = () => {
           fecha={fecha}
           onClose={() => setModalNueva(false)}
           onSave={handleCrearClase}
-          reservasDelDia={todasReservasDia}
+          reservasDelDia={[...todasReservasDia, ...turnosFijosDia]}
           canchasDisponibles={canchasHabilitadas}
           franjasDelDia={franjasDelDia}
           submitting={submitting}

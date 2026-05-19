@@ -85,10 +85,31 @@ router.get('/pendientes', requireAuth, requireRole('admin'), async (req, res) =>
   }
 })
 
-// GET /api/reservas?fecha=   — admin usa su clubId del JWT; jugador pasa clubId como query
+// GET /api/reservas/profesor/mis-clases — profesor ve sus clases (opcionalmente filtradas por fecha)
+router.get('/profesor/mis-clases', requireAuth, requireRole('profesor'), async (req, res) => {
+  const { fecha } = req.query
+  try {
+    const where = {
+      profesorId: req.user.id,
+      clubId: req.user.clubId,
+      estado: { not: 'cancelada' },
+    }
+    if (fecha) where.fecha = fecha
+    const reservas = await prisma.reserva.findMany({
+      where,
+      include: { cancha: true },
+      orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
+    })
+    res.json(reservas)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener clases del profesor' })
+  }
+})
+
+// GET /api/reservas?fecha=   — admin usa su clubId del JWT; jugador y profesor pasan clubId como query
 router.get('/', requireAuth, async (req, res) => {
   const { fecha } = req.query
-  // Admin: clubId viene del JWT (seguro). Jugador/otro: acepta query param.
   const clubId = req.user.role === 'admin' ? req.user.clubId : req.query.clubId
   if (!clubId) return res.status(400).json({ error: 'clubId requerido' })
 
@@ -98,7 +119,11 @@ router.get('/', requireAuth, async (req, res) => {
 
     const reservas = await prisma.reserva.findMany({
       where,
-      include: { cancha: true, jugador: { select: { id: true, nombre: true, apellido: true, dni: true } } },
+      include: {
+        cancha: true,
+        jugador: { select: { id: true, nombre: true, apellido: true, dni: true } },
+        profesor: { select: { id: true, nombre: true, apellido: true } },
+      },
       orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
     })
     res.json(reservas)
@@ -192,6 +217,101 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al crear reserva' })
+  }
+})
+
+// POST /api/reservas/profesor   — profesor crea una clase en su agenda
+router.post('/profesor', requireAuth, requireRole('profesor'), async (req, res) => {
+  const { canchaId, fecha, horaInicio, horaFin, precio, notas, jugadores } = req.body
+  const { id: profesorId, clubId } = req.user
+
+  if (!canchaId || !fecha || !horaInicio || !horaFin) {
+    return res.status(400).json({ error: 'Faltan campos requeridos' })
+  }
+
+  try {
+    const cancha = await prisma.cancha.findFirst({ where: { id: canchaId, clubId, activo: true } })
+    if (!cancha) return res.status(404).json({ error: 'Cancha no encontrada' })
+
+    // Verificar que el profesor tenga asignada esa cancha
+    const profesor = await prisma.profesor.findUnique({ where: { id: profesorId } })
+    if (!profesor || (profesor.canchasIds.length > 0 && !profesor.canchasIds.includes(canchaId))) {
+      return res.status(403).json({ error: 'No tenés asignada esa cancha' })
+    }
+
+    const existentes = await prisma.reserva.findMany({
+      where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
+    })
+    const hayConflicto = existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
+    if (hayConflicto) return res.status(409).json({ error: 'El horario ya está reservado' })
+
+    const reserva = await prisma.reserva.create({
+      data: {
+        clubId,
+        canchaId,
+        profesorId,
+        fecha,
+        horaInicio,
+        horaFin,
+        tipo: 'clase',
+        estado: 'confirmada',
+        precio: precio ? parseFloat(precio) : null,
+        jugadores: jugadores ?? [],
+        notas: notas || '',
+      },
+      include: { cancha: true },
+    })
+    res.status(201).json(reserva)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al crear clase' })
+  }
+})
+
+// POST /api/reservas/admin/clase-profesor — admin crea una clase en nombre de un profesor
+router.post('/admin/clase-profesor', requireAuth, requireRole('admin'), async (req, res) => {
+  const { profesorId, canchaId, fecha, horaInicio, horaFin, notas, precio } = req.body
+  const clubId = req.user.clubId
+
+  if (!profesorId || !canchaId || !fecha || !horaInicio || !horaFin) {
+    return res.status(400).json({ error: 'Faltan campos requeridos' })
+  }
+
+  try {
+    // Verificar que el profesor pertenece al club
+    const profesor = await prisma.profesor.findFirst({ where: { id: profesorId, clubId } })
+    if (!profesor) return res.status(404).json({ error: 'Profesor no encontrado' })
+
+    const cancha = await prisma.cancha.findFirst({ where: { id: canchaId, clubId, activo: true } })
+    if (!cancha) return res.status(404).json({ error: 'Cancha no encontrada' })
+
+    // Verificar solapamiento
+    const existentes = await prisma.reserva.findMany({
+      where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
+    })
+    const hayConflicto = existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
+    if (hayConflicto) return res.status(409).json({ error: 'El horario ya está ocupado en esa cancha' })
+
+    const reserva = await prisma.reserva.create({
+      data: {
+        clubId,
+        canchaId,
+        profesorId,
+        fecha,
+        horaInicio,
+        horaFin,
+        tipo: 'clase',
+        estado: 'confirmada',
+        precio: precio ? parseFloat(precio) : null,
+        jugadores: [],
+        notas: notas || '',
+      },
+      include: { cancha: true },
+    })
+    res.status(201).json(reserva)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al crear clase' })
   }
 })
 
@@ -446,6 +566,13 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
     if (!['pendiente', 'confirmada'].includes(reserva.estado)) {
       return res.status(400).json({ error: 'La reserva ya está cancelada' })
+    }
+
+    // Profesor solo puede cancelar sus propias clases
+    if (req.user.role === 'profesor') {
+      if (reserva.profesorId !== req.user.id) return res.status(403).json({ error: 'Sin permisos' })
+      await prisma.reserva.update({ where: { id }, data: { estado: 'cancelada' } })
+      return res.json({ ok: true, cargoAplicado: false })
     }
 
     // Jugador solo puede cancelar sus propias reservas

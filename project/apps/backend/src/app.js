@@ -10,6 +10,7 @@ import clubsRouter from './routes/clubs.js'
 import turnosFijosRouter from './routes/turnos-fijos.js'
 import notificacionesRouter from './routes/notificaciones.js'
 import cargosRouter from './routes/cargos.js'
+import profesoresRouter from './routes/profesores.js'
 import devResetRouter from './routes/dev-reset.js'
 
 const app = express()
@@ -37,6 +38,7 @@ app.use('/api/clubs', clubsRouter)
 app.use('/api/turnos-fijos', turnosFijosRouter)
 app.use('/api/notificaciones', notificacionesRouter)
 app.use('/api/cargos', cargosRouter)
+app.use('/api/profesores', profesoresRouter)
 app.use('/api/dev', devResetRouter)
 
 export default app

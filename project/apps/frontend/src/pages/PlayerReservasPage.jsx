@@ -351,6 +351,7 @@ const PlayerReservasPage = () => {
 
   // Recarga reservas cuando cambia la fecha + polling cada 30s para reflejar cambios del admin
   useEffect(() => {
+    setReservasDB([])  // limpiar data vieja al cambiar fecha — el polling no pasa por acá
     fetchReservasDia(fechaSeleccionada)
     const interval = setInterval(() => fetchReservasDia(fechaSeleccionada), 30_000)
     return () => clearInterval(interval)

@@ -93,6 +93,7 @@ const router = createBrowserRouter([
       {
         element: <ProfesorLayout />,
         children: [
+          { path: 'dashboard',       element: <ProfesorDashboardPage /> },
           { path: 'agenda',          element: <ProfesorAgendaPage /> },
           { path: 'disponibilidad',  element: <ProfesorDisponibilidadPage /> },
         ],

@@ -200,4 +200,70 @@ router.post('/jugador/registro', async (req, res) => {
   }
 })
 
+// PATCH /api/auth/profesor/disponibilidad — el propio profesor actualiza su disponibilidad semanal
+router.patch('/profesor/disponibilidad', requireAuth, requireRole('profesor'), async (req, res) => {
+  const { disponibilidad } = req.body
+  if (disponibilidad === undefined) {
+    return res.status(400).json({ error: 'Falta el campo disponibilidad' })
+  }
+  try {
+    const profesor = await prisma.profesor.update({
+      where: { id: req.user.id },
+      data: { disponibilidad },
+      select: {
+        id: true, nombre: true, apellido: true, email: true,
+        especialidad: true, canchasIds: true, disponibilidad: true, activo: true, createdAt: true,
+      },
+    })
+    res.json(profesor)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al guardar disponibilidad' })
+  }
+})
+
+// GET /api/auth/profesor/me
+router.get('/profesor/me', requireAuth, requireRole('profesor'), async (req, res) => {
+  try {
+    const profesor = await prisma.profesor.findUnique({
+      where: { id: req.user.id },
+      include: { club: { select: { id: true, nombre: true, slug: true } } },
+    })
+    if (!profesor) return res.status(404).json({ error: 'Profesor no encontrado' })
+    const { password: _, ...safe } = profesor
+    res.json({ ...safe, role: 'profesor', club: { id: profesor.club.id, nombre: profesor.club.nombre, slug: profesor.club.slug } })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener profesor' })
+  }
+})
+
+// POST /api/auth/profesor/login
+router.post('/profesor/login', async (req, res) => {
+  const { email, password, clubId } = req.body
+  if (!email || !password || !clubId) {
+    return res.status(400).json({ error: 'Email, contraseña y clubId requeridos' })
+  }
+  try {
+    const profesor = await prisma.profesor.findUnique({
+      where: { clubId_email: { clubId, email } },
+      include: { club: true },
+    })
+    if (!profesor) return res.status(401).json({ error: 'Email no registrado en este club' })
+    if (!profesor.activo) return res.status(403).json({ error: 'Tu cuenta está desactivada. Contactá al club.' })
+    if (!(await bcrypt.compare(password, profesor.password))) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' })
+    }
+    const token = signToken({ id: profesor.id, role: 'profesor', clubId: profesor.clubId })
+    const { password: _, ...safe } = profesor
+    res.json({
+      token,
+      user: { ...safe, role: 'profesor', club: { id: profesor.club.id, nombre: profesor.club.nombre, slug: profesor.club.slug } },
+    })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
 export default router

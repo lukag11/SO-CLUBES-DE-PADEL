@@ -194,6 +194,19 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
     if (!turno) return res.status(404).json({ error: 'Turno fijo no encontrado' })
     if (turno.clubId !== req.user.clubId) return res.status(403).json({ error: 'Acceso denegado' })
 
+    // Baja definitiva de turno confirmado: bloquear si el jugador tiene deudas pendientes
+    if (estado === 'inactivo' && turno.estado === 'confirmado' && turno.jugadorId) {
+      const cargosPendientes = await prisma.cargo.count({
+        where: { jugadorId: turno.jugadorId, clubId: req.user.clubId, estado: 'pendiente' },
+      })
+      if (cargosPendientes > 0) {
+        return res.status(409).json({
+          error: 'El jugador tiene cargos pendientes. Regularice la deuda antes de dar de baja el turno fijo.',
+          cargosPendientes,
+        })
+      }
+    }
+
     const updated = await prisma.turnoFijo.update({
       where: { id: req.params.id },
       data: { estado },
@@ -208,6 +221,55 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
     }
 
     res.json(mapTurno(updated))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// ── DELETE /:id — jugador: cancelar definitivamente su propio turno fijo ──────
+router.delete('/:id', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
+  try {
+    const turno = await prisma.turnoFijo.findUnique({ where: { id: req.params.id } })
+    if (!turno) return res.status(404).json({ error: 'Turno fijo no encontrado' })
+    if (turno.jugadorId !== req.user.id) return res.status(403).json({ error: 'Acceso denegado' })
+    if (turno.estado === 'inactivo') return res.status(400).json({ error: 'El turno ya está cancelado' })
+
+    // Si estaba confirmado, verificar que no tenga deudas pendientes
+    if (turno.estado === 'confirmado') {
+      const cargosPendientes = await prisma.cargo.count({
+        where: { jugadorId: req.user.id, clubId: turno.clubId, estado: 'pendiente' },
+      })
+      if (cargosPendientes > 0) {
+        return res.status(409).json({
+          error: 'Tenés cargos pendientes. Regularizá tu deuda antes de cancelar el turno fijo.',
+          cargosPendientes,
+        })
+      }
+    }
+
+    const updated = await prisma.turnoFijo.update({
+      where: { id: req.params.id },
+      data: { estado: 'inactivo' },
+      include: INCLUDE_CANCHA,
+    })
+
+    // Notificar al admin
+    prisma.notificacion.create({
+      data: {
+        clubId: turno.clubId,
+        jugadorId: null,
+        tipo: 'turno_fijo_cancelado_jugador',
+        data: {
+          jugador: updated.jugador ? `${updated.jugador.nombre} ${updated.jugador.apellido ?? ''}`.trim() : '',
+          canchaNombre: updated.cancha?.nombre ?? '',
+          dia: turno.dia,
+          horaInicio: turno.horaInicio,
+          horaFin: turno.horaFin,
+        },
+      },
+    }).catch(() => {})
+
+    res.json({ ok: true })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }

@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { Zap, CalendarDays, Clock, LogOut, Menu, X } from 'lucide-react'
 import useAuthProfesorStore from '../store/authProfesorStore'
+import useClubStore from '../store/clubStore'
+import { api } from '../lib/api'
 
 const navItems = [
   { to: '/dashboardProfesor/agenda',          label: 'Mi agenda',          icon: CalendarDays  },
@@ -9,9 +11,27 @@ const navItems = [
 ]
 
 const ProfesorLayout = () => {
-  const { isAuthenticated, profesor, logout } = useAuthProfesorStore()
+  const { isAuthenticated, profesor, token, logout, setProfesor } = useAuthProfesorStore()
+  const loadFromBackend = useClubStore((s) => s.loadFromBackend)
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Refresca datos del profesor al montar; luego carga la config del club
+  useEffect(() => {
+    if (!token) return
+    api.get('/auth/profesor/me', { Authorization: `Bearer ${token}` })
+      .then((data) => {
+        if (data?.id) {
+          setProfesor(data)
+          if (data.club?.slug) {
+            api.get(`/clubs/${data.club.slug}`, {})
+              .then((club) => { if (club?.id) loadFromBackend(club) })
+              .catch(() => {})
+          }
+        }
+      })
+      .catch(() => {})
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isAuthenticated) {
     return <Navigate to="/dashboardProfesor" replace />

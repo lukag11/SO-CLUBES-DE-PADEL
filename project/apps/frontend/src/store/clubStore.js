@@ -111,11 +111,15 @@ const useClubStore = create((set, get) => ({
     set((state) => ({ club: { ...state.club, ...data }, _dirty: true }))
   },
 
-  updateCancha: (id, data) => {
+  updateCancha: (id, dataOrFn) => {
     set((state) => ({
       club: {
         ...state.club,
-        canchas: state.club.canchas.map((c) => (c.id === id ? { ...c, ...data } : c)),
+        canchas: state.club.canchas.map((c) => {
+          if (c.id !== id) return c
+          const data = typeof dataOrFn === 'function' ? dataOrFn(c) : dataOrFn
+          return { ...c, ...data }
+        }),
       },
       _dirty: true,
     }))

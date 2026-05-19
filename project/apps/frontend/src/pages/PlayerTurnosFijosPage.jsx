@@ -1,4 +1,4 @@
-import { Repeat, AlertTriangle, CalendarDays, X, Clock } from 'lucide-react'
+import { Repeat, AlertTriangle, CalendarDays, X, Clock, Ban } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
 import useClubStore from '../store/clubStore'
@@ -145,6 +145,79 @@ const ModalAusencia = ({ turno, fecha, horasMinimas, onConfirmar, onCerrar }) =>
   )
 }
 
+// ─── Modal cancelar turno fijo (baja definitiva jugador) ─────────────────────
+
+const ModalCancelarTurno = ({ turno, errorDeuda, procesando, proxFecha, onConfirmar, onCerrar }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !procesando && onCerrar()}>
+    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+    <div
+      className="relative w-full max-w-sm bg-[#0d1117] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-5 border-b border-white/8">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+            <Ban size={16} className="text-red-400" />
+          </div>
+          <div>
+            <p className="text-white font-bold text-sm">Eliminar turno fijo</p>
+            <p className="text-white/30 text-xs mt-0.5">Se elimina para todas las semanas futuras</p>
+          </div>
+        </div>
+        <button onClick={() => !procesando && onCerrar()} className="text-white/20 hover:text-white/60 transition-colors p-1">
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="px-6 py-5 flex flex-col gap-4">
+        {/* Datos del turno */}
+        <div className="flex items-center gap-4 px-4 py-4 rounded-2xl bg-white/3 border border-white/8">
+          <div className="w-10 h-10 rounded-xl bg-violet-500/15 flex items-center justify-center shrink-0">
+            <Repeat size={18} className="text-violet-400" />
+          </div>
+          <div>
+            <p className="text-white font-semibold text-sm">{turno.canchaNombre}</p>
+            <p className="text-white/40 text-xs mt-0.5">{DIAS_LABEL[turno.dia] ?? turno.dia} · {turno.inicio} a {turno.fin}</p>
+            <p className="text-white/25 text-[10px] mt-0.5">
+              Deja de cobrarse desde: <span className="text-red-400 font-semibold">{fmtFechaLegible(proxFecha)}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Error de deuda */}
+        {errorDeuda ? (
+          <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-amber-500/8 border border-amber-500/25">
+            <AlertTriangle size={15} className="text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-amber-300 text-xs leading-relaxed">{errorDeuda}</p>
+          </div>
+        ) : (
+          <p className="text-white/35 text-xs leading-relaxed px-1">
+            Esta acción es permanente. El slot quedará disponible para otros jugadores. Las semanas ya cobradas no se modifican.
+          </p>
+        )}
+
+        {!errorDeuda && (
+          <button
+            onClick={onConfirmar}
+            disabled={procesando}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all
+              bg-red-500 text-white hover:bg-red-400 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] shadow-lg shadow-red-500/20"
+          >
+            <Ban size={15} />
+            {procesando ? 'Eliminando…' : 'Confirmar eliminación'}
+          </button>
+        )}
+
+        <button onClick={() => !procesando && onCerrar()} className="text-white/25 hover:text-white/50 text-xs text-center transition-colors">
+          {errorDeuda ? 'Cerrar' : 'No eliminar'}
+        </button>
+      </div>
+    </div>
+  </div>
+)
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const PlayerTurnosFijosPage = () => {
@@ -155,6 +228,8 @@ const PlayerTurnosFijosPage = () => {
 
   const [modalTurno, setModalTurno] = useState(null)
   const [enviando, setEnviando] = useState(false)
+  const [modalCancelar, setModalCancelar] = useState(null) // { turno, errorDeuda }
+  const [cancelando, setCancelando] = useState(false)
 
   // Recarga desde el backend cada vez que el jugador entra a esta página
   useEffect(() => {
@@ -166,6 +241,28 @@ const PlayerTurnosFijosPage = () => {
 
   const activos = turnosFijos.filter((t) => t.activo)
   const pendientes = turnosFijos.filter((t) => t.estado === 'pendiente')
+
+  const handleCancelarTurnoFijo = async () => {
+    if (!modalCancelar?.turno) return
+    setCancelando(true)
+    try {
+      await api.delete(`/turnos-fijos/${modalCancelar.turno.id}`, { Authorization: `Bearer ${token}` })
+      updateTurnoFijo(modalCancelar.turno.id, { activo: false, estado: 'inactivo' })
+      setModalCancelar(null)
+    } catch (err) {
+      const msg = err?.error || err?.message || 'No se pudo cancelar el turno fijo'
+      setModalCancelar((prev) => ({ ...prev, errorDeuda: msg }))
+    } finally {
+      setCancelando(false)
+    }
+  }
+
+  const handleRetirarSolicitud = async (turno) => {
+    try {
+      await api.delete(`/turnos-fijos/${turno.id}`, { Authorization: `Bearer ${token}` })
+      updateTurnoFijo(turno.id, { activo: false, estado: 'inactivo' })
+    } catch { /* fallback silencioso */ }
+  }
 
   const handleConfirmarAusencia = async (fecha) => {
     setEnviando(true)
@@ -201,6 +298,17 @@ const PlayerTurnosFijosPage = () => {
         />
       )}
 
+      {modalCancelar && (
+        <ModalCancelarTurno
+          turno={modalCancelar.turno}
+          errorDeuda={modalCancelar.errorDeuda}
+          procesando={cancelando}
+          proxFecha={getFechaDisponible(modalCancelar.turno.dia, modalCancelar.turno.inicio)}
+          onConfirmar={handleCancelarTurnoFijo}
+          onCerrar={() => !cancelando && setModalCancelar(null)}
+        />
+      )}
+
       {/* Header */}
       <div>
         <h1 className="text-white text-2xl font-bold">Mis turnos fijos</h1>
@@ -226,9 +334,19 @@ const PlayerTurnosFijosPage = () => {
                   </p>
                   <p className="text-white/40 text-xs mt-0.5">{t.canchaNombre}</p>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/25 shrink-0">
-                  Esperando aprobación
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                    Esperando aprobación
+                  </span>
+                  <button
+                    onClick={() => handleRetirarSolicitud(t)}
+                    className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-red-400/70 border border-red-400/20 hover:bg-red-400/10 transition-colors"
+                    title="Retirar solicitud"
+                  >
+                    <X size={10} />
+                    Retirar
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -301,19 +419,28 @@ const PlayerTurnosFijosPage = () => {
                     <p className="text-white/25 text-[10px]">por turno</p>
                   </div>
 
-                  <button
-                    disabled={bloqueado}
-                    onClick={() => setModalTurno(turno)}
-                    className={[
-                      'flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all shrink-0 border',
-                      bloqueado
-                        ? 'text-white/20 border-white/8 bg-white/3 cursor-not-allowed'
-                        : 'text-red-400 border-red-400/25 bg-red-400/8 hover:bg-red-400/15',
-                    ].join(' ')}
-                  >
-                    <AlertTriangle size={13} />
-                    No puedo ir
-                  </button>
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    <button
+                      disabled={bloqueado}
+                      onClick={() => setModalTurno(turno)}
+                      className={[
+                        'flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all border',
+                        bloqueado
+                          ? 'text-white/20 border-white/8 bg-white/3 cursor-not-allowed'
+                          : 'text-red-400 border-red-400/25 bg-red-400/8 hover:bg-red-400/15',
+                      ].join(' ')}
+                    >
+                      <AlertTriangle size={12} />
+                      No puedo ir
+                    </button>
+                    <button
+                      onClick={() => setModalCancelar({ turno, errorDeuda: null })}
+                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all border text-white/30 border-white/10 bg-white/3 hover:text-red-400 hover:border-red-400/25 hover:bg-red-400/8"
+                    >
+                      <Ban size={12} />
+                      Eliminar turno
+                    </button>
+                  </div>
                 </div>
               )
             })}

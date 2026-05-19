@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-17 (sesión 3 — filtros TF admin, fix horario propio landing + grilla, cancha liberada real)
+**Última actualización:** 2026-05-18 (sesión — módulo profesor: tab Clases del profesor en admin, endpoint clase-profesor, disponibilidad simplificada, toggle activo/inactivo con descripción)
 
 ---
 
@@ -23,7 +23,7 @@
 | Reservas jugador (grilla + modal) | ✅ Completo | Slots 1.5h. GET /reservas/me al montar. Cancelación con política de cargo. Sin localStorage |
 | Turnos fijos (pendiente → aprobación) | ✅ Frontend completo | Flujo completo — falta backend (Bloque 3) |
 | Notificaciones admin + jugador | ✅ Backend completo | Tabla `notificaciones` en Supabase. Triggers en reservas + turnos fijos. GET/PATCH endpoints. playerNotificationsStore reescrito sin localStorage |
-| Dashboard profesor (agenda + disponibilidad) | ✅ Frontend completo | Portal separado `/dashboardProfesor` — falta backend |
+| Dashboard profesor (agenda + disponibilidad) | ✅ Frontend completo | Portal separado `/dashboardProfesor`. Disponibilidad DB-connected. Tab "Clases del profesor" en admin. Endpoint `POST /reservas/admin/clase-profesor` |
 | Módulo torneos admin | ✅ Frontend completo | CRUD, grupos, bracket, horarios — falta backend (Bloque 4) |
 | Módulo torneos jugador | ✅ Frontend completo | Inscripción, historial, sinCompanero, disponibilidad, notificaciones separadas — falta backend (Bloque 4) |
 | Estadísticas jugador | 🔲 Hardcodeado | Placeholder. Implementar en Bloque 5 con datos reales de reservas + torneos |
@@ -128,6 +128,40 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-05-18) — Módulo profesor: clases admin, disponibilidad simplificada
+
+### Funcionalidades implementadas
+
+**Tab "Clases del profesor" en ReservasPage (admin)**
+- Tercer tab junto a "Grilla del día" y "Turnos fijos"
+- `TabClasesProfesor.jsx`: selección de profesor, fecha, horario, cancha + notas y precio
+- Al crear clase: agrega a `reservasAdminStore` (aparece en grilla del mismo día)
+- La grilla muestra "Se gestiona desde la pestaña 'Clases del profesor'" para reservas de tipo clase
+
+**Backend — `POST /api/reservas/admin/clase-profesor`**
+- Verifica que el profesor pertenece al club y la cancha está activa
+- Detecta conflicto de horario con reservas existentes (pendiente + confirmada)
+- Crea reserva con `tipo: 'clase'`, `estado: 'confirmada'`, `profesorId`
+- Endpoint protegido con `requireAuth` + `requireRole('admin')`
+
+**ProfesorDisponibilidadPage — selectores simplificados**
+- Rango fijo 06:00–24:00 para todos los días (igual para todos, independiente del club)
+- La intersección club × profesor solo se aplica en la agenda (ProfesorAgendaPage)
+- `clubDiaCerrado(dia, horarios)`: solo deshabilita chips de días que el club tiene cerrados
+- `OPTS_APERTURA` y `opcionesCierre(apertura)`: mismas opciones para todos los días
+- DB verifica: `disponibilidad` JSON guarda correctamente con dias en español + HH:MM
+
+**ProfesorAgendaPage — lógica de intersección verificada**
+- `franjasDelDia`: `ap = max(clubAp, profAp)`, `ci = min(clubCi, profCi)` con `toMin()`
+- `toMin('00:00') → 1440` (medianoche) para evitar bug de comparación de strings
+
+**QuienesSomosPage — toggle Activo/Inactivo con descripción**
+- Toggle en formulario de edición de profesor con label y subtítulo explicativo
+- "Acceso al portal — Activo/Inactivo" + descripción de qué significa cada estado
+- Evita confusión sobre qué controla el toggle
 
 ---
 

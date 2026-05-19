@@ -26,6 +26,7 @@ model Club {
   turnosFijos    TurnoFijo[]
   notificaciones Notificacion[]
   cargos         Cargo[]
+  profesores     Profesor[]
 
   @@map("clubs")
 }
@@ -42,6 +43,27 @@ model Admin {
   club Club @relation(fields: [clubId], references: [id])
 
   @@map("admins")
+}
+
+model Profesor {
+  id           String   @id @default(cuid())
+  clubId       String
+  nombre       String
+  apellido     String
+  email        String
+  password     String
+  especialidad String?
+  canchasIds     String[]
+  disponibilidad Json?
+  activo         Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  club     Club      @relation(fields: [clubId], references: [id])
+  reservas Reserva[]
+
+  @@unique([clubId, email])
+  @@map("profesores")
 }
 
 model Jugador {
@@ -103,6 +125,7 @@ model Reserva {
   clubId      String
   canchaId    String
   jugadorId   String?
+  profesorId  String?
   fecha       String
   horaInicio  String
   horaFin     String
@@ -115,9 +138,10 @@ model Reserva {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  club    Club     @relation(fields: [clubId], references: [id])
-  cancha  Cancha   @relation(fields: [canchaId], references: [id])
-  jugador Jugador? @relation(fields: [jugadorId], references: [id])
+  club     Club      @relation(fields: [clubId], references: [id])
+  cancha   Cancha    @relation(fields: [canchaId], references: [id])
+  jugador  Jugador?  @relation(fields: [jugadorId], references: [id])
+  profesor Profesor? @relation(fields: [profesorId], references: [id])
 
   @@map("reservas")
 }

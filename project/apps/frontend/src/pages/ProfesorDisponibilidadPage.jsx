@@ -1,404 +1,444 @@
-import { useState, useMemo } from 'react'
-import {
-  ChevronLeft, ChevronRight, Clock, X, AlertCircle,
-  CheckCircle, Trash2, CalendarDays,
-} from 'lucide-react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { Clock, CheckCircle, AlertCircle, HelpCircle, X, Zap } from 'lucide-react'
 import useAuthProfesorStore from '../store/authProfesorStore'
-import useReservasAdminStore from '../store/reservasAdminStore'
 import useClubStore from '../store/clubStore'
-import { FRANJAS_PROFESOR } from '../features/admin/reservasMockData'
-import { inRange } from '../utils/timeUtils'
+import { api } from '../lib/api'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Constantes ───────────────────────────────────────────────────────────────
 
-const todayISO = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+const DIAS_CORTO = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+
+const ALL_TIMES = (() => {
+  const opts = []
+  for (let m = 6 * 60; m <= 24 * 60; m += 30) {
+    const h = Math.floor(m / 60)
+    const min = m % 60
+    opts.push(`${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`)
+  }
+  return opts
+})()
+
+// El club está cerrado ese día → profesor tampoco puede trabajarlo
+const clubDiaCerrado = (dia, horarios) => {
+  const h = horarios?.[dia]
+  return h?.activo === false
 }
 
-const addDays = (iso, n) => {
-  const d = new Date(iso + 'T12:00:00')
-  d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
+// Opciones fijas iguales para todos los días — la intersección con el club se aplica en la agenda
+const OPTS_APERTURA = ALL_TIMES.filter((t) => t !== '24:00')
+const opcionesCierre = (apertura) => ALL_TIMES.filter((t) => t > apertura)
+
+
+const buildInitialState = (disponibilidad, horarios) => {
+  const state = {}
+  DIAS.forEach((dia) => {
+    const saved = disponibilidad?.[dia]
+    // Si el club tiene el día cerrado, el profesor tampoco puede tenerlo activo
+    const activo = !clubDiaCerrado(dia, horarios) && (saved ? (saved.activo ?? false) : false)
+    state[dia] = {
+      activo,
+      apertura: saved?.apertura ?? '09:00',
+      cierre: saved?.cierre ?? '18:00',
+    }
+  })
+  return state
 }
 
-const fmtFecha = (iso) => {
-  const d = new Date(iso + 'T12:00:00')
-  return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+const toMin = (t) => {
+  if (!t) return 0
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
 }
 
-const fmtDiaCorto = (iso) => {
-  const d = new Date(iso + 'T12:00:00')
-  const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
-  return dias[d.getDay()]
+// ─── Timeline visual ──────────────────────────────────────────────────────────
+
+const TimelineBar = ({ apertura, cierre }) => {
+  const DAY_MINS = 24 * 60
+  const ap = toMin(apertura)
+  const ci = toMin(cierre)
+  const left = (ap / DAY_MINS) * 100
+  const width = ((ci - ap) / DAY_MINS) * 100
+  const markers = [6, 9, 12, 15, 18, 21]
+
+  return (
+    <div className="relative mt-2 mb-7">
+      <div className="relative h-2.5 bg-white/5 rounded-full">
+        {markers.map((h) => (
+          <div
+            key={h}
+            className="absolute top-0 w-px h-2.5 bg-white/10"
+            style={{ left: `${(h * 60 / DAY_MINS) * 100}%` }}
+          />
+        ))}
+        <div
+          className="absolute top-0 h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 shadow-lg shadow-orange-500/40"
+          style={{ left: `${left}%`, width: `${Math.max(width, 1)}%` }}
+        />
+        {/* Dot inicio */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-orange-400 border-2 border-[#0d1117] shadow shadow-orange-400/50 -translate-x-1/2"
+          style={{ left: `${left}%` }}
+        />
+        {/* Dot fin */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-amber-400 border-2 border-[#0d1117] shadow shadow-amber-400/50 -translate-x-1/2"
+          style={{ left: `${left + width}%` }}
+        />
+      </div>
+      {/* Labels bajo la barra */}
+      <div className="relative mt-2.5">
+        <span
+          className="absolute text-[10px] text-orange-400 font-bold -translate-x-1/2"
+          style={{ left: `${left}%` }}
+        >
+          {apertura}
+        </span>
+        <span
+          className="absolute text-[10px] text-amber-400 font-bold -translate-x-1/2"
+          style={{ left: `${left + width}%` }}
+        >
+          {cierre}
+        </span>
+        {/* Marcadores de hora */}
+        {markers.map((h) => (
+          <span
+            key={h}
+            className="absolute text-[8px] text-white/15 -translate-x-1/2 mt-3"
+            style={{ left: `${(h * 60 / DAY_MINS) * 100}%` }}
+          >
+            {h}h
+          </span>
+        ))}
+      </div>
+    </div>
+  )
 }
 
-const DIAS_CLUB = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
-const getDiaNombre = (iso) => {
-  const [y, m, d] = iso.split('-').map(Number)
-  return DIAS_CLUB[new Date(y, m - 1, d).getDay()]
-}
+// ─── Toggle component ─────────────────────────────────────────────────────────
+
+const Toggle = ({ checked, onChange }) => (
+  <button
+    type="button"
+    onClick={onChange}
+    className={[
+      'relative shrink-0 transition-all duration-200 rounded-full border',
+      checked
+        ? 'bg-orange-400 border-orange-400'
+        : 'bg-white/8 border-white/15',
+    ].join(' ')}
+    style={{ width: 40, height: 22 }}
+  >
+    <span
+      className={[
+        'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-200',
+        checked ? 'left-5' : 'left-0.5',
+      ].join(' ')}
+    />
+  </button>
+)
+
+// ─── Select estilizado ────────────────────────────────────────────────────────
+
+const TimeSelect = ({ label, value, options, onChange }) => (
+  <div className="flex-1">
+    <label className="text-white/30 text-[9px] font-bold uppercase tracking-widest block mb-1.5">{label}</label>
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-white/5 border border-white/10 hover:border-orange-400/40 focus:border-orange-400/60 rounded-xl px-3 py-2.5 text-white text-sm font-medium focus:outline-none transition-all appearance-none cursor-pointer"
+      >
+        {options.map((t) => (
+          <option key={t} value={t} className="bg-[#0d1117]">{t}</option>
+        ))}
+      </select>
+      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/30">
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+)
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const ProfesorDisponibilidadPage = () => {
-  const { profesor } = useAuthProfesorStore()
-  const reservas = useReservasAdminStore((s) => s.reservas)
-  const addReservaAdmin = useReservasAdminStore((s) => s.addReserva)
-  const deleteReservaAdmin = useReservasAdminStore((s) => s.deleteReserva)
+  const { profesor, token, setDisponibilidad } = useAuthProfesorStore()
   const horarios = useClubStore((s) => s.club.horarios)
 
-  const hoy = todayISO()
-  const [fecha, setFecha] = useState(hoy)
-  const [modoBloqueo, setModoBloqueo] = useState('franjas') // 'diaCompleto' | 'franjas'
-  const [franjasSeleccionadas, setFranjasSeleccionadas] = useState([])
-  const [guardado, setGuardado] = useState(false)
+  const [disp, setDisp] = useState(() => buildInitialState(profesor?.disponibilidad, horarios))
+  const [submitting, setSubmitting] = useState(false)
+  const [toast, setToast] = useState(null)
+  const [ayudaAbierta, setAyudaAbierta] = useState(false)
+  const toastTimer = useRef(null)
 
-  const diasSemana = useMemo(
-    () => Array.from({ length: 14 }, (_, i) => addDays(hoy, i)), // 2 semanas adelante
-    [hoy]
-  )
+  useEffect(() => {
+    setDisp(buildInitialState(profesor?.disponibilidad, horarios))
+  }, [profesor?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Horario del club para el día seleccionado
-  const horarioDelDia = useMemo(() => {
-    const diaNombre = getDiaNombre(fecha)
-    return horarios[diaNombre] ?? { apertura: '07:00', cierre: '23:00', activo: true }
-  }, [fecha, horarios])
-
-  // Franjas filtradas por horario del club (mismo patrón que PlayerReservasPage)
-  const franjasDelDia = useMemo(() => {
-    if (!horarioDelDia.activo) return []
-    return FRANJAS_PROFESOR.filter((f) => inRange(f.inicio, f.fin, horarioDelDia.apertura, horarioDelDia.cierre))
-  }, [horarioDelDia])
-
-  // No-disponibilidades ya marcadas para este día
-  const noDisponiblesDelDia = useMemo(
-    () =>
-      reservas.filter(
-        (r) =>
-          r.tipo === 'bloqueado' &&
-          r.profesorId === profesor?.id &&
-          r.fecha === fecha
-      ),
-    [reservas, profesor, fecha]
-  )
-
-  // Franja bloqueada por el propio profesor
-  const esPropioBloqueado = (franja) =>
-    noDisponiblesDelDia.some(
-      (r) => r.inicio <= franja.inicio && r.fin >= franja.fin
-    )
-
-  // Bloqueo de día completo (cubre todas las franjas)
-  const tieneDiaCompleto = noDisponiblesDelDia.some((r) => r.diaCompleto)
-
-  // Franjas con conflictos (el profesor tiene una clase en ese horario)
-  const misClasesDia = useMemo(
-    () =>
-      reservas.filter(
-        (r) => r.tipo === 'clase' && r.profesorId === profesor?.id && r.fecha === fecha
-      ),
-    [reservas, profesor, fecha]
-  )
-
-  const tieneConflicto = (franja) =>
-    misClasesDia.some(
-      (c) => c.inicio <= franja.inicio && c.fin >= franja.fin
-    )
-
-  const toggleFranja = (franja) => {
-    setFranjasSeleccionadas((prev) =>
-      prev.includes(franja.inicio)
-        ? prev.filter((f) => f !== franja.inicio)
-        : [...prev, franja.inicio]
-    )
+  const showToast = (msg, type = 'ok') => {
+    clearTimeout(toastTimer.current)
+    setToast({ msg, type })
+    toastTimer.current = setTimeout(() => setToast(null), 3000)
   }
 
-  const handleGuardar = () => {
-    if (!profesor) return
+  const toggleDia = (dia) => {
+    if (clubDiaCerrado(dia, horarios)) return // día cerrado en el club — no se puede activar
+    setDisp((prev) => ({ ...prev, [dia]: { ...prev[dia], activo: !prev[dia].activo } }))
+  }
 
-    if (modoBloqueo === 'diaCompleto') {
-      // Bloquea un slot que abarca todo el día
-      addReservaAdmin({
-        id: Date.now(),
-        tipo: 'bloqueado',
-        profesorId: profesor.id,
-        profesorNombre: `${profesor.nombre} ${profesor.apellido}`,
-        diaCompleto: true,
-        canchaId: 0, // 0 = todos los recursos del profesor (no es una cancha específica)
-        fecha,
-        inicio: horarioDelDia.apertura,
-        fin: horarioDelDia.cierre,
-        razon: 'Indisponibilidad - Profesor',
-        notas: `No disponible: ${profesor.nombre} ${profesor.apellido}`,
-        estado: 'confirmada',
-        jugadores: [],
-        pago: null,
-        monto: 0,
-        creadoPor: 'profesor',
+  const setHora = (dia, campo, valor) =>
+    setDisp((prev) => ({ ...prev, [dia]: { ...prev[dia], [campo]: valor } }))
+
+  const errores = useMemo(() => {
+    const errs = {}
+    DIAS.forEach((dia) => {
+      if (!disp[dia].activo) return
+      if (toMin(disp[dia].apertura) >= toMin(disp[dia].cierre))
+        errs[dia] = 'El cierre debe ser posterior a la apertura'
+    })
+    return errs
+  }, [disp])
+
+  const diasActivos = useMemo(() => DIAS.filter((d) => disp[d].activo), [disp])
+
+  const horasSemanales = useMemo(
+    () => diasActivos.reduce((acc, d) => acc + (toMin(disp[d].cierre) - toMin(disp[d].apertura)) / 60, 0),
+    [diasActivos, disp]
+  )
+
+  const hayErrores = Object.keys(errores).length > 0
+
+  const handleGuardar = async () => {
+    if (submitting || hayErrores) return
+    setSubmitting(true)
+    try {
+      const payload = {}
+      DIAS.forEach((dia) => { payload[dia] = { ...disp[dia] } })
+      await api.patch('/auth/profesor/disponibilidad', { disponibilidad: payload }, {
+        Authorization: `Bearer ${token}`,
       })
-    } else {
-      // Bloquea cada franja seleccionada individualmente
-      franjasSeleccionadas.forEach((inicioFranja, i) => {
-        const franja = franjasDelDia.find((f) => f.inicio === inicioFranja)
-        if (!franja) return
-        addReservaAdmin({
-          id: Date.now() + i,
-          tipo: 'bloqueado',
-          profesorId: profesor.id,
-          profesorNombre: `${profesor.nombre} ${profesor.apellido}`,
-          diaCompleto: false,
-          canchaId: 0,
-          fecha,
-          inicio: franja.inicio,
-          fin: franja.fin,
-          razon: 'Indisponibilidad - Profesor',
-          notas: `No disponible: ${profesor.nombre} ${profesor.apellido}`,
-          estado: 'confirmada',
-          jugadores: [],
-          pago: null,
-          monto: 0,
-          creadoPor: 'profesor',
-        })
-      })
+      setDisponibilidad(payload)
+      showToast('Disponibilidad guardada correctamente', 'ok')
+    } catch {
+      showToast('Error al guardar. Intentá de nuevo.', 'err')
+    } finally {
+      setSubmitting(false)
     }
-
-    setFranjasSeleccionadas([])
-    setGuardado(true)
-    setTimeout(() => setGuardado(false), 2500)
   }
-
-  const handleEliminarBloqueo = (id) => {
-    deleteReservaAdmin(id)
-  }
-
-  const conflictosDiaCompleto = misClasesDia.length > 0
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-6">
+    <div className="max-w-2xl mx-auto flex flex-col gap-7">
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black text-white">Mi disponibilidad</h1>
-        <p className="text-white/40 text-sm mt-1">
-          Marcá los días u horarios en los que no vas a poder dar clases
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-white">Mi disponibilidad</h1>
+          <p className="text-white/40 text-sm mt-1">Configurá tus días y horarios de trabajo</p>
+        </div>
+        <button
+          onClick={() => setAyudaAbierta(true)}
+          className="flex items-center gap-1.5 text-white/25 hover:text-white/60 text-xs transition-colors mt-1 shrink-0"
+        >
+          <HelpCircle size={14} />
+          Ayuda
+        </button>
       </div>
 
-      {/* Aviso */}
-      <div className="bg-orange-400/8 border border-orange-400/20 rounded-2xl px-5 py-4 flex gap-3">
-        <AlertCircle size={16} className="text-orange-400 shrink-0 mt-0.5" />
-        <p className="text-white/60 text-sm leading-relaxed">
-          Los bloques de no-disponibilidad son visibles para el administrador del club.
-          Si ya tenés clases en ese horario, el admin verá el conflicto.
-        </p>
-      </div>
-
-      {/* Selector de día */}
+      {/* Chips de días — selector semanal */}
       <div>
-        <p className="text-white/50 text-xs font-medium mb-3 uppercase tracking-wide">Seleccioná el día</p>
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            onClick={() => { setFecha((f) => addDays(f, -1)); setFranjasSeleccionadas([]) }}
-            disabled={fecha <= hoy}
-            className="w-8 h-8 rounded-lg border border-white/10 flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 disabled:opacity-20 transition-all"
-          >
-            <ChevronLeft size={15} />
-          </button>
-          <div className="flex gap-1.5 flex-1 overflow-x-auto pb-1">
-            {diasSemana.map((d) => {
-              const tieneBloqueo = reservas.some(
-                (r) => r.tipo === 'bloqueado' && r.profesorId === profesor?.id && r.fecha === d
-              )
-              const sel = d === fecha
-              return (
-                <button
-                  key={d}
-                  onClick={() => { setFecha(d); setFranjasSeleccionadas([]) }}
-                  className={[
-                    'flex flex-col items-center px-2.5 py-2 rounded-xl border transition-all min-w-[44px] shrink-0',
-                    sel
-                      ? 'bg-orange-400/15 border-orange-400/40 text-orange-400'
-                      : tieneBloqueo
-                        ? 'border-red-500/40 text-red-400 bg-red-500/8'
-                        : 'border-white/8 text-white/40 hover:text-white hover:bg-white/4',
-                  ].join(' ')}
-                >
-                  <span className="text-[8px] font-bold uppercase">{d === hoy ? 'Hoy' : fmtDiaCorto(d)}</span>
-                  <span className="text-sm font-black leading-none">{new Date(d + 'T12:00:00').getDate()}</span>
-                  {tieneBloqueo && <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-0.5" />}
-                </button>
-              )
-            })}
-          </div>
-          <button
-            onClick={() => { setFecha((f) => addDays(f, 1)); setFranjasSeleccionadas([]) }}
-            className="w-8 h-8 rounded-lg border border-white/10 flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 transition-all"
-          >
-            <ChevronRight size={15} />
-          </button>
+        <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-3">Días de trabajo</p>
+        <div className="grid grid-cols-7 gap-2">
+          {DIAS.map((dia, i) => {
+            const activo = disp[dia].activo
+            const cerrado = clubDiaCerrado(dia, horarios)
+            return (
+              <button
+                key={dia}
+                type="button"
+                onClick={() => toggleDia(dia)}
+                disabled={cerrado}
+                title={cerrado ? 'El club está cerrado este día' : undefined}
+                className={[
+                  'flex flex-col items-center py-3 rounded-2xl border transition-all duration-200 relative',
+                  cerrado
+                    ? 'bg-white/1 border-white/4 opacity-30 cursor-not-allowed'
+                    : activo
+                      ? 'bg-orange-400/12 border-orange-400/40 shadow-lg shadow-orange-400/10'
+                      : 'bg-white/3 border-white/8 hover:border-white/20 hover:bg-white/6',
+                ].join(' ')}
+              >
+                <span className={['text-[10px] font-bold uppercase tracking-wide', activo ? 'text-orange-400' : 'text-white/30'].join(' ')}>
+                  {DIAS_CORTO[i]}
+                </span>
+                <div className={[
+                  'w-1.5 h-1.5 rounded-full mt-1.5 transition-all',
+                  activo ? 'bg-orange-400' : 'bg-white/10',
+                ].join(' ')} />
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* Bloqueos existentes */}
-      {noDisponiblesDelDia.length > 0 && (
-        <div className="bg-red-500/8 border border-red-500/20 rounded-2xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-red-500/15">
-            <p className="text-red-400 text-sm font-bold">
-              No-disponibilidades marcadas — {fmtFecha(fecha)}
-            </p>
+      {/* Stats rápidas */}
+      {diasActivos.length > 0 && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white/4 border border-white/8 rounded-2xl px-4 py-3.5 flex items-center gap-3">
+            <div className="w-8 h-8 bg-orange-400/15 rounded-xl flex items-center justify-center shrink-0">
+              <Zap size={15} className="text-orange-400" />
+            </div>
+            <div>
+              <p className="text-white/30 text-[10px] uppercase tracking-wide">Días activos</p>
+              <p className="text-white font-black text-xl leading-tight">{diasActivos.length}</p>
+            </div>
           </div>
-          <div className="divide-y divide-red-500/10">
-            {noDisponiblesDelDia.map((b) => (
-              <div key={b.id} className="px-5 py-3 flex items-center gap-4">
-                <Clock size={14} className="text-red-400 shrink-0" />
-                <div className="flex-1">
-                  {b.diaCompleto ? (
-                    <p className="text-red-300 text-sm font-medium">Día completo</p>
-                  ) : (
-                    <p className="text-red-300 text-sm font-medium">{b.inicio} a {b.fin}</p>
+          <div className="bg-white/4 border border-white/8 rounded-2xl px-4 py-3.5 flex items-center gap-3">
+            <div className="w-8 h-8 bg-orange-400/15 rounded-xl flex items-center justify-center shrink-0">
+              <Clock size={15} className="text-orange-400" />
+            </div>
+            <div>
+              <p className="text-white/30 text-[10px] uppercase tracking-wide">Hrs / semana</p>
+              <p className="text-white font-black text-xl leading-tight">{horasSemanales % 1 === 0 ? horasSemanales : horasSemanales.toFixed(1)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cards por día activo */}
+      {diasActivos.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Configurar horarios</p>
+          {DIAS.filter((d) => disp[d].activo).map((dia) => {
+            const d = disp[dia]
+            const err = errores[dia]
+            return (
+              <div
+                key={dia}
+                className="bg-gradient-to-br from-white/5 to-white/2 border border-orange-400/20 rounded-2xl overflow-hidden"
+              >
+                {/* Header card */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-orange-400 shadow shadow-orange-400/50" />
+                    <span className="text-white font-bold text-sm">{dia}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleDia(dia)}
+                    className="text-white/20 hover:text-red-400 text-[10px] font-medium transition-colors flex items-center gap-1"
+                  >
+                    <X size={12} />
+                    Quitar
+                  </button>
+                </div>
+
+                <div className="px-5 py-5 flex flex-col gap-4">
+                  {/* Timeline */}
+                  <TimelineBar apertura={d.apertura} cierre={d.cierre} />
+
+                  {/* Selectores */}
+                  <div className="flex gap-3">
+                    <TimeSelect
+                      label="Desde"
+                      value={d.apertura}
+                      options={OPTS_APERTURA}
+                      onChange={(v) => setHora(dia, 'apertura', v)}
+                    />
+                    <TimeSelect
+                      label="Hasta"
+                      value={d.cierre}
+                      options={opcionesCierre(d.apertura)}
+                      onChange={(v) => setHora(dia, 'cierre', v)}
+                    />
+                  </div>
+
+                  {/* Duración */}
+                  {!err && (
+                    <div className="flex items-center gap-2 text-white/30 text-xs">
+                      <Clock size={11} />
+                      <span>{((toMin(d.cierre) - toMin(d.apertura)) / 60).toFixed(1).replace('.0', '')} horas disponibles</span>
+                    </div>
+                  )}
+
+                  {/* Error */}
+                  {err && (
+                    <p className="text-red-400 text-xs flex items-center gap-1.5">
+                      <AlertCircle size={12} /> {err}
+                    </p>
                   )}
                 </div>
-                <button
-                  onClick={() => handleEliminarBloqueo(b.id)}
-                  className="text-red-500/50 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 size={15} />
-                </button>
               </div>
-            ))}
+            )
+          })}
+        </div>
+      )}
+
+      {/* Sin días activos */}
+      {diasActivos.length === 0 && (
+        <div className="bg-amber-400/5 border border-amber-400/15 rounded-2xl px-6 py-8 flex flex-col items-center gap-3 text-center">
+          <div className="w-12 h-12 bg-amber-400/10 rounded-2xl flex items-center justify-center">
+            <Clock size={22} className="text-amber-400" />
+          </div>
+          <div>
+            <p className="text-white font-semibold text-sm">Sin días configurados</p>
+            <p className="text-white/40 text-xs mt-1">
+              Activá los días tocando los chips de arriba para definir tus horarios de clase.
+            </p>
           </div>
         </div>
       )}
 
-      {/* Formulario nuevo bloqueo */}
-      {!tieneDiaCompleto && (
-        <div className="bg-white/4 border border-white/8 rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/5">
-            <p className="text-white font-bold text-sm">Marcar no-disponibilidad</p>
-            <p className="text-white/40 text-xs mt-0.5 capitalize">{fmtFecha(fecha)}</p>
-          </div>
+      {/* Botón guardar */}
+      <button
+        onClick={handleGuardar}
+        disabled={submitting || hayErrores}
+        className="w-full relative overflow-hidden bg-orange-400 hover:bg-orange-300 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-400/20"
+      >
+        <CheckCircle size={16} />
+        {submitting ? 'Guardando...' : `Guardar${diasActivos.length > 0 ? ` (${diasActivos.length} día${diasActivos.length !== 1 ? 's' : ''})` : ''}`}
+      </button>
 
-          <div className="px-5 py-5 flex flex-col gap-5">
-
-            {/* Modo */}
-            <div>
-              <p className="text-white/50 text-xs font-medium mb-3 uppercase tracking-wide">Tipo de bloqueo</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => { setModoBloqueo('franjas'); setFranjasSeleccionadas([]) }}
-                  className={[
-                    'flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all',
-                    modoBloqueo === 'franjas'
-                      ? 'bg-orange-400/15 border-orange-400/40 text-orange-400'
-                      : 'border-white/10 text-white/40 hover:text-white',
-                  ].join(' ')}
-                >
-                  Franjas específicas
-                </button>
-                <button
-                  onClick={() => { setModoBloqueo('diaCompleto'); setFranjasSeleccionadas([]) }}
-                  disabled={conflictosDiaCompleto}
-                  className={[
-                    'flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed',
-                    modoBloqueo === 'diaCompleto'
-                      ? 'bg-orange-400/15 border-orange-400/40 text-orange-400'
-                      : 'border-white/10 text-white/40 hover:text-white',
-                  ].join(' ')}
-                >
-                  Día completo
-                </button>
+      {/* Panel de ayuda */}
+      {ayudaAbierta && createPortal(
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-end sm:items-center justify-center p-4">
+          <div className="bg-[#0d1117] border border-white/10 rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
+              <div className="flex items-center gap-2">
+                <HelpCircle size={15} className="text-orange-400" />
+                <span className="text-white font-bold text-sm">¿Cómo funciona?</span>
               </div>
-              {conflictosDiaCompleto && (
-                <p className="text-amber-400 text-xs mt-2 flex items-center gap-1.5">
-                  <AlertCircle size={12} />
-                  Tenés clases en este día. No podés bloquear el día completo.
-                </p>
-              )}
+              <button onClick={() => setAyudaAbierta(false)} className="text-white/30 hover:text-white transition-colors">
+                <X size={16} />
+              </button>
             </div>
-
-            {/* Franjas */}
-            {modoBloqueo === 'franjas' && (
-              <div>
-                <p className="text-white/50 text-xs font-medium mb-3 uppercase tracking-wide">
-                  Seleccioná los horarios
-                </p>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {franjasDelDia.map((f) => {
-                    const yaBloqueda = esPropioBloqueado(f)
-                    const conflicto = tieneConflicto(f)
-                    const seleccionada = franjasSeleccionadas.includes(f.inicio)
-
-                    return (
-                      <button
-                        key={f.inicio}
-                        type="button"
-                        disabled={yaBloqueda || conflicto}
-                        onClick={() => toggleFranja(f)}
-                        className={[
-                          'py-2.5 px-1 rounded-xl text-[10px] font-bold transition-all border text-center',
-                          yaBloqueda
-                            ? 'bg-red-500/15 border-red-500/30 text-red-400 cursor-not-allowed opacity-60'
-                            : conflicto
-                              ? 'bg-amber-400/10 border-amber-400/30 text-amber-400 cursor-not-allowed opacity-60'
-                              : seleccionada
-                                ? 'bg-orange-400 border-orange-400 text-white'
-                                : 'border-white/10 text-white/50 hover:border-orange-400/40 hover:text-white bg-white/4',
-                        ].join(' ')}
-                      >
-                        <span className="block">{f.inicio}</span>
-                        {yaBloqueda && <span className="block text-[8px] opacity-70">bloqueado</span>}
-                        {conflicto && <span className="block text-[8px] opacity-70">clase</span>}
-                      </button>
-                    )
-                  })}
-                </div>
-                <p className="text-white/20 text-xs mt-2">
-                  {franjasSeleccionadas.length === 0
-                    ? 'Seleccioná al menos un horario'
-                    : `${franjasSeleccionadas.length} horario${franjasSeleccionadas.length !== 1 ? 's' : ''} seleccionado${franjasSeleccionadas.length !== 1 ? 's' : ''}`
-                  }
-                </p>
-              </div>
-            )}
-
-            {/* Día completo: solo confirmar */}
-            {modoBloqueo === 'diaCompleto' && (
-              <div className="bg-orange-400/8 border border-orange-400/20 rounded-xl px-4 py-3">
-                <p className="text-white/60 text-sm">
-                  Se marcará todo el día como no disponible. El administrador verá este bloqueo en la grilla.
-                </p>
-              </div>
-            )}
-
-            {/* Botón guardar */}
-            <button
-              onClick={handleGuardar}
-              disabled={modoBloqueo === 'franjas' && franjasSeleccionadas.length === 0}
-              className="w-full bg-orange-400 hover:bg-orange-300 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2"
-            >
-              {guardado ? (
-                <>
-                  <CheckCircle size={16} />
-                  Guardado
-                </>
-              ) : (
-                <>
-                  <Clock size={16} />
-                  Marcar no-disponibilidad
-                </>
-              )}
-            </button>
+            <div className="px-5 py-5 flex flex-col gap-4 text-sm text-white/60 leading-relaxed">
+              <p><span className="text-white font-semibold">Chips de días</span> → tocá para activar o desactivar cada día de la semana.</p>
+              <p><span className="text-white font-semibold">Desde / Hasta</span> → el rango en el que estás disponible para dar clases ese día.</p>
+              <p><span className="text-white font-semibold">Barra visual</span> → muestra tu ventana horaria dentro del día. Los puntos marcan inicio y fin.</p>
+              <p><span className="text-white font-semibold">Intersección con el club</span> → si el club cierra a las 20:00 y vos configuraste hasta las 22:00, la agenda solo mostrará hasta las 20:00.</p>
+              <p className="text-white/25 text-xs">Sin configurar: verás todos los slots del horario del club.</p>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {tieneDiaCompleto && (
-        <div className="bg-white/4 border border-white/8 rounded-2xl px-5 py-5 text-center">
-          <CalendarDays size={24} className="text-red-400 mx-auto mb-2" />
-          <p className="text-white/60 text-sm">Este día ya está marcado como no disponible.</p>
-          <p className="text-white/30 text-xs mt-1">Eliminá el bloqueo de arriba para modificarlo.</p>
-        </div>
+      {/* Toast */}
+      {toast && createPortal(
+        <div className={[
+          'fixed top-5 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2.5 px-5 py-3 rounded-2xl shadow-2xl text-sm font-medium border backdrop-blur-sm',
+          toast.type === 'ok'
+            ? 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300'
+            : 'bg-red-950/90 border-red-500/30 text-red-300',
+        ].join(' ')}>
+          {toast.type === 'ok' ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+          {toast.msg}
+        </div>,
+        document.body
       )}
     </div>
   )

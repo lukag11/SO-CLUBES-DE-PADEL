@@ -446,8 +446,11 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
   const torneos = useTorneosStore((s) => s.torneos)
   const [diaOffset, setDiaOffset] = useState(0)
   const [recentlyFreed, setRecentlyFreed] = useState([])
-  const [ocupados, setOcupados] = useState([]) // slots ocupados desde el backend público
+  const [ocupados, setOcupados] = useState([])
+  const [loadingSlots, setLoadingSlots] = useState(true)
   const prevDataRef = useRef(null)
+  const prevDiaOffsetRef = useRef(diaOffset)
+  const prevCanchasRef = useRef(canchas)
   const cp = colorPrimario || '#10b981'
 
   const hoy = useMemo(() => new Date(), [])
@@ -456,17 +459,20 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
   const diaNombreLargo = DIAS_LARGOS[diaActual.getDay()]
   const diaKey = getDiaKey(diaActual)
   const horarioDia = horarios?.[diaNombreLargo]
-  const canchasActivas = (canchas ?? []).filter((c) => c.activa)
+  const canchasActivas = useMemo(() => (canchas ?? []).filter((c) => c.activa), [canchas])
 
   // Fetcha los slots ocupados desde el endpoint público (sin auth)
   useEffect(() => {
     const slug = import.meta.env.VITE_CLUB_SLUG
     if (!slug || !fechaStr) return
+    setOcupados([])
+    setLoadingSlots(true)
     const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
     fetch(`${BASE}/clubs/${slug}/disponibilidad?fecha=${fechaStr}`)
       .then((r) => r.ok ? r.json() : [])
       .then((data) => setOcupados(Array.isArray(data) ? data : []))
       .catch(() => setOcupados([]))
+      .finally(() => setLoadingSlots(false))
   }, [fechaStr])
 
   const dataPorCancha = useMemo(() => {
@@ -491,8 +497,26 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
 
   const totalLibres = dataPorCancha.reduce((sum, d) => sum + d.libres, 0)
 
+  // Resetear comparación cuando llegan datos frescos del club (carga inicial post-localStorage)
+  useEffect(() => {
+    if (prevCanchasRef.current !== canchas) {
+      prevCanchasRef.current = canchas
+      prevDataRef.current = null
+      setRecentlyFreed([])
+    }
+  }, [canchas])
+
   // Detectar transiciones reales ocupado → libre entre polls (cada 30s)
   useEffect(() => {
+    // Mientras carga no establecer baseline: prevDataRef se inicializa solo con datos reales
+    if (loadingSlots) return
+    // Si el día cambió, limpiar — null fuerza solo inicialización en la próxima ejecución
+    if (prevDiaOffsetRef.current !== diaOffset) {
+      prevDiaOffsetRef.current = diaOffset
+      prevDataRef.current = null
+      setRecentlyFreed([])
+      return
+    }
     if (!prevDataRef.current) {
       prevDataRef.current = dataPorCancha
       return
@@ -509,7 +533,7 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
     })
     if (nuevos.length) setRecentlyFreed((prev) => [...prev, ...nuevos].slice(-3))
     prevDataRef.current = dataPorCancha
-  }, [dataPorCancha, diaOffset])
+  }, [dataPorCancha, diaOffset, loadingSlots])
 
   // Auto-expirar freed slots y refrescar texto "hace instantes"
   useEffect(() => {
@@ -746,6 +770,22 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
               <CalendarDays size={18} className={dark ? 'text-white/20' : 'text-slate-300'} />
             </div>
             <p className={`text-sm font-medium ${dark ? 'text-white/25' : 'text-slate-400'}`}>El club no abre este día</p>
+          </div>
+        ) : loadingSlots ? (
+          <div className="grid sm:grid-cols-2 gap-3">
+            {(canchasActivas.length ? canchasActivas : [1, 2]).map((c) => (
+              <div key={c.id ?? c} className="rounded-2xl overflow-hidden animate-pulse"
+                style={{ backgroundColor: dark ? 'rgba(255,255,255,0.03)' : 'white', border: dark ? '1px solid rgba(255,255,255,0.07)' : '1px solid #f1f5f9' }}>
+                <div className="px-4 py-3" style={{ borderBottom: dark ? '1px solid rgba(255,255,255,0.05)' : '1px solid #f1f5f9' }}>
+                  <div className={`h-4 w-24 rounded ${dark ? 'bg-white/10' : 'bg-slate-100'}`} />
+                </div>
+                <div className="px-4 py-3 flex flex-col gap-2">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className={`h-9 rounded-xl ${dark ? 'bg-white/5' : 'bg-slate-50'}`} />
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">

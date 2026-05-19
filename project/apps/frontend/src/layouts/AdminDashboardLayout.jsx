@@ -71,6 +71,7 @@ const DashboardLayout = () => {
   const setUser = useAuthStore((s) => s.setUser)
   const clubId = useAuthStore((s) => s.user?.club?.id)
   const loadFromBackend = useClubStore((s) => s.loadFromBackend)
+  const clubLoaded = useClubStore((s) => s._loaded)
   const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
   const fetchNotificaciones = useNotificacionesStore((s) => s.fetchNotificaciones)
   const title = usePageTitle()
@@ -151,7 +152,18 @@ const DashboardLayout = () => {
       <div className="flex-1 min-w-0 flex flex-col h-full lg:ml-16">
         <Navbar title={title} onMenuClick={() => setSidebarOpen(true)} />
         <main ref={mainRef} className="flex-1 p-4 md:p-6 overflow-y-auto overflow-x-hidden pb-20 lg:pb-6">
-          <Outlet />
+          {!clubLoaded ? (
+            <div className="flex flex-col gap-4 animate-pulse">
+              <div className="h-8 w-48 rounded-xl bg-slate-200" />
+              <div className="h-4 w-72 rounded-lg bg-slate-100" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                {[1, 2, 3].map((i) => <div key={i} className="h-32 rounded-2xl bg-slate-100" />)}
+              </div>
+              <div className="h-64 rounded-2xl bg-slate-100" />
+            </div>
+          ) : (
+            <Outlet />
+          )}
         </main>
       </div>
       <BottomNav visible={navVisible} />

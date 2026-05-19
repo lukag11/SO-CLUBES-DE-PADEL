@@ -18,6 +18,7 @@ import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
 import { overlaps, toMin, toTime } from '../utils/timeUtils'
 import InfoBlock from '../components/InfoBlock'
+import TabClasesProfesor from '../features/admin/TabClasesProfesor'
 
 // ─── Hook: hint de campo (mensaje amber que desaparece en 2s) ───────────────
 const useFieldHint = () => {
@@ -1965,6 +1966,7 @@ const PanelAlertas = ({
             const esCancelacion = n.tipo === 'cancelacion_reserva'
             const esNuevaClaseProf = n.tipo === 'nueva_clase_profesor'
             const esCancelClaseProf = n.tipo === 'cancelacion_clase_profesor'
+            const esCancelFijoJugador = n.tipo === 'turno_fijo_cancelado_jugador'
             const dotColor = n.leida ? 'bg-slate-300'
               : esSolicitudFijo ? 'bg-amber-500'
               : esNuevaClaseProf ? 'bg-orange-400'
@@ -1974,7 +1976,7 @@ const PanelAlertas = ({
               : esSolicitudFijo ? 'bg-amber-50/40'
               : esNuevaClaseProf || esCancelClaseProf ? 'bg-orange-50/40'
               : 'bg-red-50/30'
-            const esClickeable = (esSolicitudFijo || esLiberacion) && !n.leida
+            const esClickeable = esLiberacion && !n.leida
             const fechaReserva = n.fecha
               ? new Date(n.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
               : new Date(n.timestamp).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
@@ -2001,9 +2003,9 @@ const PanelAlertas = ({
                       </p>
                       <p className="text-slate-400 text-xs mt-0.5">{n.cancha} · {n.inicio}–{n.fin} · semanal · {fechaReserva}</p>
                       {!n.leida && (
-                        <p className="text-amber-500 text-[10px] mt-1 font-medium flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-                          Clic para aprobar o rechazar
+                        <p className="text-amber-400 text-[10px] mt-1 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-300 inline-block" />
+                          Pendiente · aprobar desde la tab Turnos fijos
                         </p>
                       )}
                     </>
@@ -2058,7 +2060,19 @@ const PanelAlertas = ({
                       <p className="text-orange-500 text-[10px] mt-1 font-medium">El slot quedó libre</p>
                     </>
                   )}
-                  {!esSolicitudFijo && !esLiberacion && !esCancelacion && !esNuevaClaseProf && !esCancelClaseProf && (
+                  {esCancelFijoJugador && (
+                    <>
+                      <p className="text-slate-700 text-sm font-medium">
+                        <span className="text-slate-600 font-semibold">Turno fijo cancelado</span>
+                        {n.jugador && <span className="text-slate-700 font-semibold"> · {n.jugador}</span>}
+                      </p>
+                      <p className="text-slate-400 text-xs mt-0.5">
+                        {n.cancha} · {n.inicio}–{n.fin} · {DIAS_LABEL[n.dia] ?? n.dia}
+                      </p>
+                      <p className="text-slate-400 text-[10px] mt-1">El jugador canceló su turno fijo permanentemente</p>
+                    </>
+                  )}
+                  {!esSolicitudFijo && !esLiberacion && !esCancelacion && !esNuevaClaseProf && !esCancelClaseProf && !esCancelFijoJugador && (
                     <p className="text-slate-500 text-sm">{n.jugador}</p>
                   )}
                 </div>
@@ -2127,6 +2141,8 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
   const liberarTurno = useTurnosFijosStore((s) => s.liberarTurno)
   const updateTurnoFijo = useTurnosFijosStore((s) => s.updateTurnoFijo)
   const adminToken = useAuthStore((s) => s.token)
+  const notificaciones = useNotificacionesStore((s) => s.notificaciones)
+  const marcarLeida = useNotificacionesStore((s) => s.marcarLeida)
   const fijos = turnosFijosJugadores.filter((t) => t.activo)
   const pendientes = turnosFijosJugadores.filter((t) => t.estado === 'pendiente')
   const hoy = todayISO()
@@ -2160,13 +2176,21 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
   const [mostrarForm, setMostrarForm] = useState(false)
   const [formClase, setFormClase] = useState(() => makeEmptyClase(canchas, franjas))
   const [errorForm, setErrorForm] = useState('')
-  const [confirmarBaja, setConfirmarBaja] = useState(null) // turno a dar de baja
+  const [confirmarBaja, setConfirmarBaja] = useState(null)
+  const [confirmarBajaDefinitiva, setConfirmarBajaDefinitiva] = useState(null) // { turno, errorDeuda }
+  const [procesandoBaja, setProcesandoBaja] = useState(false)
+
+  const marcarNotifTurnoFijoLeida = (turnoFijoId) => {
+    const notif = notificaciones.find((n) => n.turnoFijoId === turnoFijoId && !n.leida)
+    if (notif) marcarLeida(notif.id, adminToken)
+  }
 
   const handleAprobarTurnoFijo = async (id) => {
     try {
       const updated = await api.patch(`/turnos-fijos/${id}/estado`, { estado: 'confirmado' }, { Authorization: `Bearer ${adminToken}` })
       updateTurnoFijo(id, { estado: 'confirmado', activo: true, desde: updated.desde })
-    } catch { /* fallback: actualizar local */ updateTurnoFijo(id, { estado: 'confirmado', activo: true }) }
+    } catch { updateTurnoFijo(id, { estado: 'confirmado', activo: true }) }
+    marcarNotifTurnoFijoLeida(id)
   }
 
   const handleRechazarTurnoFijo = async (id) => {
@@ -2174,6 +2198,24 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
       await api.patch(`/turnos-fijos/${id}/estado`, { estado: 'inactivo' }, { Authorization: `Bearer ${adminToken}` })
     } catch { /* ignore */ }
     updateTurnoFijo(id, { estado: 'inactivo', activo: false })
+    marcarNotifTurnoFijoLeida(id)
+  }
+
+  const handleDarDeBajaTurnoFijo = async () => {
+    if (!confirmarBajaDefinitiva?.turno) return
+    const { turno } = confirmarBajaDefinitiva
+    setProcesandoBaja(true)
+    try {
+      await api.patch(`/turnos-fijos/${turno.id}/estado`, { estado: 'inactivo' }, { Authorization: `Bearer ${adminToken}` })
+      updateTurnoFijo(turno.id, { estado: 'inactivo', activo: false })
+      marcarNotifTurnoFijoLeida(turno.id)
+      setConfirmarBajaDefinitiva(null)
+    } catch (err) {
+      const msg = err?.error || err?.message || 'Error al dar de baja'
+      setConfirmarBajaDefinitiva((prev) => ({ ...prev, errorDeuda: msg }))
+    } finally {
+      setProcesandoBaja(false)
+    }
   }
 
   const handleLiberarTurnoFijo = async () => {
@@ -2250,6 +2292,65 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
               </button>
               <button
                 onClick={() => setConfirmarBaja(null)}
+                className="text-slate-400 hover:text-slate-600 text-xs text-center transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal baja definitiva ── */}
+      {confirmarBajaDefinitiva && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => !procesandoBaja && setConfirmarBajaDefinitiva(null)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-red-100 bg-red-50">
+              <div className="w-9 h-9 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center shrink-0">
+                <Ban size={15} className="text-red-500" />
+              </div>
+              <div>
+                <p className="text-red-800 font-bold text-sm">Dar de baja el turno fijo</p>
+                <p className="text-red-500 text-xs mt-0.5">Se cancela para todas las semanas futuras</p>
+              </div>
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-3">
+              <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-xs text-slate-600 leading-relaxed space-y-1">
+                <p><span className="font-semibold text-slate-700">Jugador:</span> {confirmarBajaDefinitiva.turno.jugador}</p>
+                <p><span className="font-semibold text-slate-700">Cancha:</span> {confirmarBajaDefinitiva.turno.canchaNombre}</p>
+                <p><span className="font-semibold text-slate-700">Horario:</span> {confirmarBajaDefinitiva.turno.inicio} a {confirmarBajaDefinitiva.turno.fin} · {DIAS_LABEL[confirmarBajaDefinitiva.turno.dia] ?? confirmarBajaDefinitiva.turno.dia}</p>
+                <p><span className="font-semibold text-slate-700">Deja de cobrarse desde:</span>{' '}
+                  <span className="text-red-600 font-semibold">{fmtFechaCorta(getProximaFechaTurno(confirmarBajaDefinitiva.turno.dia, confirmarBajaDefinitiva.turno.inicio))}</span>
+                </p>
+              </div>
+
+              {confirmarBajaDefinitiva.errorDeuda ? (
+                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
+                  <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
+                  <p className="text-red-700 text-xs leading-relaxed">{confirmarBajaDefinitiva.errorDeuda}</p>
+                </div>
+              ) : (
+                <p className="text-slate-500 text-xs leading-relaxed">
+                  El jugador recibirá una notificación. Las semanas ya cobradas no se modifican.
+                </p>
+              )}
+
+              {!confirmarBajaDefinitiva.errorDeuda && (
+                <button
+                  onClick={handleDarDeBajaTurnoFijo}
+                  disabled={procesandoBaja}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Ban size={14} />
+                  {procesandoBaja ? 'Procesando…' : 'Confirmar baja definitiva'}
+                </button>
+              )}
+              <button
+                onClick={() => !procesandoBaja && setConfirmarBajaDefinitiva(null)}
                 className="text-slate-400 hover:text-slate-600 text-xs text-center transition-colors"
               >
                 Cancelar
@@ -2414,13 +2515,24 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => setConfirmarBaja(t)}
-                          className="text-slate-300 hover:text-red-400 transition-colors"
-                          title="Dar de baja turno fijo"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div className="flex flex-col gap-1">
+                          <button
+                            onClick={() => setConfirmarBaja(t)}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors whitespace-nowrap"
+                            title="Liberar este turno para una semana"
+                          >
+                            <CalendarDays size={10} />
+                            Liberar
+                          </button>
+                          <button
+                            onClick={() => setConfirmarBajaDefinitiva({ turno: t, errorDeuda: null })}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 transition-colors whitespace-nowrap"
+                            title="Dar de baja definitiva el turno fijo"
+                          >
+                            <Ban size={10} />
+                            Baja
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -2677,6 +2789,7 @@ const ReservasPage = () => {
 
   useEffect(() => {
     if (!adminToken) return
+    setReservasBackend([])  // limpiar data vieja al cambiar fecha — el polling no pasa por acá
     fetchReservasBackend()
     const interval = setInterval(() => fetchReservasBackend(), 30_000)
     const onFocus = () => fetchReservasBackend()
@@ -2705,6 +2818,23 @@ const ReservasPage = () => {
       clearInterval(interval)
       window.removeEventListener('focus', fetchReservasPendientes)
     }
+  }, [adminToken]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Carga inicial de turnos fijos de jugadores al montar (tab Turnos fijos arranca con datos reales)
+  useEffect(() => {
+    if (!adminToken) return
+    api.get('/turnos-fijos', { Authorization: `Bearer ${adminToken}` })
+      .then((data) => { if (Array.isArray(data)) setTurnosFijosAdmin(data) })
+      .catch(() => {})
+  }, [adminToken]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Carga profesores del club para el formulario de nueva reserva tipo clase
+  const setProfesoresStore = useProfesoresStore((s) => s.setProfesores)
+  useEffect(() => {
+    if (!adminToken) return
+    api.get('/profesores', { Authorization: `Bearer ${adminToken}` })
+      .then((data) => { if (Array.isArray(data)) setProfesoresStore(data) })
+      .catch(() => {})
   }, [adminToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Transforma una reserva de la DB al formato de la grilla admin
@@ -3031,9 +3161,9 @@ const ReservasPage = () => {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
           {[
-            { key: 'grilla', label: 'Grilla del día', icon: CalendarDays },
-            { key: 'fijos',  label: 'Turnos fijos',   icon: Repeat,
-              badge: sinLeer > 0 ? sinLeer : null },
+            { key: 'grilla',  label: 'Grilla del día',      icon: CalendarDays },
+            { key: 'fijos',   label: 'Turnos fijos',         icon: Repeat,        badge: sinLeer > 0 ? sinLeer : null },
+            { key: 'clases',  label: 'Clases del profesor',  icon: GraduationCap },
           ].map(({ key, label, icon: Icon, badge }) => (
             <button
               key={key}
@@ -3091,7 +3221,7 @@ const ReservasPage = () => {
                 { color: 'bg-blue-500',    nombre: 'Eventual', desc: 'Reserva manual creada por el admin para un día puntual, sin recurrencia.' },
                 { color: 'bg-violet-500',  nombre: 'Fijo', desc: 'Turno semanal recurrente aprobado por el admin. Se repite cada semana en el mismo horario.' },
                 { color: 'bg-red-400',     nombre: 'Bloqueado', desc: 'Franja cerrada. Impide reservas en ese horario. Se puede indicar el motivo.' },
-                { color: 'bg-orange-400',  nombre: 'Clase', desc: 'Clase con profesor registrada. Se gestiona desde la pestaña "Turnos fijos".' },
+                { color: 'bg-orange-400',  nombre: 'Clase', desc: 'Clase con profesor registrada. Se gestiona desde la pestaña "Clases del profesor".' },
               ].map(({ color, nombre, desc }) => (
                 <div key={nombre} className="flex items-start gap-2.5">
                   <div className={`w-2 h-2 rounded-full ${color} mt-1 shrink-0`} />
@@ -3238,6 +3368,14 @@ const ReservasPage = () => {
           onDeleteClase={handleDeleteClase}
           canchas={canchas}
           franjas={franjasMainGrilla}
+        />
+      )}
+
+      {tabActiva === 'clases' && (
+        <TabClasesProfesor
+          onClaseCreada={(nuevaReserva) => {
+            if (nuevaReserva) addReservaAdmin(nuevaReserva)
+          }}
         />
       )}
     </div>

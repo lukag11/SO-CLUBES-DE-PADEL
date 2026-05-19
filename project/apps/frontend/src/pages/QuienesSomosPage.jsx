@@ -1,17 +1,18 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Building2, Palette, LayoutGrid, BookOpen, Sparkles,
   Upload, Save, CheckCircle,
   Phone, Mail, MapPin, Sun, Moon,
   Pencil, Wifi, WifiOff, ChevronDown, ChevronUp,
   Images, Wrench, Users, HelpCircle, CalendarDays,
-  Plus, Trash2, User, Check,
+  Plus, Trash2, User, Check, UserX, X,
   ShowerHead, Car, GraduationCap, Coffee, Dumbbell,
   Shield, Wind, Utensils, Music, Info,
 } from 'lucide-react'
 import useClubStore from '../store/clubStore'
 import useProfesoresStore from '../store/profesoresStore'
 import useAuthStore from '../store/authStore'
+import { api } from '../lib/api'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -768,36 +769,15 @@ const HORARIOS_CANCHA_DEFAULT = Object.fromEntries(
 const CanchaRow = ({ cancha, onUpdate }) => {
   const [editing, setEditing] = useState(false)
   const [local, setLocal] = useState({ ...cancha })
-  const tieneHorariosCustom = !!local.horarios
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
     setLocal((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
-  const handleToggleHorarios = () => {
-    if (tieneHorariosCustom) {
-      setLocal((prev) => ({ ...prev, horarios: null }))
-    } else {
-      setLocal((prev) => ({ ...prev, horarios: { ...HORARIOS_CANCHA_DEFAULT } }))
-    }
-  }
-
-  const handleHorarioCancha = (dia, data) => {
-    setLocal((prev) => ({
-      ...prev,
-      horarios: {
-        ...prev.horarios,
-        [dia]: { ...prev.horarios[dia], ...data },
-      },
-    }))
-  }
-
   const handleSave = () => {
-    onUpdate(cancha.id, {
-      ...local,
-      precioTurno: Number(local.precioTurno),
-    })
+    const { horarios: _h, ...rest } = local
+    onUpdate(cancha.id, { ...rest, precioTurno: Number(rest.precioTurno) })
     setEditing(false)
   }
 
@@ -845,11 +825,11 @@ const CanchaRow = ({ cancha, onUpdate }) => {
       {editing && (
         <div className="px-4 py-4 border-t border-slate-100 bg-white flex flex-col gap-5">
 
-          {/* ── Datos de la cancha ── */}
+          {/* ── Identificación ── */}
           <div className="flex flex-col gap-3">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Datos de la cancha</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Identificación</p>
 
-            <div className="grid sm:grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-slate-500 text-xs font-medium mb-1.5">Nombre</label>
                 <input
@@ -875,17 +855,6 @@ const CanchaRow = ({ cancha, onUpdate }) => {
                   <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
               </div>
-
-              <div>
-                <label className="block text-slate-500 text-xs font-medium mb-1.5">Precio turno (ARS)</label>
-                <input
-                  name="precioTurno"
-                  type="number"
-                  value={local.precioTurno}
-                  onChange={handleChange}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
-                />
-              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-4">
@@ -902,61 +871,18 @@ const CanchaRow = ({ cancha, onUpdate }) => {
 
           <div className="border-t border-slate-100" />
 
-          {/* ── Horario de apertura ── */}
+          {/* ── Tarifa ── */}
           <div className="flex flex-col gap-3">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Horario de apertura</p>
-
-            <div className="border border-slate-100 rounded-xl overflow-hidden">
-              <div className="flex items-center gap-3 px-4 py-3 bg-slate-50">
-                <button
-                  onClick={handleToggleHorarios}
-                  className={[
-                    'relative w-10 h-5 rounded-full transition-all duration-300 shrink-0',
-                    tieneHorariosCustom ? 'bg-blue-500' : 'bg-slate-200',
-                  ].join(' ')}
-                >
-                  <div className={[
-                    'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300',
-                    tieneHorariosCustom ? 'left-5' : 'left-0.5',
-                  ].join(' ')} />
-                </button>
-                <div>
-                  <p className="text-slate-700 font-medium text-sm">Horario propio de esta cancha</p>
-                  <p className="text-slate-400 text-xs">
-                    {tieneHorariosCustom ? 'Esta cancha tiene su propio horario de apertura' : 'Hereda el horario general del club'}
-                  </p>
-                </div>
-              </div>
-
-              {tieneHorariosCustom && local.horarios && (
-                <div className="px-4 py-3 border-t border-slate-100 flex flex-col gap-2">
-                  {DIAS.map((dia) => {
-                    const h = local.horarios[dia] ?? { apertura: '08:00', cierre: '23:00', activo: true }
-                    return (
-                      <div key={dia} className={`rounded-xl transition-colors ${h.activo ? 'bg-slate-50' : 'bg-slate-50/40 opacity-60'}`}>
-                        <div className="flex items-center gap-3 px-3 py-2.5">
-                          <button
-                            onClick={() => handleHorarioCancha(dia, { activo: !h.activo })}
-                            className={['relative w-9 h-[18px] rounded-full transition-all duration-300 shrink-0', h.activo ? 'bg-emerald-500' : 'bg-slate-200'].join(' ')}
-                          >
-                            <div className={['absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow-sm transition-all duration-300', h.activo ? 'left-[18px]' : 'left-0.5'].join(' ')} />
-                          </button>
-                          <span className="text-slate-700 font-medium text-xs w-20 shrink-0">{dia}</span>
-                          {h.activo && (
-                            <HorarioSelect
-                              apertura={h.apertura}
-                              cierre={h.cierre}
-                              onAperturaChange={(v) => handleHorarioCancha(dia, { apertura: v })}
-                              onCierreChange={(v) => handleHorarioCancha(dia, { cierre: v })}
-                              size="xs"
-                            />
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Tarifa</p>
+            <div className="max-w-xs">
+              <label className="block text-slate-500 text-xs font-medium mb-1.5">Precio turno (ARS)</label>
+              <input
+                name="precioTurno"
+                type="number"
+                value={local.precioTurno}
+                onChange={handleChange}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
+              />
             </div>
           </div>
 
@@ -1140,6 +1066,76 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
                     <span className="text-slate-400 text-sm italic">Cerrado</span>
                   )}
                 </div>
+              </div>
+            )
+          })}
+        </div>
+      </SectionCard>
+
+      {/* Horarios personalizados por cancha */}
+      <SectionCard title="Horarios personalizados por cancha" subtitle="Sobreescribí el horario general para una cancha específica">
+        <div className="flex flex-col gap-2">
+          {club.canchas.map((c) => {
+            const tieneCustom = !!c.horarios
+            const horariosActivos = c.horarios ?? HORARIOS_CANCHA_DEFAULT
+            return (
+              <div key={c.id} className="border border-slate-100 rounded-xl overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-3 bg-slate-50">
+                  <button
+                    onClick={() => updateCancha(c.id, { ...c, horarios: tieneCustom ? null : { ...HORARIOS_CANCHA_DEFAULT } })}
+                    className={[
+                      'relative w-10 h-5 rounded-full transition-all duration-300 shrink-0',
+                      tieneCustom ? 'bg-blue-500' : 'bg-slate-200',
+                    ].join(' ')}
+                  >
+                    <div className={[
+                      'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300',
+                      tieneCustom ? 'left-5' : 'left-0.5',
+                    ].join(' ')} />
+                  </button>
+                  <div>
+                    <p className="text-slate-700 font-medium text-sm">{c.nombre}</p>
+                    <p className="text-slate-400 text-xs">
+                      {tieneCustom ? 'Horario propio activo' : 'Hereda el horario general del club'}
+                    </p>
+                  </div>
+                </div>
+
+                {tieneCustom && (
+                  <div className="px-4 py-3 border-t border-slate-100 flex flex-col gap-2">
+                    {DIAS.map((dia) => {
+                      const h = horariosActivos[dia] ?? { apertura: '08:00', cierre: '23:00', activo: true }
+                      return (
+                        <div key={dia} className={`rounded-xl transition-colors ${h.activo ? 'bg-slate-50' : 'bg-slate-50/40 opacity-60'}`}>
+                          <div className="flex items-center gap-3 px-3 py-2.5">
+                            <button
+                              onClick={() => updateCancha(c.id, (curr) => ({
+                                horarios: { ...curr.horarios, [dia]: { ...(curr.horarios?.[dia] ?? h), activo: !h.activo } },
+                              }))}
+                              className={['relative w-9 h-[18px] rounded-full transition-all duration-300 shrink-0', h.activo ? 'bg-emerald-500' : 'bg-slate-200'].join(' ')}
+                            >
+                              <div className={['absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow-sm transition-all duration-300', h.activo ? 'left-[18px]' : 'left-0.5'].join(' ')} />
+                            </button>
+                            <span className="text-slate-700 font-medium text-xs w-20 shrink-0">{dia}</span>
+                            {h.activo && (
+                              <HorarioSelect
+                                apertura={h.apertura}
+                                cierre={h.cierre}
+                                onAperturaChange={(v) => updateCancha(c.id, (curr) => ({
+                                  horarios: { ...curr.horarios, [dia]: { ...(curr.horarios?.[dia] ?? h), apertura: v } },
+                                }))}
+                                onCierreChange={(v) => updateCancha(c.id, (curr) => ({
+                                  horarios: { ...curr.horarios, [dia]: { ...(curr.horarios?.[dia] ?? h), cierre: v } },
+                                }))}
+                                size="xs"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )
           })}
@@ -1803,8 +1799,12 @@ const ProfesorCard = ({ profesor, canchas, onUpdate, onDelete }) => {
           >
             <Pencil size={13} />
           </button>
-          <button onClick={() => onDelete(profesor.id)} className="text-slate-300 hover:text-red-400 transition-colors">
-            <Trash2 size={14} />
+          <button
+            onClick={() => onDelete(profesor.id)}
+            title="Desactivar profesor"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-400 transition-colors"
+          >
+            <UserX size={14} />
           </button>
         </div>
       </div>
@@ -1896,15 +1896,24 @@ const ProfesorCard = ({ profesor, canchas, onUpdate, onDelete }) => {
           </div>
 
           {/* Estado activo */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
             <button
               type="button"
               onClick={() => setLocal((p) => ({ ...p, activo: !p.activo }))}
-              className={`relative w-11 h-6 rounded-full transition-colors ${local.activo ? 'bg-emerald-500' : 'bg-slate-200'}`}
+              className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${local.activo ? 'bg-emerald-500' : 'bg-slate-300'}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${local.activo ? 'translate-x-5' : 'translate-x-0'}`} />
             </button>
-            <span className="text-slate-500 text-sm">{local.activo ? 'Activo' : 'Inactivo'}</span>
+            <div>
+              <p className="text-slate-700 text-sm font-medium">
+                Acceso al portal — {local.activo ? <span className="text-emerald-600">Activo</span> : <span className="text-slate-400">Inactivo</span>}
+              </p>
+              <p className="text-slate-400 text-xs">
+                {local.activo
+                  ? 'El profesor puede iniciar sesión en /dashboardProfesor'
+                  : 'La cuenta está suspendida. El profesor no puede acceder al portal'}
+              </p>
+            </div>
           </div>
 
           <div className="flex justify-end">
@@ -1921,33 +1930,134 @@ const ProfesorCard = ({ profesor, canchas, onUpdate, onDelete }) => {
   )
 }
 
-const TabProfesores = ({ club }) => {
-  const { profesores, addProfesor, updateProfesor, toggleProfesor } = useProfesoresStore()
+// Reglas de validación por campo
+const getPasswordStrength = (v) => {
+  if (!v || v.length < 6) return null
+  const hasLetter  = /[a-zA-Z]/.test(v)
+  const hasNumber  = /\d/.test(v)
+  const hasSpecial = /[^a-zA-Z0-9]/.test(v)
+  const score = (hasLetter ? 1 : 0) + (hasNumber ? 1 : 0) + (hasSpecial ? 1 : 0)
+  if (v.length >= 10 && score >= 3) return 'alto'
+  if (v.length >= 8  && score >= 2) return 'medio'
+  return 'bajo'
+}
+
+const STRENGTH_STYLES = {
+  bajo:  { color: 'text-red-500',    bar: 'bg-red-400',    w: 'w-1/3' },
+  medio: { color: 'text-amber-500',  bar: 'bg-amber-400',  w: 'w-2/3' },
+  alto:  { color: 'text-emerald-500', bar: 'bg-emerald-400', w: 'w-full' },
+}
+
+const VALIDATORS_PROF = {
+  nombre:   (v) => !v.trim() ? 'El nombre es requerido' : v.trim().length < 2 ? 'Mínimo 2 caracteres' : /\d/.test(v) ? 'El nombre no puede contener números' : '',
+  apellido: (v) => !v.trim() ? 'El apellido es requerido' : /\d/.test(v) ? 'El apellido no puede contener números' : '',
+  email:    (v) => !v.trim() ? 'El email es requerido' : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? 'Ingresá un email válido' : '',
+  password: (v) => !v ? 'La contraseña es requerida' : v.length < 6 ? 'Mínimo 6 caracteres' : '',
+}
+
+const TabProfesores = ({ club, token }) => {
+  const { profesores, setProfesores, addProfesor, updateProfesor } = useProfesoresStore()
   const [agregando, setAgregando] = useState(false)
-  const [nuevo, setNuevo] = useState({ nombre: '', apellido: '', email: '', password: '', especialidad: '', canchasIds: [] })
+  const NUEVO_INIT = { nombre: '', apellido: '', email: '', password: '', especialidad: '', canchasIds: [] }
+  const [nuevo, setNuevo] = useState(NUEVO_INIT)
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [hints, setHints] = useState({})
   const [showPass, setShowPass] = useState(false)
-  const [error, setError] = useState('')
+  const [serverError, setServerError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const hintTimers = useRef({})
+  const [toast, setToast] = useState(null)
+  const toastTimer = useRef(null)
+  const [ayudaAbierta, setAyudaAbierta] = useState(false)
 
-  const canchas = club.canchas?.filter((c) => c.activa) ?? CANCHAS_DEFAULT
-
-  const handleAdd = () => {
-    setError('')
-    if (!nuevo.nombre.trim() || !nuevo.email.trim() || !nuevo.password.trim()) {
-      setError('Nombre, email y contraseña son obligatorios.')
-      return
-    }
-    const emailLower = nuevo.email.trim().toLowerCase()
-    if (profesores.some((p) => p.email === emailLower)) {
-      setError('Ya existe un profesor con ese email.')
-      return
-    }
-    addProfesor({ ...nuevo, email: emailLower })
-    setNuevo({ nombre: '', apellido: '', email: '', password: '', especialidad: '', canchasIds: [] })
-    setAgregando(false)
+  const showToast = (msg, type = 'ok') => {
+    clearTimeout(toastTimer.current)
+    setToast({ msg, type })
+    toastTimer.current = setTimeout(() => setToast(null), 3000)
   }
 
-  const handleUpdate = (id, data) => updateProfesor(id, data)
-  const handleDelete = (id) => toggleProfesor(id) // desactiva en lugar de eliminar
+  const headers = { Authorization: `Bearer ${token}` }
+  const canchas = club.canchas?.filter((c) => c.activa) ?? CANCHAS_DEFAULT
+
+  useEffect(() => {
+    if (!token) return
+    api.get('/profesores', headers)
+      .then((data) => { if (Array.isArray(data)) setProfesores(data) })
+      .catch(() => {})
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const showHint = (field, msg) => {
+    setHints((h) => ({ ...h, [field]: msg }))
+    clearTimeout(hintTimers.current[field])
+    hintTimers.current[field] = setTimeout(() => setHints((h) => ({ ...h, [field]: '' })), 2000)
+  }
+
+  const validateField = (field, value) => {
+    const err = VALIDATORS_PROF[field]?.(value) ?? ''
+    setFieldErrors((e) => ({ ...e, [field]: err }))
+    return err
+  }
+
+  const handleChange = (field, raw) => {
+    let value = raw
+    // Bloquear números en nombre/apellido
+    if (field === 'nombre' || field === 'apellido') {
+      const filtered = raw.replace(/[0-9]/g, '')
+      if (raw !== filtered) showHint(field, 'No puede contener números')
+      value = filtered
+    }
+    setNuevo((p) => ({ ...p, [field]: value }))
+    if (fieldErrors[field]) validateField(field, value)
+    // Validar contraseña en tiempo real
+    if (field === 'password') validateField('password', value)
+  }
+
+  const handleBlur = (field) => validateField(field, nuevo[field])
+
+  const handleAdd = async () => {
+    setServerError('')
+    // Validar todos los campos requeridos
+    const errs = {}
+    ;['nombre', 'apellido', 'email', 'password'].forEach((f) => {
+      const e = VALIDATORS_PROF[f]?.(nuevo[f]) ?? ''
+      if (e) errs[f] = e
+    })
+    if (Object.keys(errs).length) { setFieldErrors((prev) => ({ ...prev, ...errs })); return }
+    if (submitting) return
+    setSubmitting(true)
+    try {
+      const creado = await api.post('/profesores', { ...nuevo, email: nuevo.email.trim().toLowerCase() }, headers)
+      addProfesor(creado)
+      setNuevo(NUEVO_INIT)
+      setFieldErrors({})
+      setAgregando(false)
+      showToast('Profesor creado correctamente')
+    } catch (err) {
+      setServerError(err?.message || 'Error al crear el profesor')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleUpdate = async (id, data) => {
+    try {
+      const updated = await api.patch(`/profesores/${id}`, data, headers)
+      updateProfesor(id, updated)
+      showToast('Profesor actualizado correctamente')
+    } catch (err) {
+      showToast(err?.message || 'Error al actualizar el profesor', 'err')
+    }
+  }
+
+  const handleDelete = async (id) => {
+    try {
+      await api.patch(`/profesores/${id}`, { activo: false }, headers)
+      updateProfesor(id, { activo: false })
+      showToast('Profesor desactivado', 'warn')
+    } catch (err) {
+      showToast(err?.message || 'Error al desactivar el profesor', 'err')
+    }
+  }
 
   const toggleCanchaNew = (id) => {
     setNuevo((p) => ({
@@ -1958,12 +2068,99 @@ const TabProfesores = ({ club }) => {
     }))
   }
 
+  const TOAST_STYLES = {
+    ok:   'bg-emerald-500',
+    warn: 'bg-amber-500',
+    err:  'bg-red-500',
+  }
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 relative">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-medium shadow-lg transition-all ${TOAST_STYLES[toast.type] ?? TOAST_STYLES.ok}`}>
+          <CheckCircle size={15} />
+          {toast.msg}
+        </div>
+      )}
       <SectionCard
         title="Profesores del club"
         subtitle="Los profesores pueden acceder a su portal en /dashboardProfesor para gestionar su agenda de clases"
       >
+        {/* Encabezado con botón de ayuda */}
+        <div className="flex items-center justify-end mb-3">
+          <button
+            onClick={() => setAyudaAbierta((v) => !v)}
+            title="¿Cómo funciona?"
+            className={[
+              'flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors',
+              ayudaAbierta
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-600'
+                : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300',
+            ].join(' ')}
+          >
+            <HelpCircle size={13} /> ¿Cómo funciona?
+          </button>
+        </div>
+
+        {/* Panel de ayuda */}
+        {ayudaAbierta && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                  <HelpCircle size={14} className="text-emerald-600" />
+                </div>
+                <h3 className="text-slate-800 font-semibold text-sm">Gestión de profesores</h3>
+              </div>
+              <button onClick={() => setAyudaAbierta(false)} className="text-slate-300 hover:text-slate-500 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <div>
+                <p className="text-xs font-semibold text-slate-600 mb-2.5">Acciones por profesor</p>
+                <div className="flex flex-col gap-2">
+                  {[
+                    { icon: <Pencil size={12} />, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', label: 'Lápiz', desc: 'Abre el formulario para editar datos del profesor: nombre, email, contraseña, especialidad y canchas asignadas.' },
+                    { icon: <UserX size={12} />,  color: 'text-red-400 bg-red-50 border-red-200',       label: 'Desactivar', desc: 'Desactiva la cuenta del profesor. No puede iniciar sesión hasta que se vuelva a activar desde el formulario de edición.' },
+                  ].map(({ icon, color, label, desc }) => (
+                    <div key={label} className="flex items-start gap-2.5">
+                      <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 mt-0.5 ${color}`}>{icon}</div>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        <span className="font-medium text-slate-700">{label}</span> — {desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-600 mb-2.5">Estados</p>
+                <div className="flex flex-col gap-2">
+                  {[
+                    { color: 'bg-emerald-500', label: 'Activo', desc: 'El profesor puede iniciar sesión y crear clases desde /dashboardProfesor.' },
+                    { color: 'bg-slate-300',   label: 'Inactivo', desc: 'La cuenta está suspendida. El profesor no puede acceder al portal hasta que se reactive.' },
+                  ].map(({ color, label, desc }) => (
+                    <div key={label} className="flex items-start gap-2.5">
+                      <div className={`w-2 h-2 rounded-full ${color} mt-1 shrink-0`} />
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        <span className="font-medium text-slate-700">{label}</span> — {desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-600 mb-1.5">Canchas habilitadas</p>
+                <p className="text-xs text-slate-500 leading-relaxed">Si no se selecciona ninguna cancha, el profesor puede crear clases en todas las canchas activas del club. Seleccioná una o más para restringir su acceso.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Lista */}
         <div className="flex flex-col gap-3">
           {profesores.length === 0 && !agregando && (
@@ -1985,43 +2182,61 @@ const TabProfesores = ({ club }) => {
           <div className="mt-4 border border-emerald-100 rounded-xl bg-emerald-50/40 p-5 flex flex-col gap-4">
             <p className="text-slate-700 font-semibold text-sm">Nuevo profesor</p>
             <div className="grid sm:grid-cols-2 gap-3">
+
+              {/* Nombre */}
               <div>
                 <label className="block text-slate-500 text-xs font-medium mb-1.5">Nombre *</label>
                 <input
                   value={nuevo.nombre}
-                  onChange={(e) => setNuevo((p) => ({ ...p, nombre: e.target.value }))}
+                  onChange={(e) => handleChange('nombre', e.target.value)}
+                  onBlur={() => handleBlur('nombre')}
                   placeholder="María"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 bg-white transition-colors"
+                  className={`w-full border rounded-lg px-3 py-2 text-sm text-slate-700 outline-none bg-white transition-colors ${fieldErrors.nombre ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-emerald-400'}`}
                 />
+                {hints.nombre && <p className="text-amber-500 text-xs mt-1 animate-pulse">{hints.nombre}</p>}
+                {fieldErrors.nombre && <p className="text-red-500 text-xs mt-1">{fieldErrors.nombre}</p>}
               </div>
+
+              {/* Apellido */}
               <div>
-                <label className="block text-slate-500 text-xs font-medium mb-1.5">Apellido</label>
+                <label className="block text-slate-500 text-xs font-medium mb-1.5">Apellido *</label>
                 <input
                   value={nuevo.apellido}
-                  onChange={(e) => setNuevo((p) => ({ ...p, apellido: e.target.value }))}
+                  onChange={(e) => handleChange('apellido', e.target.value)}
+                  onBlur={() => handleBlur('apellido')}
                   placeholder="González"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 bg-white transition-colors"
+                  className={`w-full border rounded-lg px-3 py-2 text-sm text-slate-700 outline-none bg-white transition-colors ${fieldErrors.apellido ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-emerald-400'}`}
                 />
+                {hints.apellido && <p className="text-amber-500 text-xs mt-1 animate-pulse">{hints.apellido}</p>}
+                {fieldErrors.apellido && <p className="text-red-500 text-xs mt-1">{fieldErrors.apellido}</p>}
               </div>
+
+              {/* Email */}
               <div>
                 <label className="block text-slate-500 text-xs font-medium mb-1.5">Email (login) *</label>
                 <input
-                  type="email"
+                  type="text"
+                  inputMode="email"
                   value={nuevo.email}
-                  onChange={(e) => setNuevo((p) => ({ ...p, email: e.target.value }))}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  onBlur={() => handleBlur('email')}
                   placeholder="maria@club.com"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 bg-white transition-colors"
+                  className={`w-full border rounded-lg px-3 py-2 text-sm text-slate-700 outline-none bg-white transition-colors ${fieldErrors.email ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-emerald-400'}`}
                 />
+                {fieldErrors.email && <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>}
               </div>
+
+              {/* Contraseña */}
               <div>
                 <label className="block text-slate-500 text-xs font-medium mb-1.5">Contraseña *</label>
                 <div className="relative">
                   <input
                     type={showPass ? 'text' : 'password'}
                     value={nuevo.password}
-                    onChange={(e) => setNuevo((p) => ({ ...p, password: e.target.value }))}
+                    onChange={(e) => handleChange('password', e.target.value)}
+                    onBlur={() => handleBlur('password')}
                     placeholder="••••••••"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-9 text-sm text-slate-700 outline-none focus:border-emerald-400 bg-white transition-colors"
+                    className={`w-full border rounded-lg px-3 py-2 pr-9 text-sm text-slate-700 outline-none bg-white transition-colors ${fieldErrors.password ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-emerald-400'}`}
                   />
                   <button
                     type="button"
@@ -2031,7 +2246,23 @@ const TabProfesores = ({ club }) => {
                     {showPass ? <Moon size={14} /> : <Sun size={14} />}
                   </button>
                 </div>
+                {(() => {
+                  const level = getPasswordStrength(nuevo.password)
+                  if (!level) return null
+                  const s = STRENGTH_STYLES[level]
+                  return (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-300 ${s.bar} ${s.w}`} />
+                      </div>
+                      <span className={`text-xs font-medium capitalize ${s.color}`}>{level}</span>
+                    </div>
+                  )
+                })()}
+                {fieldErrors.password && <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>}
               </div>
+
+              {/* Especialidad */}
               <div className="sm:col-span-2">
                 <label className="block text-slate-500 text-xs font-medium mb-1.5">Especialidad</label>
                 <input
@@ -2070,22 +2301,23 @@ const TabProfesores = ({ club }) => {
               </div>
             </div>
 
-            {error && (
-              <p className="text-red-500 text-xs bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
+            {serverError && (
+              <p className="text-red-500 text-xs bg-red-50 border border-red-100 rounded-lg px-3 py-2">{serverError}</p>
             )}
 
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => { setAgregando(false); setError('') }}
+                onClick={() => { setAgregando(false); setFieldErrors({}); setServerError('') }}
                 className="text-sm text-slate-400 hover:text-slate-600 px-4 py-2 transition-colors"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleAdd}
-                className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+                disabled={submitting}
+                className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
               >
-                <CheckCircle size={13} /> Crear profesor
+                <CheckCircle size={13} /> {submitting ? 'Creando...' : 'Crear profesor'}
               </button>
             </div>
           </div>
@@ -2289,7 +2521,7 @@ const QuienesSomosPage = () => {
       {activeTab === 'galeria'    && <TabGaleria    club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
       {activeTab === 'servicios'  && <TabServicios  club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
       {activeTab === 'staff'       && <TabStaff       club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
-      {activeTab === 'profesores'  && <TabProfesores  club={club} />}
+      {activeTab === 'profesores'  && <TabProfesores  club={club} token={token} />}
       {activeTab === 'faq'         && <TabFaq         club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
       {activeTab === 'apariencia' && <TabApariencia club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
     </div>

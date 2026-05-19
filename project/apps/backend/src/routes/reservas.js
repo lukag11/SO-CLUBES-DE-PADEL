@@ -245,6 +245,21 @@ router.post('/profesor', requireAuth, requireRole('profesor'), async (req, res) 
     const hayConflicto = existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
     if (hayConflicto) return res.status(409).json({ error: 'El horario ya está reservado' })
 
+    // Verificar solapamiento con TurnosFijos activos
+    const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+    const [fy, fm, fd] = fecha.split('-').map(Number)
+    const dia = DIAS_SEMANA[new Date(fy, fm - 1, fd).getDay()]
+    const turnosFijosActivos = await prisma.turnoFijo.findMany({
+      where: { canchaId, dia, estado: 'confirmado' },
+    })
+    const hayConflictoFijo = turnosFijosActivos.some(
+      (tf) =>
+        overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) &&
+        !tf.diasAusentes.includes(fecha) &&
+        (!tf.desde || tf.desde <= fecha)
+    )
+    if (hayConflictoFijo) return res.status(409).json({ error: 'Ese horario tiene un turno fijo activo de un jugador' })
+
     const reserva = await prisma.reserva.create({
       data: {
         clubId,
@@ -285,12 +300,27 @@ router.post('/admin/clase-profesor', requireAuth, requireRole('admin'), async (r
     const cancha = await prisma.cancha.findFirst({ where: { id: canchaId, clubId, activo: true } })
     if (!cancha) return res.status(404).json({ error: 'Cancha no encontrada' })
 
-    // Verificar solapamiento
+    // Verificar solapamiento con reservas existentes
     const existentes = await prisma.reserva.findMany({
       where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
     })
     const hayConflicto = existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
     if (hayConflicto) return res.status(409).json({ error: 'El horario ya está ocupado en esa cancha' })
+
+    // Verificar solapamiento con TurnosFijos activos
+    const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+    const [fy, fm, fd] = fecha.split('-').map(Number)
+    const dia = DIAS_SEMANA[new Date(fy, fm - 1, fd).getDay()]
+    const turnosFijosActivos = await prisma.turnoFijo.findMany({
+      where: { canchaId, dia, estado: 'confirmado' },
+    })
+    const hayConflictoFijo = turnosFijosActivos.some(
+      (tf) =>
+        overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) &&
+        !tf.diasAusentes.includes(fecha) &&
+        (!tf.desde || tf.desde <= fecha)
+    )
+    if (hayConflictoFijo) return res.status(409).json({ error: 'Ese horario tiene un turno fijo activo de un jugador' })
 
     const reserva = await prisma.reserva.create({
       data: {

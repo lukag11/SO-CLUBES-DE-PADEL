@@ -159,6 +159,15 @@ const generarSlots = (apertura, cierre, canchaId, fechaStr, misReservas, turnosF
           (!t.desde || t.desde <= fechaStr)
       )
 
+      // Slot cubierto por solicitud de TurnoFijo propia pendiente de aprobación admin
+      const miTurnoFijoPendiente = !miReservaConfirmada && !miTurnoFijoActivo && (turnosFijosAll || []).some(
+        (t) =>
+          t.estado === 'pendiente' &&
+          t.canchaId === canchaId &&
+          t.dia === diaKey &&
+          overlaps(t.inicio ?? t.horaInicio, t.fin ?? t.horaFin, f.inicio, f.fin)
+      )
+
       const miReserva = miReservaConfirmada || miReservaPendiente
       const [hI, mI] = f.inicio.split(':').map(Number)
       const esPasado = esHoy && (hI * 60 + mI) < minutosAhora
@@ -166,9 +175,10 @@ const generarSlots = (apertura, cierre, canchaId, fechaStr, misReservas, turnosF
         hora: f.inicio,
         horaFin: f.fin,
         pasado: esPasado && !miReserva && !miTurnoFijoActivo,
-        ocupado: ((esOcupadoReal && !eraSlotFijoLiberado) || esOcupadoFijo || esOcupadoAdmin) && !miReserva && !miTurnoFijoActivo,
+        ocupado: ((esOcupadoReal && !eraSlotFijoLiberado) || esOcupadoFijo || esOcupadoAdmin) && !miReserva && !miTurnoFijoActivo && !miTurnoFijoPendiente,
         miReserva: (!!miReservaConfirmada && !miTurnoFijoCancelacionPendiente) || miTurnoFijoActivo,
         miReservaPendiente: !!miReservaPendiente,
+        miTurnoFijoPendiente,
         miTurnoFijoCancelacionPendiente,
         miReservaId: miReserva?.id,
       }
@@ -731,6 +741,16 @@ const PlayerReservasPage = () => {
                     )
                   }
 
+                  if (slot.miTurnoFijoPendiente) {
+                    return (
+                      <div key={slot.hora} className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg border bg-amber-500/8 border-amber-500/25 cursor-default text-center">
+                        <Repeat size={10} className="text-amber-400 animate-pulse shrink-0" />
+                        <span className="text-amber-400 font-bold text-[10px] leading-none">{slot.hora}</span>
+                        <span className="text-amber-400/50 text-[9px] leading-none">{slot.horaFin}</span>
+                      </div>
+                    )
+                  }
+
                   if (slot.pasado) {
                     return (
                       <div key={slot.hora} className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg border border-white/4 bg-white/2 cursor-not-allowed opacity-25 text-center">
@@ -945,7 +965,7 @@ const PlayerReservasPage = () => {
                       <p className={`font-semibold text-sm truncate ${bloqueado ? 'text-white/40' : 'text-white'}`}>{r.canchaNombre}</p>
                       {r.estado === 'pendiente' && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">
-                          Pendiente aprobación
+                          Pendiente de aprobación
                         </span>
                       )}
                       {r.estado === 'confirmada' && r.esTurnoFijo && !bloqueado && (
@@ -1000,6 +1020,69 @@ const PlayerReservasPage = () => {
           </div>
         )}
       </div>
+
+      {/* ── Mis próximos turnos fijos ── */}
+      {turnosFijos.filter((t) => t.activo || t.estado === 'pendiente').length > 0 && (
+        <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/6 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Repeat size={15} className="text-violet-400" />
+              <h3 className="text-white font-semibold text-sm">Mis turnos fijos</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              {turnosFijos.some((t) => t.estado === 'pendiente') && (
+                <span className="text-amber-400 text-xs font-medium">
+                  {turnosFijos.filter((t) => t.estado === 'pendiente').length} pendiente{turnosFijos.filter((t) => t.estado === 'pendiente').length !== 1 ? 's' : ''}
+                </span>
+              )}
+              <span className="text-white/30 text-xs">
+                {turnosFijos.filter((t) => t.activo).length} activo{turnosFijos.filter((t) => t.activo).length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+          <div className="divide-y divide-white/5">
+            {turnosFijos
+              .filter((t) => t.activo || t.estado === 'pendiente')
+              .sort((a, b) => {
+                if (a.estado === 'pendiente' && b.estado !== 'pendiente') return -1
+                if (b.estado === 'pendiente' && a.estado !== 'pendiente') return 1
+                return 0
+              })
+              .map((t) => {
+                const cancha = (club.canchas ?? []).find((c) => c.id === t.canchaId)
+                const isPendiente = t.estado === 'pendiente'
+                const DIAS_LABEL = { domingo: 'Domingo', lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado' }
+                return (
+                  <div key={t.id} className={`px-4 py-3.5 flex items-center gap-3 ${isPendiente ? 'bg-amber-500/3' : 'hover:bg-white/2'}`}>
+                    <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 ${isPendiente ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-violet-500/10 border border-violet-500/20'}`}>
+                      <Repeat size={15} className={isPendiente ? 'text-amber-400' : 'text-violet-400'} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-white font-semibold text-sm truncate">{DIAS_LABEL[t.dia] ?? t.dia}</p>
+                        {isPendiente ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">
+                            Pendiente de aprobación
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0">
+                            Turno fijo
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-white/40 text-xs flex items-center gap-1">
+                          <Clock size={10} /> {t.horaInicio ?? t.inicio} a {t.horaFin ?? t.fin}
+                        </span>
+                        <span className="text-white/30 text-xs">{cancha?.nombre ?? '—'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+          </div>
+        </div>
+      )}
 
       {/* ── Modal confirmación cancelar reserva eventual ── */}
       {reservaACancelar && (

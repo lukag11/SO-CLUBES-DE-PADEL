@@ -336,7 +336,7 @@ const PlayerTurnosFijosPage = () => {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/25">
-                    Esperando aprobación
+                    Pendiente de aprobación
                   </span>
                   <button
                     onClick={() => handleRetirarSolicitud(t)}

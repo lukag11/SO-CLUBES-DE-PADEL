@@ -175,9 +175,28 @@ const ProfesorDisponibilidadPage = () => {
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
   const toastTimer = useRef(null)
 
+  // Re-inicializa solo la primera vez que llegan los datos reales del backend.
+  // Sin este guard, el useEffect pisaría los cambios del usuario si el fetch termina
+  // mientras ya editó algo (race condition).
+  const initializedRef = useRef(false)
   useEffect(() => {
+    if (!profesor?.id || initializedRef.current) return
+    initializedRef.current = true
     setDisp(buildInitialState(profesor?.disponibilidad, horarios))
   }, [profesor?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Mientras los datos del profesor no cargaron, no mostramos el form.
+  // Así la inicialización del useState siempre usa datos reales.
+  if (!profesor) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-orange-400/40 border-t-orange-400 rounded-full animate-spin" />
+          <p className="text-white/30 text-sm">Cargando disponibilidad…</p>
+        </div>
+      </div>
+    )
+  }
 
   const showToast = (msg, type = 'ok') => {
     clearTimeout(toastTimer.current)

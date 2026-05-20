@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-18 (sesión — módulo profesor: tab Clases del profesor en admin, endpoint clase-profesor, disponibilidad simplificada, toggle activo/inactivo con descripción)
+**Última actualización:** 2026-05-19 (sesión — fixes grilla admin clases profesor + fixes ProfesorAgendaPage + Autocompletar)
 
 ---
 
@@ -23,7 +23,7 @@
 | Reservas jugador (grilla + modal) | ✅ Completo | Slots 1.5h. GET /reservas/me al montar. Cancelación con política de cargo. Sin localStorage |
 | Turnos fijos (pendiente → aprobación) | ✅ Frontend completo | Flujo completo — falta backend (Bloque 3) |
 | Notificaciones admin + jugador | ✅ Backend completo | Tabla `notificaciones` en Supabase. Triggers en reservas + turnos fijos. GET/PATCH endpoints. playerNotificationsStore reescrito sin localStorage |
-| Dashboard profesor (agenda + disponibilidad) | ✅ Frontend completo | Portal separado `/dashboardProfesor`. Disponibilidad DB-connected. Tab "Clases del profesor" en admin. Endpoint `POST /reservas/admin/clase-profesor` |
+| Dashboard profesor (agenda + disponibilidad) | ✅ Completo | Portal separado `/dashboardProfesor`. Disponibilidad DB-connected. Tab "Clases del profesor" en admin. Endpoints: `POST /reservas/admin/clase-profesor`, `POST /reservas/profesor`, `GET /turnos-fijos/slots-dia`. TurnosFijos bloquean modal agenda. |
 | Módulo torneos admin | ✅ Frontend completo | CRUD, grupos, bracket, horarios — falta backend (Bloque 4) |
 | Módulo torneos jugador | ✅ Frontend completo | Inscripción, historial, sinCompanero, disponibilidad, notificaciones separadas — falta backend (Bloque 4) |
 | Estadísticas jugador | 🔲 Hardcodeado | Placeholder. Implementar en Bloque 5 con datos reales de reservas + torneos |
@@ -128,6 +128,57 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-05-19 sesión 2) — Grilla admin: display clases profesor + Autocompletar
+
+### Funcionalidades implementadas
+
+**Fix: grilla admin muestra horario completo de clase, no la intersección con el slot**
+- `Celda` (`ReservasPage.jsx`): el bloque `tipo === 'clase'` ahora muestra `{reserva.inicio} → {reserva.fin}` (tiempo real de la clase, ej. "09:00 → 14:00") en lugar de la intersección con el slot 1.5h
+- Antes: se calculaba `tramoLabel = max(slotInicio, clsInicio) → min(slotFin, clsFin)`, lo que mostraba "09:00 → 09:30" en el primer slot. Corregido completamente
+- `'clase'` eliminado del bloque `rowSpan`: ya no intenta mergear celdas (causaba layout roto cuando el horario no coincidía con los límites del slot)
+
+**Fix: múltiples clases superpuestas en un slot se apilan verticalmente**
+- `Grilla` (`ReservasPage.jsx`): en lugar de tomar UNA clase con `getReserva(clasesDia, ...)`, ahora filtra TODAS las clases que se solapan con el slot 1.5h:
+  ```js
+  const clasesSlot = (clasesDia || []).filter(
+    (c) => String(c.canchaId) === String(cancha.id) && overlaps(c.inicio, c.fin, franja.inicio, franja.fin)
+  )
+  ```
+- Si hay una o más clases, se renderizan en una columna con `divide-y divide-orange-100/60`
+
+**Fix: Autocompletar (ProfesorAgendaPage) vuelve a bloques grandes**
+- `calcularBloquesFaltantes`: revirtió de slices de 1h al approach original — un solo bloque grande por ventana libre
+- Elige la cancha con el bloque más largo en cada franja horaria
+- `misClasesDia` (filtrado por día) en lugar de `misClases` para el cálculo
+- `toMinFill`: maneja correctamente medianoche (`if (h < 6) return mins === 0 ? 1440 : mins + 1440`)
+
+### Archivos modificados
+- `project/apps/frontend/src/pages/ReservasPage.jsx` — Celda clase + Grilla multi-clase
+- `project/apps/frontend/src/pages/ProfesorAgendaPage.jsx` — calcularBloquesFaltantes + toMinFill
+
+---
+
+## Último bloque completado (2026-05-19) — Auditoría flujo profesor: fixes de solapamiento
+
+### Funcionalidades implementadas
+
+**Fix: TurnosFijos bloquean franjas en modal Nueva clase (ProfesorAgendaPage)**
+- Nuevo endpoint `GET /turnos-fijos/slots-dia?fecha=YYYY-MM-DD` (rol: profesor)
+- Filtra TurnoFijos `confirmado` del club para el día de la semana, respeta `diasAusentes` y `desde`
+- `ProfesorAgendaPage`: agrega `fetchTurnosFijosDia` que llama el endpoint al cambiar fecha
+- `ModalClase` recibe `[...todasReservasDia, ...turnosFijosDia]` — los TF aparecen como "Ocupado"
+
+**Fix: solapamiento con TurnosFijos al crear clase**
+- `POST /reservas/profesor`: verifica TurnoFijos activos antes de crear clase (igual que `POST /` del jugador)
+- `POST /admin/clase-profesor`: ídem — rechaza si el horario tiene un TurnoFijo confirmado activo
+- Respuesta 409 con mensaje claro: "Ese horario tiene un turno fijo activo de un jugador"
+
+**Auditoría confirmó:**
+- GAP 1 (clases no bloquean grilla jugador): ya estaba resuelto — `reservasDB` incluye clases vía `GET /reservas`
+- GAP 3 (landing no muestra clases): ya estaba resuelto — `GET /:slug/disponibilidad` incluye todas las reservas confirmadas
 
 ---
 

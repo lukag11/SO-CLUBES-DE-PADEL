@@ -260,6 +260,13 @@ router.post('/profesor', requireAuth, requireRole('profesor'), async (req, res) 
     )
     if (hayConflictoFijo) return res.status(409).json({ error: 'Ese horario tiene un turno fijo activo de un jugador' })
 
+    // Verificar que el profesor no tenga ya otra clase en ese horario (en cualquier cancha)
+    const clasesExistentesProfesor = await prisma.reserva.findMany({
+      where: { profesorId, fecha, estado: { not: 'cancelada' } },
+    })
+    const hayConflictoProfesor = clasesExistentesProfesor.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
+    if (hayConflictoProfesor) return res.status(409).json({ error: 'Ya tenés una clase en ese horario en otra cancha' })
+
     const reserva = await prisma.reserva.create({
       data: {
         clubId,
@@ -321,6 +328,13 @@ router.post('/admin/clase-profesor', requireAuth, requireRole('admin'), async (r
         (!tf.desde || tf.desde <= fecha)
     )
     if (hayConflictoFijo) return res.status(409).json({ error: 'Ese horario tiene un turno fijo activo de un jugador' })
+
+    // Verificar que el profesor no tenga ya otra clase en ese horario (en cualquier cancha)
+    const clasesExistentesProfesor = await prisma.reserva.findMany({
+      where: { profesorId, fecha, estado: { not: 'cancelada' } },
+    })
+    const hayConflictoProfesor = clasesExistentesProfesor.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
+    if (hayConflictoProfesor) return res.status(409).json({ error: 'El profesor ya tiene una clase en ese horario en otra cancha' })
 
     const reserva = await prisma.reserva.create({
       data: {

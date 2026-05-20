@@ -223,8 +223,34 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = [] }) => {
 
   const pagoCfgEarly = reserva.pago ? PAGO_CONFIG[reserva.pago] : null
 
-  // Bloqueo, Clase, Online, Solicitud fijo — rowspan
-  if (reserva.tipo === 'bloqueado' || reserva.tipo === 'clase' || reserva.tipo === 'online' || reserva.tipo === 'solicitud_fijo') {
+  // Clase del profesor — se pinta dentro de cada celda que overlappea (sin rowspan para no romper el layout)
+  if (reserva.tipo === 'clase') {
+    const esClaseProfesor = reserva.creadoPor === 'profesor'
+    const nombre = esClaseProfesor ? reserva.profesorNombre : (reserva.profesor || reserva.nota || '')
+    return (
+      <td
+        onClick={() => onClick({ tipo: 'detalle', reserva, franja, cancha })}
+        className="border border-orange-100 align-top transition-colors cursor-pointer bg-orange-50/70 hover:bg-orange-100/60"
+      >
+        <div className="h-14 p-2 flex flex-col gap-0.5 overflow-hidden">
+          <div className="flex items-center gap-1.5">
+            <GraduationCap size={11} className="text-orange-400 shrink-0" />
+            <span className="text-orange-600 text-xs font-semibold truncate">Clase</span>
+            {esClaseProfesor && (
+              <span className="text-[9px] bg-orange-100 text-orange-500 font-bold px-1 py-0.5 rounded leading-none shrink-0">Prof</span>
+            )}
+          </div>
+          <p className="text-orange-500 text-[10px] font-mono font-semibold leading-snug">{reserva.inicio} → {reserva.fin}</p>
+          {nombre && (
+            <p className="text-orange-400 text-[10px] leading-snug truncate">{nombre}</p>
+          )}
+        </div>
+      </td>
+    )
+  }
+
+  // Bloqueo, Online, Solicitud fijo — rowspan
+  if (reserva.tipo === 'bloqueado' || reserva.tipo === 'online' || reserva.tipo === 'solicitud_fijo') {
     // Primera franja que overlappea con esta reserva (donde se renderiza)
     const primeraFranja = franjas.find((f) => overlaps(reserva.inicio, reserva.fin, f.inicio, f.fin))
     if (!primeraFranja || primeraFranja.inicio !== franja.inicio) return null
@@ -232,10 +258,8 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = [] }) => {
       (f) => overlaps(reserva.inicio, reserva.fin, f.inicio, f.fin)
     ).length)
 
-    const esClase = reserva.tipo === 'clase'
     const esOnline = reserva.tipo === 'online'
     const esSolicitudFijo = reserva.tipo === 'solicitud_fijo'
-    const esClaseProfesor = esClase && reserva.creadoPor === 'profesor'
     const esNoDisponibilidadProfesor = reserva.tipo === 'bloqueado' && reserva.creadoPor === 'profesor'
 
     return (
@@ -244,28 +268,14 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = [] }) => {
         onClick={() => onClick({ tipo: 'detalle', reserva, franja, cancha })}
         className={[
           'border border-slate-100 align-top transition-colors cursor-pointer',
-          esClase ? 'bg-orange-50/70 hover:bg-orange-100/60'
-          : esNoDisponibilidadProfesor ? 'bg-red-50/60 hover:bg-red-100/50'
+          esNoDisponibilidadProfesor ? 'bg-red-50/60 hover:bg-red-100/50'
           : esOnline ? 'bg-emerald-50/60 hover:bg-emerald-100/50'
           : esSolicitudFijo ? 'bg-amber-50/60 hover:bg-amber-100/50'
           : 'bg-red-50/60 hover:bg-red-100/50',
         ].join(' ')}
       >
         <div className="h-full min-h-14 p-2 flex flex-col gap-1">
-          {esClase ? (
-            <>
-              <div className="flex items-center gap-1.5">
-                <GraduationCap size={11} className="text-orange-400 shrink-0" />
-                <span className="text-orange-600 text-xs font-semibold truncate">Clase</span>
-                {esClaseProfesor && (
-                  <span className="text-[9px] bg-orange-100 text-orange-500 font-bold px-1 py-0.5 rounded leading-none shrink-0">Prof</span>
-                )}
-              </div>
-              <p className="text-orange-500 text-xs leading-snug truncate">
-                {esClaseProfesor ? reserva.profesorNombre : (reserva.profesor || reserva.nota || '')}
-              </p>
-            </>
-          ) : esNoDisponibilidadProfesor ? (
+          {esNoDisponibilidadProfesor ? (
             <>
               <div className="flex items-center gap-1.5">
                 <GraduationCap size={11} className="text-red-400 shrink-0" />
@@ -384,15 +394,47 @@ const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], franja
                   <span className="text-slate-400 text-xs font-mono">{franja.fin}</span>
                 </td>
                 {canchas.map((cancha) => {
-                  // Clases del profesor tienen prioridad sobre reservas libres
-                  const clase = getReserva(clasesDia, cancha.id, franja)
-                  const reserva = clase || getReserva(reservas, cancha.id, franja)
-                  // Celdas cubiertas por rowspan de bloqueo o clase
-                  if (
-                    (reserva?.tipo === 'bloqueado' || reserva?.tipo === 'clase') &&
-                    reserva.inicio !== franja.inicio
-                  ) {
+                  // Todas las clases que overlappean este slot (puede haber varias clases de 1h en un slot de 1.5h)
+                  const clasesSlot = (clasesDia || []).filter(
+                    (c) => String(c.canchaId) === String(cancha.id) && overlaps(c.inicio, c.fin, franja.inicio, franja.fin)
+                  )
+                  const reserva = clasesSlot.length === 0 ? getReserva(reservas, cancha.id, franja) : null
+                  // Celdas cubiertas por rowspan de bloqueo (clases no usan rowspan)
+                  if (reserva?.tipo === 'bloqueado' && reserva.inicio !== franja.inicio) {
                     return null
+                  }
+                  // Celda con una o más clases del profesor apiladas
+                  if (clasesSlot.length > 0) {
+                    return (
+                      <td key={cancha.id} className="border border-orange-100 bg-orange-50/60 align-top p-0">
+                        <div className="flex flex-col divide-y divide-orange-100/60">
+                          {clasesSlot.map((clase) => {
+                            const esProfesor = clase.creadoPor === 'profesor'
+                            const nombre = esProfesor ? clase.profesorNombre : (clase.profesor || clase.nota || '')
+                            return (
+                              <div
+                                key={`${clase.canchaId}-${clase.inicio}`}
+                                onClick={() => onCeldaClick({ tipo: 'detalle', reserva: clase, franja, cancha })}
+                                className="cursor-pointer hover:bg-orange-100/70 transition-colors px-2 py-1.5 flex flex-col gap-0.5"
+                              >
+                                <div className="flex items-center gap-1">
+                                  <GraduationCap size={10} className="text-orange-400 shrink-0" />
+                                  <span className="text-orange-600 text-[10px] font-mono font-semibold">
+                                    {clase.inicio} → {clase.fin}
+                                  </span>
+                                  {esProfesor && (
+                                    <span className="text-[8px] bg-orange-100 text-orange-500 font-bold px-1 rounded leading-none shrink-0">Prof</span>
+                                  )}
+                                </div>
+                                {nombre && (
+                                  <p className="text-orange-400 text-[9px] leading-snug truncate pl-3.5">{nombre}</p>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </td>
+                    )
                   }
                   return (
                     <Celda

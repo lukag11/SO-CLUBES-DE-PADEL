@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ChevronLeft, ChevronRight, Plus, X, GraduationCap,
-  CalendarDays, Trash2, Save, AlertCircle, Clock, MapPin,
+  CalendarDays, Trash2, Save, AlertCircle, Clock, MapPin, Zap,
 } from 'lucide-react'
 import useAuthProfesorStore from '../store/authProfesorStore'
 import useClubStore from '../store/clubStore'
@@ -62,9 +62,147 @@ const duracionStr = (inicio, fin) => {
   return m ? `${h}h ${m}m` : `${h}h`
 }
 
+// ─── Auto-fill: cálculo de bloques libres secuenciales ───────────────────────
+
+const toMinFill = (t) => {
+  if (!t) return 0
+  const [h, m] = t.split(':').map(Number)
+  const mins = h * 60 + m
+  if (h < 6) return mins === 0 ? 1440 : mins + 1440
+  return mins
+}
+const toStrFill = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+
+const calcularBloquesFaltantes = (canchas, franjasDelDia, todasReservasDia, turnosFijosDia, misClasesDia) => {
+  if (!franjasDelDia.length || !canchas.length) return []
+
+  // Rango de disponibilidad del profesor hoy
+  const apMin = toMinFill(franjasDelDia[0].inicio)
+  const ciMin = toMinFill(franjasDelDia[franjasDelDia.length - 1].fin)
+
+  // Tiempo libre del profesor: restar sus clases existentes del rango disponible
+  const profOcupado = misClasesDia.map((c) => [toMinFill(c.inicio), toMinFill(c.fin)])
+  let libres = [[apMin, ciMin]]
+  for (const [bFrom, bTo] of profOcupado) {
+    libres = libres.flatMap(([from, to]) => {
+      if (bFrom >= to || bTo <= from) return [[from, to]]
+      const segs = []
+      if (bFrom > from) segs.push([from, bFrom])
+      if (bTo < to) segs.push([bTo, to])
+      return segs
+    })
+  }
+  if (!libres.length) return []
+
+  // Todos los eventos del día (reservas + turnos fijos)
+  const allEvents = [...todasReservasDia, ...turnosFijosDia]
+  const isFreeAt = (canchaId, from) =>
+    !allEvents.some(
+      (r) => String(r.canchaId) === String(canchaId) && toMinFill(r.inicio) <= from && toMinFill(r.fin) > from
+    )
+
+  const resultado = []
+
+  const MIN_BLOQUE = 60 // minutos — bloques menores se descartan
+
+  for (const [segFrom, segTo] of libres) {
+    let cur = segFrom
+    while (cur < segTo) {
+      // Evaluar todas las canchas disponibles en 'cur' y cuánto tiempo libre tienen
+      const candidatos = canchas
+        .filter((c) => isFreeAt(c.id, cur))
+        .map((c) => {
+          const nextConflicto = allEvents
+            .filter((r) => String(r.canchaId) === String(c.id) && toMinFill(r.inicio) > cur && toMinFill(r.inicio) <= segTo)
+            .map((r) => toMinFill(r.inicio))
+          const blockEnd = nextConflicto.length ? Math.min(...nextConflicto, segTo) : segTo
+          return { cancha: c, blockEnd, duracion: blockEnd - cur }
+        })
+        .filter((x) => x.duracion >= MIN_BLOQUE) // descartar bloques muy cortos
+
+      if (!candidatos.length) {
+        // Ninguna cancha tiene suficiente tiempo libre — avanzar al próximo evento
+        const siguienteFin = allEvents
+          .map((r) => toMinFill(r.fin))
+          .filter((t) => t > cur && t <= segTo)
+        const next = siguienteFin.length ? Math.min(...siguienteFin) : segTo
+        cur = next
+        continue
+      }
+
+      // Elegir la cancha con el bloque más largo
+      const mejor = candidatos.reduce((a, b) => (b.duracion > a.duracion ? b : a))
+      resultado.push({
+        canchaId: mejor.cancha.id,
+        canchaNombre: mejor.cancha.nombre,
+        inicio: toStrFill(cur),
+        fin: toStrFill(mejor.blockEnd),
+      })
+      cur = mejor.blockEnd
+    }
+  }
+
+  return resultado
+}
+
+// ─── Modal auto-fill ──────────────────────────────────────────────────────────
+
+const ModalAutoFill = ({ fecha, bloques, onClose, onConfirm, submitting }) => createPortal(
+  <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+    <div className="bg-[#0d1117] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] flex flex-col">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/8 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-orange-400/15 border border-orange-400/25 rounded-xl flex items-center justify-center">
+            <Zap size={17} className="text-orange-400" />
+          </div>
+          <div>
+            <h3 className="text-white font-bold text-sm">Completar disponibilidad</h3>
+            <p className="text-white/30 text-xs capitalize">{fmtFecha(fecha)}</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 transition-colors">
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
+        <p className="text-white/40 text-xs leading-relaxed">
+          Se crearán {bloques.length} clase{bloques.length !== 1 ? 's' : ''} cubriendo los slots libres de tu disponibilidad en orden de canchas:
+        </p>
+        <div className="flex flex-col gap-2">
+          {bloques.map((b, i) => (
+            <div key={i} className="flex items-center gap-3 bg-orange-400/8 border border-orange-400/15 rounded-xl px-4 py-3">
+              <div className="w-7 h-7 bg-orange-400/20 rounded-lg flex items-center justify-center shrink-0">
+                <span className="text-orange-400 font-black text-xs">{i + 1}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-semibold text-sm truncate">{b.canchaNombre}</p>
+                <p className="text-orange-300/70 text-xs">{b.inicio} → {b.fin} · {duracionStr(b.inicio, b.fin)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onClose}
+            className="flex-1 border border-white/10 text-white/40 hover:text-white hover:border-white/20 rounded-xl py-3 text-sm font-medium transition-all">
+            Cancelar
+          </button>
+          <button onClick={onConfirm} disabled={submitting}
+            className="flex-1 bg-orange-400 hover:bg-orange-300 disabled:opacity-50 text-white font-bold rounded-xl py-3 text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-400/20">
+            <Zap size={14} />
+            {submitting ? 'Creando...' : `Crear ${bloques.length} clase${bloques.length !== 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>,
+  document.body
+)
+
 // ─── Modal para crear una clase ───────────────────────────────────────────────
 
-const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, canchasDisponibles, franjasDelDia, submitting }) => {
+const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor, canchasDisponibles, franjasDelDia, submitting }) => {
   const [canchaId, setCanchaId] = useState(canchasDisponibles[0]?.id ?? '')
   const [inicio, setInicio] = useState('')
   const [fin, setFin] = useState('')
@@ -82,16 +220,20 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, canchasDisponibles
   )
 
   const estadoFranjas = useMemo(
-    () => franjasEnRango.map((f) => ({
-      ...f,
-      ocupado: reservasDelDia.some(
+    () => franjasEnRango.map((f) => {
+      const ocupadoCancha = reservasDelDia.some(
         (r) => r.canchaId === canchaId && r.inicio < f.fin && r.fin > f.inicio
-      ),
-    })),
-    [franjasEnRango, canchaId, reservasDelDia]
+      )
+      // El profesor ya tiene clase en otro cancha en este horario
+      const ocupadoProfesor = !ocupadoCancha && (misClasesProfesor ?? []).some(
+        (r) => r.canchaId !== canchaId && r.inicio < f.fin && r.fin > f.inicio
+      )
+      return { ...f, ocupado: ocupadoCancha, ocupadoProfesor }
+    }),
+    [franjasEnRango, canchaId, reservasDelDia, misClasesProfesor]
   )
 
-  const hayConflicto = estadoFranjas.some((f) => f.ocupado)
+  const hayConflicto = estadoFranjas.some((f) => f.ocupado || f.ocupadoProfesor)
 
   const handleSetInicio = (val) => {
     setInicio(val)
@@ -112,7 +254,10 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, canchasDisponibles
     if (!canchaId) { setError('Seleccioná una cancha.'); return }
     if (!inicio || !fin) { setError('Seleccioná el horario de inicio y fin.'); return }
     if (franjasEnRango.length === 0) { setError('El rango no contiene franjas válidas.'); return }
-    if (hayConflicto) { setError('El rango tiene franjas ocupadas. Revisá el detalle.'); return }
+    const tieneOcupadoCancha = estadoFranjas.some((f) => f.ocupado)
+    const tieneOcupadoProfesor = estadoFranjas.some((f) => f.ocupadoProfesor)
+    if (tieneOcupadoCancha) { setError('El rango tiene franjas ocupadas en esta cancha. Revisá el detalle.'); return }
+    if (tieneOcupadoProfesor) { setError('Ya tenés una clase en ese horario en otra cancha.'); return }
     const horaFin = fin === '24:00' ? '00:00' : fin
     onSave({ canchaId, horaInicio: inicio, horaFin, notas: nota.trim() })
   }
@@ -214,10 +359,14 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, canchasDisponibles
                     'flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium',
                     f.ocupado
                       ? 'bg-red-500/12 border border-red-500/20 text-red-400'
-                      : 'bg-orange-400/8 border border-orange-400/12 text-orange-300',
+                      : f.ocupadoProfesor
+                        ? 'bg-amber-400/12 border border-amber-400/20 text-amber-400'
+                        : 'bg-orange-400/8 border border-orange-400/12 text-orange-300',
                   ].join(' ')}>
                     <span>{f.inicio} → {f.fin}</span>
-                    <span className="text-[10px] opacity-70">{f.ocupado ? 'Ocupado' : 'Libre'}</span>
+                    <span className="text-[10px] opacity-70">
+                      {f.ocupado ? 'Ocupado' : f.ocupadoProfesor ? 'Clase en otra cancha' : 'Libre'}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -298,9 +447,8 @@ const ModalConfirmarEliminar = ({ clase, onConfirm, onClose, submitting }) => cr
 
 const ProfesorAgendaPage = () => {
   const { profesor, token } = useAuthProfesorStore()
-  const canchas        = useClubStore((s) => s.club.canchas ?? [])
-  const horarios       = useClubStore((s) => s.club.horarios)
-  const loadFromBackend = useClubStore((s) => s.loadFromBackend)
+  const canchas   = useClubStore((s) => s.club.canchas ?? [])
+  const horarios  = useClubStore((s) => s.club.horarios)
 
   const [fecha, setFecha] = useState(todayISO())
   const [windowStart, setWindowStart] = useState(todayISO())
@@ -308,6 +456,8 @@ const ProfesorAgendaPage = () => {
   const [todasReservasDia, setTodasReservasDia] = useState([])
   const [turnosFijosDia, setTurnosFijosDia] = useState([])
   const [modalNueva, setModalNueva] = useState(false)
+  const [modalAutoFill, setModalAutoFill] = useState(false)
+  const [bloquesAutoFill, setBloquesAutoFill] = useState([])
   const [claseEliminar, setClaseEliminar] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [clasesSemana, setClasesSemana] = useState({})
@@ -369,12 +519,6 @@ const ProfesorAgendaPage = () => {
 
   useEffect(() => { fetchSemana(diasSemana) }, [windowStart]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!profesor?.club?.slug) return
-    api.get(`/clubs/${profesor.club.slug}`, {})
-      .then((club) => { if (club?.id) loadFromBackend(club) })
-      .catch(() => {})
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setMisClases([])
@@ -382,7 +526,7 @@ const ProfesorAgendaPage = () => {
     fetchMisClases(fecha)
     fetchTodasDia(fecha)
     fetchTurnosFijosDia(fecha)
-  }, [fecha]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fecha, fetchTodasDia]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const franjasDelDia = useMemo(() => {
     const diaNombre = getDiaNombre(fecha)
@@ -394,9 +538,11 @@ const ProfesorAgendaPage = () => {
       if (!t) return 0
       const [h, m] = t.split(':').map(Number)
       const mins = h * 60 + m
-      return mins === 0 ? 1440 : mins
+      // 00:xx–05:xx representan madrugada del día siguiente (ej: 00:30 → 1470)
+      if (h < 6) return mins === 0 ? 1440 : mins + 1440
+      return mins
     }
-    const toStr = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+    const toStr = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 
     let ap = toMin(horario.apertura || '08:00')
     let ci = toMin(horario.cierre   || '23:00')
@@ -464,6 +610,42 @@ const ProfesorAgendaPage = () => {
     }
   }
 
+  const handleAbrirAutoFill = () => {
+    const bloques = calcularBloquesFaltantes(
+      canchasHabilitadas, franjasDelDia, todasReservasDia, turnosFijosDia, misClasesDia
+    )
+    if (!bloques.length) {
+      alert('No hay slots libres para completar. Todos los horarios de tu disponibilidad ya están cubiertos.')
+      return
+    }
+    setBloquesAutoFill(bloques)
+    setModalAutoFill(true)
+  }
+
+  const handleConfirmarAutoFill = async () => {
+    if (submitting) return
+    setSubmitting(true)
+    const nuevas = []
+    const errores = []
+    for (const b of bloquesAutoFill) {
+      try {
+        const horaFin = b.fin === '24:00' ? '00:00' : b.fin
+        const nueva = await api.post('/reservas/profesor', { canchaId: b.canchaId, fecha, horaInicio: b.inicio, horaFin, notas: '' }, headers)
+        nuevas.push(normalizar(nueva))
+      } catch (err) {
+        errores.push(`${b.inicio}-${b.fin} en ${b.canchaNombre}: ${err?.message || 'Error'}`)
+      }
+    }
+    if (nuevas.length) {
+      setMisClases((prev) => [...prev, ...nuevas])
+      setClasesSemana((prev) => ({ ...prev, [fecha]: [...(prev[fecha] ?? []), ...nuevas] }))
+    }
+    setModalAutoFill(false)
+    setBloquesAutoFill([])
+    setSubmitting(false)
+    if (errores.length) alert(`Algunas clases no pudieron crearse:\n${errores.join('\n')}`)
+  }
+
   // Horas de clase del día
   const horasDia = useMemo(() => {
     const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
@@ -471,6 +653,17 @@ const ProfesorAgendaPage = () => {
   }, [misClasesDia])
 
   const esDiaPasado = fecha < hoy
+
+  // Por qué no hay franjas en un día futuro (null = hay franjas o es pasado)
+  const motivoSinFranjas = useMemo(() => {
+    if (esDiaPasado || franjasDelDia.length > 0) return null
+    const diaNombre = getDiaNombre(fecha)
+    const horario = horarios?.[diaNombre]
+    if (!horarios || !horario?.activo) return 'club'
+    const dispDia = profesor?.disponibilidad?.[diaNombre]
+    if (dispDia && !dispDia.activo) return 'profesor'
+    return 'rango'
+  }, [franjasDelDia, fecha, horarios, profesor?.disponibilidad, esDiaPasado])
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
@@ -481,14 +674,26 @@ const ProfesorAgendaPage = () => {
           <h1 className="text-2xl font-black text-white">Mi agenda</h1>
           <p className="text-white/40 text-sm mt-0.5 capitalize">{fmtFecha(fecha)}</p>
         </div>
-        <button
-          onClick={() => setModalNueva(true)}
-          disabled={esDiaPasado}
-          className="flex items-center gap-2 bg-orange-400 hover:bg-orange-300 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all shadow-lg shadow-orange-400/20"
-        >
-          <Plus size={16} />
-          Nueva clase
-        </button>
+        <div className="flex items-center gap-2">
+          {!esDiaPasado && franjasDelDia.length > 0 && (
+            <button
+              onClick={handleAbrirAutoFill}
+              title="Completar disponibilidad automáticamente"
+              className="flex items-center gap-1.5 border border-orange-400/30 text-orange-400 hover:bg-orange-400/10 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+            >
+              <Zap size={14} />
+              Autocompletar
+            </button>
+          )}
+          <button
+            onClick={() => setModalNueva(true)}
+            disabled={esDiaPasado || motivoSinFranjas !== null}
+            className="flex items-center gap-2 bg-orange-400 hover:bg-orange-300 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all shadow-lg shadow-orange-400/20"
+          >
+            <Plus size={16} />
+            Nueva clase
+          </button>
+        </div>
       </div>
 
       {/* Selector de días */}
@@ -583,20 +788,46 @@ const ProfesorAgendaPage = () => {
         </div>
 
         {misClasesDia.length === 0 ? (
-          <div className="px-5 py-12 flex flex-col items-center gap-3 text-center">
-            <div className="w-12 h-12 bg-white/4 border border-white/8 rounded-2xl flex items-center justify-center">
-              <CalendarDays size={20} className="text-white/20" />
-            </div>
-            <div>
-              <p className="text-white/30 text-sm font-medium">
-                {esDiaPasado ? 'No hubo clases este día' : 'Sin clases programadas'}
-              </p>
-              {!esDiaPasado && (
-                <button onClick={() => setModalNueva(true)} className="mt-2 text-orange-400 text-xs hover:underline">
-                  Crear primera clase
-                </button>
-              )}
-            </div>
+          <div className="px-5 py-10 flex flex-col items-center gap-3 text-center">
+            {motivoSinFranjas !== null ? (
+              <>
+                <div className="w-12 h-12 bg-amber-400/10 border border-amber-400/20 rounded-2xl flex items-center justify-center">
+                  <AlertCircle size={20} className="text-amber-400/60" />
+                </div>
+                <div>
+                  <p className="text-white/50 text-sm font-semibold">
+                    {motivoSinFranjas === 'club'
+                      ? 'Club cerrado este día'
+                      : motivoSinFranjas === 'profesor'
+                        ? 'Día no disponible'
+                        : 'Sin franjas válidas'}
+                  </p>
+                  <p className="text-white/25 text-xs mt-1 max-w-[220px] leading-relaxed">
+                    {motivoSinFranjas === 'club'
+                      ? 'El club no tiene horarios habilitados para este día.'
+                      : motivoSinFranjas === 'profesor'
+                        ? 'Marcaste este día como no disponible. Modificalo en "Mi disponibilidad".'
+                        : 'Tu horario configurado no se intersecta con el del club. Revisá "Mi disponibilidad".'}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 bg-white/4 border border-white/8 rounded-2xl flex items-center justify-center">
+                  <CalendarDays size={20} className="text-white/20" />
+                </div>
+                <div>
+                  <p className="text-white/30 text-sm font-medium">
+                    {esDiaPasado ? 'No hubo clases este día' : 'Sin clases programadas'}
+                  </p>
+                  {!esDiaPasado && (
+                    <button onClick={() => setModalNueva(true)} className="mt-2 text-orange-400 text-xs hover:underline">
+                      Crear primera clase
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-white/5">
@@ -700,12 +931,22 @@ const ProfesorAgendaPage = () => {
       </div>
 
       {/* Modales */}
+      {modalAutoFill && (
+        <ModalAutoFill
+          fecha={fecha}
+          bloques={bloquesAutoFill}
+          onClose={() => { setModalAutoFill(false); setBloquesAutoFill([]) }}
+          onConfirm={handleConfirmarAutoFill}
+          submitting={submitting}
+        />
+      )}
       {modalNueva && (
         <ModalClase
           fecha={fecha}
           onClose={() => setModalNueva(false)}
           onSave={handleCrearClase}
           reservasDelDia={[...todasReservasDia, ...turnosFijosDia]}
+          misClasesProfesor={misClases}
           canchasDisponibles={canchasHabilitadas}
           franjasDelDia={franjasDelDia}
           submitting={submitting}

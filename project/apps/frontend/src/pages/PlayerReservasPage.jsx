@@ -190,6 +190,7 @@ const generarSlots = (apertura, cierre, canchaId, fechaStr, misReservas, turnosF
 const PlayerReservasPage = () => {
   const location = useLocation()
   const club = useClubStore((s) => s.club)
+  const clubLoaded = useClubStore((s) => s._loaded)
   const { addReserva, cancelarReserva } = useReservasStore()
   const addSolicitudEnviada = usePlayerNotificationsStore((s) => s.addSolicitudEnviada)
   const { turnosFijos, addTurnoFijoFromApi } = useTurnosFijosStore()
@@ -247,10 +248,12 @@ const PlayerReservasPage = () => {
   const [slotSeleccionado, setSlotSeleccionado] = useState(null)
   const [confirmado, setConfirmado] = useState(false)
   const [confirmadoEsFijo, setConfirmadoEsFijo] = useState(false)
+  const [confirmadoId, setConfirmadoId] = useState(null) // ID de la reserva/TF recién enviada para auto-limpiar el banner
   const [esTurnoFijo, setEsTurnoFijo] = useState(false)
   const [modalAbierto, setModalAbierto] = useState(false)
   const [reservaACancelar, setReservaACancelar] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [cancelando, setCancelando] = useState(false)
 
   // Auto-abrir modal si venimos desde la landing con un slot pre-seleccionado
   useEffect(() => {
@@ -360,12 +363,29 @@ const PlayerReservasPage = () => {
   }, [token])
 
   // Recarga reservas cuando cambia la fecha + polling cada 30s para reflejar cambios del admin
+  // También refresca misReservasDB en cada tick para que los colores de slot (pendiente/confirmado) estén al día
   useEffect(() => {
-    setReservasDB([])  // limpiar data vieja al cambiar fecha — el polling no pasa por acá
+    setReservasDB([])
     fetchReservasDia(fechaSeleccionada)
-    const interval = setInterval(() => fetchReservasDia(fechaSeleccionada), 30_000)
+    fetchMisReservas()
+    const interval = setInterval(() => {
+      fetchReservasDia(fechaSeleccionada)
+      fetchMisReservas()
+    }, 30_000)
     return () => clearInterval(interval)
   }, [fechaSeleccionada, token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-limpiar banner cuando la reserva/TF enviado ya no está pendiente
+  useEffect(() => {
+    if (!confirmado || !confirmadoId) return
+    if (confirmadoEsFijo) {
+      const tf = turnosFijos.find((t) => t.id === confirmadoId)
+      if (tf && tf.estado !== 'pendiente') { setConfirmado(false); setConfirmadoId(null) }
+    } else {
+      const r = misReservasDB.find((r) => r.id === confirmadoId)
+      if (r && r.estado !== 'pendiente') { setConfirmado(false); setConfirmadoId(null) }
+    }
+  }, [misReservasDB, turnosFijos, confirmado, confirmadoId, confirmadoEsFijo])
 
   // Turnos fijos activos: los propios + los de otros jugadores del club (para bloquear grilla)
   // Excluye solo diasAusentes confirmados por admin
@@ -493,6 +513,7 @@ const PlayerReservasPage = () => {
             { Authorization: `Bearer ${token}` }
           )
           addTurnoFijoFromApi(turno)
+          setConfirmadoId(turno.id ?? null)
         } catch (err) {
           setErrorReserva(err.message || 'No se pudo enviar la solicitud de turno fijo')
           setSubmitting(false)
@@ -511,6 +532,7 @@ const PlayerReservasPage = () => {
             { Authorization: `Bearer ${token}` }
           )
           backendReservaId = reservaBackend?.id ?? null
+          setConfirmadoId(backendReservaId)
           fetchReservasDia(fechaSeleccionada)
           fetchMisReservas()
         } catch (err) {
@@ -538,6 +560,24 @@ const PlayerReservasPage = () => {
     setConfirmado(true)
     setErrorReserva(null)
     setSubmitting(false)
+  }
+
+  // Esperar a que el club real llegue del backend antes de renderizar
+  // Evita el flash de datos viejos del INITIAL_CLUB (4 canchas hardcodeadas)
+  if (!clubLoaded) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Reservar cancha</h1>
+          <p className="text-white/40 text-sm mt-1">Seleccioná el día, la cancha y el horario.</p>
+        </div>
+        <div className="flex flex-col gap-4 animate-pulse">
+          <div className="h-24 rounded-2xl bg-white/5 border border-white/6" />
+          <div className="h-20 rounded-2xl bg-white/5 border border-white/6" />
+          <div className="h-48 rounded-2xl bg-white/5 border border-white/6" />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -569,7 +609,7 @@ const PlayerReservasPage = () => {
               ? 'Solicitud de turno fijo enviada. El admin la revisará y te notificará cuando esté aprobada.'
               : 'Solicitud enviada. El admin la revisará y te notificará cuando esté aprobada.'}
           </p>
-          <button onClick={() => setConfirmado(false)} className="ml-auto text-amber-400/50 hover:text-amber-400 transition-colors">
+          <button onClick={() => { setConfirmado(false); setConfirmadoId(null) }} className="ml-auto text-amber-400/50 hover:text-amber-400 transition-colors">
             <XCircle size={16} />
           </button>
         </div>
@@ -1148,25 +1188,42 @@ const PlayerReservasPage = () => {
 
               <button
                 onClick={async () => {
+                  if (cancelando) return
+                  setCancelando(true)
                   const id = reservaACancelar.id
-                  setReservaACancelar(null)
                   try {
                     await api.delete(`/reservas/${id}`, { Authorization: `Bearer ${token}` })
+                    cancelarReserva(id)
                     fetchMisReservas()
                     fetchReservasDia(fechaSeleccionada)
+                    setReservaACancelar(null)
                   } catch (err) {
                     console.error('Error al cancelar reserva:', err)
+                  } finally {
+                    setCancelando(false)
                   }
-                  cancelarReserva(id)
                 }}
-                className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98] shadow-lg ${
+                disabled={cancelando}
+                className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98] shadow-lg disabled:opacity-60 disabled:cursor-not-allowed ${
                   fueraDePlazo
                     ? 'bg-amber-500 text-[#0d1117] hover:bg-amber-400 shadow-amber-500/20'
                     : 'bg-red-500 text-white hover:bg-red-400 shadow-red-500/20'
                 }`}
               >
-                <XCircle size={15} />
-                {fueraDePlazo ? `Cancelar con cargo ($${reservaACancelar.precio?.toLocaleString('es-AR')})` : 'Sí, cancelar reserva'}
+                {cancelando ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Cancelando...
+                  </>
+                ) : (
+                  <>
+                    <XCircle size={15} />
+                    {fueraDePlazo ? `Cancelar con cargo ($${reservaACancelar.precio?.toLocaleString('es-AR')})` : 'Sí, cancelar reserva'}
+                  </>
+                )}
               </button>
 
               <button onClick={() => setReservaACancelar(null)} className="text-white/25 hover:text-white/50 text-xs text-center transition-colors">

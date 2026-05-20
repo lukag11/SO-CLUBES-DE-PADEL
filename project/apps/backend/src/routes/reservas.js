@@ -230,6 +230,14 @@ router.post('/profesor', requireAuth, requireRole('profesor'), async (req, res) 
   }
 
   try {
+    // Validar que la clase no haya comenzado ya (Argentina UTC-3, sin DST)
+    const ahoraArg = new Date(Date.now() - 3 * 60 * 60 * 1000)
+    const hoyArg = ahoraArg.toISOString().split('T')[0]
+    const horaAhoraArg = ahoraArg.toISOString().substring(11, 16)
+    if (fecha === hoyArg && horaInicio <= horaAhoraArg) {
+      return res.status(400).json({ error: 'La clase ya comenzó. No podés registrar una clase que ya arrancó.' })
+    }
+
     const cancha = await prisma.cancha.findFirst({ where: { id: canchaId, clubId, activo: true } })
     if (!cancha) return res.status(404).json({ error: 'Cancha no encontrada' })
 

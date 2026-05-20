@@ -52,7 +52,7 @@ const fmtFechaLegible = (d) =>
 
 // ─── Modal ausencia ───────────────────────────────────────────────────────────
 
-const ModalAusencia = ({ turno, fecha, horasMinimas, onConfirmar, onCerrar }) => {
+const ModalAusencia = ({ turno, fecha, horasMinimas, onConfirmar, onCerrar, enviando = false }) => {
   const esHoy = localISO(fecha) === localISO(new Date())
 
   const fueraDePlazo = useMemo(() => {
@@ -126,14 +126,27 @@ const ModalAusencia = ({ turno, fecha, horasMinimas, onConfirmar, onCerrar }) =>
           </div>
 
           <button
-            onClick={() => onConfirmar(localISO(fecha))}
+            onClick={() => !enviando && onConfirmar(localISO(fecha))}
+            disabled={enviando}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all
-              bg-red-500 text-white hover:bg-red-400 active:scale-[0.98] shadow-lg shadow-red-500/20"
+              bg-red-500 text-white hover:bg-red-400 active:scale-[0.98] shadow-lg shadow-red-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <AlertTriangle size={15} />
-            {fueraDePlazo
-              ? `Confirmar ausencia (cargo $${turno.precio?.toLocaleString('es-AR')})`
-              : 'Confirmar ausencia'}
+            {enviando ? (
+              <>
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+                Enviando...
+              </>
+            ) : (
+              <>
+                <AlertTriangle size={15} />
+                {fueraDePlazo
+                  ? `Confirmar ausencia (cargo $${turno.precio?.toLocaleString('es-AR')})`
+                  : 'Confirmar ausencia'}
+              </>
+            )}
           </button>
 
           <button onClick={onCerrar} className="text-white/25 hover:text-white/50 text-xs text-center transition-colors">
@@ -230,13 +243,18 @@ const PlayerTurnosFijosPage = () => {
   const [enviando, setEnviando] = useState(false)
   const [modalCancelar, setModalCancelar] = useState(null) // { turno, errorDeuda }
   const [cancelando, setCancelando] = useState(false)
+  const [retirandoId, setRetirandoId] = useState(null)
 
-  // Recarga desde el backend cada vez que el jugador entra a esta página
+  // Recarga desde el backend al montar y cada 30s (para ver aprobaciones/rechazos del admin en tiempo real)
   useEffect(() => {
     if (!token) return
-    api.get('/turnos-fijos/me', { Authorization: `Bearer ${token}` })
-      .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
-      .catch((err) => console.error('[TurnosFijos] Error al cargar:', err.message))
+    const fetchTurnos = () =>
+      api.get('/turnos-fijos/me', { Authorization: `Bearer ${token}` })
+        .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
+        .catch((err) => console.error('[TurnosFijos] Error al cargar:', err.message))
+    fetchTurnos()
+    const interval = setInterval(fetchTurnos, 30_000)
+    return () => clearInterval(interval)
   }, [token])
 
   const activos = turnosFijos.filter((t) => t.activo)
@@ -258,10 +276,13 @@ const PlayerTurnosFijosPage = () => {
   }
 
   const handleRetirarSolicitud = async (turno) => {
+    if (retirandoId) return
+    setRetirandoId(turno.id)
     try {
       await api.delete(`/turnos-fijos/${turno.id}`, { Authorization: `Bearer ${token}` })
       updateTurnoFijo(turno.id, { activo: false, estado: 'inactivo' })
     } catch { /* fallback silencioso */ }
+    finally { setRetirandoId(null) }
   }
 
   const handleConfirmarAusencia = async (fecha) => {
@@ -294,7 +315,8 @@ const PlayerTurnosFijosPage = () => {
           fecha={getFechaDisponible(modalTurno.dia, modalTurno.inicio)}
           horasMinimas={horasMinimas}
           onConfirmar={handleConfirmarAusencia}
-          onCerrar={() => setModalTurno(null)}
+          onCerrar={() => !enviando && setModalTurno(null)}
+          enviando={enviando}
         />
       )}
 
@@ -340,10 +362,18 @@ const PlayerTurnosFijosPage = () => {
                   </span>
                   <button
                     onClick={() => handleRetirarSolicitud(t)}
-                    className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-red-400/70 border border-red-400/20 hover:bg-red-400/10 transition-colors"
+                    disabled={retirandoId === t.id}
+                    className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg text-red-400/70 border border-red-400/20 hover:bg-red-400/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Retirar solicitud"
                   >
-                    <X size={10} />
+                    {retirandoId === t.id ? (
+                      <svg className="animate-spin h-2.5 w-2.5" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                    ) : (
+                      <X size={10} />
+                    )}
                     Retirar
                   </button>
                 </div>

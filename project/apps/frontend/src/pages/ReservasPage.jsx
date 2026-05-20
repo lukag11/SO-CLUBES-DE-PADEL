@@ -2009,6 +2009,7 @@ const PanelAlertas = ({
             const esNuevaClaseProf = n.tipo === 'nueva_clase_profesor'
             const esCancelClaseProf = n.tipo === 'cancelacion_clase_profesor'
             const esCancelFijoJugador = n.tipo === 'turno_fijo_cancelado_jugador'
+            const esRetiroSolicitud = n.tipo === 'turno_fijo_retirado_jugador'
             const dotColor = n.leida ? 'bg-slate-300'
               : esSolicitudFijo ? 'bg-amber-500'
               : esNuevaClaseProf ? 'bg-orange-400'
@@ -2114,7 +2115,19 @@ const PanelAlertas = ({
                       <p className="text-slate-400 text-[10px] mt-1">El jugador canceló su turno fijo permanentemente</p>
                     </>
                   )}
-                  {!esSolicitudFijo && !esLiberacion && !esCancelacion && !esNuevaClaseProf && !esCancelClaseProf && !esCancelFijoJugador && (
+                  {esRetiroSolicitud && (
+                    <>
+                      <p className="text-slate-700 text-sm font-medium">
+                        <span className="text-slate-500 font-semibold">Solicitud retirada</span>
+                        {n.jugador && <span className="text-slate-700 font-semibold"> · {n.jugador}</span>}
+                      </p>
+                      <p className="text-slate-400 text-xs mt-0.5">
+                        {n.cancha} · {n.inicio}–{n.fin} · {DIAS_LABEL[n.dia] ?? n.dia}
+                      </p>
+                      <p className="text-slate-400 text-[10px] mt-1">El jugador retiró su solicitud de turno fijo antes de ser aprobada</p>
+                    </>
+                  )}
+                  {!esSolicitudFijo && !esLiberacion && !esCancelacion && !esNuevaClaseProf && !esCancelClaseProf && !esCancelFijoJugador && !esRetiroSolicitud && (
                     <p className="text-slate-500 text-sm">{n.jugador}</p>
                   )}
                 </div>
@@ -2221,6 +2234,9 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
   const [confirmarBaja, setConfirmarBaja] = useState(null)
   const [confirmarBajaDefinitiva, setConfirmarBajaDefinitiva] = useState(null) // { turno, errorDeuda }
   const [procesandoBaja, setProcesandoBaja] = useState(false)
+  const [errorConfirmarTF, setErrorConfirmarTF] = useState(null) // { turnoId, mensaje }
+  const [aprobandoTFId, setAprobandoTFId] = useState(null)
+  const [rechazandoTFId, setRechazandoTFId] = useState(null)
 
   const marcarNotifTurnoFijoLeida = (turnoFijoId) => {
     const notif = notificaciones.find((n) => n.turnoFijoId === turnoFijoId && !n.leida)
@@ -2228,19 +2244,32 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
   }
 
   const handleAprobarTurnoFijo = async (id) => {
+    if (aprobandoTFId === id) return
+    setErrorConfirmarTF(null)
+    setAprobandoTFId(id)
     try {
       const updated = await api.patch(`/turnos-fijos/${id}/estado`, { estado: 'confirmado' }, { Authorization: `Bearer ${adminToken}` })
       updateTurnoFijo(id, { estado: 'confirmado', activo: true, desde: updated.desde })
-    } catch { updateTurnoFijo(id, { estado: 'confirmado', activo: true }) }
-    marcarNotifTurnoFijoLeida(id)
+      marcarNotifTurnoFijoLeida(id)
+    } catch (err) {
+      const msg = err?.error || err?.message || 'No se pudo confirmar el turno fijo'
+      setErrorConfirmarTF({ turnoId: id, mensaje: msg })
+    } finally {
+      setAprobandoTFId(null)
+    }
   }
 
   const handleRechazarTurnoFijo = async (id) => {
+    if (rechazandoTFId === id) return
+    setRechazandoTFId(id)
     try {
       await api.patch(`/turnos-fijos/${id}/estado`, { estado: 'inactivo' }, { Authorization: `Bearer ${adminToken}` })
+      updateTurnoFijo(id, { estado: 'inactivo', activo: false })
+      marcarNotifTurnoFijoLeida(id)
     } catch { /* ignore */ }
-    updateTurnoFijo(id, { estado: 'inactivo', activo: false })
-    marcarNotifTurnoFijoLeida(id)
+    finally {
+      setRechazandoTFId(null)
+    }
   }
 
   const handleDarDeBajaTurnoFijo = async () => {
@@ -2414,25 +2443,36 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
           </div>
           <div className="divide-y divide-slate-50">
             {pendientes.map((t) => (
-              <div key={t.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-slate-700 text-sm font-medium">{t.jugador || '—'}</p>
-                  <p className="text-slate-400 text-xs">{t.canchaNombre} · {DIAS_LABEL[t.dia] ?? t.dia} {t.inicio}–{t.fin}</p>
+              <div key={t.id} className="flex flex-col">
+                <div className="px-5 py-3.5 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-slate-700 text-sm font-medium">{t.jugador || '—'}</p>
+                    <p className="text-slate-400 text-xs">{t.canchaNombre} · {DIAS_LABEL[t.dia] ?? t.dia} {t.inicio}–{t.fin}</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => handleAprobarTurnoFijo(t.id)}
+                      disabled={aprobandoTFId === t.id || rechazandoTFId === t.id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {aprobandoTFId === t.id ? 'Aprobando…' : 'Aprobar'}
+                    </button>
+                    <button
+                      onClick={() => handleRechazarTurnoFijo(t.id)}
+                      disabled={rechazandoTFId === t.id || aprobandoTFId === t.id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {rechazandoTFId === t.id ? 'Rechazando…' : 'Rechazar'}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => handleAprobarTurnoFijo(t.id)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                  >
-                    Aprobar
-                  </button>
-                  <button
-                    onClick={() => handleRechazarTurnoFijo(t.id)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
-                  >
-                    Rechazar
-                  </button>
-                </div>
+                {errorConfirmarTF?.turnoId === t.id && (
+                  <div className="mx-5 mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200 flex items-start gap-2">
+                    <span className="text-red-500 text-xs font-semibold shrink-0 mt-0.5">⚠</span>
+                    <p className="text-red-600 text-xs leading-relaxed">{errorConfirmarTF.mensaje}</p>
+                    <button onClick={() => setErrorConfirmarTF(null)} className="ml-auto text-red-400 hover:text-red-600 shrink-0 text-xs">✕</button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -2821,20 +2861,25 @@ const ReservasPage = () => {
 
   // Reservas reales desde el backend (jugadores que reservaron online)
   const [reservasBackend, setReservasBackend] = useState([])
+  const [loadingGrilla, setLoadingGrilla] = useState(true)
 
-  const fetchReservasBackend = (f = fecha) => {
+  const fetchReservasBackend = (f = fecha, showLoading = false) => {
     if (!adminToken) return
+    if (showLoading) setLoadingGrilla(true)
     api.get(`/reservas?fecha=${f}`, { Authorization: `Bearer ${adminToken}` })
-      .then((data) => setReservasBackend(Array.isArray(data) ? data : []))
-      .catch(() => {})
+      .then((data) => {
+        setReservasBackend(Array.isArray(data) ? data : [])
+        setLoadingGrilla(false)
+      })
+      .catch(() => setLoadingGrilla(false))
   }
 
   useEffect(() => {
     if (!adminToken) return
-    setReservasBackend([])  // limpiar data vieja al cambiar fecha — el polling no pasa por acá
-    fetchReservasBackend()
-    const interval = setInterval(() => fetchReservasBackend(), 30_000)
-    const onFocus = () => fetchReservasBackend()
+    setReservasBackend([])
+    fetchReservasBackend(fecha, true)  // showLoading=true solo al cambiar fecha, no en polling
+    const interval = setInterval(() => fetchReservasBackend(fecha), 30_000)
+    const onFocus = () => fetchReservasBackend(fecha)
     window.addEventListener('focus', onFocus)
     return () => {
       clearInterval(interval)
@@ -3326,6 +3371,22 @@ const ReservasPage = () => {
         <>
           <Leyenda />
 
+          {/* Skeleton mientras cargan las reservas del backend */}
+          {loadingGrilla && (
+            <div className="animate-pulse flex flex-col gap-3">
+              <div className="h-10 rounded-xl bg-slate-100 border border-slate-200 w-full" />
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="flex gap-3">
+                  <div className="h-12 w-20 rounded-lg bg-slate-100 shrink-0" />
+                  <div className="h-12 flex-1 rounded-lg bg-slate-50 border border-slate-100" />
+                  <div className="h-12 flex-1 rounded-lg bg-slate-50 border border-slate-100" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!loadingGrilla && (
+          <>
           {/* Modal centrado — nueva reserva / detalle / editar */}
           {(seleccion || editando) && (
             <div
@@ -3400,6 +3461,8 @@ const ReservasPage = () => {
               )}
             </div>
           </div>
+          </>
+          )}
         </>
       )}
 

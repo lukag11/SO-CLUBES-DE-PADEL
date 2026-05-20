@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-19 (sesión — fixes grilla admin clases profesor + fixes ProfesorAgendaPage + Autocompletar)
+**Última actualización:** 2026-05-20 (sesión — Auditoría completa flujo reservas + turnos fijos: doble submit, race conditions, flash de datos, polling, notificaciones)
 
 ---
 
@@ -128,6 +128,79 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-05-20) — Auditoría flujo reservas + turnos fijos
+
+### Objetivo
+Auditoría completa del flujo reservas/turnos fijos entre admin, jugador y profesor. Corrección de doble submit, race conditions, flash de datos, polling y notificaciones diferenciadas.
+
+### Bloque 1 — Protección doble submit
+
+**`PlayerReservasPage.jsx`**
+- `cancelarReserva(id)` movido dentro del `try` (antes siempre se ejecutaba aunque el DELETE fallara)
+- `[cancelando, setCancelando]` state: `disabled={cancelando}` + guard en handler + spinner en botón del modal
+
+**`PlayerTurnosFijosPage.jsx`**
+- `ModalAusencia`: prop `enviando` para deshabilitar botón y mostrar spinner
+- `handleRetirarSolicitud`: `[retirandoId, setRetirandoId]` — guard + disabled por ID + spinner
+- `onCerrar` del modal bloqueado mientras `enviando`
+
+### Bloque 2 — Race conditions backend + flash de datos
+
+**`turnos-fijos.js` — `PATCH /:id/estado`**
+- Al confirmar: re-verifica solapamiento TF vs TF (mismo cancha+día en próximas 8 ocurrencias)
+- Al confirmar: re-verifica solapamiento TF vs reservas eventuales (60 días hacia adelante)
+- Devuelve 409 con mensaje descriptivo en ambos casos
+
+**`ReservasPage.jsx` (admin) — `handleAprobarTurnoFijo`**
+- Catch block ya NO actualiza store como confirmado si el backend rechazó (409)
+- Error UI: `errorConfirmarTF` state muestra el mensaje de conflicto bajo la fila correspondiente
+
+**Flash de datos — jugador (`PlayerReservasPage.jsx`)**
+- `clubLoaded = useClubStore(s => s._loaded)` — skeleton animado hasta que el backend responde
+- Previene el flash de INITIAL_CLUB (4 canchas hardcodeadas)
+
+**Flash de datos — grilla admin (`ReservasPage.jsx`)**
+- `[loadingGrilla, setLoadingGrilla]` — skeleton de filas grises al cambiar fecha o refrescar
+- Polling (30s) NO activa el loading; solo el cambio de fecha activa el skeleton
+- Fix JSX: `{!loadingGrilla && (<>...</>)}` con fragment wrapper (sin fragment era JSX inválido)
+
+### Bloque 3 — Mejoras y consistencia
+
+**`reservas.js` — `POST /reservas/profesor`**
+- Agrega validación de hora pasada (igual que admin y jugador): rechaza con 400 si la clase ya arrancó
+
+**`PlayerTurnosFijosPage.jsx` — polling**
+- `useEffect` ahora crea intervalo de 30s además del fetch inicial
+- Jugador ve aprobaciones/rechazos del admin en tiempo real sin recargar
+
+**`turnos-fijos.js` — `DELETE /:id` (jugador)**
+- Notificación al admin diferenciada: `turno_fijo_retirado_jugador` si era pendiente, `turno_fijo_cancelado_jugador` si era confirmado
+
+**`ReservasPage.jsx` (admin) — panel notificaciones**
+- Nuevo tipo `esRetiroSolicitud` con mensaje: "Solicitud retirada · El jugador retiró su solicitud antes de ser aprobada"
+
+### Extra — Banner auto-clear + slot state real-time
+
+**`PlayerReservasPage.jsx`**
+- `fetchMisReservas()` añadido al polling de 30s (antes solo `fetchReservasDia`)
+- Slot pendiente → confirmado actualiza color sin necesidad de F5
+- `confirmadoId` state: guarda el ID de la reserva/TF recién enviado
+- `useEffect` vigila `misReservasDB` y `turnosFijos`: cuando el ítem deja de ser `pendiente`, el banner amber desaparece solo
+
+**`ReservasPage.jsx` (admin) — Aprobar/Rechazar TF**
+- `[aprobandoTFId, setAprobandoTFId]` y `[rechazandoTFId, setRechazandoTFId]`
+- Botones muestran "Aprobando…" / "Rechazando…", `disabled` mientras procesa
+- `finally` garantiza que siempre se libera el estado aunque haya error
+
+### Archivos modificados
+- `project/apps/frontend/src/pages/PlayerReservasPage.jsx`
+- `project/apps/frontend/src/pages/PlayerTurnosFijosPage.jsx`
+- `project/apps/frontend/src/pages/ReservasPage.jsx`
+- `project/apps/backend/src/routes/turnos-fijos.js`
+- `project/apps/backend/src/routes/reservas.js`
 
 ---
 

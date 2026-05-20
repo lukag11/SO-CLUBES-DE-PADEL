@@ -230,6 +230,58 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
       }
     }
 
+    // Al confirmar: re-verificar que no haya otro TF confirmado solapado (race condition)
+    // y que no haya reservas eventuales confirmadas en la próxima ocurrencia de ese día
+    if (estado === 'confirmado') {
+      const toMinLocal = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+      const nsMin = toMinLocal(turno.horaInicio)
+      const nfMin = toMinLocal(turno.horaFin)
+
+      // I-4: otro TF confirmado en la misma cancha+día con horario solapado
+      const tfsSolapados = await prisma.turnoFijo.findMany({
+        where: { canchaId: turno.canchaId, dia: turno.dia, estado: 'confirmado', id: { not: turno.id } },
+        select: { horaInicio: true, horaFin: true },
+      })
+      const conflictoTF = tfsSolapados.some((t) => {
+        const esMin = toMinLocal(t.horaInicio), efMin = toMinLocal(t.horaFin)
+        return esMin < nfMin && nsMin < efMin
+      })
+      if (conflictoTF) {
+        return res.status(409).json({
+          error: 'Ya existe otro turno fijo confirmado en ese horario y cancha. El slot fue tomado mientras este turno estaba pendiente.',
+        })
+      }
+
+      // I-3: reserva eventual confirmada en la próxima ocurrencia de ese día de semana (próximos 60 días)
+      const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+      const targetDow = DIAS.indexOf(turno.dia)
+      const fechas = []
+      const base = new Date()
+      for (let i = 0; i < 60; i++) {
+        const d = new Date(base)
+        d.setDate(base.getDate() + i)
+        if (d.getDay() === targetDow) {
+          const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+          fechas.push(iso)
+          if (fechas.length >= 8) break
+        }
+      }
+      const reservasConflicto = await prisma.reserva.findMany({
+        where: { canchaId: turno.canchaId, fecha: { in: fechas }, estado: { in: ['confirmada', 'pendiente'] } },
+        select: { horaInicio: true, horaFin: true, fecha: true, tipo: true },
+      })
+      const conflictoReserva = reservasConflicto.find((r) => {
+        const esMin = toMinLocal(r.horaInicio), efMin = toMinLocal(r.horaFin)
+        return esMin < nfMin && nsMin < efMin
+      })
+      if (conflictoReserva) {
+        return res.status(409).json({
+          error: `El horario tiene una reserva ${conflictoReserva.tipo === 'clase' ? 'de clase' : 'eventual'} confirmada el ${conflictoReserva.fecha}. Resolvé ese conflicto antes de confirmar el turno fijo.`,
+          conflictoFecha: conflictoReserva.fecha,
+        })
+      }
+    }
+
     const updated = await prisma.turnoFijo.update({
       where: { id: req.params.id },
       data: { estado },
@@ -276,12 +328,13 @@ router.delete('/:id', requireAuth, requireRole('jugador'), requireActive, async 
       include: INCLUDE_CANCHA,
     })
 
-    // Notificar al admin
+    // Notificar al admin (distinguir retiro de solicitud pendiente vs baja de turno confirmado)
+    const tipoNotifAdmin = turno.estado === 'confirmado' ? 'turno_fijo_cancelado_jugador' : 'turno_fijo_retirado_jugador'
     prisma.notificacion.create({
       data: {
         clubId: turno.clubId,
         jugadorId: null,
-        tipo: 'turno_fijo_cancelado_jugador',
+        tipo: tipoNotifAdmin,
         data: {
           jugador: updated.jugador ? `${updated.jugador.nombre} ${updated.jugador.apellido ?? ''}`.trim() : '',
           canchaNombre: updated.cancha?.nombre ?? '',

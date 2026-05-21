@@ -107,21 +107,25 @@ router.get('/profesor/mis-clases', requireAuth, requireRole('profesor'), async (
   }
 })
 
-// GET /api/reservas?fecha=   — admin usa su clubId del JWT; jugador y profesor pasan clubId como query
+// GET /api/reservas?fecha=   — clubId siempre del JWT (nunca del query param por seguridad multi-tenant)
 router.get('/', requireAuth, async (req, res) => {
   const { fecha } = req.query
-  const clubId = req.user.role === 'admin' ? req.user.clubId : req.query.clubId
-  if (!clubId) return res.status(400).json({ error: 'clubId requerido' })
+  const clubId = req.user.clubId
+  if (!clubId) return res.status(400).json({ error: 'clubId no encontrado en token' })
 
   try {
     const where = { clubId, estado: { not: 'cancelada' } }
     if (fecha) where.fecha = fecha
 
+    const esAdmin = req.user.role === 'admin'
     const reservas = await prisma.reserva.findMany({
       where,
       include: {
         cancha: true,
-        jugador: { select: { id: true, nombre: true, apellido: true, dni: true } },
+        // Jugadores solo necesitan saber que el slot está ocupado, sin datos personales de otros
+        jugador: esAdmin
+          ? { select: { id: true, nombre: true, apellido: true, dni: true } }
+          : false,
         profesor: { select: { id: true, nombre: true, apellido: true } },
       },
       orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
@@ -135,7 +139,8 @@ router.get('/', requireAuth, async (req, res) => {
 
 // POST /api/reservas   — jugador crea reserva
 router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
-  const { clubId, canchaId, fecha, horaInicio, horaFin, precio, esTurnoFijo, notas } = req.body
+  const { canchaId, fecha, horaInicio, horaFin, precio, esTurnoFijo, notas } = req.body
+  const clubId = req.user.clubId  // siempre del JWT — nunca del body (aislamiento multi-tenant)
   const jugadorId = req.user.id
 
   if (!clubId || !canchaId || !fecha || !horaInicio || !horaFin) {
@@ -154,44 +159,49 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
     const cancha = await prisma.cancha.findFirst({ where: { id: canchaId, clubId, activo: true } })
     if (!cancha) return res.status(404).json({ error: 'Cancha no encontrada' })
 
-    const existentes = await prisma.reserva.findMany({
-      where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
-    })
-    const hayConflicto = existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
-    if (hayConflicto) return res.status(409).json({ error: 'El horario ya está reservado' })
-
-    // Verificar que el slot no pertenezca a un turno fijo activo de otro jugador
     const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
     const [fy, fm, fd] = fecha.split('-').map(Number)
     const dia = DIAS_SEMANA[new Date(fy, fm - 1, fd).getDay()]
 
-    const turnosFijosActivos = await prisma.turnoFijo.findMany({
-      where: { canchaId, dia, estado: 'confirmado' },
-    })
-    const hayConflictoFijo = turnosFijosActivos.some(
-      (tf) =>
-        overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) &&
-        !tf.diasAusentes.includes(fecha) &&
-        (!tf.desde || tf.desde <= fecha)
-    )
-    if (hayConflictoFijo) return res.status(409).json({ error: 'Ese horario pertenece a un turno fijo reservado' })
+    // Check de conflicto + create dentro de $transaction: evita que dos requests simultáneos
+    // pasen la validación y creen dos reservas para el mismo slot (TOCTOU race condition).
+    const reserva = await prisma.$transaction(async (tx) => {
+      const existentes = await tx.reserva.findMany({
+        where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
+      })
+      if (existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
+        throw Object.assign(new Error('El horario ya está reservado'), { status: 409 })
+      }
 
-    const reserva = await prisma.reserva.create({
-      data: {
-        clubId,
-        canchaId,
-        jugadorId,
-        fecha,
-        horaInicio,
-        horaFin,
-        precio: precio ? parseFloat(precio) : null,
-        esTurnoFijo: !!esTurnoFijo,
-        tipo: esTurnoFijo ? 'solicitud_fijo' : 'online',
-        estado: 'pendiente',
-        notas: notas || '',
-        jugadores: [],
-      },
-      include: { cancha: true, jugador: { select: { nombre: true, apellido: true } } },
+      const turnosFijosActivos = await tx.turnoFijo.findMany({
+        where: { canchaId, dia, estado: 'confirmado' },
+      })
+      if (turnosFijosActivos.some(
+        (tf) =>
+          overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) &&
+          !tf.diasAusentes.includes(fecha) &&
+          (!tf.desde || tf.desde <= fecha)
+      )) {
+        throw Object.assign(new Error('Ese horario pertenece a un turno fijo reservado'), { status: 409 })
+      }
+
+      return tx.reserva.create({
+        data: {
+          clubId,
+          canchaId,
+          jugadorId,
+          fecha,
+          horaInicio,
+          horaFin,
+          precio: precio ? parseFloat(precio) : null,
+          esTurnoFijo: !!esTurnoFijo,
+          tipo: esTurnoFijo ? 'solicitud_fijo' : 'online',
+          estado: 'pendiente',
+          notas: notas || '',
+          jugadores: [],
+        },
+        include: { cancha: true, jugador: { select: { nombre: true, apellido: true } } },
+      })
     })
 
     // Notificar al admin del club
@@ -215,6 +225,7 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
 
     res.status(201).json(reserva)
   } catch (err) {
+    if (err.status === 409) return res.status(409).json({ error: err.message })
     console.error(err)
     res.status(500).json({ error: 'Error al crear reserva' })
   }
@@ -289,7 +300,10 @@ router.post('/profesor', requireAuth, requireRole('profesor'), async (req, res) 
         jugadores: jugadores ?? [],
         notas: notas || '',
       },
-      include: { cancha: true },
+      include: {
+        cancha: true,
+        profesor: { select: { id: true, nombre: true, apellido: true } },
+      },
     })
     res.status(201).json(reserva)
   } catch (err) {
@@ -358,7 +372,10 @@ router.post('/admin/clase-profesor', requireAuth, requireRole('admin'), async (r
         jugadores: [],
         notas: notas || '',
       },
-      include: { cancha: true },
+      include: {
+        cancha: true,
+        profesor: { select: { id: true, nombre: true, apellido: true } },
+      },
     })
     res.status(201).json(reserva)
   } catch (err) {
@@ -395,50 +412,50 @@ router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
     const hayConflicto = existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
     if (hayConflicto) return res.status(409).json({ error: 'El horario ya está reservado' })
 
-    const reserva = await prisma.reserva.create({
-      data: {
-        clubId,
-        canchaId,
-        fecha,
-        horaInicio,
-        horaFin,
-        tipo: tipo || 'manual',
-        estado: 'confirmada',
-        precio: precio ? parseFloat(precio) : null,
-        esTurnoFijo: !!esTurnoFijo,
-        jugadores: jugadores ?? [],
-        notas: notas || '',
-        ...(jugadorId && { jugadorId }),
-      },
-      include: { cancha: true },
-    })
+    // Transacción atómica: Reserva + TurnoFijo deben crearse juntos o ninguno
+    const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+    const [fy, fm, fd] = fecha.split('-').map(Number)
+    const diaKey = DIAS[new Date(fy, fm - 1, fd).getDay()]
 
-    // Si es turno fijo con jugador: crear TurnoFijo confirmado + notificación específica
-    if (esTurnoFijo && jugadorId) {
-      const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
-      const [fy, fm, fd] = fecha.split('-').map(Number)
-      const dia = DIAS[new Date(fy, fm - 1, fd).getDay()]
-
-      // Verificar solapamiento de horario en esa cancha+dia
-      const tfsDia = await prisma.turnoFijo.findMany({
-        where: { canchaId, dia, estado: { in: ['pendiente', 'confirmado'] } },
-        select: { horaInicio: true, horaFin: true, jugadorId: true },
-      })
-      const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
-      const nsMin = toMin(horaInicio), nfMin = toMin(horaFin)
-      const existeTF = tfsDia.find((t) => {
-        const esMin = toMin(t.horaInicio), efMin = toMin(t.horaFin)
-        return esMin < nfMin && nsMin < efMin
+    const reserva = await prisma.$transaction(async (tx) => {
+      const newReserva = await tx.reserva.create({
+        data: {
+          clubId,
+          canchaId,
+          fecha,
+          horaInicio,
+          horaFin,
+          tipo: tipo || 'manual',
+          estado: 'confirmada',
+          precio: precio ? parseFloat(precio) : null,
+          esTurnoFijo: !!esTurnoFijo,
+          jugadores: jugadores ?? [],
+          notas: notas || '',
+          ...(jugadorId && { jugadorId }),
+        },
+        include: { cancha: true },
       })
 
-      if (!existeTF) {
-        try {
-          await prisma.turnoFijo.create({
+      if (esTurnoFijo && jugadorId) {
+        // Re-verificar solapamiento TF dentro de la transacción (protección race condition)
+        const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+        const nsMin = toMin(horaInicio), nfMin = toMin(horaFin)
+        const tfsDia = await tx.turnoFijo.findMany({
+          where: { canchaId, dia: diaKey, estado: { in: ['pendiente', 'confirmado'] } },
+          select: { horaInicio: true, horaFin: true },
+        })
+        const existeTF = tfsDia.some((t) => {
+          const esMin = toMin(t.horaInicio), efMin = toMin(t.horaFin)
+          return esMin < nfMin && nsMin < efMin
+        })
+
+        if (!existeTF) {
+          await tx.turnoFijo.create({
             data: {
               clubId,
               canchaId,
               jugadorId,
-              dia,
+              dia: diaKey,
               horaInicio,
               horaFin,
               precio: precio ? parseFloat(precio) : null,
@@ -450,11 +467,14 @@ router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
               notas: notas || null,
             },
           })
-        } catch (tfErr) {
-          console.error('[TurnoFijo] Error al crear turno fijo manual:', tfErr.message)
         }
       }
 
+      return newReserva
+    })
+
+    // Si es turno fijo con jugador: notificación (fuera de transacción — fire-and-forget)
+    if (esTurnoFijo && jugadorId) {
       prisma.notificacion.create({
         data: {
           clubId,
@@ -462,7 +482,7 @@ router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
           tipo: 'turno_fijo_confirmado',
           data: {
             canchaNombre: reserva.cancha.nombre,
-            dia,
+            dia: diaKey,
             horaInicio,
             horaFin,
           },
@@ -636,11 +656,11 @@ router.delete('/:id', requireAuth, async (req, res) => {
       const horasMinimas = club?.config?.horasCancelacion ?? 0
 
       if (horasMinimas > 0) {
-        // Construir datetime del turno en zona local del servidor
+        // Construir datetime del turno interpretando la fecha como Argentina UTC-3 (sin DST)
         const [y, m, d] = reserva.fecha.split('-').map(Number)
         const [h, min] = reserva.horaInicio.split(':').map(Number)
-        const fechaTurno = new Date(y, m - 1, d, h, min)
-        const horasRestantes = (fechaTurno - new Date()) / (1000 * 60 * 60)
+        const fechaTurnoUtc = Date.UTC(y, m - 1, d, h + 3, min)  // +3h para convertir ARG→UTC
+        const horasRestantes = (fechaTurnoUtc - Date.now()) / (1000 * 60 * 60)
 
         if (horasRestantes < 0) {
           return res.status(400).json({ error: 'El turno ya pasó' })

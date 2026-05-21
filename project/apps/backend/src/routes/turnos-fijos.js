@@ -145,41 +145,52 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
       return res.status(400).json({ error: 'canchaId, dia, horaInicio y horaFin son requeridos' })
     }
 
-    // RN-51: no puede haber un turno fijo con horario solapado en la misma cancha el mismo día
-    const existentes = await prisma.turnoFijo.findMany({
-      where: { canchaId, dia, estado: { in: ['pendiente', 'confirmado'] } },
-      select: { horaInicio: true, horaFin: true },
-    })
+    // Validar duración exacta de 90 minutos (regla de negocio central)
     const toMinBE = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
-    const nsMin = toMinBE(horaInicio), nfMin = toMinBE(horaFin)
-    const hayConflicto = existentes.some((t) => {
-      const esMin = toMinBE(t.horaInicio), efMin = toMinBE(t.horaFin)
-      return esMin < nfMin && nsMin < efMin
-    })
-    if (hayConflicto) {
-      return res.status(409).json({ error: 'Ya existe un turno fijo activo o pendiente en ese horario para esa cancha' })
+    const duracion = toMinBE(horaFin) - toMinBE(horaInicio)
+    if (duracion !== 90) {
+      return res.status(400).json({ error: 'El turno fijo debe durar exactamente 1.5h (90 minutos)' })
     }
 
     const hoy = new Date()
     const desde = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
 
-    const turno = await prisma.turnoFijo.create({
-      data: {
-        clubId: req.user.clubId,
-        canchaId,
-        jugadorId: req.user.id,
-        dia,
-        horaInicio,
-        horaFin,
-        precio: precio ? Number(precio) : null,
-        estado: 'pendiente',
-        diasAusentes: [],
-        diasAusentesJugador: [],
-        ausenciasPendientes: [],
-        desde,
-        notas: notas ?? null,
-      },
-      include: INCLUDE_CANCHA,
+    // RN-51 + create dentro de $transaction: evita que dos solicitudes simultáneas al mismo slot
+    // pasen ambas la validación y generen dos TF pendientes para la misma cancha+día+horario.
+    const turno = await prisma.$transaction(async (tx) => {
+      const nsMin = toMinBE(horaInicio), nfMin = toMinBE(horaFin)
+      const existentes = await tx.turnoFijo.findMany({
+        where: { canchaId, dia, estado: { in: ['pendiente', 'confirmado'] } },
+        select: { horaInicio: true, horaFin: true },
+      })
+      if (existentes.some((t) => {
+        const esMin = toMinBE(t.horaInicio), efMin = toMinBE(t.horaFin)
+        return esMin < nfMin && nsMin < efMin
+      })) {
+        throw Object.assign(
+          new Error('Ya existe un turno fijo activo o pendiente en ese horario para esa cancha'),
+          { status: 409 }
+        )
+      }
+
+      return tx.turnoFijo.create({
+        data: {
+          clubId: req.user.clubId,
+          canchaId,
+          jugadorId: req.user.id,
+          dia,
+          horaInicio,
+          horaFin,
+          precio: precio ? Number(precio) : null,
+          estado: 'pendiente',
+          diasAusentes: [],
+          diasAusentesJugador: [],
+          ausenciasPendientes: [],
+          desde,
+          notas: notas ?? null,
+        },
+        include: INCLUDE_CANCHA,
+      })
     })
 
     prisma.notificacion.create({
@@ -201,6 +212,7 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
 
     res.status(201).json(mapTurno(turno))
   } catch (e) {
+    if (e.status === 409) return res.status(409).json({ error: e.message })
     res.status(500).json({ error: e.message })
   }
 })
@@ -230,29 +242,17 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
       }
     }
 
-    // Al confirmar: re-verificar que no haya otro TF confirmado solapado (race condition)
-    // y que no haya reservas eventuales confirmadas en la próxima ocurrencia de ese día
+    // Al confirmar: re-verificar conflictos + update dentro de $transaction.
+    // Sin transacción, dos aprobaciones concurrentes podían pasar ambas la re-verificación
+    // antes de que cualquiera escribiera, resultando en dos TF confirmados para el mismo slot.
+    const toMinLocal = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+
+    let updated
     if (estado === 'confirmado') {
-      const toMinLocal = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
       const nsMin = toMinLocal(turno.horaInicio)
       const nfMin = toMinLocal(turno.horaFin)
 
-      // I-4: otro TF confirmado en la misma cancha+día con horario solapado
-      const tfsSolapados = await prisma.turnoFijo.findMany({
-        where: { canchaId: turno.canchaId, dia: turno.dia, estado: 'confirmado', id: { not: turno.id } },
-        select: { horaInicio: true, horaFin: true },
-      })
-      const conflictoTF = tfsSolapados.some((t) => {
-        const esMin = toMinLocal(t.horaInicio), efMin = toMinLocal(t.horaFin)
-        return esMin < nfMin && nsMin < efMin
-      })
-      if (conflictoTF) {
-        return res.status(409).json({
-          error: 'Ya existe otro turno fijo confirmado en ese horario y cancha. El slot fue tomado mientras este turno estaba pendiente.',
-        })
-      }
-
-      // I-3: reserva eventual confirmada en la próxima ocurrencia de ese día de semana (próximos 60 días)
+      // Calcular fechas de próximas ocurrencias (fuera de TX — es solo aritmética de fechas)
       const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
       const targetDow = DIAS.indexOf(turno.dia)
       const fechas = []
@@ -261,32 +261,56 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
         const d = new Date(base)
         d.setDate(base.getDate() + i)
         if (d.getDay() === targetDow) {
-          const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-          fechas.push(iso)
+          fechas.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`)
           if (fechas.length >= 8) break
         }
       }
-      const reservasConflicto = await prisma.reserva.findMany({
-        where: { canchaId: turno.canchaId, fecha: { in: fechas }, estado: { in: ['confirmada', 'pendiente'] } },
-        select: { horaInicio: true, horaFin: true, fecha: true, tipo: true },
-      })
-      const conflictoReserva = reservasConflicto.find((r) => {
-        const esMin = toMinLocal(r.horaInicio), efMin = toMinLocal(r.horaFin)
-        return esMin < nfMin && nsMin < efMin
-      })
-      if (conflictoReserva) {
-        return res.status(409).json({
-          error: `El horario tiene una reserva ${conflictoReserva.tipo === 'clase' ? 'de clase' : 'eventual'} confirmada el ${conflictoReserva.fecha}. Resolvé ese conflicto antes de confirmar el turno fijo.`,
-          conflictoFecha: conflictoReserva.fecha,
-        })
-      }
-    }
 
-    const updated = await prisma.turnoFijo.update({
-      where: { id: req.params.id },
-      data: { estado },
-      include: INCLUDE_CANCHA,
-    })
+      updated = await prisma.$transaction(async (tx) => {
+        // Otro TF confirmado solapado en la misma cancha+día
+        const tfsSolapados = await tx.turnoFijo.findMany({
+          where: { canchaId: turno.canchaId, dia: turno.dia, estado: 'confirmado', id: { not: turno.id } },
+          select: { horaInicio: true, horaFin: true },
+        })
+        if (tfsSolapados.some((t) => {
+          const esMin = toMinLocal(t.horaInicio), efMin = toMinLocal(t.horaFin)
+          return esMin < nfMin && nsMin < efMin
+        })) {
+          throw Object.assign(
+            new Error('Ya existe otro turno fijo confirmado en ese horario y cancha. El slot fue tomado mientras este turno estaba pendiente.'),
+            { status: 409 }
+          )
+        }
+
+        // Reserva eventual confirmada en las próximas 8 ocurrencias del día
+        const reservasConflicto = await tx.reserva.findMany({
+          where: { canchaId: turno.canchaId, fecha: { in: fechas }, estado: { in: ['confirmada', 'pendiente'] } },
+          select: { horaInicio: true, horaFin: true, fecha: true, tipo: true },
+        })
+        const conflictoReserva = reservasConflicto.find((r) => {
+          const esMin = toMinLocal(r.horaInicio), efMin = toMinLocal(r.horaFin)
+          return esMin < nfMin && nsMin < efMin
+        })
+        if (conflictoReserva) {
+          throw Object.assign(
+            new Error(`El horario tiene una reserva ${conflictoReserva.tipo === 'clase' ? 'de clase' : 'eventual'} confirmada el ${conflictoReserva.fecha}. Resolvé ese conflicto antes de confirmar el turno fijo.`),
+            { status: 409, conflictoFecha: conflictoReserva.fecha }
+          )
+        }
+
+        return tx.turnoFijo.update({
+          where: { id: req.params.id },
+          data: { estado },
+          include: INCLUDE_CANCHA,
+        })
+      })
+    } else {
+      updated = await prisma.turnoFijo.update({
+        where: { id: req.params.id },
+        data: { estado },
+        include: INCLUDE_CANCHA,
+      })
+    }
 
     if (estado === 'confirmado') crearNotifTurnoFijo(updated, 'turno_fijo_confirmado')
     if (estado === 'inactivo') {
@@ -297,6 +321,11 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
 
     res.json(mapTurno(updated))
   } catch (e) {
+    if (e.status === 409) {
+      const body = { error: e.message }
+      if (e.conflictoFecha) body.conflictoFecha = e.conflictoFecha
+      return res.status(409).json(body)
+    }
     res.status(500).json({ error: e.message })
   }
 })
@@ -373,10 +402,11 @@ router.post('/:id/ausencia', requireAuth, requireRole('jugador'), requireActive,
     let cargo = null
 
     if (horasMinimas > 0) {
+      // Interpretar fecha+horaInicio como Argentina UTC-3 (sin DST) para calcular horas restantes
       const [y, m, d] = fecha.split('-').map(Number)
       const [h, min] = turno.horaInicio.split(':').map(Number)
-      const fechaTurno = new Date(y, m - 1, d, h, min)
-      const horasRestantes = (fechaTurno - new Date()) / (1000 * 60 * 60)
+      const fechaTurnoUtc = Date.UTC(y, m - 1, d, h + 3, min)  // +3h ARG→UTC
+      const horasRestantes = (fechaTurnoUtc - Date.now()) / (1000 * 60 * 60)
 
       if (horasRestantes >= 0 && horasRestantes < horasMinimas) {
         cargoAplicado = true

@@ -237,7 +237,7 @@ const PlayerReservasPage = () => {
   // Recarga reservas del día cada vez que cambia la fecha seleccionada
   const fetchReservasDia = (fecha) => {
     if (!token) return
-    api.get(`/reservas?clubId=${clubId}&fecha=${fecha}`, { Authorization: `Bearer ${token}` })
+    api.get(`/reservas?fecha=${fecha}`, { Authorization: `Bearer ${token}` })
       .then((data) => setReservasDB(data))
       .catch(() => setReservasDB([]))
   }

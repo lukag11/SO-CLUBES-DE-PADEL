@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-20 (sesión — Auditoría completa flujo reservas + turnos fijos: doble submit, race conditions, flash de datos, polling, notificaciones)
+**Última actualización:** 2026-05-20 (sesión — Auditoría QA senior: seguridad multi-tenant, privacidad, timezone, concurrencia con $transaction. Limpieza UI clases profesor. Nombre profesor en grilla/mobile/modal.)
 
 ---
 
@@ -131,7 +131,38 @@
 
 ---
 
-## Último bloque completado (2026-05-20) — Auditoría flujo reservas + turnos fijos
+## Último bloque completado (2026-05-20 sesión 2) — Nombre profesor en grilla + limpieza UI clases
+
+### Objetivo
+Mostrar el nombre del profesor en la grilla del día (admin) para cada clase. Limpiar sección duplicada de "Clases del profesor" en el tab Turnos fijos.
+
+### Limpieza — Sección "Clases del profesor" en TabTurnosFijos eliminada
+- La sección al pie del tab "Turnos fijos" era código legacy con texto libre (sin vínculo a profesores reales)
+- El tab dedicado "Clases del profesor" (en la misma barra de tabs) ya cubre toda la funcionalidad con profesores registrados
+- Eliminado: `makeEmptyClase`, `handleAddClase`, `handleDeleteClase`, `mostrarForm`, `formClase`, `errorForm`, todo el JSX del bloque
+- `TabTurnosFijos` ya no recibe props `clases`, `onAddClase`, `onDeleteClase`
+
+### Fix — Nombre del profesor en grilla (desktop + mobile + modal)
+**Backend (`reservas.js`):**
+- `POST /reservas/profesor` ahora retorna `include: { cancha, profesor: { id, nombre, apellido } }`
+- `POST /reservas/admin/clase-profesor` ídem — antes ambos solo devolvían `cancha: true`
+
+**Frontend (`ReservasPage.jsx`):**
+- `mapBackendReserva`: agregado `profesor: r.profesor || null` — antes se descartaba aunque GET /reservas ya lo incluía
+- `Celda` (grilla desktop): renderiza `🎓 Clase · Nombre Apellido` en una sola línea con `truncate` en el nombre
+- `CeldaMobile` (grilla mobile): mismo patrón `● Clase · Nombre Apellido`
+- Modal detalle: `🎓 Clase · Nombre Apellido` como título del bloque naranja
+
+### Archivos modificados
+- `project/apps/frontend/src/pages/ReservasPage.jsx`
+- `project/apps/backend/src/routes/reservas.js`
+
+---
+
+## Último bloque completado (2026-05-20) — Auditoría QA senior: seguridad + concurrencia
+
+### Objetivo
+Auditoría exhaustiva por capas (seguridad, privacidad, timezone, concurrencia) del flujo reservas + turnos fijos. 6 issues encontrados, todos resueltos.
 
 ### Objetivo
 Auditoría completa del flujo reservas/turnos fijos entre admin, jugador y profesor. Corrección de doble submit, race conditions, flash de datos, polling y notificaciones diferenciadas.

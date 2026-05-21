@@ -225,25 +225,26 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = [] }) => {
 
   // Clase del profesor — se pinta dentro de cada celda que overlappea (sin rowspan para no romper el layout)
   if (reserva.tipo === 'clase') {
-    const esClaseProfesor = reserva.creadoPor === 'profesor'
-    const nombre = esClaseProfesor ? reserva.profesorNombre : (reserva.profesor || reserva.nota || '')
+    const nombreCompleto = reserva.profesor
+      ? `${reserva.profesor.nombre} ${reserva.profesor.apellido}`
+      : (reserva.profesorNombre || reserva.nota || '')
     return (
       <td
         onClick={() => onClick({ tipo: 'detalle', reserva, franja, cancha })}
         className="border border-orange-100 align-top transition-colors cursor-pointer bg-orange-50/70 hover:bg-orange-100/60"
       >
         <div className="h-14 p-2 flex flex-col gap-0.5 overflow-hidden">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 min-w-0">
             <GraduationCap size={11} className="text-orange-400 shrink-0" />
-            <span className="text-orange-600 text-xs font-semibold truncate">Clase</span>
-            {esClaseProfesor && (
-              <span className="text-[9px] bg-orange-100 text-orange-500 font-bold px-1 py-0.5 rounded leading-none shrink-0">Prof</span>
+            <span className="text-orange-600 text-xs font-semibold shrink-0">Clase</span>
+            {nombreCompleto && (
+              <>
+                <span className="text-orange-300 text-xs shrink-0">·</span>
+                <span className="text-orange-500 text-[10px] font-medium truncate">{nombreCompleto}</span>
+              </>
             )}
           </div>
           <p className="text-orange-500 text-[10px] font-mono font-semibold leading-snug">{reserva.inicio} → {reserva.fin}</p>
-          {nombre && (
-            <p className="text-orange-400 text-[10px] leading-snug truncate">{nombre}</p>
-          )}
         </div>
       </td>
     )
@@ -485,15 +486,25 @@ const CeldaMobile = ({ reserva, franja, cancha, onClick, pasado }) => {
   const cfg = cfgMap[reserva.tipo] ?? { bg: 'bg-slate-50', text: 'text-slate-600', dot: 'bg-slate-400', label: reserva.tipo }
   const pagoCfg = reserva.pago ? PAGO_CONFIG[reserva.pago] : null
 
+  const nombreProfesorMobile = reserva.tipo === 'clase' && reserva.profesor
+    ? `${reserva.profesor.nombre} ${reserva.profesor.apellido}`
+    : null
+
   return (
     <div
       onClick={() => onClick({ tipo: 'detalle', reserva, franja, cancha })}
       className={`flex-1 border-l border-slate-100 cursor-pointer min-h-[44px] p-1.5 flex flex-col gap-0.5 ${cfg.bg} hover:brightness-95 transition-all`}
     >
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-1 min-w-0">
         <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-        <span className={`text-[10px] font-semibold truncate ${cfg.text}`}>{cfg.label}</span>
-        {pagoCfg && (
+        <span className={`text-[10px] font-semibold shrink-0 ${cfg.text}`}>{cfg.label}</span>
+        {nombreProfesorMobile && (
+          <>
+            <span className="text-orange-300 text-[10px] shrink-0">·</span>
+            <span className="text-orange-500 text-[9px] font-medium truncate">{nombreProfesorMobile}</span>
+          </>
+        )}
+        {pagoCfg && !nombreProfesorMobile && (
           <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full border shrink-0 ${pagoCfg.cls} leading-none`}>
             {pagoCfg.label}
           </span>
@@ -1147,12 +1158,11 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
             <div className="flex items-center gap-2">
               <GraduationCap size={14} className="text-orange-500 shrink-0" />
               <span className="text-orange-700 font-semibold text-sm">
-                {reserva.creadoPor === 'profesor' ? 'Clase del profesor' : 'Clase'}
+                {reserva.profesor
+                  ? `Clase · ${reserva.profesor.nombre} ${reserva.profesor.apellido}`
+                  : (reserva.profesorNombre ? `Clase · ${reserva.profesorNombre}` : 'Clase')}
               </span>
             </div>
-            {reserva.profesorNombre && (
-              <p className="text-orange-600 text-sm">{reserva.profesorNombre}</p>
-            )}
             {(reserva.nota || reserva.notas) && (
               <p className="text-orange-500 text-xs">{reserva.nota || reserva.notas}</p>
             )}
@@ -2151,10 +2161,6 @@ const PanelAlertas = ({
 
 // ─── Tab turnos fijos ─────────────────────────────────────────────────────────
 
-const makeEmptyClase = (canchas, franjas = []) => ({
-  profesor: '', canchaId: canchas[0]?.id ?? '', dia: 'lunes',
-  inicio: franjas[0]?.inicio ?? '09:00', fin: franjas[1]?.fin ?? '10:30', hasta: '', activa: true,
-})
 
 const DIAS_LABEL = {
   lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles',
@@ -2191,7 +2197,7 @@ const fmtFechaCorta = (iso) => {
   return `${DIAS_LABEL[diaNombre]} ${d} ${MESES_CORTOS[m - 1]}`
 }
 
-const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franjas = [] }) => {
+const TabTurnosFijos = ({ canchas = [], franjas = [] }) => {
   const turnosFijosJugadores = useTurnosFijosStore((s) => s.turnosFijos)
   const liberarTurno = useTurnosFijosStore((s) => s.liberarTurno)
   const updateTurnoFijo = useTurnosFijosStore((s) => s.updateTurnoFijo)
@@ -2228,9 +2234,6 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
     })
   }, [fijos, filtroBusqueda, filtroDia, filtroCancha])
 
-  const [mostrarForm, setMostrarForm] = useState(false)
-  const [formClase, setFormClase] = useState(() => makeEmptyClase(canchas, franjas))
-  const [errorForm, setErrorForm] = useState('')
   const [confirmarBaja, setConfirmarBaja] = useState(null)
   const [confirmarBajaDefinitiva, setConfirmarBajaDefinitiva] = useState(null) // { turno, errorDeuda }
   const [procesandoBaja, setProcesandoBaja] = useState(false)
@@ -2312,16 +2315,6 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
       updateTurnoFijo(turnoId, { diasAusentes: updated.diasAusentes, ausenciasPendientes: updated.ausenciasPendientes })
       fetchReservasBackend()
     } catch { /* fallback */ updateTurnoFijo(turnoId, { diasAusentes: [...(turnosFijosJugadores.find(t=>t.id===turnoId)?.diasAusentes??[]), fecha] }) }
-  }
-
-  const handleGuardarClase = () => {
-    if (!formClase.profesor.trim()) { setErrorForm('El nombre del profesor es requerido'); return }
-    if (!formClase.hasta) { setErrorForm('La fecha de vigencia es requerida'); return }
-    if (formClase.fin <= formClase.inicio) { setErrorForm('El horario de fin debe ser posterior al inicio'); return }
-    setErrorForm('')
-    onAddClase({ ...formClase, id: Date.now() })
-    setFormClase(EMPTY_CLASE)
-    setMostrarForm(false)
   }
 
   return (
@@ -2624,162 +2617,6 @@ const TabTurnosFijos = ({ clases, onAddClase, onDeleteClase, canchas = [], franj
         )}
       </div>
 
-      {/* ── Clases del profesor ── */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <GraduationCap size={15} className="text-orange-500" />
-            <span className="text-slate-700 font-semibold text-sm">Clases del profesor</span>
-            <span className="text-slate-400 text-xs">{clases.length} registradas</span>
-          </div>
-          <button
-            onClick={() => { setMostrarForm((v) => !v); setErrorForm('') }}
-            className="flex items-center gap-1 text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-2 py-1 rounded-lg transition-all"
-          >
-            <Plus size={12} />
-            <span className="hidden sm:inline">Agregar clase</span>
-          </button>
-        </div>
-
-        {/* Formulario inline */}
-        {mostrarForm && (
-          <div className="px-5 py-4 bg-orange-50/50 border-b border-orange-100">
-            <p className="text-orange-700 text-xs font-semibold mb-3">Nueva clase del profesor</p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <div>
-                <FieldLabel>Nombre del profesor</FieldLabel>
-                <input
-                  type="text"
-                  placeholder="Ej: Marcelo Ríos"
-                  value={formClase.profesor}
-                  onChange={(e) => setFormClase((p) => ({ ...p, profesor: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/10 transition-all"
-                />
-              </div>
-              <div>
-                <FieldLabel>Cancha</FieldLabel>
-                <select
-                  value={formClase.canchaId}
-                  onChange={(e) => setFormClase((p) => ({ ...p, canchaId: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 appearance-none bg-white"
-                >
-                  {canchas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-              </div>
-              <div>
-                <FieldLabel>Día</FieldLabel>
-                <select
-                  value={formClase.dia}
-                  onChange={(e) => setFormClase((p) => ({ ...p, dia: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 appearance-none bg-white"
-                >
-                  {DIAS_SEMANA_OPCIONES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <FieldLabel>Horario inicio</FieldLabel>
-                <select
-                  value={formClase.inicio}
-                  onChange={(e) => setFormClase((p) => ({ ...p, inicio: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 appearance-none bg-white"
-                >
-                  {franjas.map((f) => <option key={f.inicio} value={f.inicio}>{f.inicio}</option>)}
-                </select>
-              </div>
-              <div>
-                <FieldLabel>Horario fin</FieldLabel>
-                <select
-                  value={formClase.fin}
-                  onChange={(e) => setFormClase((p) => ({ ...p, fin: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 appearance-none bg-white"
-                >
-                  {franjas.map((f) => <option key={f.fin} value={f.fin}>{f.fin}</option>)}
-                </select>
-              </div>
-              <div>
-                <FieldLabel>Vigente hasta</FieldLabel>
-                <input
-                  type="date"
-                  value={formClase.hasta}
-                  onChange={(e) => setFormClase((p) => ({ ...p, hasta: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 transition-all"
-                />
-              </div>
-            </div>
-            {errorForm && <p className="text-red-500 text-xs mt-2">{errorForm}</p>}
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={() => { setMostrarForm(false); setErrorForm('') }}
-                className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleGuardarClase}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-xl transition-all"
-              >
-                <Save size={13} />
-                Guardar clase
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Tabla de clases */}
-        {clases.length === 0 && !mostrarForm ? (
-          <div className="px-5 py-10 text-center text-slate-400 text-sm">No hay clases registradas</div>
-        ) : clases.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  {['Profesor', 'Cancha', 'Día', 'Horario', 'Vigente hasta', 'Estado', ''].map((h) => (
-                    <th key={h} className="text-left text-slate-400 font-medium text-xs px-4 py-3">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {clases.map((c) => {
-                  const cancha = canchas.find((ca) => ca.id === c.canchaId)
-                  const diaLabel = DIAS_SEMANA_OPCIONES.find((d) => d.value === c.dia)?.label || c.dia
-                  return (
-                    <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 bg-orange-100 rounded-lg flex items-center justify-center shrink-0">
-                            <GraduationCap size={12} className="text-orange-500" />
-                          </div>
-                          <span className="text-slate-700 font-medium">{c.profesor}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-500">{cancha?.nombre}</td>
-                      <td className="px-4 py-3 text-slate-500">{diaLabel}</td>
-                      <td className="px-4 py-3 text-slate-500 font-mono text-xs">{c.inicio}–{c.fin}</td>
-                      <td className="px-4 py-3 text-slate-500 text-xs">
-                        {new Date(c.hasta + 'T12:00:00').toLocaleDateString('es-AR')}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-semibold ${c.activa ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          {c.activa ? 'Activa' : 'Inactiva'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => onDeleteClase(c.id)}
-                          className="text-slate-300 hover:text-red-400 transition-colors"
-                          title="Eliminar clase"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </div>
     </div>
   )
 }
@@ -2935,6 +2772,7 @@ const ReservasPage = () => {
     fin: r.horaFin,
     tipo: r.tipo || 'online',
     jugadores: r.jugador ? [`${r.jugador.nombre} ${r.jugador.apellido}`] : [],
+    profesor: r.profesor || null,
     estado: r.estado,
     pago: r.estado === 'confirmada' ? 'pendiente' : null,
     monto: r.precio || 0,
@@ -3170,8 +3008,7 @@ const ReservasPage = () => {
     setEditando(null)
   }
 
-  const handleAddClase = (nueva) => setClases((prev) => [...prev, nueva])
-  const handleDeleteClase = (id) => setClases((prev) => prev.filter((c) => c.id !== id))
+
 
   const sinLeer = turnosFijos.filter((t) => t.estado === 'pendiente').length
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
@@ -3468,9 +3305,6 @@ const ReservasPage = () => {
 
       {tabActiva === 'fijos' && (
         <TabTurnosFijos
-          clases={clases}
-          onAddClase={handleAddClase}
-          onDeleteClase={handleDeleteClase}
           canchas={canchas}
           franjas={franjasMainGrilla}
         />

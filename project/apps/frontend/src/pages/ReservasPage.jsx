@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, Plus, X, Save, Check,
   CalendarDays, DollarSign, Lock, Repeat, Clock,
@@ -1817,7 +1818,7 @@ const diaSemanaDeISO = (fechaISO) => {
 const PanelAlertas = ({
   notificaciones, reservasPendientes = [], adminToken: panelAdminToken,
   onMarcarLeida, onEliminar, onMarcarTodas, onLiberacionAprobada,
-  onReservasPendientesChange,
+  onReservasPendientesChange, onSolicitudFijoClick,
 }) => {
   const [modalNotif, setModalNotif] = useState(null)
   const [aprobandoId, setAprobandoId] = useState(null)
@@ -1959,16 +1960,30 @@ const PanelAlertas = ({
               </span>
             )}
           </div>
-          {sinLeer > 0 && (
-            <button
-              onClick={onMarcarTodas}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs font-semibold transition-colors border border-amber-200"
-            >
-              <CheckCircle size={13} />
-              Marcar como vistas
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {reservasPendientes.length > 1 && (
+              <button
+                onClick={() => reservasPendientes.forEach((r) => handleAprobarReserva(r))}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors"
+              >
+                <CheckCircle size={13} />
+                Aprobar todas ({reservasPendientes.length})
+              </button>
+            )}
+            {sinLeer > 0 && (
+              <button
+                onClick={onMarcarTodas}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs font-semibold transition-colors border border-amber-200"
+              >
+                <CheckCircle size={13} />
+                Marcar como vistas
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Lista con scroll interno — max 300px */}
+        <div className="max-h-72 overflow-y-auto">
 
         {/* Reservas pendientes desde el backend — fuente de verdad */}
         {reservasPendientes.length > 0 && (
@@ -1978,32 +1993,32 @@ const PanelAlertas = ({
               const fechaFmt = new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
               const cargando = aprobandoId === r.id
               return (
-                <div key={r.id} className="px-5 py-3.5 flex items-start gap-3 bg-blue-50/40">
-                  <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-blue-500" />
+                <div key={r.id} className="px-5 py-2.5 flex items-center gap-3 bg-blue-50/40">
+                  <div className="w-2 h-2 rounded-full shrink-0 bg-blue-500" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-slate-700 text-sm font-medium">
+                    <p className="text-slate-700 text-xs font-medium leading-tight">
                       <span className="text-blue-600 font-semibold">Nueva reserva</span>
-                      {jugadorNombre && <span className="text-slate-700 font-semibold"> · {jugadorNombre}</span>}
-                      {r.precio && <span className="text-slate-400 font-normal"> · ${Number(r.precio).toLocaleString('es-AR')}</span>}
+                      {jugadorNombre && <span className="text-slate-700"> · {jugadorNombre}</span>}
+                      {r.precio && <span className="text-slate-400"> · ${Number(r.precio).toLocaleString('es-AR')}</span>}
                     </p>
-                    <p className="text-slate-400 text-xs mt-0.5">{r.cancha?.nombre} · {r.horaInicio}–{r.horaFin} · {fechaFmt}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <button
-                        disabled={cargando}
-                        onClick={() => handleAprobarReserva(r)}
-                        className="flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50"
-                      >
-                        <CheckCircle size={12} />
-                        {cargando ? 'Aprobando…' : 'Aprobar'}
-                      </button>
-                      <button
-                        disabled={cargando}
-                        onClick={() => handleRechazarReserva(r)}
-                        className="flex items-center gap-1 px-3 py-1 rounded-lg bg-red-100 text-red-600 text-xs font-semibold hover:bg-red-200 transition-colors border border-red-200 disabled:opacity-50"
-                      >
-                        Rechazar
-                      </button>
-                    </div>
+                    <p className="text-slate-400 text-[11px] mt-0.5">{r.cancha?.nombre} · {r.horaInicio}–{r.horaFin} · {fechaFmt}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      disabled={cargando}
+                      onClick={() => handleAprobarReserva(r)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500 text-white text-[11px] font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                    >
+                      <CheckCircle size={11} />
+                      {cargando ? '…' : 'Aprobar'}
+                    </button>
+                    <button
+                      disabled={cargando}
+                      onClick={() => handleRechazarReserva(r)}
+                      className="px-2.5 py-1 rounded-lg bg-red-100 text-red-600 text-[11px] font-semibold hover:bg-red-200 transition-colors border border-red-200 disabled:opacity-50"
+                    >
+                      Rechazar
+                    </button>
                   </div>
                 </div>
               )
@@ -2029,7 +2044,7 @@ const PanelAlertas = ({
               : esSolicitudFijo ? 'bg-amber-50/40'
               : esNuevaClaseProf || esCancelClaseProf ? 'bg-orange-50/40'
               : 'bg-red-50/30'
-            const esClickeable = esLiberacion && !n.leida
+            const esClickeable = (esLiberacion || esSolicitudFijo) && !n.leida
             const fechaReserva = n.fecha
               ? new Date(n.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
               : new Date(n.timestamp).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
@@ -2038,7 +2053,7 @@ const PanelAlertas = ({
             return (
               <div
                 key={n.id}
-                onClick={esClickeable ? () => setModalNotif(n) : undefined}
+                onClick={esClickeable ? () => { esSolicitudFijo ? onSolicitudFijoClick?.(n) : setModalNotif(n) } : undefined}
                 className={[
                   'px-5 py-3.5 flex items-start gap-3 transition-colors',
                   n.leida ? 'opacity-50' : rowBg,
@@ -2058,7 +2073,7 @@ const PanelAlertas = ({
                       {!n.leida && (
                         <p className="text-amber-400 text-[10px] mt-1 flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-300 inline-block" />
-                          Pendiente · aprobar desde la tab Turnos fijos
+                          Clic para ir a Turnos fijos y aprobar
                         </p>
                       )}
                     </>
@@ -2154,6 +2169,7 @@ const PanelAlertas = ({
             )
           })}
         </div>
+        </div>{/* /scroll container */}
       </div>
     </>
   )
@@ -2624,11 +2640,12 @@ const TabTurnosFijos = ({ canchas = [], franjas = [] }) => {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const ReservasPage = () => {
+  const location = useLocation()
   const [fecha, setFecha] = useState(todayISO())
   const [clases, setClases] = useState(CLASES_PROFESOR)
   const [seleccion, setSeleccion] = useState(null)
   const [editando, setEditando] = useState(null)
-  const [tabActiva, setTabActiva] = useState('grilla') // 'grilla' | 'fijos'
+  const [tabActiva, setTabActiva] = useState(() => location.state?.tab ?? 'grilla')
   const [toast, setToast] = useState(null) // { tipo: 'reserva'|'bloqueo'|'cancelada', msg: '' }
 
   const showToast = (tipo, msg) => {
@@ -3075,6 +3092,7 @@ const ReservasPage = () => {
           onLiberacionAprobada={setFecha}
           onReservasPendientesChange={() => { fetchReservasPendientes(); fetchReservasBackend() }}
           onFechaChange={setFecha}
+          onSolicitudFijoClick={(n) => { marcarLeida(n.id, adminToken); setTabActiva('fijos') }}
         />
       )}
 
@@ -3313,7 +3331,7 @@ const ReservasPage = () => {
       {tabActiva === 'clases' && (
         <TabClasesProfesor
           onClaseCreada={(nuevaReserva) => {
-            if (nuevaReserva) addReservaAdmin(nuevaReserva)
+            if (nuevaReserva) fetchReservasBackend(nuevaReserva.fecha, false)
           }}
         />
       )}

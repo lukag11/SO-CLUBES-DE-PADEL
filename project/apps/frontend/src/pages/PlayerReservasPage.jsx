@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
-import { CalendarDays, Clock, MapPin, CheckCircle, XCircle, ChevronLeft, ChevronRight, Info, Repeat, X, Trophy } from 'lucide-react'
+import { useLocation, Link } from 'react-router-dom'
+import { CalendarDays, Clock, MapPin, CheckCircle, XCircle, ChevronLeft, ChevronRight, ChevronDown, Info, Repeat, X, Trophy } from 'lucide-react'
 import useClubStore from '../store/clubStore'
 import useReservasStore from '../store/reservasStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
@@ -206,7 +206,7 @@ const PlayerReservasPage = () => {
 
   const [slotsOcupadosClub, setSlotsOcupadosClub] = useState([])
 
-  const clubId = club.id || 'cmoryx4a900008t4qmzdzuiee'
+  const clubId = club.id || import.meta.env.VITE_CLUB_ID
 
   // canchasActivas usa los IDs reales de la DB (CUIDs) una vez que loadFromBackend carga los datos.
   const canchasActivas = useMemo(() => club.canchas.filter((c) => c.activa), [club.canchas])
@@ -246,14 +246,11 @@ const PlayerReservasPage = () => {
   const [fechaOffset, setFechaOffset] = useState(0)
   const [canchaId, setCanchaId] = useState(canchasActivas[0]?.id ?? 1)
   const [slotSeleccionado, setSlotSeleccionado] = useState(null)
-  const [confirmado, setConfirmado] = useState(false)
-  const [confirmadoEsFijo, setConfirmadoEsFijo] = useState(false)
-  const [confirmadoId, setConfirmadoId] = useState(null) // ID de la reserva/TF recién enviada para auto-limpiar el banner
+  const [confirmaciones, setConfirmaciones] = useState([]) // [{ uid, esFijo, backendId, cancha, hora, horaFin, dia }]
   const [esTurnoFijo, setEsTurnoFijo] = useState(false)
   const [modalAbierto, setModalAbierto] = useState(false)
-  const [reservaACancelar, setReservaACancelar] = useState(null)
   const [submitting, setSubmitting] = useState(false)
-  const [cancelando, setCancelando] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   // Auto-abrir modal si venimos desde la landing con un slot pre-seleccionado
   useEffect(() => {
@@ -326,19 +323,6 @@ const PlayerReservasPage = () => {
   }, [misReservasDB, canchasDB, canchasActivas])
 
   // Cálculo de política de cancelación para el modal
-  const cancelacionInfo = useMemo(() => {
-    if (!reservaACancelar) return { horasMinimas: 0, horasRestantes: Infinity, fueraDePlazo: false }
-    const horasMinimas = club.horasCancelacion ?? 0
-    const [y, m, d] = reservaACancelar.fecha.split('-').map(Number)
-    const [h, min] = reservaACancelar.hora.split(':').map(Number)
-    const fechaTurno = new Date(y, m - 1, d, h, min)
-    const horasRestantes = (fechaTurno - new Date()) / (1000 * 60 * 60)
-    const fueraDePlazo = horasMinimas > 0 && horasRestantes < horasMinimas && horasRestantes >= 0
-    return { horasMinimas, horasRestantes, fueraDePlazo }
-  }, [reservaACancelar, club.horasCancelacion])
-
-  const { horasMinimas, horasRestantes, fueraDePlazo } = cancelacionInfo
-
   // Reservas de la fecha seleccionada filtradas por cancha, usadas para disponibilidad real
   const reservasDBParaCancha = useMemo(
     () => (canchaDBId ? reservasDB.filter((r) => r.canchaId === canchaDBId) : []),
@@ -375,17 +359,20 @@ const PlayerReservasPage = () => {
     return () => clearInterval(interval)
   }, [fechaSeleccionada, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-limpiar banner cuando la reserva/TF enviado ya no está pendiente
+
+  // Auto-limpiar toasts cuando el admin aprueba/confirma (el estado ya no es pendiente)
   useEffect(() => {
-    if (!confirmado || !confirmadoId) return
-    if (confirmadoEsFijo) {
-      const tf = turnosFijos.find((t) => t.id === confirmadoId)
-      if (tf && tf.estado !== 'pendiente') { setConfirmado(false); setConfirmadoId(null) }
-    } else {
-      const r = misReservasDB.find((r) => r.id === confirmadoId)
-      if (r && r.estado !== 'pendiente') { setConfirmado(false); setConfirmadoId(null) }
-    }
-  }, [misReservasDB, turnosFijos, confirmado, confirmadoId, confirmadoEsFijo])
+    if (confirmaciones.length === 0) return
+    setConfirmaciones((prev) => prev.filter((c) => {
+      if (c.esFijo) {
+        const tf = turnosFijos.find((t) => t.id === c.backendId)
+        return !tf || tf.estado === 'pendiente'
+      } else {
+        const r = misReservasDB.find((r) => r.id === c.backendId)
+        return !r || r.estado === 'pendiente'
+      }
+    }))
+  }, [misReservasDB, turnosFijos]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Turnos fijos activos: los propios + los de otros jugadores del club (para bloquear grilla)
   // Excluye solo diasAusentes confirmados por admin
@@ -451,39 +438,6 @@ const PlayerReservasPage = () => {
     )
   }, [turnosFijos, canchaActual, fechaSeleccionada, slotSeleccionado, slots])
 
-  const proximasReservas = useMemo(() => {
-    const DIAS_INDEX = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 }
-    const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-
-    const proximaOcurrencia = (dia, inicio) => {
-      const ahora = new Date()
-      const target = DIAS_INDEX[dia]
-      if (ahora.getDay() === target) {
-        const [h, m] = inicio.split(':').map(Number)
-        if (ahora.getHours() * 60 + ahora.getMinutes() < h * 60 + m) {
-          const hoy2 = new Date(ahora); hoy2.setHours(0, 0, 0, 0); return toISO(hoy2)
-        }
-      }
-      const base = new Date(ahora); base.setHours(0, 0, 0, 0)
-      const diff = (target - base.getDay() + 7) % 7
-      base.setDate(base.getDate() + (diff === 0 ? 7 : diff))
-      return toISO(base)
-    }
-
-    return misReservasMapped
-      .filter((r) => (r.estado === 'confirmada' || r.estado === 'pendiente') && r.fecha >= fmtDate(hoy) && !r.esTurnoFijo)
-      .map((r) => {
-        if (!r.esTurnoFijo) return { ...r, turnoFijoEstado: null }
-        const turno = turnosFijos.find((t) => t.reservaId === r.id)
-        if (!turno || !turno.activo) return { ...r, turnoFijoEstado: 'inactivo' }
-        const proxISO = proximaOcurrencia(turno.dia, turno.inicio)
-        if ((turno.ausenciasPendientes || []).includes(proxISO)) return { ...r, turnoFijoEstado: 'baja_pendiente' }
-        if ((turno.diasAusentes || []).includes(proxISO)) return { ...r, turnoFijoEstado: 'ausente' }
-        return { ...r, turnoFijoEstado: 'activo' }
-      })
-      .sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora))
-  }, [misReservasMapped, turnosFijos])
-
   const handleSelectSlot = (slot) => {
     if (slot.ocupado || slot.miReserva || slot.pasado) return
     setSlotSeleccionado(slot.hora)
@@ -513,7 +467,15 @@ const PlayerReservasPage = () => {
             { Authorization: `Bearer ${token}` }
           )
           addTurnoFijoFromApi(turno)
-          setConfirmadoId(turno.id ?? null)
+          setConfirmaciones((prev) => [...prev, {
+            uid: Date.now(),
+            esFijo: true,
+            backendId: turno.id ?? null,
+            cancha: canchaActual.nombre,
+            hora: slotSeleccionado,
+            horaFin: slotFin,
+            dia: getDiaSemanaKey(fechaSeleccionada),
+          }])
         } catch (err) {
           setErrorReserva(err.message || 'No se pudo enviar la solicitud de turno fijo')
           setSubmitting(false)
@@ -532,7 +494,15 @@ const PlayerReservasPage = () => {
             { Authorization: `Bearer ${token}` }
           )
           backendReservaId = reservaBackend?.id ?? null
-          setConfirmadoId(backendReservaId)
+          setConfirmaciones((prev) => [...prev, {
+            uid: Date.now(),
+            esFijo: false,
+            backendId: backendReservaId,
+            cancha: canchaActual.nombre,
+            hora: slotSeleccionado,
+            horaFin: slotFin,
+            fecha: fechaSeleccionada,
+          }])
           fetchReservasDia(fechaSeleccionada)
           fetchMisReservas()
         } catch (err) {
@@ -556,8 +526,6 @@ const PlayerReservasPage = () => {
     }
     setModalAbierto(false)
     setSlotSeleccionado(null)
-    setConfirmadoEsFijo(esTurnoFijo)
-    setConfirmado(true)
     setErrorReserva(null)
     setSubmitting(false)
   }
@@ -589,6 +557,48 @@ const PlayerReservasPage = () => {
         <p className="text-white/40 text-sm mt-1">Seleccioná el día, la cancha y el horario.</p>
       </div>
 
+      {/* ── Helper informativo ── */}
+      <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
+        <button
+          onClick={() => setHelpOpen((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/2 transition-colors"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded-lg bg-[#afca0b]/10 border border-[#afca0b]/20 flex items-center justify-center shrink-0">
+              <Info size={12} className="text-[#afca0b]" />
+            </div>
+            <span className="text-white/60 text-xs font-medium">¿Cómo funciona esta sección?</span>
+          </div>
+          <ChevronDown size={14} className={`text-white/30 transition-transform duration-200 ${helpOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {helpOpen && (
+          <div className="px-4 pb-4 flex flex-col gap-3 border-t border-white/5 pt-3">
+            <div className="flex items-start gap-3 px-3 py-3 rounded-xl bg-white/3 border border-white/6">
+              <div className="w-7 h-7 rounded-lg bg-[#afca0b]/10 border border-[#afca0b]/20 flex items-center justify-center shrink-0 mt-0.5">
+                <CalendarDays size={13} className="text-[#afca0b]" />
+              </div>
+              <div>
+                <p className="text-white/80 text-xs font-semibold">Reserva puntual</p>
+                <p className="text-white/40 text-[11px] mt-0.5 leading-relaxed">
+                  Reservás la cancha para un día específico. Una vez enviada, queda pendiente hasta que el administrador la confirme. La encontrás en <span className="text-white/60 font-medium">"Mis reservas"</span> del menú.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 px-3 py-3 rounded-xl bg-white/3 border border-white/6">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                <Repeat size={13} className="text-amber-400" />
+              </div>
+              <div>
+                <p className="text-white/80 text-xs font-semibold">Turno fijo semanal</p>
+                <p className="text-white/40 text-[11px] mt-0.5 leading-relaxed">
+                  Reservás ese mismo día y horario <span className="text-white/60 font-medium">todas las semanas</span>. Activá el toggle <span className="text-amber-400 font-medium">"Turno fijo semanal"</span> al seleccionar el slot. El admin debe aprobarlo. Lo gestionás desde <span className="text-white/60 font-medium">"Mis turnos fijos"</span> del menú.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Error al reservar ── */}
       {errorReserva && (
         <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/25 rounded-2xl px-5 py-3.5">
@@ -600,20 +610,41 @@ const PlayerReservasPage = () => {
         </div>
       )}
 
-      {/* ── Toast confirmación ── */}
-      {confirmado && (
-        <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/25 rounded-2xl px-5 py-3.5">
-          <Repeat size={18} className="text-amber-400 shrink-0" />
-          <p className="text-amber-300 text-sm font-medium">
-            {confirmadoEsFijo
-              ? 'Solicitud de turno fijo enviada. El admin la revisará y te notificará cuando esté aprobada.'
-              : 'Solicitud enviada. El admin la revisará y te notificará cuando esté aprobada.'}
-          </p>
-          <button onClick={() => { setConfirmado(false); setConfirmadoId(null) }} className="ml-auto text-amber-400/50 hover:text-amber-400 transition-colors">
-            <XCircle size={16} />
+      {/* ── Toasts de confirmación (uno por operación, coexisten) ── */}
+      {confirmaciones.map((c) => (
+        <div key={c.uid} className={`flex items-start gap-3 border rounded-2xl px-5 py-3.5 ${c.esFijo ? 'bg-amber-500/10 border-amber-500/25' : 'bg-[#afca0b]/8 border-[#afca0b]/20'}`}>
+          <div className="shrink-0 mt-0.5">
+            {c.esFijo
+              ? <Repeat size={16} className="text-amber-400" />
+              : <CheckCircle size={16} className="text-[#afca0b]" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            {c.esFijo ? (
+              <>
+                <p className="text-amber-300 text-sm font-semibold">Turno fijo enviado</p>
+                <p className="text-amber-300/70 text-xs mt-0.5">
+                  {c.cancha} · {c.dia} {c.hora}–{c.horaFin} · Semanal
+                </p>
+                <p className="text-amber-300/50 text-xs mt-1">Pendiente de aprobación · Lo gestionás en <span className="text-amber-300/80 font-medium">"Mis turnos fijos"</span></p>
+              </>
+            ) : (
+              <>
+                <p className="text-[#afca0b] text-sm font-semibold">Reserva enviada</p>
+                <p className="text-[#afca0b]/70 text-xs mt-0.5">
+                  {c.cancha} · {c.hora}–{c.horaFin} · {c.fecha}
+                </p>
+                <p className="text-[#afca0b]/50 text-xs mt-1">Pendiente de confirmación admin · La ves en <span className="text-[#afca0b]/80 font-medium">"Mis reservas"</span></p>
+              </>
+            )}
+          </div>
+          <button
+            onClick={() => setConfirmaciones((prev) => prev.filter((x) => x.uid !== c.uid))}
+            className="shrink-0 text-white/20 hover:text-white/50 transition-colors mt-0.5"
+          >
+            <X size={14} />
           </button>
         </div>
-      )}
+      ))}
 
       {/* ── Selector de fecha ── */}
       <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-4">
@@ -908,7 +939,9 @@ const PlayerReservasPage = () => {
                     <p className="text-white/30 text-[10px] mt-0.5">
                       {yaTimeTurnoFijoEnCancha
                         ? 'Ya tenés un turno fijo en esta cancha este día'
-                        : esTurnoFijo ? 'El admin aprobará la solicitud' : 'Activá para reservar cada semana'}
+                        : esTurnoFijo
+                          ? 'Se repetirá cada semana · Lo gestionás en "Mis turnos fijos"'
+                          : 'Solo para este día · Lo verás en "Mis reservas"'}
                     </p>
                   </div>
                 </div>
@@ -959,280 +992,63 @@ const PlayerReservasPage = () => {
         </div>
       )}
 
-      {/* ── Mis próximas reservas ── */}
-      <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/6 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CalendarDays size={15} className="text-[#afca0b]" />
-            <h3 className="text-white font-semibold text-sm">Mis próximas reservas</h3>
+      {/* ── Acceso rápido a reservas eventuales ── */}
+      {misReservasMapped.filter((r) => !r.esTurnoFijo && (r.estado === 'confirmada' || r.estado === 'pendiente') && r.fecha >= fmtDate(hoy)).length > 0 && (
+        <Link
+          to="/dashboardJugadores/mis-reservas"
+          className="flex items-center justify-between px-5 py-3.5 bg-[#0d1117] border border-white/8 rounded-2xl hover:border-[#afca0b]/30 hover:bg-[#afca0b]/3 transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#afca0b]/10 border border-[#afca0b]/20 flex items-center justify-center shrink-0">
+              <CalendarDays size={14} className="text-[#afca0b]" />
+            </div>
+            <div>
+              <p className="text-white/70 text-xs font-semibold group-hover:text-white transition-colors">
+                {(() => {
+                  const proximas = misReservasMapped.filter((r) => !r.esTurnoFijo && (r.estado === 'confirmada' || r.estado === 'pendiente') && r.fecha >= fmtDate(hoy))
+                  const confirmadas = proximas.filter((r) => r.estado === 'confirmada').length
+                  const pendientes = proximas.filter((r) => r.estado === 'pendiente').length
+                  return (
+                    <>
+                      {confirmadas > 0 && <span>{confirmadas} reserva{confirmadas !== 1 ? 's' : ''} confirmada{confirmadas !== 1 ? 's' : ''}</span>}
+                      {pendientes > 0 && <span className="ml-2 text-amber-400">· {pendientes} pendiente{pendientes !== 1 ? 's' : ''}</span>}
+                    </>
+                  )
+                })()}
+              </p>
+              <p className="text-white/25 text-[10px] mt-0.5">Ver en Mis reservas</p>
+            </div>
           </div>
-          <span className="text-white/30 text-xs">{proximasReservas.length} activa{proximasReservas.length !== 1 ? 's' : ''}</span>
-        </div>
+          <ChevronDown size={14} className="text-white/20 group-hover:text-[#afca0b] -rotate-90 transition-colors" />
+        </Link>
+      )}
 
-        {proximasReservas.length === 0 ? (
-          <div className="py-12 flex flex-col items-center gap-2 text-white/20">
-            <CalendarDays size={28} className="opacity-40" />
-            <p className="text-sm">No tenés reservas próximas</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-white/5">
-            {proximasReservas.map((r) => {
-              const bajaPendiente = r.turnoFijoEstado === 'baja_pendiente'
-              const ausente = r.turnoFijoEstado === 'ausente'
-              const bloqueado = bajaPendiente || ausente
-
-              // Colores del bloque de fecha
-              const dateBoxCls = r.estado === 'pendiente'
-                ? 'bg-amber-500/10 border border-amber-500/20'
-                : bajaPendiente ? 'bg-amber-500/10 border border-amber-500/20'
-                : ausente ? 'bg-white/5 border border-white/8'
-                : 'bg-[#afca0b]/10 border border-[#afca0b]/20'
-
-              const dateTextCls = r.estado === 'pendiente'
-                ? 'text-amber-400'
-                : bajaPendiente ? 'text-amber-400'
-                : ausente ? 'text-white/25'
-                : 'text-[#afca0b]'
-
-              return (
-                <div key={r.id} className={`px-4 py-3.5 flex items-center gap-3 transition-colors ${bloqueado ? 'opacity-60' : r.estado === 'pendiente' ? 'bg-amber-500/3 hover:bg-amber-500/6' : 'hover:bg-white/2'}`}>
-                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 ${dateBoxCls}`}>
-                    <span className={`font-black text-base leading-none ${dateTextCls}`}>{r.fecha.slice(8)}</span>
-                    <span className={`text-[9px] uppercase ${dateTextCls} opacity-50`}>{MESES[parseInt(r.fecha.slice(5, 7)) - 1]}</span>
-                  </div>
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className={`font-semibold text-sm truncate ${bloqueado ? 'text-white/40' : 'text-white'}`}>{r.canchaNombre}</p>
-                      {r.estado === 'pendiente' && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">
-                          Pendiente de aprobación
-                        </span>
-                      )}
-                      {r.estado === 'confirmada' && r.esTurnoFijo && !bloqueado && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0">
-                          Turno fijo
-                        </span>
-                      )}
-                      {bajaPendiente && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">
-                          Baja pendiente
-                        </span>
-                      )}
-                      {ausente && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/8 text-white/30 border border-white/10 shrink-0">
-                          Ausencia confirmada
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-white/40 text-xs flex items-center gap-1">
-                        <Clock size={10} /> {r.hora}{r.horaFin ? ` a ${r.horaFin}` : ''}
-                      </span>
-                      <span className={`text-xs font-medium ${bloqueado ? 'text-white/20' : r.estado === 'pendiente' ? 'text-amber-400/70' : 'text-[#afca0b]/70'}`}>
-                        ${r.precio.toLocaleString('es-AR')}
-                      </span>
-                    </div>
-                  </div>
-                  {(() => {
-                    const [y, m, d] = r.fecha.split('-').map(Number)
-                    const [h, min] = (r.horaFin || r.hora).split(':').map(Number)
-                    const yaJugo = new Date(y, m - 1, d, h, min) < new Date()
-                    if (yaJugo) return (
-                      <span className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white/5 border border-white/8 text-white/25 text-xs font-medium shrink-0">
-                        <CheckCircle size={12} />
-                        Finalizado
-                      </span>
-                    )
-                    if (r.esTurnoFijo) return null
-                    return (
-                      <button
-                        onClick={() => setReservaACancelar(r)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-red-400/70 hover:text-red-400 hover:bg-red-400/8 border border-red-400/0 hover:border-red-400/15 text-xs font-medium transition-all shrink-0"
-                      >
-                        <XCircle size={13} />
-                        Cancelar
-                      </button>
-                    )
-                  })()}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ── Mis próximos turnos fijos ── */}
+      {/* ── Acceso rápido a turnos fijos ── */}
       {turnosFijos.filter((t) => t.activo || t.estado === 'pendiente').length > 0 && (
-        <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/6 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Repeat size={15} className="text-violet-400" />
-              <h3 className="text-white font-semibold text-sm">Mis turnos fijos</h3>
+        <Link
+          to="/dashboardJugadores/turnos-fijos"
+          className="flex items-center justify-between px-5 py-3.5 bg-[#0d1117] border border-white/8 rounded-2xl hover:border-violet-500/30 hover:bg-violet-500/3 transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
+              <Repeat size={14} className="text-violet-400" />
             </div>
-            <div className="flex items-center gap-2">
-              {turnosFijos.some((t) => t.estado === 'pendiente') && (
-                <span className="text-amber-400 text-xs font-medium">
-                  {turnosFijos.filter((t) => t.estado === 'pendiente').length} pendiente{turnosFijos.filter((t) => t.estado === 'pendiente').length !== 1 ? 's' : ''}
-                </span>
-              )}
-              <span className="text-white/30 text-xs">
-                {turnosFijos.filter((t) => t.activo).length} activo{turnosFijos.filter((t) => t.activo).length !== 1 ? 's' : ''}
-              </span>
-            </div>
-          </div>
-          <div className="divide-y divide-white/5">
-            {turnosFijos
-              .filter((t) => t.activo || t.estado === 'pendiente')
-              .sort((a, b) => {
-                if (a.estado === 'pendiente' && b.estado !== 'pendiente') return -1
-                if (b.estado === 'pendiente' && a.estado !== 'pendiente') return 1
-                return 0
-              })
-              .map((t) => {
-                const cancha = (club.canchas ?? []).find((c) => c.id === t.canchaId)
-                const isPendiente = t.estado === 'pendiente'
-                const DIAS_LABEL = { domingo: 'Domingo', lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado' }
-                return (
-                  <div key={t.id} className={`px-4 py-3.5 flex items-center gap-3 ${isPendiente ? 'bg-amber-500/3' : 'hover:bg-white/2'}`}>
-                    <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 ${isPendiente ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-violet-500/10 border border-violet-500/20'}`}>
-                      <Repeat size={15} className={isPendiente ? 'text-amber-400' : 'text-violet-400'} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-white font-semibold text-sm truncate">{DIAS_LABEL[t.dia] ?? t.dia}</p>
-                        {isPendiente ? (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">
-                            Pendiente de aprobación
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0">
-                            Turno fijo
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-white/40 text-xs flex items-center gap-1">
-                          <Clock size={10} /> {t.horaInicio ?? t.inicio} a {t.horaFin ?? t.fin}
-                        </span>
-                        <span className="text-white/30 text-xs">{cancha?.nombre ?? '—'}</span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Modal confirmación cancelar reserva eventual ── */}
-      {reservaACancelar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setReservaACancelar(null)}>
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div
-            className="relative w-full max-w-sm bg-[#0d1117] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/8">
-              <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${fueraDePlazo ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
-                  <XCircle size={16} className={fueraDePlazo ? 'text-amber-400' : 'text-red-400'} />
-                </div>
-                <div>
-                  <p className="text-white font-bold text-sm">Cancelar reserva</p>
-                  <p className="text-white/30 text-xs mt-0.5">{reservaACancelar.canchaNombre} · {reservaACancelar.hora} a {reservaACancelar.horaFin}</p>
-                </div>
-              </div>
-              <button onClick={() => setReservaACancelar(null)} className="text-white/20 hover:text-white/60 transition-colors p-1">
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="px-6 py-5 flex flex-col gap-4">
-
-              {/* Aviso de cargo si está fuera de plazo */}
-              {fueraDePlazo ? (
-                <div className="flex items-start gap-3 px-4 py-3.5 rounded-2xl bg-amber-500/8 border border-amber-500/25">
-                  <Info size={15} className="text-amber-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-amber-300 font-semibold text-xs">Cancelación fuera de plazo</p>
-                    <p className="text-white/40 text-xs mt-1 leading-relaxed">
-                      El club requiere cancelar con al menos <span className="text-amber-300 font-bold">{horasMinimas}h de anticipación</span>.
-                      Podés cancelar igualmente, pero se registrará un cargo de <span className="text-amber-300 font-bold">${reservaACancelar.precio?.toLocaleString('es-AR')}</span> en tu cuenta.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-white/50 text-xs leading-relaxed">
-                  ¿Estás seguro que deseás cancelar esta reserva? Esta acción no se puede deshacer.
-                  {horasMinimas > 0 && (
-                    <span className="block mt-1 text-[#afca0b]/60">
-                      Cancelación gratuita — quedan {Math.floor(horasRestantes)}h de anticipación (mínimo {horasMinimas}h).
-                    </span>
-                  )}
-                </p>
-              )}
-
-              <div className="flex items-center gap-4 px-4 py-4 rounded-2xl bg-white/3 border border-white/8">
-                <div className="w-10 h-10 rounded-xl bg-white/8 flex items-center justify-center shrink-0">
-                  <CalendarDays size={18} className="text-white/50" />
-                </div>
-                <div>
-                  <p className="text-white font-bold text-sm">{reservaACancelar.canchaNombre}</p>
-                  <p className="text-white/30 text-xs mt-0.5">
-                    {MESES[parseInt(reservaACancelar.fecha.slice(5, 7)) - 1]} {reservaACancelar.fecha.slice(8)} · {reservaACancelar.hora} a {reservaACancelar.horaFin}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={async () => {
-                  if (cancelando) return
-                  setCancelando(true)
-                  const id = reservaACancelar.id
-                  try {
-                    await api.delete(`/reservas/${id}`, { Authorization: `Bearer ${token}` })
-                    cancelarReserva(id)
-                    fetchMisReservas()
-                    fetchReservasDia(fechaSeleccionada)
-                    setReservaACancelar(null)
-                  } catch (err) {
-                    console.error('Error al cancelar reserva:', err)
-                  } finally {
-                    setCancelando(false)
-                  }
-                }}
-                disabled={cancelando}
-                className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98] shadow-lg disabled:opacity-60 disabled:cursor-not-allowed ${
-                  fueraDePlazo
-                    ? 'bg-amber-500 text-[#0d1117] hover:bg-amber-400 shadow-amber-500/20'
-                    : 'bg-red-500 text-white hover:bg-red-400 shadow-red-500/20'
-                }`}
-              >
-                {cancelando ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                    </svg>
-                    Cancelando...
-                  </>
-                ) : (
-                  <>
-                    <XCircle size={15} />
-                    {fueraDePlazo ? `Cancelar con cargo ($${reservaACancelar.precio?.toLocaleString('es-AR')})` : 'Sí, cancelar reserva'}
-                  </>
+            <div>
+              <p className="text-white/70 text-xs font-semibold group-hover:text-white transition-colors">
+                {turnosFijos.filter((t) => t.activo).length} turno{turnosFijos.filter((t) => t.activo).length !== 1 ? 's' : ''} fijo{turnosFijos.filter((t) => t.activo).length !== 1 ? 's' : ''} activo{turnosFijos.filter((t) => t.activo).length !== 1 ? 's' : ''}
+                {turnosFijos.some((t) => t.estado === 'pendiente') && (
+                  <span className="ml-2 text-amber-400">
+                    · {turnosFijos.filter((t) => t.estado === 'pendiente').length} pendiente{turnosFijos.filter((t) => t.estado === 'pendiente').length !== 1 ? 's' : ''}
+                  </span>
                 )}
-              </button>
-
-              <button onClick={() => setReservaACancelar(null)} className="text-white/25 hover:text-white/50 text-xs text-center transition-colors">
-                Volver
-              </button>
+              </p>
+              <p className="text-white/25 text-[10px] mt-0.5">Ver en Mis turnos fijos</p>
             </div>
           </div>
-        </div>
+          <ChevronDown size={14} className="text-white/20 group-hover:text-violet-400 -rotate-90 transition-colors" />
+        </Link>
       )}
+
 
     </div>
   )

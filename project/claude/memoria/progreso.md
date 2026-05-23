@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-20 (sesión — Auditoría QA senior: seguridad multi-tenant, privacidad, timezone, concurrencia con $transaction. Limpieza UI clases profesor. Nombre profesor en grilla/mobile/modal.)
+**Última actualización:** 2026-05-23 (sesión — Página "Mis reservas" jugador, toasts duales persistentes, banners compactos de acceso rápido, mejoras panel admin Avisos + click notificación TF.)
 
 ---
 
@@ -109,6 +109,7 @@
 - `/dashboardJugadores/registro` → stepper 3 pasos
 - `/dashboardJugadores/dashboard` → resumen
 - `/dashboardJugadores/reservas` → reservar cancha
+- `/dashboardJugadores/mis-reservas` → mis reservas eventuales (nueva página)
 - `/dashboardJugadores/turnos-fijos` → mis turnos fijos
 - `/dashboardJugadores/estadisticas` → gráficos
 - `/dashboardJugadores/torneos` → torneos (inscripción + historial)
@@ -128,6 +129,61 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-05-23) — Mis reservas, toasts persistentes, UX Reservar cancha
+
+### Funcionalidades implementadas
+
+**Nueva página "Mis reservas" (`PlayerMisReservasPage.jsx`)**
+- Página dedicada en el sidebar del jugador (ícono `ClipboardList`, entre "Reservar cancha" y "Mis turnos fijos")
+- Ruta: `/dashboardJugadores/mis-reservas`
+- Tabs: Próximas (filtradas por fecha ≥ hoy) / Todas
+- Botón "⊗ Cancelar" por fila (texto + ícono) — abre modal de confirmación con política `horasCancelacion`
+- Router actualizado: ruta `mis-reservas` registrada en `router/index.jsx`
+- `PlayerLayout.jsx`: nav item agregado con `ClipboardList`
+
+**Sistema de toasts duales persistentes (`PlayerReservasPage.jsx`)**
+- Reemplazado estado booleano único (`confirmado/confirmadoEsFijo`) por array `confirmaciones[]`
+- Cada ítem tiene: `{ uid, esFijo, backendId, cancha, hora, horaFin, dia/fecha }`
+- Toast **verde/lima** para reservas eventuales: "Reserva enviada · [Cancha] — El admin la revisará"
+- Toast **ámbar** para turnos fijos: "Turno fijo solicitado · [Cancha] — Pendiente de aprobación"
+- Ambos toasts coexisten si se hacen ambas operaciones en la misma sesión
+- **Auto-clear via `useEffect`**: desaparece cuando el ítem deja de estar en `pendiente` en el backend (sin timer)
+- Cerrar manual (X) individual por toast
+
+**Banner helper colapsable (PlayerReservasPage)**
+- Banner "¿Cómo funciona esta sección?" encima de la grilla, cerrado por defecto
+- Explica diferencia entre reserva eventual (1 día) y turno fijo (semanal recurrente)
+- Toggle subtitle dinámico bajo el switch turno fijo:
+  - Desactivado: "Solo para este día · Lo verás en 'Mis reservas'"
+  - Activado: "Se repetirá cada semana · Lo gestionás en 'Mis turnos fijos'"
+
+**Banners compactos de acceso rápido al pie de "Reservar cancha"**
+- Banner **reservas eventuales**: aparece si hay reservas próximas (`estado=confirmada|pendiente, fecha≥hoy`)  → link a `/dashboardJugadores/mis-reservas`
+- Banner **turnos fijos**: aparece si hay TF activos o pendientes → link a `/dashboardJugadores/turnos-fijos`
+- Reemplazan la lista completa de "Mis turnos fijos" que ocupaba mucho espacio
+- Solo se muestran si hay registros; diseño compacto con ChevronDown como flecha
+
+**Notificaciones admin — click en solicitud de turno fijo (ReservasPage)**
+- `esClickeable` ahora incluye `esSolicitudFijo` además de `esLiberacion`
+- Click en notificación "Solicitud turno fijo": marca como leída + navega al tab "Turnos fijos" directamente
+- Hint visible: "Clic para ir a Turnos fijos y aprobar"
+- Tab inicial via `location.state?.tab` (react-router): `navigate('/dashboardAdmin/reservas', { state: { tab: 'fijos' } })`
+
+**Panel "Avisos de jugadores" mejorado (ReservasPage)**
+- Scroll interno: `max-h-72 overflow-y-auto` — panel acotado aunque haya muchas notificaciones
+- Botón "Aprobar todas (N)" en el header: aparece cuando hay más de una reserva pendiente simultánea
+- Filas más compactas (`py-2.5` vs `py-3.5`, texto `text-[11px]`, botones inline)
+
+### Archivos modificados
+- `project/apps/frontend/src/pages/PlayerMisReservasPage.jsx` — nueva página
+- `project/apps/frontend/src/pages/PlayerReservasPage.jsx` — toasts, helper, banners
+- `project/apps/frontend/src/pages/ReservasPage.jsx` — click TF notif, Aprobar todas, scroll
+- `project/apps/frontend/src/router/index.jsx` — ruta mis-reservas
+- `project/apps/frontend/src/layouts/PlayerLayout.jsx` — nav item Mis reservas
+- `flujo-prueba-reservas-turnos.html` — guía de prueba actualizada completa
 
 ---
 

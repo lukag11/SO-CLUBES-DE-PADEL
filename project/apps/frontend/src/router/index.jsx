@@ -22,6 +22,7 @@ import PlayerOpponentsPage from '../pages/PlayerOpponentsPage'
 import PlayerProfilePage from '../pages/PlayerProfilePage'
 import PlayerTurnosFijosPage from '../pages/PlayerTurnosFijosPage'
 import PlayerReservasPage from '../pages/PlayerReservasPage'
+import PlayerMisReservasPage from '../pages/PlayerMisReservasPage'
 import PlayerNotificacionesPage from '../pages/PlayerNotificacionesPage'
 import ProfesorDashboardPage from '../pages/ProfesorDashboardPage'
 import ProfesorAgendaPage from '../pages/ProfesorAgendaPage'
@@ -63,6 +64,7 @@ const router = createBrowserRouter([
           { path: 'torneos',        element: <PlayerTournamentsPage /> },
           { path: 'oponentes',      element: <PlayerOpponentsPage /> },
           { path: 'turnos-fijos',   element: <PlayerTurnosFijosPage /> },
+          { path: 'mis-reservas',   element: <PlayerMisReservasPage /> },
           { path: 'perfil',         element: <PlayerProfilePage /> },
           { path: 'notificaciones', element: <PlayerNotificacionesPage /> },
         ],

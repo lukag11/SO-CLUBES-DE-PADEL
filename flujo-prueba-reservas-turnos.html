@@ -1,0 +1,1968 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PadelOS — Guía de prueba: Reservas y Turnos Fijos</title>
+  <style>
+    :root {
+      --verde: #16a34a;
+      --verde-light: #dcfce7;
+      --azul: #2563eb;
+      --azul-light: #dbeafe;
+      --naranja: #ea580c;
+      --naranja-light: #ffedd5;
+      --rojo: #dc2626;
+      --rojo-light: #fee2e2;
+      --gris: #64748b;
+      --gris-light: #f1f5f9;
+      --borde: #e2e8f0;
+      --texto: #1e293b;
+      --texto-suave: #475569;
+      --morado: #7c3aed;
+      --morado-light: #ede9fe;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--texto);
+      background: #f8fafc;
+      line-height: 1.6;
+    }
+
+    /* ─── Portada ─────────────────────────────────────────────────── */
+    .portada {
+      background: linear-gradient(135deg, #1e3a5f 0%, #0f2240 100%);
+      color: white;
+      padding: 60px 40px;
+      text-align: center;
+    }
+    .portada h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 12px; }
+    .portada .subtitulo { font-size: 1.15rem; opacity: 0.8; margin-bottom: 32px; }
+    .portada .badge-row { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+    .badge {
+      padding: 6px 18px; border-radius: 999px; font-size: 0.85rem; font-weight: 600;
+    }
+    .badge-admin { background: #ea580c; }
+    .badge-jugador { background: #16a34a; }
+    .badge-profesor { background: #7c3aed; }
+    .portada .version { margin-top: 28px; font-size: 0.78rem; opacity: 0.5; }
+
+    /* ─── Índice ─────────────────────────────────────────────────── */
+    .indice {
+      background: white;
+      border-bottom: 1px solid var(--borde);
+      padding: 32px 40px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .indice h2 { font-size: 1rem; font-weight: 700; color: var(--gris); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 16px; }
+    .indice ol { padding-left: 20px; }
+    .indice li { margin: 6px 0; }
+    .indice a { color: var(--azul); text-decoration: none; font-weight: 500; }
+    .indice a:hover { text-decoration: underline; }
+
+    /* ─── Layout principal ───────────────────────────────────────── */
+    .contenido {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+
+    /* ─── Secciones ─────────────────────────────────────────────── */
+    .seccion {
+      background: white;
+      border: 1px solid var(--borde);
+      border-radius: 16px;
+      margin-bottom: 32px;
+      overflow: hidden;
+    }
+    .seccion-header {
+      padding: 20px 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 1px solid var(--borde);
+    }
+    .seccion-header .numero {
+      width: 38px; height: 38px;
+      background: var(--azul);
+      color: white;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1rem;
+      flex-shrink: 0;
+    }
+    .seccion-header h2 { font-size: 1.2rem; font-weight: 700; }
+    .seccion-header .rol-chip {
+      margin-left: auto;
+      padding: 4px 14px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .chip-admin { background: var(--naranja-light); color: var(--naranja); }
+    .chip-jugador { background: var(--verde-light); color: var(--verde); }
+    .chip-profesor { background: var(--morado-light); color: var(--morado); }
+    .chip-multi { background: var(--azul-light); color: var(--azul); }
+
+    .seccion-body { padding: 24px 28px; }
+
+    /* ─── Pasos ─────────────────────────────────────────────────── */
+    .paso {
+      border: 1px solid var(--borde);
+      border-radius: 12px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .paso-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px 20px;
+      background: var(--gris-light);
+      cursor: pointer;
+      user-select: none;
+    }
+    .paso-header:hover { background: #e8eef6; }
+    .paso-num {
+      background: var(--azul);
+      color: white;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .paso-num.admin { background: var(--naranja); }
+    .paso-num.jugador { background: var(--verde); }
+    .paso-num.profesor { background: var(--morado); }
+    .paso-titulo { font-weight: 600; font-size: 0.97rem; }
+    .paso-ruta { font-size: 0.82rem; color: var(--gris); margin-top: 2px; font-family: monospace; }
+    .paso-toggle { margin-left: auto; color: var(--gris); font-size: 1.2rem; flex-shrink: 0; transition: transform 0.2s; }
+    .paso-toggle.abierto { transform: rotate(90deg); }
+
+    .paso-body { padding: 20px; display: none; border-top: 1px solid var(--borde); }
+    .paso-body.visible { display: block; }
+
+    /* ─── Instrucciones ─────────────────────────────────────────── */
+    .instrucciones ol { padding-left: 22px; }
+    .instrucciones li { margin: 10px 0; font-size: 0.94rem; }
+    .instrucciones strong { color: var(--texto); }
+
+    .campo {
+      display: inline-block;
+      background: #f0f4ff;
+      border: 1px solid #c7d7ff;
+      border-radius: 6px;
+      padding: 1px 8px;
+      font-family: monospace;
+      font-size: 0.88rem;
+      color: #3730a3;
+    }
+
+    /* ─── Resultado esperado ─────────────────────────────────────── */
+    .resultado {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      border-left: 4px solid;
+      font-size: 0.9rem;
+    }
+    .resultado.ok { background: var(--verde-light); border-color: var(--verde); }
+    .resultado.error { background: var(--rojo-light); border-color: var(--rojo); }
+    .resultado.info { background: var(--azul-light); border-color: var(--azul); }
+    .resultado.warning { background: var(--naranja-light); border-color: var(--naranja); }
+    .resultado .titulo { font-weight: 700; margin-bottom: 6px; }
+
+    /* ─── Notificaciones ─────────────────────────────────────────── */
+    .notif-box {
+      margin-top: 14px;
+      background: #fef9c3;
+      border: 1px solid #fde68a;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 0.88rem;
+    }
+    .notif-box .titulo { font-weight: 700; color: #92400e; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+    .notif-item { margin: 4px 0; color: #78350f; }
+    .notif-item::before { content: '🔔 '; }
+
+    /* ─── Validaciones ───────────────────────────────────────────── */
+    .validaciones {
+      margin-top: 14px;
+      background: #faf5ff;
+      border: 1px solid #ddd6fe;
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+    .validaciones .titulo { font-weight: 700; color: var(--morado); margin-bottom: 8px; font-size: 0.9rem; }
+    .val-item { font-size: 0.87rem; color: #4c1d95; margin: 5px 0; padding-left: 10px; border-left: 3px solid #a78bfa; }
+
+    /* ─── Por qué funciona así ────────────────────────────────────── */
+    .porque {
+      margin-top: 14px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 0.88rem;
+      color: #065f46;
+    }
+    .porque .titulo { font-weight: 700; margin-bottom: 6px; }
+
+    /* ─── Tabla de referencia ─────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin-top: 14px;
+    }
+    th {
+      background: var(--gris-light);
+      text-align: left;
+      padding: 9px 14px;
+      font-weight: 700;
+      border-bottom: 2px solid var(--borde);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--borde);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    .estado-pendiente { color: #92400e; background: #fef3c7; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+    .estado-confirmada { color: #065f46; background: #d1fae5; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+    .estado-inactivo { color: #7f1d1d; background: #fee2e2; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+
+    /* ─── Diagrama de flujo ──────────────────────────────────────── */
+    .flujo-diagrama {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 14px 0;
+      font-size: 0.85rem;
+    }
+    .flujo-nodo {
+      background: white;
+      border: 2px solid var(--borde);
+      border-radius: 8px;
+      padding: 8px 14px;
+      text-align: center;
+      min-width: 120px;
+    }
+    .flujo-nodo.accion { background: var(--azul-light); border-color: var(--azul); color: var(--azul); font-weight: 600; }
+    .flujo-nodo.estado { background: #fef3c7; border-color: #f59e0b; font-weight: 700; }
+    .flujo-nodo.confirmado { background: var(--verde-light); border-color: var(--verde); color: var(--verde); font-weight: 700; }
+    .flujo-nodo.rechazado { background: var(--rojo-light); border-color: var(--rojo); color: var(--rojo); font-weight: 700; }
+    .flujo-arrow { font-size: 1.4rem; color: var(--gris); }
+
+    /* ─── Datos de prueba ─────────────────────────────────────────── */
+    .datos-prueba {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 10px;
+      padding: 16px 20px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      margin-top: 10px;
+    }
+    .datos-prueba .linea { margin: 3px 0; }
+    .datos-prueba .key { color: #7dd3fc; }
+    .datos-prueba .val { color: #86efac; }
+    .datos-prueba .comentario { color: #94a3b8; }
+
+    /* ─── Separador de sección ────────────────────────────────────── */
+    .sep {
+      text-align: center;
+      padding: 10px 0;
+      font-size: 0.78rem;
+      color: var(--gris);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin: 8px 0;
+    }
+
+    /* ─── Alerta importante ──────────────────────────────────────── */
+    .alerta {
+      background: #fff7ed;
+      border: 2px solid var(--naranja);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+    }
+    .alerta .titulo { font-weight: 800; color: var(--naranja); margin-bottom: 6px; font-size: 0.95rem; }
+
+    /* ─── Checklist ──────────────────────────────────────────────── */
+    .checklist { list-style: none; padding: 0; }
+    .checklist li {
+      padding: 7px 0 7px 30px;
+      position: relative;
+      border-bottom: 1px solid var(--borde);
+      font-size: 0.9rem;
+    }
+    .checklist li:last-child { border-bottom: none; }
+    .checklist li::before {
+      content: '☐';
+      position: absolute;
+      left: 0;
+      color: var(--azul);
+      font-size: 1.1rem;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    .footer {
+      text-align: center;
+      padding: 32px 20px;
+      font-size: 0.8rem;
+      color: var(--gris);
+      border-top: 1px solid var(--borde);
+      margin-top: 20px;
+    }
+
+    /* ─── Print ──────────────────────────────────────────────────── */
+    @media print {
+      .paso-body { display: block !important; }
+      .paso-toggle { display: none; }
+    }
+
+    @media (max-width: 640px) {
+      .portada { padding: 40px 20px; }
+      .portada h1 { font-size: 1.8rem; }
+      .indice, .contenido { padding: 20px 16px; }
+      .seccion-header, .seccion-body { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════ PORTADA ══════════════════════════════ -->
+<div class="portada">
+  <h1>PadelOS · Guía de Prueba</h1>
+  <p class="subtitulo">Reservas &amp; Turnos Fijos — Flujo completo por rol</p>
+  <div class="badge-row">
+    <span class="badge badge-admin">🛡 Administrador</span>
+    <span class="badge badge-jugador">🎾 Jugador</span>
+    <span class="badge badge-profesor">📚 Profesor</span>
+  </div>
+  <p class="version">Versión: 2026-05-23 · Backend: Node/Express + Prisma · Frontend: React + Vite</p>
+</div>
+
+<!-- ══════════════════════════ ÍNDICE ══════════════════════════════ -->
+<div class="indice">
+  <h2>Contenido</h2>
+  <ol>
+    <li><a href="#prereqs">Prerequisitos y datos de prueba</a></li>
+    <li><a href="#conceptos">Conceptos clave del sistema</a></li>
+    <li><a href="#bloque1">Bloque 1 — Reserva eventual (Jugador → Admin)</a></li>
+    <li><a href="#bloque2">Bloque 2 — Turno fijo (Jugador → Admin → Notificaciones)</a></li>
+    <li><a href="#bloque3">Bloque 3 — Clase de profesor (Profesor y Admin)</a></li>
+    <li><a href="#bloque4">Bloque 4 — Ausencia en turno fijo</a></li>
+    <li><a href="#bloque5">Bloque 5 — Cancelaciones y validaciones de conflicto</a></li>
+    <li><a href="#bloque6">Bloque 6 — Admin crea reservas y turnos fijos manualmente (con/sin cuenta)</a></li>
+    <li><a href="#bloque7">Bloque 7 — Landing: sección "Turnos Libres"</a></li>
+    <li><a href="#notificaciones">Resumen de notificaciones</a></li>
+    <li><a href="#checklist">Checklist final de validación</a></li>
+  </ol>
+</div>
+
+<div class="contenido">
+
+  <!-- ══════ PREREQUISITOS ══════ -->
+  <div class="seccion" id="prereqs">
+    <div class="seccion-header">
+      <div class="numero">0</div>
+      <h2>Prerequisitos y datos de prueba</h2>
+      <span class="rol-chip chip-multi">Todos los roles</span>
+    </div>
+    <div class="seccion-body">
+
+      <div class="alerta">
+        <div class="titulo">⚠️ Antes de empezar — verificar que ambos servidores estén corriendo</div>
+        Backend en <strong>puerto 3001</strong> (iniciado con <code>npm run dev</code>) y
+        Frontend en <strong>puerto 5173</strong> (iniciado con <code>npm run dev</code> desde la carpeta frontend).
+        Si el backend muestra <em>"app crashed"</em>, revisar la consola de nodemon para ver el error.
+      </div>
+
+      <p style="margin-bottom:14px; font-size:0.93rem;">Accedé a la app en <strong>http://localhost:5173</strong> y usá los siguientes datos en cada pantalla de login.</p>
+
+      <h3 style="font-size:0.95rem; margin-bottom:10px; color:var(--naranja);">🛡 Administrador</h3>
+      <div class="datos-prueba">
+        <div class="linea"><span class="key">URL login: </span><span class="val">http://localhost:5173/login</span></div>
+        <div class="linea"><span class="key">Email:     </span><span class="val">[email admin del club]</span></div>
+        <div class="linea"><span class="key">Password:  </span><span class="val">[password admin]</span></div>
+        <div class="linea"><span class="comentario"># Redirige al dashboard admin: /dashboard</span></div>
+      </div>
+
+      <h3 style="font-size:0.95rem; margin-top:18px; margin-bottom:10px; color:var(--verde);">🎾 Jugador</h3>
+      <div class="datos-prueba">
+        <div class="linea"><span class="key">URL login: </span><span class="val">http://localhost:5173/jugadores</span></div>
+        <div class="linea"><span class="key">DNI:       </span><span class="val">[DNI del jugador]</span></div>
+        <div class="linea"><span class="key">Password:  </span><span class="val">[password jugador]</span></div>
+        <div class="linea"><span class="comentario"># Redirige al dashboard jugador: /jugadores/dashboard</span></div>
+      </div>
+
+      <h3 style="font-size:0.95rem; margin-top:18px; margin-bottom:10px; color:var(--morado);">📚 Profesor</h3>
+      <div class="datos-prueba">
+        <div class="linea"><span class="key">URL login: </span><span class="val">http://localhost:5173/profesores/login</span></div>
+        <div class="linea"><span class="key">Email:     </span><span class="val">[email del profesor]</span></div>
+        <div class="linea"><span class="key">Password:  </span><span class="val">[password profesor]</span></div>
+        <div class="linea"><span class="comentario"># Redirige al portal: /profesores/agenda</span></div>
+      </div>
+
+      <div class="porque" style="margin-top:20px;">
+        <div class="titulo">💡 Por qué hay tres URLs de login distintas</div>
+        Cada rol tiene su propia tabla en la base de datos (<code>Admin</code>, <code>Jugador</code>, <code>Profesor</code>)
+        y su propio flujo de autenticación JWT. El token que el servidor firma siempre incluye el <code>clubId</code>
+        y el <code>role</code> del usuario, de modo que el backend puede aislar los datos de cada club
+        y verificar permisos sin depender de parámetros que lleguen del frontend.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ CONCEPTOS CLAVE ══════ -->
+  <div class="seccion" id="conceptos">
+    <div class="seccion-header">
+      <div class="numero" style="background:var(--gris);">i</div>
+      <h2>Conceptos clave del sistema</h2>
+      <span class="rol-chip chip-multi">Fundamentos</span>
+    </div>
+    <div class="seccion-body">
+
+      <table>
+        <thead>
+          <tr>
+            <th>Concepto</th>
+            <th>Regla de negocio</th>
+            <th>Dónde se valida</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Duración del turno</strong></td>
+            <td>Siempre exactamente <strong>1.5 horas (90 min)</strong>. Ej: 10:00 → 11:30. Nunca más, nunca menos.</td>
+            <td>Backend (POST /turnos-fijos valida duracion === 90) + frontend genera slots de 90 min</td>
+          </tr>
+          <tr>
+            <td><strong>Estado inicial reserva</strong></td>
+            <td>Reserva eventual del jugador → <span class="estado-pendiente">pendiente</span>. Admin debe confirmar.</td>
+            <td>Backend — POST /reservas siempre crea con <code>estado: 'pendiente'</code></td>
+          </tr>
+          <tr>
+            <td><strong>Estado inicial clase</strong></td>
+            <td>Clase del profesor → <span class="estado-confirmada">confirmada</span> inmediatamente. No necesita aprobación.</td>
+            <td>Backend — POST /reservas/profesor siempre crea con <code>estado: 'confirmada'</code></td>
+          </tr>
+          <tr>
+            <td><strong>Estado turno fijo</strong></td>
+            <td>Solicitud → <span class="estado-pendiente">pendiente</span>. Admin aprueba → <span class="estado-confirmada">confirmado</span>. Admin baja → <span class="estado-inactivo">inactivo</span>.</td>
+            <td>Backend — PATCH /turnos-fijos/:id/estado</td>
+          </tr>
+          <tr>
+            <td><strong>Anti-colisión (TOCTOU)</strong></td>
+            <td>Dos jugadores no pueden reservar el mismo slot simultáneamente.</td>
+            <td>Backend — operaciones dentro de <code>$transaction</code> con re-verificación atómica</td>
+          </tr>
+          <tr>
+            <td><strong>Prioridad turno fijo</strong></td>
+            <td>Un turno fijo confirmado bloquea su horario para reservas eventuales del mismo día.</td>
+            <td>Backend — al crear reserva eventual, verifica TF activos sin ausencia en esa fecha</td>
+          </tr>
+          <tr>
+            <td><strong>ClubId aislado</strong></td>
+            <td>El <code>clubId</code> siempre viene del JWT del usuario, nunca de un parámetro de URL o body.</td>
+            <td>Backend — <code>req.user.clubId</code> en todos los endpoints. Garantiza aislamiento multi-tenant.</td>
+          </tr>
+          <tr>
+            <td><strong>Zona horaria</strong></td>
+            <td>Toda la lógica de "el turno ya comenzó" usa UTC-3 (Argentina, sin DST).</td>
+            <td>Backend — <code>new Date(Date.now() - 3 * 60 * 60 * 1000)</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="margin-top:24px; margin-bottom:12px; font-size:1rem;">Flujo de estados — Turno Fijo</h3>
+      <div class="flujo-diagrama">
+        <div class="flujo-nodo accion">Jugador solicita</div>
+        <div class="flujo-arrow">→</div>
+        <div class="flujo-nodo estado">pendiente</div>
+        <div class="flujo-arrow">→</div>
+        <div class="flujo-nodo">Admin aprueba</div>
+        <div class="flujo-arrow">→</div>
+        <div class="flujo-nodo confirmado">confirmado ✓</div>
+      </div>
+      <div class="flujo-diagrama" style="margin-top:4px;">
+        <div class="flujo-nodo estado">pendiente</div>
+        <div class="flujo-arrow">→</div>
+        <div class="flujo-nodo">Admin rechaza</div>
+        <div class="flujo-arrow">→</div>
+        <div class="flujo-nodo rechazado">inactivo ✗</div>
+        <div style="color:var(--gris); font-size:0.8rem; margin-left:8px;">(notif: rechazado)</div>
+      </div>
+      <div class="flujo-diagrama" style="margin-top:4px;">
+        <div class="flujo-nodo confirmado">confirmado ✓</div>
+        <div class="flujo-arrow">→</div>
+        <div class="flujo-nodo">Admin da de baja</div>
+        <div class="flujo-arrow">→</div>
+        <div class="flujo-nodo rechazado">inactivo ✗</div>
+        <div style="color:var(--gris); font-size:0.8rem; margin-left:8px;">(notif: baja)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       BLOQUE 1 — RESERVA EVENTUAL
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="seccion" id="bloque1">
+    <div class="seccion-header">
+      <div class="numero">1</div>
+      <h2>Bloque 1 — Reserva eventual (Jugador)</h2>
+      <span class="rol-chip chip-jugador">Jugador + Admin</span>
+    </div>
+    <div class="seccion-body">
+
+      <p style="margin-bottom:20px; font-size:0.93rem; color:var(--texto-suave);">
+        Una reserva eventual es una reserva de cancha para <strong>un día específico</strong>.
+        El jugador elige fecha, cancha y horario. El sistema valida disponibilidad en tiempo real
+        y crea la reserva en estado <em>pendiente</em> hasta que el admin la apruebe.
+      </p>
+
+      <!-- PASO 1.1 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">1.1</span>
+          <div>
+            <div class="paso-titulo">Jugador — Navegar a Reservar una Cancha</div>
+            <div class="paso-ruta">/dashboardJugadores/reservas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Iniciá sesión como <strong>jugador</strong> en <span class="campo">/dashboardJugadores</span>.</li>
+              <li>En el sidebar, hacé clic en <strong>"Reservar cancha"</strong>.</li>
+              <li>Al entrar, notá el banner colapsable <strong>"¿Cómo funciona esta sección?"</strong> en la parte superior. Hacé clic para expandirlo — explica la diferencia entre reserva puntual y turno fijo semanal.</li>
+              <li>Verificá que la pantalla muestra un <strong>selector de fecha</strong> (semana actual) y una <strong>grilla de canchas × horarios</strong>.</li>
+              <li>Al pie de la página podés ver dos banners compactos de acceso rápido: uno a <strong>"Mis reservas"</strong> (eventuales próximas) y otro a <strong>"Mis turnos fijos"</strong> (activos y pendientes). Son links directos a cada sección.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La grilla muestra las canchas del club (columnas) y los horarios disponibles en bloques de 1.5h.
+            Los slots ya ocupados aparecen bloqueados (sombreados). Los slots disponibles son interactuables.
+            El helper informativo está cerrado por defecto para no estorbar a usuarios que ya conocen el sistema.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué funciona así</div>
+            Al montar la página, el frontend llama a <code>GET /api/reservas?fecha=HOY</code> y
+            <code>GET /api/turnos-fijos/slots-ocupados</code>. Con ambas respuestas construye la grilla.
+            Los horarios disponibles se calculan con <code>generarSlots()</code> usando la apertura/cierre
+            del club desde el <code>clubStore</code>.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 1.2 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">1.2</span>
+          <div>
+            <div class="paso-titulo">Jugador — Seleccionar fecha, cancha y horario</div>
+            <div class="paso-ruta">/jugadores/reservas — grilla</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Usá las flechas del selector para ir a <strong>mañana</strong> (evitamos hoy para no chocar con la restricción de hora pasada).</li>
+              <li>Hacé clic sobre un slot verde (disponible) en cualquier cancha.</li>
+              <li>Aparece un <strong>panel de confirmación</strong> a la derecha (o un modal en mobile) con los detalles: cancha, fecha, inicio, fin, precio.</li>
+              <li>Verificá que la hora de fin es siempre <strong>inicio + 1.5 horas</strong>.</li>
+              <li>Hacé clic en <strong>"Confirmar reserva"</strong>.</li>
+              <li><em>(Opcional)</em> Activá el toggle <strong>"Turno fijo"</strong> antes de confirmar para que la reserva sea recurrente semanal. El subtítulo bajo el toggle cambia para indicar a dónde irá cada tipo: <em>"Solo para este día · Lo verás en Mis reservas"</em> (desactivado) o <em>"Se repetirá cada semana · Lo gestionás en Mis turnos fijos"</em> (activado).</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones del backend (POST /api/reservas)</div>
+            <div class="val-item">El slot no debe superponerse con reservas existentes (pendientes o confirmadas).</div>
+            <div class="val-item">El slot no debe superponerse con un turno fijo confirmado (sin ausencia en esa fecha).</div>
+            <div class="val-item">Si es hoy, la hora de inicio no puede ser anterior o igual a la hora actual (UTC-3).</div>
+            <div class="val-item">Cancha debe existir y estar activa en el club del jugador.</div>
+            <div class="val-item">El <code>clubId</code> viene del JWT del jugador — no del frontend.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La reserva se crea con estado <strong>pendiente</strong>. En la grilla, el slot queda sombreado
+            con color "pendiente" (amarillo/naranja).
+            Aparece un <strong>toast verde/lima</strong> fijo en la esquina superior derecha con el mensaje:
+            <em>"📅 Reserva enviada · [Cancha] [Horario] — El admin la revisará"</em>.
+            Ese toast <strong>no tiene timer</strong> — persiste hasta que el admin apruebe la reserva
+            (en ese momento desaparece automáticamente). Si en el mismo turno también se reservó
+            un turno fijo, ambos toasts coexisten: el verde para la reserva eventual y un
+            <strong>toast ámbar</strong> para el turno fijo.
+          </div>
+
+          <div class="resultado error" style="margin-top:10px;">
+            <div class="titulo">❌ Si el slot ya está tomado</div>
+            El backend responde <code>409 Conflict</code> con el mensaje
+            <em>"El horario ya está reservado"</em> o
+            <em>"Ese horario pertenece a un turno fijo reservado"</em>.
+            La UI muestra un error y no crea la reserva.
+          </div>
+
+          <div class="notif-box">
+            <div class="titulo">🔔 Notificación generada</div>
+            <div class="notif-item">Al admin del club: tipo <code>nueva_reserva</code> con nombre del jugador, cancha, fecha y horario.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 1.3 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">1.3</span>
+          <div>
+            <div class="paso-titulo">Jugador — Verificar que la reserva aparece en "Mis reservas"</div>
+            <div class="paso-ruta">/dashboardJugadores/mis-reservas (ítem propio en el sidebar)</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En el sidebar del jugador, hacé clic en <strong>"Mis reservas"</strong> (ícono ClipboardList, entre "Reservar cancha" y "Mis turnos fijos").</li>
+              <li>La reserva recién creada debe aparecer en el tab <strong>Próximas</strong> con badge <strong>PENDIENTE</strong> en amarillo.</li>
+              <li>Desde esta pantalla también podés cancelarla: el botón <em>"⊗ Cancelar"</em> abre un modal de confirmación con la política de <code>horasCancelacion</code> del club.</li>
+              <li>La grilla en <strong>"Reservar cancha"</strong> sigue mostrando el slot ocupado (indicador visual de tu propia reserva).</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La reserva aparece en el listado con estado pendiente. El jugador NO puede ver datos de otros jugadores en la grilla
+            (solo sabe que el slot está ocupado, no por quién — privacidad implementada en el backend).
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué el jugador no ve los nombres de otros</div>
+            En <code>GET /api/reservas</code>, cuando el rol es <code>jugador</code>, el include de
+            <code>jugador</code> es <code>false</code>. Solo el admin recibe nombre y apellido de quien reservó.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 1.4 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">1.4</span>
+          <div>
+            <div class="paso-titulo">Admin — Ver y aprobar la reserva pendiente</div>
+            <div class="paso-ruta">http://localhost:5173/dashboard → Grilla / Notificaciones</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Iniciá sesión como <strong>admin</strong> en <span class="campo">/login</span>.</li>
+              <li>En la sección <strong>"Grilla de reservas"</strong>, el panel <strong>"Avisos de jugadores"</strong> muestra la notificación de nueva reserva. Si hay muchas, el panel tiene scroll interno (máx. ~4 filas visibles).</li>
+              <li>Si hay <strong>más de una reserva pendiente</strong>, aparece el botón <strong>"Aprobar todas (N)"</strong> en el encabezado del panel — aprueba todas las pendientes en un solo clic.</li>
+              <li>Para aprobar de a una: hacé clic en el botón <strong>"Confirmar"</strong> de la fila correspondiente.</li>
+              <li>Alternativamente, hacé clic sobre el slot amarillo en la grilla y confirmá desde el panel lateral.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones al confirmar (PATCH /api/reservas/:id/estado)</div>
+            <div class="val-item">La reserva debe pertenecer al club del admin (verificado por clubId del JWT).</div>
+            <div class="val-item">Re-verifica que el slot no esté ocupado por otra reserva (pendiente o confirmada). Protege el caso donde el admin cancela una reserva, otro jugador ocupa el slot, y luego el admin intenta reactivar la primera.</div>
+            <div class="val-item">La re-verificación + update ocurren dentro de <code>$transaction</code> para evitar race conditions.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El slot cambia a color verde <strong>confirmada</strong> en la grilla del admin.
+            El jugador, al refrescar su grilla, también verá el slot confirmado.
+            El <strong>toast verde/lima</strong> que mostraba "Reserva enviada…" en la vista del jugador
+            <strong>desaparece automáticamente</strong> al detectar que el estado cambió a confirmada
+            (sin necesidad de refrescar la página).
+          </div>
+
+          <div class="notif-box">
+            <div class="titulo">🔔 Notificación generada</div>
+            <div class="notif-item">Al jugador: notificación de reserva confirmada (implementado vía store, en backend real será via tabla <code>notificaciones</code>).</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       BLOQUE 2 — TURNO FIJO
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="seccion" id="bloque2">
+    <div class="seccion-header">
+      <div class="numero">2</div>
+      <h2>Bloque 2 — Turno Fijo (solicitud, aprobación, baja)</h2>
+      <span class="rol-chip chip-jugador">Jugador + Admin</span>
+    </div>
+    <div class="seccion-body">
+
+      <p style="margin-bottom:20px; font-size:0.93rem; color:var(--texto-suave);">
+        Un turno fijo es una reserva <strong>recurrente semanal</strong> en el mismo día y horario.
+        El jugador solicita el turno, el admin lo aprueba. Una vez confirmado, bloquea ese slot
+        automáticamente en todos los futuros del mismo día de la semana.
+      </p>
+
+      <!-- PASO 2.1 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">2.1</span>
+          <div>
+            <div class="paso-titulo">Jugador — Solicitar turno fijo</div>
+            <div class="paso-ruta">http://localhost:5173/jugadores/turnos-fijos</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Iniciá sesión como jugador y navegá a <span class="campo">/jugadores/turnos-fijos</span>.</li>
+              <li>Hacé clic en <strong>"Solicitar turno fijo"</strong> (botón principal).</li>
+              <li>Completá el formulario:</li>
+            </ol>
+            <div class="datos-prueba" style="margin: 10px 0;">
+              <div class="linea"><span class="key">Día:        </span><span class="val">Lunes</span><span class="comentario"> (o cualquier día disponible)</span></div>
+              <div class="linea"><span class="key">Cancha:     </span><span class="val">Cancha 1</span><span class="comentario"> (seleccionar del dropdown)</span></div>
+              <div class="linea"><span class="key">Horario:    </span><span class="val">10:00 — 11:30</span><span class="comentario"> (slots de 1.5h)</span></div>
+            </div>
+            <ol start="4">
+              <li>Hacé clic en <strong>"Enviar solicitud"</strong>.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones del backend (POST /api/turnos-fijos)</div>
+            <div class="val-item">La duración debe ser exactamente <strong>90 minutos</strong>. Si enviás 10:00 → 11:00, el backend responde <code>400</code>: "El turno fijo debe durar exactamente 1.5h".</div>
+            <div class="val-item">No puede existir ya un TF pendiente o confirmado en la misma cancha, día y horario superpuesto (RN-51). Si existe, responde <code>409</code>.</div>
+            <div class="val-item">La validación es atómica (dentro de <code>$transaction</code>) para evitar race conditions.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            Aparece el turno en la lista con badge <strong>PENDIENTE</strong>. Muestra día, horario y cancha.
+            Un cartel explica que está esperando aprobación del admin.
+          </div>
+
+          <div class="notif-box">
+            <div class="titulo">🔔 Notificación generada</div>
+            <div class="notif-item">Al admin: tipo <code>solicitud_turno_fijo</code> con datos del jugador, cancha, día y horario.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 2.2 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">2.2</span>
+          <div>
+            <div class="paso-titulo">Admin — Ver solicitudes pendientes y aprobar</div>
+            <div class="paso-ruta">/dashboardAdmin/reservas → panel "Avisos de jugadores" → tab Turnos fijos</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En el panel admin, el banner <strong>"Avisos de jugadores"</strong> muestra la notificación de tipo <em>Solicitud turno fijo</em> con el nombre del jugador, cancha y horario.</li>
+              <li><strong>Opción rápida (recomendada):</strong> hacé clic directamente sobre la notificación. El sistema la marca como leída automáticamente y te lleva al tab <strong>"Turnos fijos"</strong> sin ningún paso extra.</li>
+              <li><strong>Opción manual:</strong> hacé clic en la tab <strong>"Turnos fijos"</strong> en la parte superior de la grilla, luego aplicá el filtro <strong>"Pendientes"</strong>.</li>
+              <li>Localizá la solicitud del jugador (muestra nombre, cancha, día y horario).</li>
+              <li>Hacé clic en <strong>"Aprobar"</strong> (botón verde).</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones al aprobar (PATCH /api/turnos-fijos/:id/estado → "confirmado")</div>
+            <div class="val-item">Re-verifica que no haya otro TF confirmado en la misma cancha+día+horario (otro jugador pudo haber sido aprobado mientras tanto).</div>
+            <div class="val-item">Verifica que no haya reservas eventuales confirmadas o pendientes en las próximas 8 ocurrencias de ese día.</div>
+            <div class="val-item">Si hay conflicto, responde <code>409</code> con detalle de qué fecha tiene el conflicto.</div>
+            <div class="val-item">Toda la re-verificación + update ocurre dentro de <code>$transaction</code>.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El turno pasa a estado <strong>confirmado</strong> en el panel. En la grilla de reservas del admin,
+            ese slot aparece bloqueado todos los futuros del mismo día de la semana.
+          </div>
+
+          <div class="resultado error" style="margin-top:10px;">
+            <div class="titulo">❌ Si hay conflicto con reserva eventual</div>
+            El backend responde <code>409</code> con: <em>"El horario tiene una reserva eventual confirmada el YYYY-MM-DD. Resolvé ese conflicto antes de confirmar el turno fijo."</em>
+            El admin debe primero cancelar esa reserva eventual y luego volver a aprobar.
+          </div>
+
+          <div class="notif-box">
+            <div class="titulo">🔔 Notificación generada</div>
+            <div class="notif-item">Al jugador: tipo <code>turno_fijo_confirmado</code> — "Tu turno fijo del [día] de [hora] en [cancha] fue aprobado".</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 2.3 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">2.3</span>
+          <div>
+            <div class="paso-titulo">Jugador — Verificar turno confirmado y próxima fecha</div>
+            <div class="paso-ruta">/jugadores/turnos-fijos</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Volvé a la sección <strong>Turnos Fijos</strong> del jugador.</li>
+              <li>El turno ahora muestra badge <strong>CONFIRMADO</strong> en verde.</li>
+              <li>Verificá que muestra la <strong>próxima fecha</strong> calculada: si hoy es el día del turno y la hora no pasó → muestra hoy; sino → el siguiente miércoles/lunes/etc.</li>
+              <li>En la grilla de reservas (<span class="campo">/jugadores/reservas</span>), verificá que ese slot del día de la semana aparece bloqueado.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El turno fijo confirmado bloquea automáticamente el slot en la grilla de reservas para todas
+            las ocurrencias futuras. Si otro jugador intenta reservar ese horario el mismo día de la semana, el sistema lo rechazará.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué se bloquea en la grilla</div>
+            Al cargar la grilla, el frontend llama a <code>GET /api/turnos-fijos/slots-ocupados</code>
+            que retorna todos los TF confirmados del club (sin datos personales). La función
+            <code>generarSlots()</code> excluye esos horarios del día de la semana correspondiente,
+            a menos que el TF tenga marcada una ausencia para esa fecha específica.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 2.4 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">2.4</span>
+          <div>
+            <div class="paso-titulo">Admin — Rechazar una solicitud (alternativa)</div>
+            <div class="paso-ruta">/dashboard → Turnos Fijos → filtro Pendientes</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Para probar el rechazo, solicitá un segundo turno fijo con el jugador (en otro horario disponible).</li>
+              <li>En el panel admin, localizá esa segunda solicitud.</li>
+              <li>Hacé clic en <strong>"Rechazar"</strong> (botón rojo).</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El turno pasa a estado <strong>inactivo</strong>. El jugador recibe una notificación de rechazo
+            y el turno desaparece de su lista activa (los estados inactivos no se muestran).
+          </div>
+
+          <div class="notif-box">
+            <div class="titulo">🔔 Notificación generada</div>
+            <div class="notif-item">Al jugador: tipo <code>turno_fijo_rechazado</code> — "Tu solicitud de turno fijo fue rechazada".</div>
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Diferencia entre rechazar y dar de baja</div>
+            Si el TF estaba en <code>pendiente</code> → la notificación es <code>turno_fijo_rechazado</code>.
+            Si el TF estaba en <code>confirmado</code> → la notificación es <code>turno_fijo_baja</code>.
+            El backend detecta el estado previo antes de hacer el update.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       BLOQUE 3 — PROFESOR
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="seccion" id="bloque3">
+    <div class="seccion-header">
+      <div class="numero">3</div>
+      <h2>Bloque 3 — Clases del Profesor</h2>
+      <span class="rol-chip chip-profesor">Profesor + Admin</span>
+    </div>
+    <div class="seccion-body">
+
+      <p style="margin-bottom:20px; font-size:0.93rem; color:var(--texto-suave);">
+        El profesor tiene su propio portal de agenda. Puede registrar clases directamente —
+        que se crean como <strong>confirmadas inmediatamente</strong> sin aprobación del admin.
+        El admin también puede crear clases en nombre de cualquier profesor desde su panel.
+      </p>
+
+      <!-- PASO 3.1 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num profesor">3.1</span>
+          <div>
+            <div class="paso-titulo">Profesor — Login y verificar portal de agenda</div>
+            <div class="paso-ruta">http://localhost:5173/profesores/login</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Navegá a <span class="campo">http://localhost:5173/profesores/login</span>.</li>
+              <li>Ingresá con email y password del profesor. El campo <strong>clubId</strong> se resuelve automáticamente desde la variable de entorno <code>VITE_CLUB_ID</code>.</li>
+              <li>Al hacer login, el backend firma un JWT con <code>role: 'profesor'</code> y <code>clubId</code>.</li>
+              <li>Al montar el layout, el frontend llama a <code>GET /auth/profesor/me</code> para restaurar el objeto <code>profesor</code> completo (esto permite que al refrescar la página no se pierda la sesión).</li>
+              <li>Verificá que llegás al portal <span class="campo">/profesores/agenda</span> y que se muestra tu nombre en el header.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La agenda del profesor muestra un selector de fecha y la grilla de sus clases del día.
+            Si el profesor tiene canchas asignadas en su perfil (<code>canchasIds</code>), solo ve esas canchas.
+            Si no tiene asignación → ve todas las canchas activas del club.
+          </div>
+
+          <div class="resultado error" style="margin-top:10px;">
+            <div class="titulo">❌ Si el login falla con "Failed to fetch"</div>
+            El backend no está corriendo. Iniciarlo con <code>npm run dev</code> desde <code>project/apps/backend/</code>.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.2 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num profesor">3.2</span>
+          <div>
+            <div class="paso-titulo">Profesor — Registrar una clase en su agenda</div>
+            <div class="paso-ruta">/profesores/agenda</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En la agenda del profesor, seleccioná <strong>mañana</strong> como fecha.</li>
+              <li>Hacé clic en <strong>"+ Nueva clase"</strong> o en un slot disponible en la grilla.</li>
+              <li>Completá el formulario:</li>
+            </ol>
+            <div class="datos-prueba" style="margin: 10px 0;">
+              <div class="linea"><span class="key">Cancha:     </span><span class="val">Cancha 1</span></div>
+              <div class="linea"><span class="key">Horario:    </span><span class="val">14:00 — 15:30</span><span class="comentario"> (1.5h)</span></div>
+              <div class="linea"><span class="key">Precio:       </span><span class="val">2000</span><span class="comentario"> (opcional)</span></div>
+              <div class="linea"><span class="key">Descripción:  </span><span class="val">Clase grupal principiantes</span><span class="comentario"> (campo se llama "Descripción" cuando tipo = clase)</span></div>
+            </div>
+            <ol start="4">
+              <li>Hacé clic en <strong>"Crear clase"</strong>.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones del backend (POST /api/reservas/profesor)</div>
+            <div class="val-item">El profesor debe tener asignada esa cancha (o no tener ninguna asignada, en cuyo caso puede usar cualquiera).</div>
+            <div class="val-item">No puede superponerse con reservas existentes (pendientes o confirmadas) en esa cancha y fecha.</div>
+            <div class="val-item">No puede superponerse con turnos fijos confirmados activos.</div>
+            <div class="val-item">El mismo profesor no puede tener otra clase en ese horario en otra cancha.</div>
+            <div class="val-item">La clase no puede haber comenzado ya (UTC-3).</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La clase aparece <strong>inmediatamente</strong> en la grilla de la agenda del profesor
+            con estado <strong>confirmada</strong> (color azul/morado). No requiere aprobación del admin.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué las clases se confirman sin aprobación</div>
+            Los profesores son usuarios confiables del club (dados de alta por el admin).
+            Por diseño del negocio, sus clases tienen confirmación inmediata.
+            La reserva se crea con <code>tipo: 'clase'</code> y <code>estado: 'confirmada'</code>
+            directamente en el endpoint <code>POST /reservas/profesor</code>.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.3 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">3.3</span>
+          <div>
+            <div class="paso-titulo">Admin — Ver la clase del profesor en la grilla general</div>
+            <div class="paso-ruta">/dashboard → Grilla de reservas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Iniciá sesión como admin.</li>
+              <li>Navegá a la <strong>Grilla de reservas</strong> y seleccioná la misma fecha donde el profesor creó su clase.</li>
+              <li>Verificá que el slot de la clase aparece en la grilla con el nombre del profesor visible.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La clase del profesor es visible en la grilla del admin con el nombre del profesor.
+            El slot está bloqueado para reservas eventuales (los jugadores no pueden reservar ese horario).
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué la clase aparece en la grilla del admin</div>
+            El endpoint <code>GET /api/reservas</code> retorna todas las reservas del club (sin filtrar por tipo).
+            Incluye clases de profesores (<code>tipo: 'clase'</code>), reservas eventuales y bloqueos manuales.
+            El include de <code>profesor</code> siempre se aplica para cualquier rol, así el admin puede ver de quién es cada clase.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.4 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">3.4</span>
+          <div>
+            <div class="paso-titulo">Admin — Crear clase en nombre de un profesor (Tab Clases)</div>
+            <div class="paso-ruta">/dashboard → Grilla → Tab "Clases"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En el panel admin, dentro de la Grilla de reservas, buscá el tab <strong>"Clases"</strong>.</li>
+              <li>Seleccioná un <strong>profesor</strong> del dropdown.</li>
+              <li>Elegí <strong>cancha</strong>, <strong>fecha</strong> y <strong>horario</strong>.</li>
+              <li>Hacé clic en <strong>"Crear clase"</strong>.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones del backend (POST /api/reservas/admin/clase-profesor)</div>
+            <div class="val-item">El profesor debe pertenecer al mismo club que el admin.</div>
+            <div class="val-item">Mismas validaciones de colisión que cuando el profesor crea directamente.</div>
+            <div class="val-item">Si el profesor ya tiene clase en ese horario en otra cancha, se rechaza con <code>409</code>.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La clase aparece en la grilla del admin inmediatamente. Al refrescar la agenda del profesor
+            (<span class="campo">/profesores/agenda</span>), la clase también aparece ahí.
+          </div>
+
+          <div class="resultado error" style="margin-top:10px;">
+            <div class="titulo">❌ Bug conocido — resuelto en esta versión</div>
+            En versiones anteriores, la clase creada por el admin no aparecía en la grilla inmediatamente
+            porque se usaba <code>addReservaAdmin()</code> con el objeto crudo del backend (que tiene
+            <code>horaInicio/horaFin</code> en vez de <code>inicio/fin</code>).
+            El fix: ahora se llama a <code>fetchReservasBackend()</code> que re-fetcha y re-mapea correctamente.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.5 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num profesor">3.5</span>
+          <div>
+            <div class="paso-titulo">Profesor — Eliminar una clase propia</div>
+            <div class="paso-ruta">/profesores/agenda</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En la agenda del profesor, hacé clic sobre una clase existente.</li>
+              <li>Aparece un panel/modal con los detalles de la clase.</li>
+              <li>Hacé clic en <strong>"Eliminar"</strong> (botón rojo).</li>
+              <li>Confirmá la eliminación en el diálogo de confirmación.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones del backend (DELETE /api/reservas/:id)</div>
+            <div class="val-item">El profesor solo puede eliminar sus propias clases (<code>reserva.profesorId === req.user.id</code>).</div>
+            <div class="val-item">Si intenta eliminar la clase de otro profesor → <code>403 Forbidden</code>.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La clase desaparece de la agenda del profesor y el slot queda libre en la grilla del admin
+            (dentro del intervalo de polling de 30 segundos, o inmediatamente si refresca).
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       BLOQUE 4 — AUSENCIA EN TURNO FIJO
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="seccion" id="bloque4">
+    <div class="seccion-header">
+      <div class="numero">4</div>
+      <h2>Bloque 4 — Ausencia en turno fijo</h2>
+      <span class="rol-chip chip-jugador">Jugador</span>
+    </div>
+    <div class="seccion-body">
+
+      <p style="margin-bottom:20px; font-size:0.93rem; color:var(--texto-suave);">
+        Un jugador con turno fijo confirmado puede avisar que no va a ir un día específico
+        (<strong>ausencia puntual</strong>). Ese día su slot queda libre para que otros puedan reservar.
+        Si avisa con menos anticipación de lo que establece la política del club, se genera
+        un <strong>cargo automático</strong>.
+      </p>
+
+      <!-- PASO 4.1 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">4.1</span>
+          <div>
+            <div class="paso-titulo">Jugador — Solicitar ausencia puntual</div>
+            <div class="paso-ruta">/jugadores/turnos-fijos → card del turno → "Ausencia"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Navegá a <span class="campo">/jugadores/turnos-fijos</span>.</li>
+              <li>En la card del turno fijo <strong>confirmado</strong>, hacé clic en el botón <strong>"Ausencia"</strong> (o "Avisar que no voy").</li>
+              <li>El sistema muestra la <strong>próxima fecha</strong> de ese turno y si aplicará o no un cargo.</li>
+              <li>Confirmá la ausencia.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones del backend (POST /api/turnos-fijos/:id/ausencia)</div>
+            <div class="val-item">El turno debe estar en estado <code>confirmado</code> (no pendiente ni inactivo).</div>
+            <div class="val-item">La fecha no puede estar ya en <code>ausenciasPendientes</code> ni en <code>diasAusentes</code>.</div>
+            <div class="val-item">Si el club tiene política de cancelación (<code>horasCancelacion > 0</code>) y quedan menos horas que ese límite, se crea un cargo automático.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado (con tiempo suficiente)</div>
+            La ausencia queda en <code>ausenciasPendientes</code>. El slot de esa fecha queda libre en la grilla
+            para que otros jugadores puedan reservarlo. El admin ve la notificación de ausencia.
+          </div>
+
+          <div class="resultado warning" style="margin-top:10px;">
+            <div class="titulo">⚠️ Resultado con cargo aplicado (fuera de plazo)</div>
+            Si quedan menos horas que <code>horasCancelacion</code>, el backend crea un registro en la tabla <code>cargos</code>
+            con estado <code>pendiente</code> y el monto del turno. El jugador recibe notificación de tipo
+            <code>cargo_cancelacion</code>.
+          </div>
+
+          <div class="notif-box">
+            <div class="titulo">🔔 Notificaciones generadas</div>
+            <div class="notif-item">Al admin: ausencia registrada con datos del jugador y fecha.</div>
+            <div class="notif-item">Al jugador (si hay cargo): tipo <code>cargo_cancelacion</code> informando el monto a pagar.</div>
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Diferencia entre ausenciasPendientes y diasAusentes</div>
+            <code>ausenciasPendientes</code> = ausencias que el jugador solicitó pero que el admin aún
+            no procesó (estado intermedio). <code>diasAusentes</code> = ausencias ya procesadas/aprobadas
+            que liberan el slot definitivamente. Ambos arrays viven en el modelo <code>TurnoFijo</code>.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       BLOQUE 5 — CANCELACIONES Y VALIDACIONES AVANZADAS
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="seccion" id="bloque5">
+    <div class="seccion-header">
+      <div class="numero">5</div>
+      <h2>Bloque 5 — Cancelaciones y validaciones de conflicto</h2>
+      <span class="rol-chip chip-multi">Jugador + Admin</span>
+    </div>
+    <div class="seccion-body">
+
+      <!-- PASO 5.1 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">5.1</span>
+          <div>
+            <div class="paso-titulo">Jugador — Cancelar su propio turno fijo</div>
+            <div class="paso-ruta">/jugadores/turnos-fijos → "Cancelar turno"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En la lista de turnos fijos del jugador, encontrá un turno <strong>pendiente</strong> (solicitud no aprobada aún).</li>
+              <li>Hacé clic en <strong>"Cancelar solicitud"</strong> para retirarla antes de que el admin la procese.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones (DELETE /api/turnos-fijos/:id)</div>
+            <div class="val-item">El jugador solo puede cancelar sus propios turnos.</div>
+            <div class="val-item">Si el turno está <code>confirmado</code>, verifica que el jugador no tenga cargos pendientes antes de permitir la baja.</div>
+            <div class="val-item">Si hay cargos pendientes → <code>409</code>: "Tenés cargos pendientes. Regularizá tu deuda antes de cancelar".</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El turno pasa a inactivo y desaparece de la lista. El slot queda libre.
+          </div>
+
+          <div class="notif-box">
+            <div class="titulo">🔔 Notificaciones generadas</div>
+            <div class="notif-item">Si era <code>pendiente</code>: al admin — tipo <code>turno_fijo_retirado_jugador</code>.</div>
+            <div class="notif-item">Si era <code>confirmado</code>: al admin — tipo <code>turno_fijo_cancelado_jugador</code>.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 5.2 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">5.2</span>
+          <div>
+            <div class="paso-titulo">Probar bloqueo de horario pasado</div>
+            <div class="paso-ruta">Grilla jugador — intento de reserva en hora pasada</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Como jugador, en la grilla de reservas, seleccioná la fecha de <strong>hoy</strong>.</li>
+              <li>Intentá hacer clic en un slot que ya pasó (ej: si son las 15:00, intentá reservar 13:00–14:30).</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El frontend no debería mostrar ese slot como disponible (ya está oculto o deshabilitado).
+            Si de algún modo se enviara, el backend responde <code>400</code>:
+            <em>"El turno ya comenzó. No podés reservar un turno que ya arrancó."</em>
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué la validación está en el backend también</div>
+            El frontend puede tener un reloj desincronizado o ser manipulado. El backend siempre
+            re-valida la hora usando <code>Date.now() - 3 * 60 * 60 * 1000</code> (UTC-3, Argentina).
+            Esta doble validación (frontend + backend) garantiza integridad.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 5.3 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">5.3</span>
+          <div>
+            <div class="paso-titulo">Admin — Dar de baja un turno fijo activo</div>
+            <div class="paso-ruta">/dashboard → Turnos Fijos → filtro Confirmados → "Dar de baja"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En el panel admin → Turnos Fijos → filtro <strong>Confirmados</strong>.</li>
+              <li>Seleccioná un turno confirmado.</li>
+              <li>Hacé clic en <strong>"Dar de baja"</strong>.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones (PATCH /:id/estado → "inactivo" desde "confirmado")</div>
+            <div class="val-item">Si el jugador tiene cargos pendientes (<code>cargo.estado === 'pendiente'</code>), el backend rechaza la baja con <code>409</code>: "El jugador tiene cargos pendientes. Regularice la deuda antes de dar de baja el turno fijo."</div>
+            <div class="val-item">Si no hay cargos → se da de baja sin problema.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El turno pasa a inactivo. El slot queda libre para futuros del mismo día de la semana.
+            El jugador recibe notificación de baja.
+          </div>
+
+          <div class="notif-box">
+            <div class="titulo">🔔 Notificación generada</div>
+            <div class="notif-item">Al jugador: tipo <code>turno_fijo_baja</code> — "Tu turno fijo fue dado de baja".</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 5.4 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">5.4</span>
+          <div>
+            <div class="paso-titulo">Probar conflicto al aprobar TF con reserva eventual existente</div>
+            <div class="paso-ruta">Escenario: reserva eventual ya existe cuando se aprueba el TF</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Como jugador, hacé una <strong>reserva eventual</strong> para el próximo lunes a las 10:00–11:30 en Cancha 1.</li>
+              <li>Como admin, confirmá esa reserva eventual.</li>
+              <li>Como jugador, solicitá un <strong>turno fijo</strong> para los Lunes 10:00–11:30 en Cancha 1.</li>
+              <li>Como admin, intentá <strong>aprobar</strong> ese turno fijo.</li>
+            </ol>
+          </div>
+
+          <div class="resultado error">
+            <div class="titulo">❌ Resultado esperado (conflicto)</div>
+            El backend detecta que hay una reserva eventual confirmada en el próximo lunes a ese horario.
+            Responde <code>409</code>: <em>"El horario tiene una reserva eventual confirmada el YYYY-MM-DD.
+            Resolvé ese conflicto antes de confirmar el turno fijo."</em>
+            El admin debe primero cancelar esa reserva eventual y luego volver a aprobar el TF.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué se verifica en las próximas 8 ocurrencias</div>
+            El backend calcula las próximas 8 fechas del día de la semana solicitado y verifica
+            que no haya reservas eventuales confirmadas en ninguna de ellas. Son 8 porque alcanza
+            para cubrir 2 meses de ocurrencias semanales — suficiente para detectar conflictos reales.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       BLOQUE 6 — ALTA MANUAL POR ADMIN (jugador con/sin cuenta)
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="seccion" id="bloque6">
+    <div class="seccion-header">
+      <div class="numero">6</div>
+      <h2>Bloque 6 — El admin crea reservas y turnos fijos manualmente</h2>
+      <span class="rol-chip chip-admin">Admin</span>
+    </div>
+    <div class="seccion-body">
+
+      <p style="margin-bottom:16px; font-size:0.93rem; color:var(--texto-suave);">
+        No todos los jugadores pueden (o quieren) operar el dashboard. El admin puede crear cualquier reserva
+        directamente desde la grilla, ya sea para un jugador registrado, para un jugador <strong>sin cuenta</strong>
+        (creándolo en el momento con una alta rápida), o incluso como un bloqueo sin nombre asociado.
+        Las reservas creadas por el admin quedan <strong>confirmadas inmediatamente</strong> — no pasan por pendiente.
+      </p>
+
+      <div class="resultado info" style="margin-bottom:20px;">
+        <div class="titulo">ℹ️ Diferencia clave con el flujo del jugador</div>
+        Jugador crea reserva → estado <strong>pendiente</strong> (admin debe aprobar).<br>
+        Admin crea reserva manual → estado <strong>confirmada</strong> directamente (sin aprobación).
+      </div>
+
+      <!-- PASO 6.1 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">6.1</span>
+          <div>
+            <div class="paso-titulo">Admin — Crear reserva manual para un jugador registrado</div>
+            <div class="paso-ruta">/dashboard → Grilla → clic en slot → formulario manual</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En la grilla del admin, hacé clic en un slot <strong>libre</strong>.</li>
+              <li>Aparece el formulario de reserva manual. Completá:</li>
+            </ol>
+            <div class="datos-prueba" style="margin:10px 0;">
+              <div class="linea"><span class="key">Tipo:        </span><span class="val">eventual</span><span class="comentario"> (o "fijo" para turno semanal)</span></div>
+              <div class="linea"><span class="key">A nombre de: </span><span class="val">escribí 2+ letras del nombre del jugador</span></div>
+              <div class="linea"><span class="comentario"># El campo busca en tiempo real entre los jugadores registrados del club</span></div>
+              <div class="linea"><span class="key">Precio:      </span><span class="val">3000</span><span class="comentario"> (opcional)</span></div>
+              <div class="linea"><span class="key">Notas:       </span><span class="val">Reserva telefónica</span><span class="comentario"> (opcional)</span></div>
+            </div>
+            <ol start="3">
+              <li>Seleccioná el jugador del dropdown de resultados.</li>
+              <li>Hacé clic en <strong>"Guardar"</strong>.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones (POST /api/reservas/admin)</div>
+            <div class="val-item">El campo "A nombre de" es obligatorio para tipos <code>eventual</code> y <code>fijo</code>. Para tipo <code>clase</code> es opcional.</div>
+            <div class="val-item">Mismas validaciones de colisión que el flujo del jugador (overlap con reservas y turnos fijos).</div>
+            <div class="val-item">No puede crearse en horario ya pasado (UTC-3).</div>
+            <div class="val-item">El <code>jugadorId</code> se envía en el body si hay jugador seleccionado — el backend lo vincula a la reserva.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La reserva aparece en la grilla con estado <strong>confirmada</strong> inmediatamente
+            y muestra el nombre del jugador en la celda. El jugador puede verla en la página
+            <strong>"Mis reservas"</strong> del sidebar (<code>/dashboardJugadores/mis-reservas</code>) — aparece con badge CONFIRMADA en verde.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 6.2 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">6.2</span>
+          <div>
+            <div class="paso-titulo">Admin — Alta rápida de jugador sin cuenta durante la reserva</div>
+            <div class="paso-ruta">/dashboard → Grilla → formulario → "Alta rápida"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En el formulario de reserva manual, en el campo <strong>"A nombre de"</strong>, escribí un nombre que no existe en el sistema (ej: <em>Carlos Ficticio</em>).</li>
+              <li>El buscador no encuentra resultados. Aparece el botón <strong>"+ Alta rápida"</strong>.</li>
+              <li>Hacé clic en "Alta rápida". Se expande un mini-formulario con tres campos:</li>
+            </ol>
+            <div class="datos-prueba" style="margin:10px 0;">
+              <div class="linea"><span class="key">Nombre:   </span><span class="val">Carlos</span></div>
+              <div class="linea"><span class="key">Apellido: </span><span class="val">Ficticio</span></div>
+              <div class="linea"><span class="key">DNI:      </span><span class="val">30111222</span><span class="comentario"> (7 u 8 dígitos)</span></div>
+            </div>
+            <ol start="4">
+              <li>Hacé clic en <strong>"Crear y seleccionar"</strong>.</li>
+              <li>Si el DNI no está duplicado en el club, el jugador se crea y queda seleccionado automáticamente.</li>
+              <li>Completá el resto del formulario y guardá la reserva.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Validaciones del alta rápida (POST /api/jugadores)</div>
+            <div class="val-item">Nombre y apellido son obligatorios — no pueden contener números.</div>
+            <div class="val-item">DNI obligatorio y debe tener exactamente 7 u 8 dígitos.</div>
+            <div class="val-item">Si ya existe un jugador con ese DNI en el club → el backend responde con error y el campo DNI muestra el mensaje.</div>
+            <div class="val-item">El jugador creado por alta rápida NO tiene password ni email — no puede loguearse. Su cuenta queda en estado básico hasta que él mismo complete el registro.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El jugador queda creado en la base de datos del club y seleccionado en el formulario.
+            La reserva se crea con <code>jugadorId</code> vinculado a esa nueva cuenta.
+            El nombre aparece en la celda de la grilla.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Para qué sirve el alta rápida</div>
+            Cubre el caso de un jugador que llama por teléfono o viene en persona y no tiene cuenta.
+            El admin lo da de alta con los datos mínimos, hace la reserva, y el jugador puede
+            después completar su registro en <span class="campo">/jugadores/registro</span> con el mismo DNI
+            — el sistema vinculará su historial de reservas automáticamente (matching por DNI).
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 6.3 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">6.3</span>
+          <div>
+            <div class="paso-titulo">Admin — Crear turno fijo directamente desde la grilla</div>
+            <div class="paso-ruta">/dashboard → Grilla → formulario → tipo "Fijo"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En el formulario de reserva manual, cambiá el tipo a <strong>"Fijo"</strong>.</li>
+              <li>Seleccioná el jugador (registrado o via alta rápida).</li>
+              <li>El formulario puede mostrar un campo <strong>"Repetir hasta"</strong> para indicar hasta cuándo se extiende la recurrencia.</li>
+              <li>Guardá.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Qué hace el backend (POST /api/reservas/admin con esTurnoFijo: true)</div>
+            <div class="val-item">Crea la reserva del día con <code>estado: 'confirmada'</code> y <code>esTurnoFijo: true</code>.</div>
+            <div class="val-item">Dentro de la misma transacción, si no existe ya un TF para esa cancha+día+horario, crea el registro en <code>TurnoFijo</code> con <code>estado: 'confirmado'</code> directamente.</div>
+            <div class="val-item">Si ya existe un TF solapado → la transacción se revierte entera (ni reserva ni TF se crean). Error 409.</div>
+            <div class="val-item">El campo <code>desde</code> del TurnoFijo se establece en la fecha de la reserva manual, no desde el principio del tiempo.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El slot queda bloqueado en la grilla del día actual <strong>y</strong> en todos los futuros
+            del mismo día de la semana. El jugador, al entrar a su dashboard en
+            <span class="campo">/jugadores/turnos-fijos</span>, verá el turno con estado <strong>confirmado</strong>
+            (sin pasar por pendiente porque el admin lo creó directamente).
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué el TF del admin no pasa por pendiente</div>
+            La creación del admin es explícita y autorizada. El flujo de pendiente→aprobación
+            existe para que el admin controle las solicitudes de los jugadores. Si el admin
+            lo crea él mismo, ya está aprobado implícitamente — no tendría sentido que él
+            mismo luego apruebe lo que él mismo creó.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 6.4 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">6.4</span>
+          <div>
+            <div class="paso-titulo">Admin — Crear un bloqueo de cancha (sin jugador)</div>
+            <div class="paso-ruta">/dashboard → Grilla → formulario → tipo "Bloqueado"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En el formulario de reserva manual, elegí tipo <strong>"Bloqueado"</strong> (o "Mantenimiento").</li>
+              <li>No es necesario seleccionar jugador.</li>
+              <li>Escribí una nota explicativa (ej: <em>"Pintado de piso"</em>).</li>
+              <li>Guardá.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El slot queda bloqueado en la grilla con el label del tipo (ej: "Bloqueado").
+            Ningún jugador puede reservar ese horario. No hay jugador asociado.
+            El campo <code>jugadores</code> queda como array vacío <code>[]</code>.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       BLOQUE 7 — LANDING: TURNOS LIBRES (visitante y jugador logueado)
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="seccion" id="bloque7">
+    <div class="seccion-header">
+      <div class="numero">6</div>
+      <h2>Bloque 7 — Landing: Sección "Turnos Libres"</h2>
+      <span class="rol-chip chip-multi">Visitante + Jugador</span>
+    </div>
+    <div class="seccion-body">
+
+      <p style="margin-bottom:20px; font-size:0.93rem; color:var(--texto-suave);">
+        La landing pública del club muestra una sección de disponibilidad en tiempo real
+        llamada <strong>"Turnos Libres"</strong>. Funciona sin login —cualquier visitante la ve—
+        y actualiza los datos cada 30 segundos desde el backend público.
+        Si el visitante hace clic en un slot, lo lleva al login si no está autenticado,
+        o directo a la grilla de reservas si ya está logueado.
+      </p>
+
+      <!-- PASO 6.1 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num" style="background:var(--gris);">6.1</span>
+          <div>
+            <div class="paso-titulo">Visitante sin login — ver disponibilidad en vivo</div>
+            <div class="paso-ruta">http://localhost:5173/ (landing pública del club)</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Abrí la landing en modo incógnito (o cerrá sesión) para simular un visitante.</li>
+              <li>Navegá a <span class="campo">http://localhost:5173/</span>.</li>
+              <li>Buscá la sección <strong>"Turnos Libres"</strong> — muestra un contador grande con la cantidad de slots disponibles para hoy.</li>
+              <li>Verificá que la sección muestra el badge <strong>"En vivo"</strong> con punto verde pulsante.</li>
+              <li>El selector de días te permite navegar hasta <strong>7 días hacia adelante</strong> (hoy + 6 días). No podés retroceder antes de hoy.</li>
+              <li>Para cada cancha activa del club, se muestran sus slots de 1.5h con indicación de libre u ocupado.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            Los slots reflejan la disponibilidad real: los horarios ya reservados (reservas confirmadas y pendientes)
+            y los horarios de turnos fijos confirmados aparecen bloqueados.
+            Los slots pasados del día actual también aparecen bloqueados (lógica UTC-3).
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué funciona sin login</div>
+            El frontend llama a <code>GET /api/clubs/:slug/disponibilidad?fecha=YYYY-MM-DD</code>
+            — un endpoint <strong>público</strong> (sin <code>requireAuth</code>). Solo devuelve
+            qué slots están ocupados por cancha, sin ningún dato personal.
+            El <code>slug</code> del club viene de <code>VITE_CLUB_SLUG</code> en el <code>.env</code> del frontend.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 6.2 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num" style="background:var(--gris);">6.2</span>
+          <div>
+            <div class="paso-titulo">Verificar que los datos se actualizan solos cada 30 segundos</div>
+            <div class="paso-ruta">Landing → sección Turnos Libres</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Con la landing abierta, en otra pestaña iniciá sesión como <strong>jugador</strong> y creá una reserva para hoy.</li>
+              <li>Sin refrescar la landing, esperá hasta <strong>30 segundos</strong>.</li>
+              <li>Verificá que el contador de slots libres bajó en 1 y el slot correspondiente cambió a bloqueado.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El slot aparece bloqueado automáticamente sin que el visitante haga nada.
+            El contador general se actualiza con el nuevo total.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué se actualiza solo</div>
+            El componente <code>TurnosDisponibles</code> re-fetcha <code>/clubs/:slug/disponibilidad</code>
+            cada vez que cambia <code>fechaStr</code> (cuando el usuario cambia de día).
+            El polling real de 30s está implementado en el <strong>padre</strong> que monta este componente
+            (LandingPage), que llama a <code>loadFromBackend()</code> con intervalo.
+            Cuando llegan datos frescos, <code>dataPorCancha</code> se recalcula y React re-renderiza la grilla.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 6.3 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num" style="background:var(--gris);">6.3</span>
+          <div>
+            <div class="paso-titulo">Alerta visual de "Cancha liberada" en tiempo real</div>
+            <div class="paso-ruta">Landing → badge animado de cancha liberada</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Asegurate de tener al menos una reserva confirmada para hoy (podés crearla desde el jugador).</li>
+              <li>Con la landing abierta, en otra pestaña el <strong>admin cancela</strong> esa reserva.</li>
+              <li>En la landing (sin refrescar), en el próximo ciclo de actualización (~30s), observá si aparece una tarjeta verde animada que dice <strong>"Cancha liberada"</strong>.</li>
+              <li>La tarjeta muestra: nombre de la cancha, horario liberado y hace cuántos segundos ocurrió.</li>
+              <li>Hacé clic sobre la tarjeta.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado (visitante sin login)</div>
+            Al hacer clic en la tarjeta de cancha liberada, el sistema redirige al <strong>login de jugador</strong>
+            (<span class="campo">/jugadores</span>) para que el visitante se autentique antes de reservar.
+          </div>
+
+          <div class="resultado ok" style="margin-top:10px;">
+            <div class="titulo">✅ Resultado esperado (jugador ya logueado)</div>
+            Al hacer clic en la tarjeta de cancha liberada, el sistema navega directo a
+            <span class="campo">/jugadores/reservas</span> con la cancha y el horario pre-seleccionados.
+          </div>
+
+          <div class="resultado info" style="margin-top:10px;">
+            <div class="titulo">ℹ️ La tarjeta desaparece sola</div>
+            La tarjeta de "Cancha liberada" dura <strong>28 segundos</strong> y luego desaparece automáticamente.
+            Solo muestra las últimas 3 liberaciones para no saturar la UI.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Cómo detecta que se liberó un slot</div>
+            El componente compara el estado anterior de los slots (<code>prevDataRef</code>) con el nuevo
+            después de cada actualización. Si un slot que antes era <code>libre: false</code> ahora es
+            <code>libre: true</code>, lo agrega a <code>recentlyFreed</code> y muestra la tarjeta animada.
+            Solo detecta transiciones reales de ocupado → libre, no al cambiar de día.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 6.4 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num" style="background:var(--gris);">6.4</span>
+          <div>
+            <div class="paso-titulo">Comportamiento cuando hay un torneo en curso</div>
+            <div class="paso-ruta">Landing → días del torneo aparecen con badge "torneo"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Si hay un torneo con estado <code>in_progress</code> cuyas fechas incluyen los próximos 7 días, aparece un <strong>banner de torneo</strong> arriba de la grilla.</li>
+              <li>En el selector de días, los días del torneo muestran el label <strong>"torneo"</strong> debajo de la fecha en el color primario del club.</li>
+              <li>Al seleccionar un día de torneo, la grilla muestra el mensaje <strong>"Torneo en curso — Sin turnos disponibles este día"</strong> en vez de los slots.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            Los días de torneo están visualmente marcados pero accesibles — el visitante puede
+            seleccionarlos y ver que no hay disponibilidad. Los demás días siguen mostrando slots normalmente.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Cuándo bloquea todas las canchas vs parcial</div>
+            Si el torneo tiene <code>canchasAsignadas</code> vacío o incluye todas las canchas activas del club
+            → se bloquea todo el día. Si solo ocupa algunas canchas → el mensaje dice
+            "Algunas canchas están reservadas para el torneo — el resto están disponibles"
+            y solo esas canchas aparecen sin slots.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 6.5 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num" style="background:var(--gris);">6.5</span>
+          <div>
+            <div class="paso-titulo">Verificar que el club cerrado muestra mensaje correcto</div>
+            <div class="paso-ruta">Landing → día sin horario activo</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En el selector de días, navegá a un día en el que el club <strong>no tenga horario activo</strong> (ej: el club cierra los domingos).</li>
+              <li>Verificá que el contador grande muestra <strong>"Club cerrado hoy"</strong> (o "Club cerrado ese día") y la grilla muestra un mensaje vacío.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            No muestra ningún slot ni grilla. Mensaje claro de que el club no opera ese día.
+            El indicador "En vivo" sigue visible pero el contenido está vacío.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 De dónde vienen los horarios del club</div>
+            El componente recibe <code>horarios</code> como prop — llegan del <code>clubStore</code>
+            que se cargó desde <code>GET /api/clubs/:slug</code> al montar la landing.
+            Si <code>horarios['Domingo']?.activo === false</code>, ese día se considera cerrado.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       RESUMEN DE NOTIFICACIONES
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="seccion" id="notificaciones">
+    <div class="seccion-header">
+      <div class="numero" style="background:#d97706;">🔔</div>
+      <h2>Resumen de todas las notificaciones</h2>
+      <span class="rol-chip chip-multi">Sistema</span>
+    </div>
+    <div class="seccion-body">
+      <p style="margin-bottom:16px; font-size:0.9rem; color:var(--texto-suave);">
+        Todas las notificaciones se almacenan en la tabla <code>notificaciones</code> de Supabase
+        con <code>jugadorId: null</code> para notificaciones al admin, o con el ID del jugador para
+        notificaciones al jugador. El panel de notificaciones del admin hace polling para mostrarlas.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo (campo <code>tipo</code>)</th>
+            <th>Quién la genera</th>
+            <th>Destinatario</th>
+            <th>Cuándo</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>nueva_reserva</code></td>
+            <td>Jugador</td>
+            <td>Admin</td>
+            <td>Jugador crea reserva eventual</td>
+          </tr>
+          <tr>
+            <td><code>solicitud_turno_fijo</code></td>
+            <td>Jugador</td>
+            <td>Admin</td>
+            <td>Jugador solicita turno fijo</td>
+          </tr>
+          <tr>
+            <td><code>turno_fijo_confirmado</code></td>
+            <td>Admin</td>
+            <td>Jugador</td>
+            <td>Admin aprueba el TF</td>
+          </tr>
+          <tr>
+            <td><code>turno_fijo_rechazado</code></td>
+            <td>Admin</td>
+            <td>Jugador</td>
+            <td>Admin rechaza el TF (estaba pendiente)</td>
+          </tr>
+          <tr>
+            <td><code>turno_fijo_baja</code></td>
+            <td>Admin</td>
+            <td>Jugador</td>
+            <td>Admin da de baja el TF (estaba confirmado)</td>
+          </tr>
+          <tr>
+            <td><code>turno_fijo_cancelado_jugador</code></td>
+            <td>Jugador</td>
+            <td>Admin</td>
+            <td>Jugador cancela su TF confirmado</td>
+          </tr>
+          <tr>
+            <td><code>turno_fijo_retirado_jugador</code></td>
+            <td>Jugador</td>
+            <td>Admin</td>
+            <td>Jugador retira su solicitud de TF pendiente</td>
+          </tr>
+          <tr>
+            <td><code>cargo_cancelacion</code></td>
+            <td>Sistema</td>
+            <td>Jugador</td>
+            <td>Jugador avisa ausencia fuera del plazo de política</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="alerta" style="margin-top:20px;">
+        <div class="titulo">📌 Nota sobre WhatsApp</div>
+        Actualmente las notificaciones son internas (panel de admin y notificaciones del jugador).
+        La integración con WhatsApp (para notificar al jugador cuando el admin confirma)
+        está planificada para cuando el backend esté en Railway y tenga un endpoint de webhooks.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       CHECKLIST FINAL
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="seccion" id="checklist">
+    <div class="seccion-header">
+      <div class="numero" style="background:#059669;">✓</div>
+      <h2>Checklist final de validación</h2>
+      <span class="rol-chip chip-multi">Todos los roles</span>
+    </div>
+    <div class="seccion-body">
+
+      <p style="margin-bottom:16px; font-size:0.9rem; color:var(--texto-suave);">
+        Marcá cada ítem al verificarlo. Si todos están en verde, el bloque está completo.
+      </p>
+
+      <h3 style="font-size:0.95rem; color:var(--verde); margin-bottom:10px;">🎾 Jugador</h3>
+      <ul class="checklist">
+        <li>Login con DNI y password funciona y redirige al dashboard.</li>
+        <li>La grilla de reservas muestra canchas y horarios correctos del club.</li>
+        <li>Los slots ocupados (reservas + turnos fijos) aparecen bloqueados.</li>
+        <li>Puede crear una reserva eventual → queda en estado PENDIENTE. Aparece un <strong>toast verde/lima</strong> fijo que persiste hasta que el admin aprueba (no tiene timer).</li>
+        <li>La reserva aparece en la página <strong>"Mis reservas"</strong> del sidebar con los tabs Próximas / Todas y botón "⊗ Cancelar" por fila.</li>
+        <li>Al pie de <strong>"Reservar cancha"</strong> aparecen dos banners compactos de acceso rápido: uno a "Mis reservas" (eventuales próximas activas) y otro a "Mis turnos fijos" (activos y pendientes). Solo se muestran si el jugador tiene registros en cada categoría.</li>
+        <li>Puede solicitar un turno fijo con duración exacta de 1.5h → aparece toast <strong>ámbar</strong> que persiste hasta aprobación admin.</li>
+        <li>No puede solicitar un turno fijo de 1h (el backend lo rechaza).</li>
+        <li>No puede reservar en horario ya pasado.</li>
+        <li>Puede ver sus turnos fijos con próxima fecha calculada.</li>
+        <li>Puede solicitar ausencia puntual en turno confirmado.</li>
+        <li>Puede cancelar su solicitud de TF pendiente.</li>
+        <li>Recibe notificaciones cuando el admin aprueba/rechaza.</li>
+      </ul>
+
+      <h3 style="font-size:0.95rem; color:var(--naranja); margin-top:20px; margin-bottom:10px;">🛡 Admin</h3>
+      <ul class="checklist">
+        <li>Login con email y password funciona y redirige al dashboard admin.</li>
+        <li>Ve notificación de nueva reserva cuando jugador reserva.</li>
+        <li>Ve notificación de solicitud de turno fijo cuando jugador solicita.</li>
+        <li>Al hacer clic en esa notificación → se marca como leída y salta directo al tab "Turnos fijos".</li>
+        <li>El panel "Avisos de jugadores" en la grilla tiene scroll interno y botón <strong>"Aprobar todas (N)"</strong> cuando hay más de una reserva pendiente simultánea.</li>
+        <li>Puede confirmar una reserva eventual (slot pasa a verde) → el toast del jugador desaparece automáticamente.</li>
+        <li>Puede aprobar un turno fijo pendiente desde la tab "Turnos fijos" → el toast ámbar del jugador desaparece automáticamente.</li>
+        <li>Si intenta aprobar un TF con conflicto → recibe error 409 descriptivo.</li>
+        <li>Puede rechazar un TF pendiente → jugador recibe notificación de rechazo.</li>
+        <li>Puede dar de baja un TF confirmado → jugador recibe notificación de baja.</li>
+        <li>No puede dar de baja TF si jugador tiene cargos pendientes.</li>
+        <li>Puede crear clase en nombre de un profesor desde Tab Clases.</li>
+        <li>La clase del profesor aparece en la grilla inmediatamente (sin polling).</li>
+        <li>Ve el nombre del profesor en los slots de clases.</li>
+      </ul>
+
+      <h3 style="font-size:0.95rem; color:var(--morado); margin-top:20px; margin-bottom:10px;">📚 Profesor</h3>
+      <ul class="checklist">
+        <li>Login con email y password funciona y redirige al portal de agenda.</li>
+        <li>Al refrescar la página, la sesión se restaura (fetch a /auth/profesor/me).</li>
+        <li>Ve solo las canchas que tiene asignadas (o todas si no tiene asignación).</li>
+        <li>Los slots de turnos fijos de jugadores aparecen bloqueados en su grilla.</li>
+        <li>Puede crear una clase → aparece confirmada inmediatamente.</li>
+        <li>No puede crear clase en horario de turno fijo de jugador.</li>
+        <li>No puede crear clase en horario donde ya tiene otra clase (en cualquier cancha).</li>
+        <li>Puede eliminar solo sus propias clases.</li>
+        <li>La clase creada por el profesor es visible en la grilla del admin.</li>
+      </ul>
+
+      <h3 style="font-size:0.95rem; color:var(--gris); margin-top:20px; margin-bottom:10px;">🔒 Validaciones de seguridad</h3>
+      <ul class="checklist">
+        <li>Sin token JWT, todos los endpoints retornan 401.</li>
+        <li>Un jugador no puede acceder a rutas de admin ni de profesor.</li>
+        <li>Un profesor no puede acceder a rutas de admin ni de jugador.</li>
+        <li>El clubId siempre viene del JWT — no se puede falsificar vía body o query param.</li>
+        <li>Dos jugadores simultáneos no pueden reservar el mismo slot (transacción atómica).</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ══════ FOOTER ══════ -->
+  <div class="footer">
+    PadelOS · Documento de prueba interno · Generado 2026-05-23<br>
+    Versión del backend: Express + Prisma · Frontend: React 19 + Vite 8 + TailwindCSS<br>
+    <strong>Para actualizar este documento:</strong> editar <code>flujo-prueba-reservas-turnos.html</code> en la raíz del proyecto.
+  </div>
+
+</div>
+
+<script>
+  function toggle(header) {
+    const body = header.nextElementSibling;
+    const arrow = header.querySelector('.paso-toggle');
+    const isOpen = body.classList.contains('visible');
+    body.classList.toggle('visible', !isOpen);
+    arrow.classList.toggle('abierto', !isOpen);
+  }
+
+  // Expandir el paso activo si viene por hash
+  window.addEventListener('DOMContentLoaded', () => {
+    const hash = window.location.hash;
+    if (hash) {
+      const el = document.querySelector(hash);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+</script>
+
+</body>
+</html>

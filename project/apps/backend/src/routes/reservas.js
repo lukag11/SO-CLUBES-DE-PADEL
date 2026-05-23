@@ -527,11 +527,30 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
     if (reserva.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
 
-    const updated = await prisma.reserva.update({
-      where: { id },
-      data: { estado },
-      include: { cancha: true, jugador: { select: { id: true, nombre: true, apellido: true } } },
-    })
+    // Al confirmar: re-verificar colisiones dentro de transacción para evitar que
+    // una reserva previamente cancelada se reactive sobre un slot ya ocupado.
+    let updated
+    if (estado === 'confirmada') {
+      updated = await prisma.$transaction(async (tx) => {
+        const solapadas = await tx.reserva.findMany({
+          where: { canchaId: reserva.canchaId, fecha: reserva.fecha, estado: { in: ['pendiente', 'confirmada'] }, id: { not: id } },
+        })
+        if (solapadas.some((r) => overlaps(r.horaInicio, r.horaFin, reserva.horaInicio, reserva.horaFin))) {
+          throw Object.assign(new Error('El horario ya fue ocupado por otra reserva. No se puede confirmar.'), { status: 409 })
+        }
+        return tx.reserva.update({
+          where: { id },
+          data: { estado },
+          include: { cancha: true, jugador: { select: { id: true, nombre: true, apellido: true } } },
+        })
+      })
+    } else {
+      updated = await prisma.reserva.update({
+        where: { id },
+        data: { estado },
+        include: { cancha: true, jugador: { select: { id: true, nombre: true, apellido: true } } },
+      })
+    }
 
     // Notificar al jugador si la reserva tiene jugadorId
     if (updated.jugadorId && (estado === 'confirmada' || estado === 'cancelada')) {

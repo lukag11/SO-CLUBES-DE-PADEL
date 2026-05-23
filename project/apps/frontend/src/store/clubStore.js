@@ -162,6 +162,8 @@ const useClubStore = create((set, get) => ({
       const merged = {
         ...INITIAL_CLUB,
         ...config,
+        id: backendClub.id ?? null,
+        slug: backendClub.slug ?? null,
         horarios: Object.fromEntries(
           DIAS_SEMANA.map((dia) => [
             dia,

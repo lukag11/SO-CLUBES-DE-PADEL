@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   GraduationCap, Clock, CalendarDays, Save, Plus, AlertCircle,
-  CheckCircle, User, ChevronDown, X,
+  CheckCircle, User, ChevronDown, X, Lock, Unlock, Info,
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useClubStore from '../../store/clubStore'
@@ -26,7 +26,12 @@ const ALL_TIMES = (() => {
 const clubDiaCerrado = (dia, horarios) => horarios?.[dia]?.activo === false
 
 const OPTS_APERTURA = ALL_TIMES.filter((t) => t !== '24:00')
-const opcionesCierre = (apertura) => ALL_TIMES.filter((t) => t > apertura)
+// Cierre solo muestra horarios con el mismo minuto que la apertura (:00 con :00, :30 con :30)
+const opcionesCierre = (apertura) => {
+  const apMin = toMin(apertura)
+  const minMark = apMin % 60
+  return ALL_TIMES.filter((t) => toMin(t) > apMin && toMin(t) % 60 === minMark)
+}
 
 const todayISO = () => {
   const d = new Date()
@@ -107,17 +112,28 @@ const SeccionDisponibilidad = ({ profesor, onSaved }) => {
   const [disp, setDisp] = useState(() => buildDispWithClub(profesor?.disponibilidad, horarios))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [modoEdicion, setModoEdicion] = useState(false)
 
   useEffect(() => {
     setDisp(buildDispWithClub(profesor?.disponibilidad, horarios))
     setSaved(false)
+    setModoEdicion(false)
   }, [profesor?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleDia = (dia) => {
     if (clubDiaCerrado(dia, horarios)) return
     setDisp((prev) => ({ ...prev, [dia]: { ...prev[dia], activo: !prev[dia].activo } }))
   }
-  const setHora = (dia, campo, val) => setDisp((prev) => ({ ...prev, [dia]: { ...prev[dia], [campo]: val } }))
+  const setHora = (dia, campo, val) => setDisp((prev) => {
+    const next = { ...prev[dia], [campo]: val }
+    if (campo === 'apertura') {
+      const newMark = toMin(val) % 60
+      if (toMin(next.cierre) <= toMin(val) || toMin(next.cierre) % 60 !== newMark) {
+        next.cierre = ALL_TIMES.find((t) => toMin(t) > toMin(val) && toMin(t) % 60 === newMark) ?? next.cierre
+      }
+    }
+    return { ...prev, [dia]: next }
+  })
 
   const diasActivos = DIAS.filter((d) => disp[d].activo)
 
@@ -151,6 +167,32 @@ const SeccionDisponibilidad = ({ profesor, onSaved }) => {
 
   return (
     <div className="flex flex-col gap-4">
+
+      {/* Header con traba */}
+      <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+        <div className="flex items-start gap-2.5">
+          <Info size={14} className="text-slate-400 shrink-0 mt-0.5" />
+          <p className="text-slate-500 text-xs leading-relaxed">
+            Esta sección sobreescribe la disponibilidad que el propio profesor haya configurado.
+            Usala solo para <strong className="text-slate-700">corregir errores</strong> o cuando el profesor no tiene acceso al portal.
+            Activá la edición para modificar.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setModoEdicion((v) => !v)}
+          className={[
+            'shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all',
+            modoEdicion
+              ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+              : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700',
+          ].join(' ')}
+        >
+          {modoEdicion ? <Unlock size={12} /> : <Lock size={12} />}
+          {modoEdicion ? 'Edición activa' : 'Editar'}
+        </button>
+      </div>
+
       {/* Chips de días */}
       <div>
         <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-2">Días de trabajo</p>
@@ -158,20 +200,28 @@ const SeccionDisponibilidad = ({ profesor, onSaved }) => {
           {DIAS.map((dia, i) => {
             const activo = disp[dia].activo
             const cerrado = clubDiaCerrado(dia, horarios)
+            const bloqueado = cerrado || !modoEdicion
             return (
               <button
                 key={dia}
                 type="button"
-                onClick={() => toggleDia(dia)}
-                disabled={cerrado}
-                title={cerrado ? 'El club está cerrado este día' : undefined}
+                onClick={() => !bloqueado && toggleDia(dia)}
+                disabled={bloqueado}
+                title={cerrado ? 'El club está cerrado este día' : !modoEdicion ? 'Activá la edición para modificar' : undefined}
                 className={[
                   'flex flex-col items-center py-2.5 rounded-xl border text-center transition-all text-xs font-bold',
                   cerrado
                     ? 'bg-slate-50 border-slate-200 text-slate-300 opacity-40 cursor-not-allowed'
-                    : activo
+                    : !modoEdicion
+                      ? 'cursor-not-allowed opacity-70'
+                      : '',
+                  !cerrado && modoEdicion
+                    ? activo
                       ? 'bg-brand-50 border-brand-300 text-brand-600'
-                      : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300',
+                      : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300'
+                    : activo
+                      ? 'bg-brand-50 border-brand-200 text-brand-500'
+                      : 'bg-slate-50 border-slate-200 text-slate-400',
                 ].join(' ')}
               >
                 {DIAS_CORTO[i]}
@@ -191,30 +241,34 @@ const SeccionDisponibilidad = ({ profesor, onSaved }) => {
             return (
               <div key={dia} className={['flex items-center gap-3 bg-slate-50 border rounded-xl px-3 py-2.5', err ? 'border-red-300' : 'border-slate-200'].join(' ')}>
                 <span className="text-slate-600 text-sm font-medium w-20 shrink-0">{dia}</span>
-                <SelectHora value={d.apertura} options={OPTS_APERTURA} onChange={(v) => setHora(dia, 'apertura', v)} />
+                <SelectHora value={d.apertura} options={OPTS_APERTURA} onChange={(v) => setHora(dia, 'apertura', v)} disabled={!modoEdicion} />
                 <span className="text-slate-400 text-xs shrink-0">→</span>
-                <SelectHora value={d.cierre} options={opcionesCierre(d.apertura)} onChange={(v) => setHora(dia, 'cierre', v)} />
-                <button type="button" onClick={() => toggleDia(dia)} className="text-slate-300 hover:text-red-400 transition-colors shrink-0">
-                  <X size={14} />
-                </button>
+                <SelectHora value={d.cierre} options={opcionesCierre(d.apertura)} onChange={(v) => setHora(dia, 'cierre', v)} disabled={!modoEdicion} />
+                {modoEdicion && (
+                  <button type="button" onClick={() => toggleDia(dia)} className="text-slate-300 hover:text-red-400 transition-colors shrink-0">
+                    <X size={14} />
+                  </button>
+                )}
               </div>
             )
           })}
         </div>
       ) : (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-700 text-sm">
-          Sin días activos. Activá al menos uno para que el profesor vea franjas en su agenda.
+          Sin días activos. {modoEdicion ? 'Activá al menos uno para que el profesor vea franjas en su agenda.' : 'Activá la edición para modificar.'}
         </div>
       )}
 
-      <button
-        onClick={handleGuardar}
-        disabled={saving || hayErrores}
-        className="self-start flex items-center gap-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-all"
-      >
-        {saved ? <CheckCircle size={14} /> : <Save size={14} />}
-        {saving ? 'Guardando...' : saved ? 'Guardado' : 'Guardar disponibilidad'}
-      </button>
+      {modoEdicion && (
+        <button
+          onClick={handleGuardar}
+          disabled={saving || hayErrores}
+          className="self-start flex items-center gap-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-all"
+        >
+          {saved ? <CheckCircle size={14} /> : <Save size={14} />}
+          {saving ? 'Guardando...' : saved ? 'Guardado' : 'Guardar disponibilidad'}
+        </button>
+      )}
     </div>
   )
 }
@@ -246,12 +300,24 @@ const SeccionCrearClase = ({ profesor, onClaseCreada }) => {
     if (!fecha) return []
     const [y, m, d] = fecha.split('-').map(Number)
     const diaNombre = DIAS_NOMBRE[new Date(y, m - 1, d).getDay()]
+    // Si hay cancha seleccionada con horario propio activo para ese día, usarlo
+    if (canchaId) {
+      const cancha = canchasActivas.find((c) => String(c.id) === String(canchaId))
+      const custom = cancha?.horarios?.[diaNombre]
+      if (custom?.activo) return generarFranjas(custom.apertura || '08:00', custom.cierre || '23:00')
+    }
+    // Fallback al horario general del club
     const horario = horarios?.[diaNombre]
     if (!horarios || !horario?.activo) return generarFranjas('08:00', '23:00')
     return generarFranjas(horario.apertura || '08:00', horario.cierre || '23:00')
-  }, [fecha, horarios]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fecha, canchaId, horarios, canchasActivas]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const opcionesFin = useMemo(() => inicio ? franjasDelDia.filter((f) => f.fin > inicio) : [], [inicio, franjasDelDia])
+  const opcionesFin = useMemo(() => {
+    if (!inicio) return []
+    const inicioMin = toMin(inicio)
+    const minMark = inicioMin % 60
+    return franjasDelDia.filter((f) => toMin(f.fin) > inicioMin && toMin(f.fin) % 60 === minMark)
+  }, [inicio, franjasDelDia])
 
   const handleCrear = async (e) => {
     e.preventDefault()
@@ -301,7 +367,7 @@ const SeccionCrearClase = ({ profesor, onClaseCreada }) => {
           <div className="relative">
             <select
               value={canchaId}
-              onChange={(e) => setCanchaId(e.target.value)}
+              onChange={(e) => { setCanchaId(e.target.value); setInicio(''); setFin('') }}
               className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 transition appearance-none bg-white"
             >
               <option value="">— Seleccioná una cancha —</option>
@@ -316,7 +382,12 @@ const SeccionCrearClase = ({ profesor, onClaseCreada }) => {
           <div className="relative">
             <select
               value={inicio}
-              onChange={(e) => { setInicio(e.target.value); if (fin && fin <= e.target.value) setFin('') }}
+              onChange={(e) => {
+                const val = e.target.value
+                setInicio(val)
+                const newMark = toMin(val) % 60
+                if (fin && (toMin(fin) <= toMin(val) || toMin(fin) % 60 !== newMark)) setFin('')
+              }}
               className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 transition appearance-none bg-white"
             >
               <option value="">— Inicio —</option>

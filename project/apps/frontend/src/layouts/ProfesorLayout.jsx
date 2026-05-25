@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate } from 'react-router-dom'
-import { Zap, CalendarDays, Clock, LogOut, Menu, X } from 'lucide-react'
+import { Zap, CalendarDays, Clock, LogOut, Menu, X, Bell, Check, CheckCheck } from 'lucide-react'
 import useAuthProfesorStore from '../store/authProfesorStore'
 import useClubStore from '../store/clubStore'
+import useProfesorNotificationsStore from '../store/profesorNotificationsStore'
 import { api } from '../lib/api'
 
 const navItems = [
@@ -15,6 +16,22 @@ const ProfesorLayout = () => {
   const loadFromBackend = useClubStore((s) => s.loadFromBackend)
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [bellOpen, setBellOpen] = useState(false)
+  const bellRef = useRef(null)
+
+  const fetchNotif        = useProfesorNotificationsStore((s) => s.fetchNotificaciones)
+  const notificaciones    = useProfesorNotificationsStore((s) => s.notificaciones)
+  const sinLeer           = useProfesorNotificationsStore((s) => s.sinLeer())
+  const marcarLeida       = useProfesorNotificationsStore((s) => s.marcarLeida)
+  const marcarTodasLeidas = useProfesorNotificationsStore((s) => s.marcarTodasLeidas)
+
+  useEffect(() => { if (token) fetchNotif(token) }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handler = (e) => { if (bellRef.current && !bellRef.current.contains(e.target)) setBellOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   // Refresca datos del profesor al montar; luego carga la config del club
   useEffect(() => {
@@ -134,16 +151,90 @@ const ProfesorLayout = () => {
 
       {/* Contenido */}
       <div className="flex-1 min-w-0 flex flex-col lg:ml-60">
-        {/* Navbar mobile profesor */}
-        <header className="lg:hidden h-14 bg-[#0d1117] border-b border-white/5 flex items-center px-4 gap-3 shrink-0">
+
+        {/* Top bar — visible en todos los tamaños */}
+        <header className="h-14 bg-[#0d1117] border-b border-white/5 flex items-center justify-between px-4 shrink-0">
+          {/* Hamburger (solo mobile) */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-all"
+            className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-all"
           >
             <Menu size={18} />
           </button>
-          <span className="text-white font-bold text-sm tracking-tight">PadelOS</span>
+          <span className="lg:hidden text-white font-bold text-sm tracking-tight">PadelOS</span>
+          <div className="hidden lg:block" />
+
+          {/* Campana */}
+          <div ref={bellRef} className="relative">
+            <button
+              onClick={() => setBellOpen((v) => !v)}
+              className="relative w-9 h-9 flex items-center justify-center rounded-xl text-white/30 hover:text-white hover:bg-white/8 transition-all"
+            >
+              <Bell size={17} />
+              {sinLeer > 0 && (
+                <span className="absolute top-1 right-1 min-w-[14px] h-3.5 bg-orange-400 text-white text-[8px] font-black rounded-full flex items-center justify-center px-0.5 leading-none">
+                  {sinLeer > 9 ? '9+' : sinLeer}
+                </span>
+              )}
+            </button>
+
+            {bellOpen && (
+              <div className="absolute right-0 top-11 w-80 bg-[#0d1117] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/8">
+                  <span className="text-sm font-semibold text-white flex items-center gap-2">
+                    Notificaciones
+                    {sinLeer > 0 && (
+                      <span className="bg-orange-400/20 text-orange-400 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        {sinLeer} sin leer
+                      </span>
+                    )}
+                  </span>
+                  {sinLeer > 0 && (
+                    <button
+                      onClick={() => marcarTodasLeidas(token)}
+                      className="text-xs text-orange-400 hover:text-orange-300 font-medium flex items-center gap-1 transition-colors"
+                    >
+                      <CheckCheck size={12} />
+                      Marcar todas
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-80 overflow-y-auto divide-y divide-white/5">
+                  {notificaciones.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-white/30 text-sm">Sin notificaciones</div>
+                  ) : notificaciones.slice(0, 25).map((n) => {
+                    const title = n.tipo === 'clase_cancelada_admin'
+                      ? 'Clase cancelada por el admin'
+                      : n.tipo?.replace(/_/g, ' ') ?? 'Notificación'
+                    const body = [n.canchaNombre, n.fecha, n.horaInicio && n.horaFin ? `${n.horaInicio}–${n.horaFin}` : ''].filter(Boolean).join(' · ')
+                    return (
+                      <div
+                        key={n.id}
+                        className={['flex items-start gap-3 px-4 py-3 transition-colors', n.leida ? '' : 'bg-orange-400/5'].join(' ')}
+                      >
+                        <div className={['w-2 h-2 rounded-full mt-1.5 shrink-0', n.leida ? 'bg-white/10' : 'bg-orange-400'].join(' ')} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-white/80">{title}</p>
+                          {body && <p className="text-xs text-white/40 truncate mt-0.5">{body}</p>}
+                        </div>
+                        {!n.leida && (
+                          <button
+                            onClick={() => marcarLeida(n.id, token)}
+                            title="Marcar como leída"
+                            className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-white/20 hover:text-orange-400 hover:bg-orange-400/10 transition-all"
+                          >
+                            <Check size={12} />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </header>
+
         <main className="flex-1 p-4 md:p-6 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>

@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, Plus, X, Save, Check,
   CalendarDays, DollarSign, Lock, Repeat, Clock,
-  Users, AlertCircle, CheckCircle, Ban, Pencil, Bell, GraduationCap, Trash2, XCircle, MapPin, HelpCircle,
+  Users, AlertCircle, AlertTriangle, CheckCircle, Ban, Pencil, Bell, GraduationCap, Trash2, XCircle, MapPin, HelpCircle,
 } from 'lucide-react'
 import {
   RAZONES_BLOQUEO, METODOS_PAGO, CLASES_PROFESOR, DIAS_SEMANA_OPCIONES,
@@ -264,12 +264,14 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = [] }) => {
     const esSolicitudFijo = reserva.tipo === 'solicitud_fijo'
     const esNoDisponibilidadProfesor = reserva.tipo === 'bloqueado' && reserva.creadoPor === 'profesor'
 
+    const inconsistenteRowspan = franjas.length > 0 && !franjas.some((f) => f.inicio === reserva.inicio)
+
     return (
       <td
         rowSpan={franjasCubiertas}
         onClick={() => onClick({ tipo: 'detalle', reserva, franja, cancha })}
         className={[
-          'border border-slate-100 align-top transition-colors cursor-pointer',
+          'border border-slate-100 align-top transition-colors cursor-pointer relative',
           esNoDisponibilidadProfesor ? 'bg-red-50/60 hover:bg-red-100/50'
           : esOnline ? 'bg-emerald-50/60 hover:bg-emerald-100/50'
           : esSolicitudFijo ? 'bg-amber-50/60 hover:bg-amber-100/50'
@@ -322,18 +324,28 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = [] }) => {
             </>
           )}
         </div>
+        {inconsistenteRowspan && (
+          <div
+            title={`⚠ Problema: esta reserva está a las ${reserva.inicio} pero ese horario ya no existe en esta cancha (el horario propio fue desactivado). Solución: reactivá el horario propio desde Configuración → Canchas, o cancelá esta reserva y volvé a crearla en el nuevo horario.`}
+            className="absolute top-1 right-1 flex items-center gap-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-none animate-pulse cursor-help shadow-sm shadow-amber-400/50"
+          >
+            <AlertTriangle size={9} />
+            <span>Fuera de grilla</span>
+          </div>
+        )}
       </td>
     )
   }
 
   const tipoCfg = TIPO_CONFIG[reserva.tipo]
   const pagoCfg = PAGO_CONFIG[reserva.pago]
+  const inconsistente = franjas.length > 0 && !franjas.some((f) => f.inicio === reserva.inicio)
 
   return (
     <td
       onClick={() => onClick({ tipo: 'detalle', reserva, franja, cancha })}
       className={[
-        'border border-slate-100 cursor-pointer transition-all align-top',
+        'border border-slate-100 cursor-pointer transition-all align-top relative',
         reserva.tipo === 'fijo'
           ? 'bg-violet-50/60 hover:bg-violet-100/60'
           : 'bg-blue-50/40 hover:bg-blue-100/40',
@@ -362,6 +374,15 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = [] }) => {
           <AlertCircle size={10} className="text-amber-500 shrink-0" />
         )}
       </div>
+      {inconsistente && (
+        <div
+          title={`⚠ Problema: esta reserva está a las ${reserva.inicio} pero ese horario ya no existe en esta cancha (el horario propio fue desactivado). Solución: reactivá el horario propio desde Configuración → Canchas, o cancelá esta reserva y volvé a crearla en el nuevo horario.`}
+          className="absolute top-1 right-1 flex items-center gap-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-none animate-pulse cursor-help shadow-sm shadow-amber-400/50"
+        >
+          <AlertTriangle size={9} />
+          <span>Fuera de grilla</span>
+        </div>
+      )}
     </td>
   )
 }
@@ -396,28 +417,79 @@ const Grilla = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], franja
                   <span className="text-slate-400 text-xs font-mono">{franja.fin}</span>
                 </td>
                 {canchas.map((cancha) => {
-                  // Todas las clases que overlappean este slot (puede haber varias clases de 1h en un slot de 1.5h)
+                  // Clases que EMPIEZAN en este slot (evita duplicar en filas adyacentes por overlap parcial)
                   const clasesSlot = (clasesDia || []).filter(
-                    (c) => String(c.canchaId) === String(cancha.id) && overlaps(c.inicio, c.fin, franja.inicio, franja.fin)
+                    (c) => String(c.canchaId) === String(cancha.id) &&
+                      c.inicio >= franja.inicio && c.inicio < franja.fin
                   )
-                  const reserva = clasesSlot.length === 0 ? getReserva(reservas, cancha.id, franja) : null
+                  // Clases que empezaron en una franja anterior pero se extienden hasta aquí
+                  const clasesContinua = clasesSlot.length === 0
+                    ? (clasesDia || []).filter(
+                        (c) => String(c.canchaId) === String(cancha.id) &&
+                          c.inicio < franja.inicio && c.fin > franja.inicio
+                      )
+                    : []
+                  // Excluir clases del fallback — ya las maneja clasesSlot exclusivamente
+                  const reservasNoClas = reservas.filter((r) => r.tipo !== 'clase')
+                  const reserva = (clasesSlot.length === 0 && clasesContinua.length === 0)
+                    ? getReserva(reservasNoClas, cancha.id, franja)
+                    : null
                   // Celdas cubiertas por rowspan de bloqueo (clases no usan rowspan)
                   if (reserva?.tipo === 'bloqueado' && reserva.inicio !== franja.inicio) {
                     return null
                   }
-                  // Celda con una o más clases del profesor apiladas
+                  // Franja cubierta por continuación de una clase que empezó antes — mismo estilo que la celda principal
+                  if (clasesContinua.length > 0) {
+                    return (
+                      <td key={cancha.id} className="border border-orange-100 bg-orange-50/60 align-top p-0">
+                        <div className="flex flex-row divide-x divide-orange-100/60 h-full">
+                          {clasesContinua.map((clase) => {
+                            const esProfesor = clase.creadoPor === 'profesor'
+                            const prof = clase.profesor
+                            const nombre = prof
+                              ? (typeof prof === 'string' ? prof : `${prof.nombre} ${prof.apellido}`)
+                              : (clase.profesorNombre || clase.nota || '')
+                            return (
+                              <div
+                                key={`${clase.canchaId}-${clase.inicio}-cont`}
+                                onClick={() => onCeldaClick({ tipo: 'detalle', reserva: clase, franja, cancha })}
+                                className="cursor-pointer hover:bg-orange-100/70 transition-colors px-2 py-1.5 flex flex-col gap-0.5 flex-1 min-w-0"
+                              >
+                                <div className="flex items-center gap-1">
+                                  <GraduationCap size={10} className="text-orange-400 shrink-0" />
+                                  <span className="text-orange-600 text-[10px] font-mono font-semibold">
+                                    {clase.inicio} → {clase.fin}
+                                  </span>
+                                  {esProfesor && (
+                                    <span className="text-[8px] bg-orange-100 text-orange-500 font-bold px-1 rounded leading-none shrink-0">Prof</span>
+                                  )}
+                                </div>
+                                {nombre && (
+                                  <p className="text-orange-400 text-[9px] leading-snug truncate pl-3.5">{nombre}</p>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </td>
+                    )
+                  }
+                  // Celda con una o más clases del profesor — lado a lado si hay varias
                   if (clasesSlot.length > 0) {
                     return (
                       <td key={cancha.id} className="border border-orange-100 bg-orange-50/60 align-top p-0">
-                        <div className="flex flex-col divide-y divide-orange-100/60">
+                        <div className="flex flex-row divide-x divide-orange-100/60 h-full">
                           {clasesSlot.map((clase) => {
                             const esProfesor = clase.creadoPor === 'profesor'
-                            const nombre = esProfesor ? clase.profesorNombre : (clase.profesor || clase.nota || '')
+                            const prof = clase.profesor
+                            const nombre = prof
+                              ? (typeof prof === 'string' ? prof : `${prof.nombre} ${prof.apellido}`)
+                              : (clase.profesorNombre || clase.nota || '')
                             return (
                               <div
                                 key={`${clase.canchaId}-${clase.inicio}`}
                                 onClick={() => onCeldaClick({ tipo: 'detalle', reserva: clase, franja, cancha })}
-                                className="cursor-pointer hover:bg-orange-100/70 transition-colors px-2 py-1.5 flex flex-col gap-0.5"
+                                className="cursor-pointer hover:bg-orange-100/70 transition-colors px-2 py-1.5 flex flex-col gap-0.5 flex-1 min-w-0"
                               >
                                 <div className="flex items-center gap-1">
                                   <GraduationCap size={10} className="text-orange-400 shrink-0" />
@@ -780,11 +852,10 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
         {/* Tipo */}
         <div>
           <FieldLabel>Tipo de reserva</FieldLabel>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {[
               { key: 'eventual',  label: 'Eventual',   icon: CalendarDays  },
               { key: 'fijo',      label: 'Turno fijo', icon: Repeat        },
-              { key: 'clase',     label: 'Clase',      icon: GraduationCap },
             ].map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -793,9 +864,7 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
                 className={[
                   'flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all',
                   form.tipo === key
-                    ? key === 'clase'
-                      ? 'bg-orange-50 border-orange-300 text-orange-700'
-                      : 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                     : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300',
                 ].join(' ')}
               >
@@ -2853,27 +2922,11 @@ const ReservasPage = () => {
     [turnosFijos, diaSemanaFecha]
   )
 
-  // Clases activas del profesor para el día actual (convertidas a formato compatible con la grilla)
-  const clasesDia = useMemo(() => {
-    const diaSemana = getDiaSemana(fecha)
-    return clases
-      .filter((c) => c.activa && c.dia === diaSemana && c.hasta >= fecha)
-      .map((c) => ({
-        id: `clase-${c.id}`,
-        canchaId: c.canchaId,
-        fecha,
-        inicio: c.inicio,
-        fin: c.fin,
-        tipo: 'clase',
-        profesor: c.profesor,
-        jugadores: [],
-        estado: 'confirmada',
-        pago: null,
-        monto: 0,
-        notas: '',
-        recurrencia: null,
-      }))
-  }, [clases, fecha])
+  // Clases del profesor para el día: extraídas del backend real (reservasDia) en lugar del mock
+  const clasesDia = useMemo(
+    () => reservasDia.filter((r) => r.tipo === 'clase'),
+    [reservasDia]
+  )
 
   const handleCeldaClick = (sel) => {
     setEditando(null)

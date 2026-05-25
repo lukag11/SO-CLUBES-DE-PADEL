@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-23 (sesión — Página "Mis reservas" jugador, toasts duales persistentes, banners compactos de acceso rápido, mejoras panel admin Avisos + click notificación TF.)
+**Última actualización:** 2026-05-25 (sesión — Página "Mis reservas" jugador, toasts duales persistentes, banners compactos de acceso rápido, mejoras panel admin Avisos + click notificación TF.)
 
 ---
 
@@ -23,7 +23,8 @@
 | Reservas jugador (grilla + modal) | ✅ Completo | Slots 1.5h. GET /reservas/me al montar. Cancelación con política de cargo. Sin localStorage |
 | Turnos fijos (pendiente → aprobación) | ✅ Frontend completo | Flujo completo — falta backend (Bloque 3) |
 | Notificaciones admin + jugador | ✅ Backend completo | Tabla `notificaciones` en Supabase. Triggers en reservas + turnos fijos. GET/PATCH endpoints. playerNotificationsStore reescrito sin localStorage |
-| Dashboard profesor (agenda + disponibilidad) | ✅ Completo | Portal separado `/dashboardProfesor`. Disponibilidad DB-connected. Tab "Clases del profesor" en admin. Endpoints: `POST /reservas/admin/clase-profesor`, `POST /reservas/profesor`, `GET /turnos-fijos/slots-dia`. TurnosFijos bloquean modal agenda. |
+| Dashboard profesor (agenda + disponibilidad) | ✅ Completo | Portal separado `/dashboardProfesor`. Disponibilidad DB-connected. Tab "Clases del profesor" en admin. Endpoints: `POST /reservas/admin/clase-profesor`, `POST /reservas/profesor`, `GET /turnos-fijos/slots-dia`. TurnosFijos bloquean modal agenda. Fix: campana en ProfesorLayout (no duplicada en página). |
+| Sección "Clases profesores" (admin) | ✅ Completo | `/dashboardAdmin/clases`. Métricas semanales, tarjetas por profesor con chips de días y horas, grilla combinada días × profesores. Sidebar + bottom nav + usePageTitle actualizados. |
 | Módulo torneos admin | ✅ Frontend completo | CRUD, grupos, bracket, horarios — falta backend (Bloque 4) |
 | Módulo torneos jugador | ✅ Frontend completo | Inscripción, historial, sinCompanero, disponibilidad, notificaciones separadas — falta backend (Bloque 4) |
 | Estadísticas jugador | 🔲 Hardcodeado | Placeholder. Implementar en Bloque 5 con datos reales de reservas + torneos |
@@ -121,6 +122,8 @@
 - `/dashboardAdmin` → dashboard principal
 - `/dashboardAdmin/club` → edición del club
 - `/dashboardAdmin/reservas` → grilla de reservas
+- `/dashboardAdmin/jugadores` → directorio de jugadores
+- `/dashboardAdmin/clases` → clases profesores (nueva)
 - `/dashboardAdmin/torneos` → lista de torneos
 - `/dashboardAdmin/torneos/:id` → detalle del torneo
 - `/dashboardAdmin/pagos` → pagos
@@ -129,6 +132,59 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-05-25) — Auditoría dash profesor + nueva sección "Clases profesores" admin
+
+### Objetivo
+Correcciones de UX y lógica en el portal del profesor y en el tab "Clases del profesor" del admin. Nueva sección `/dashboardAdmin/clases` con visión semanal consolidada.
+
+### Correcciones ProfesorAgendaPage
+- **Campana duplicada eliminada**: ProfesorLayout ya tiene la campana global. Se eliminó toda la lógica de bell (imports, state, useEffect, JSX) de ProfesorAgendaPage
+- **Ancho completo**: wrapper pasó de `max-w-3xl mx-auto` a `w-full`
+- **Selector de días rediseñado**: botones `flex-1` que llenan todo el ancho, con número del día grande y contador de clases (naranja si > 0)
+
+### Correcciones ReservasPage (admin) — fix celdas de continuación
+- Clase que inicia en la franja 17:00–18:00 (ej: 17:00→18:00) NO aparecía visualmente en la franja 17:30–19:00 aunque el backend rechazaba reservas por conflicto
+- Fix: `clasesContinua` detecta clases que arrancan antes del slot actual pero terminan después. Las renderiza idénticas a las celdas primarias (mismo fondo naranja, mismo handler)
+
+### Correcciones TabClasesProfesor (admin) — auditoría completa
+- **SeccionDisponibilidad: lock/unlock toggle**
+  - Por defecto en modo lectura (`modoEdicion: false`)
+  - Botón Editar/Edición activa (Lock/Unlock) para habilitar la edición
+  - Info helper explica que esta sección sobreescribe la configuración del profesor
+  - `modoEdicion` se resetea a `false` cuando cambia el profesor seleccionado
+  - `setHora` auto-ajusta el cierre si la apertura cambia de mark de minutos
+- **Alineación de minutos en cierre (SeccionDisponibilidad)**
+  - Apertura :00 → solo opciones de cierre en :00
+  - Apertura :30 → solo opciones de cierre en :30
+- **SeccionCrearClase: alineación minutos en `opcionesFin`**
+  - Mismo criterio: `toMin(f.fin) % 60 === inicioMin % 60`
+- **SeccionCrearClase: horario propio por cancha**
+  - `franjasDelDia` consulta `cancha.horarios[diaNombre]` antes de usar el horario general del club
+- **Reset de inicio/fin al cambiar cancha**
+  - `onChange` de cancha ahora también limpia `inicio` y `fin`
+
+### Nueva sección "Clases profesores" — ClasesProfesorAdminPage
+- **Ruta**: `/dashboardAdmin/clases`
+- **Navegación**: sidebar desktop (entre Jugadores y Torneos), bottom nav mobile, usePageTitle actualizado
+- **Contenido**:
+  - Navegación semanal con botón "Hoy"
+  - 3 métricas: clases esta semana, profesores con clases / total activos, horas totales
+  - Tarjetas por profesor: chips de 7 días (naranja si tiene clases, punto si disponible, opaco si no trabaja), contador de horas
+  - Grilla combinada: tabla días × profesores, cada celda muestra clases (horario + cancha) o "disponible" si el profesor tiene disponibilidad configurada
+
+### Archivos modificados
+- `project/apps/frontend/src/pages/ProfesorAgendaPage.jsx`
+- `project/apps/frontend/src/pages/ReservasPage.jsx` — celdas de continuación
+- `project/apps/frontend/src/features/admin/TabClasesProfesor.jsx` — auditoría completa
+- `project/apps/frontend/src/pages/ClasesProfesorAdminPage.jsx` — nuevo
+- `project/apps/frontend/src/router/index.jsx` — ruta /clases
+- `project/apps/frontend/src/components/ui/Sidebar.jsx` — ítem GraduationCap
+- `project/apps/frontend/src/layouts/AdminDashboardLayout.jsx` — bottom nav
+- `project/apps/frontend/src/hooks/usePageTitle.js` — título "Clases profesores"
+- `flujo-prueba-reservas-turnos.html` — checklist admin y nuevos ítems
 
 ---
 

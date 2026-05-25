@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, Navigate, NavLink } from 'react-router-dom'
-import { LayoutDashboard, CalendarDays, Trophy, CreditCard, Users } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Trophy, CreditCard, Users, GraduationCap } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useNotificacionesStore from '../store/notificacionesStore'
 import useClubStore from '../store/clubStore'
@@ -14,6 +14,7 @@ const BOTTOM_NAV_ITEMS = [
   { to: '/dashboardAdmin',           label: 'Inicio',     icon: LayoutDashboard, exact: true },
   { to: '/dashboardAdmin/reservas',  label: 'Reservas',   icon: CalendarDays },
   { to: '/dashboardAdmin/jugadores', label: 'Jugadores',  icon: Users },
+  { to: '/dashboardAdmin/clases',    label: 'Clases',     icon: GraduationCap },
   { to: '/dashboardAdmin/torneos',   label: 'Torneos',    icon: Trophy },
   { to: '/dashboardAdmin/pagos',     label: 'Pagos',      icon: CreditCard },
 ]

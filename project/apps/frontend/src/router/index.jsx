@@ -29,6 +29,7 @@ import ProfesorAgendaPage from '../pages/ProfesorAgendaPage'
 import ProfesorDisponibilidadPage from '../pages/ProfesorDisponibilidadPage'
 import TorneoPublicoPage from '../pages/TorneoPublicoPage'
 import JugadoresAdminPage from '../pages/JugadoresAdminPage'
+import ClasesProfesorAdminPage from '../pages/ClasesProfesorAdminPage'
 import NotFoundPage from '../pages/NotFoundPage'
 
 const router = createBrowserRouter([
@@ -83,6 +84,7 @@ const router = createBrowserRouter([
       { path: 'torneos/:id', element: <TorneoDetallePage /> },
       { path: 'pagos', element: <PagosPage /> },
       { path: 'jugadores', element: <JugadoresAdminPage /> },
+      { path: 'clases', element: <ClasesProfesorAdminPage /> },
     ],
   },
   {

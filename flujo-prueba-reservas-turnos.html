@@ -355,7 +355,7 @@
     <span class="badge badge-jugador">🎾 Jugador</span>
     <span class="badge badge-profesor">📚 Profesor</span>
   </div>
-  <p class="version">Versión: 2026-05-23 · Backend: Node/Express + Prisma · Frontend: React + Vite</p>
+  <p class="version">Versión: 2026-05-25 · Backend: Node/Express + Prisma · Frontend: React + Vite</p>
 </div>
 
 <!-- ══════════════════════════ ÍNDICE ══════════════════════════════ -->
@@ -366,12 +366,14 @@
     <li><a href="#conceptos">Conceptos clave del sistema</a></li>
     <li><a href="#bloque1">Bloque 1 — Reserva eventual (Jugador → Admin)</a></li>
     <li><a href="#bloque2">Bloque 2 — Turno fijo (Jugador → Admin → Notificaciones)</a></li>
-    <li><a href="#bloque3">Bloque 3 — Clase de profesor (Profesor y Admin)</a></li>
+    <li><a href="#bloque3">Bloque 3 — Clases del Profesor (Pasos 3.1–3.13: agenda, autocompletar, notificaciones backend, admin)</a></li>
     <li><a href="#bloque4">Bloque 4 — Ausencia en turno fijo</a></li>
     <li><a href="#bloque5">Bloque 5 — Cancelaciones y validaciones de conflicto</a></li>
     <li><a href="#bloque6">Bloque 6 — Admin crea reservas y turnos fijos manualmente (con/sin cuenta)</a></li>
     <li><a href="#bloque7">Bloque 7 — Landing: sección "Turnos Libres"</a></li>
     <li><a href="#notificaciones">Resumen de notificaciones</a></li>
+    <li><a href="#bloque8">Bloque 8 — Prueba real con dos jugadores simultáneos (doble ventana)</a></li>
+    <li><a href="#bloque9">Bloque 9 — Horarios personalizados por cancha</a></li>
     <li><a href="#checklist">Checklist final de validación</a></li>
   </ol>
 </div>
@@ -1116,6 +1118,335 @@
             <div class="titulo">✅ Resultado esperado</div>
             La clase desaparece de la agenda del profesor y el slot queda libre en la grilla del admin
             (dentro del intervalo de polling de 30 segundos, o inmediatamente si refresca).
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.6 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">3.6</span>
+          <div>
+            <div class="paso-titulo">Admin — Gestionar perfil de un profesor (celular, contraseña, activar/desactivar)</div>
+            <div class="paso-ruta">/quienes-somos → sección Profesores</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Iniciá sesión como admin y navegá a <span class="campo">/quienes-somos</span>.</li>
+              <li>En la sección <strong>Profesores</strong>, hacé clic en el ícono de lápiz <strong>✏️</strong> en la card de un profesor.</li>
+              <li>Verificá que el formulario muestra: Nombre, Apellido, Email, campo Contraseña (vacío = sin cambio), Celular (tel), Especialidad, toggle <strong>Acceso al portal</strong>.</li>
+              <li>Modificá el celular y hacé clic en <strong>"Guardar"</strong>. Verificá que el cambio persiste.</li>
+              <li>Para resetear la contraseña: escribí la nueva en el campo y guardá. Campo vacío → hash existente no se toca.</li>
+              <li>Para desactivar: desactivá el toggle "Acceso al portal" y guardá. El profesor no podrá iniciar sesión.</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La card del profesor se actualiza con los nuevos datos. Acceso desactivado → error de autenticación al login.
+            Celular guardado vía <code>PATCH /api/profesores/:id</code>.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.7 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num profesor">3.7</span>
+          <div>
+            <div class="paso-titulo">Profesor — Autocompletar genera clases de 1 hora separadas</div>
+            <div class="paso-ruta">/profesores/agenda → botón "Autocompletar"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Iniciá sesión como profesor y navegá a <span class="campo">/profesores/agenda</span>.</li>
+              <li>Seleccioná un día con varias horas libres (por ej. un martes con horario 09:00–18:00 y alguna clase ya cargada).</li>
+              <li>Hacé clic en <strong>"Autocompletar"</strong>.</li>
+              <li>Verificá que el modal de confirmación muestra <strong>bloques individuales de 1 hora</strong> (no un único bloque que abarca todo el día). Por ej.: 09:00–10:00, 10:00–11:00, 11:00–12:00, etc.</li>
+              <li>Confirmá. Verificá que se crean N reservas separadas, cada una de 1h, en distintos slots de la grilla.</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Comportamiento esperado de <code>calcularBloquesFaltantes</code></div>
+            <div class="val-item">La función divide el tiempo libre en chunks de <code>DURACION_CLASE = 60</code> minutos.</div>
+            <div class="val-item">Cada chunk es un bloque independiente — se pueden aprobar/rechazar por separado.</div>
+            <div class="val-item">Si la franja libre es de 2.5h (por ej. 09:00–11:30), genera 2 clases: 09:00–10:00 y 10:00–11:00 (el medio hora restante no alcanza para otro bloque).</div>
+            <div class="val-item">Eliminar una clase solo borra esa reserva puntual — las demás clases del día no se tocan.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            Autocompletar llena el horario con clases individuales de 1h. La grilla del admin muestra cada
+            clase en el slot correcto. Eliminar una clase libera solo ese slot (no borra "todo el bloque").
+          </div>
+
+          <div class="resultado error" style="margin-top:10px;">
+            <div class="titulo">❌ Si falla (bug anterior ya corregido)</div>
+            Si aparece un único bloque gigante que ocupa toda la tarde (ej. 10:00–18:00): el algoritmo
+            está usando el extremo del segmento libre como <code>blockEnd</code> en lugar de iterar
+            en chunks de 60 min. Verificar que <code>calcularBloquesFaltantes</code> usa el bucle
+            <code>while (cur + DURACION_CLASE &lt;= segTo)</code>.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.8 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num profesor">3.8</span>
+          <div>
+            <div class="paso-titulo">Profesor — "Esta semana" detallado y panel de ayuda (HelpCircle)</div>
+            <div class="paso-ruta">/profesores/agenda</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En la agenda del profesor, buscá la sección <strong>"Esta semana"</strong>.</li>
+              <li>Verificá que los días con clases muestran <strong>chips agrupados por cancha</strong>:
+                <ul style="margin-top:6px; padding-left:18px; line-height:1.9;">
+                  <li>Cabecera de cancha con la cantidad de horas y número de clases (ej. <em>"Cancha 1 · 2h · 2 clases"</em>).</li>
+                  <li>Chips con el horario de inicio de cada clase (ej. <em>"10:00"</em>, <em>"11:00"</em>).</li>
+                  <li>Si hay clases en Cancha 1 y Cancha 2 el mismo día, aparecen como dos grupos separados.</li>
+                </ul>
+              </li>
+              <li>Hacé clic en un día con clases — debe navegar a ese día en la grilla.</li>
+              <li>Buscá el ícono de <strong>signo de interrogación</strong> (?) o <strong>HelpCircle</strong> cerca del header "Mi Agenda".</li>
+              <li>Hacé clic — debe aparecer un panel explicando:
+                <ul style="margin-top:6px; padding-left:18px; line-height:1.9;">
+                  <li><strong>Autocompletar:</strong> qué hace (llena el día con clases de 1h).</li>
+                  <li><strong>Nueva clase:</strong> cómo crear una clase manual.</li>
+                  <li><strong>Eliminar:</strong> cómo borrar una clase propia.</li>
+                  <li><strong>Esta semana:</strong> qué muestra el resumen semanal.</li>
+                </ul>
+              </li>
+              <li>Hacé clic nuevamente (o en X) para cerrar el panel.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            "Esta semana" agrupa visualmente por cancha con conteo de horas.
+            El panel de ayuda aparece y desaparece correctamente. No bloquea la interacción con la grilla.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.9 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num profesor">3.9</span>
+          <div>
+            <div class="paso-titulo">Profesor — agenda respeta horarios personalizados por cancha</div>
+            <div class="paso-ruta">/profesores/agenda (con Cancha 3 configurada con horario propio)</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+
+          <div class="alerta" style="margin-bottom:16px;">
+            <div class="titulo">⚙️ Pre-requisito</div>
+            Cancha 3 debe tener horario propio configurado (ej. lunes–viernes 14:00–22:00).
+            Si no está configurado, este paso no aplica y la agenda usa el horario general del club.
+          </div>
+
+          <div class="instrucciones">
+            <ol>
+              <li>Iniciá sesión como profesor (con acceso asignado a todas las canchas o específicamente a Cancha 3).</li>
+              <li>En la agenda, seleccioná un día entre lunes y viernes.</li>
+              <li>Al abrir el modal <strong>"Nueva clase"</strong> y seleccionar <strong>Cancha 3</strong>:
+                <ul style="margin-top:6px; padding-left:18px; line-height:1.9;">
+                  <li>El selector de horario debe mostrar <strong>solo franjas desde las 14:00</strong> (no desde 08:00 como el horario general).</li>
+                  <li>Intentar elegir una franja anterior a las 14:00 no debe ser posible — no aparece en el selector.</li>
+                </ul>
+              </li>
+              <li>Para "Autocompletar": con Cancha 3 habilitada, los bloques generados deben estar <strong>dentro del rango 14:00–22:00</strong>, no antes.</li>
+              <li>Seleccioná el <strong>domingo</strong> (si Cancha 3 cierra ese día en su horario propio):
+                <ul style="margin-top:6px; padding-left:18px; line-height:1.9;">
+                  <li>Cancha 3 <strong>no debe aparecer</strong> en el selector de cancha del modal Nueva clase.</li>
+                  <li>Si solo tiene acceso a Cancha 3 y está cerrada: el modal debe mostrar "No hay canchas disponibles" o similar.</li>
+                </ul>
+              </li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Cómo funciona <code>getRangoCancha</code></div>
+            <div class="val-item">Primero revisa si la cancha tiene <code>horarios[diaNombre]</code> propio. Si existe y <code>activo === false</code> → retorna <code>null</code> (cancha cerrada).</div>
+            <div class="val-item">Si existe y está activo → retorna <code>{apertura, cierre}</code> del horario propio.</div>
+            <div class="val-item">Si no tiene horario propio → usa el horario general del club para ese día.</div>
+            <div class="val-item"><code>canchasHabilitadas</code> excluye canchas donde <code>getRangoCancha(c) === null</code> (cerradas o inactivas).</div>
+            <div class="val-item"><code>ModalClase</code> recibe <code>rangosPorCancha</code> y filtra las franjas disponibles según la cancha seleccionada.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El selector de franjas en "Nueva clase" cambia dinámicamente al cambiar de cancha.
+            Cancha 3: solo franjas dentro de su horario propio.
+            Cancha 1 (sin horario propio): franjas del horario general del club.
+            Días cerrados: la cancha directamente no aparece entre las opciones disponibles.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué esto importa</div>
+            Sin este fix, el profesor podría intentar crear una clase a las 09:00 en una cancha que no abre hasta las 14:00.
+            La reserva se crearía sin problema en la UI pero el admin vería inconsistencias en la grilla.
+            <code>getRangoCancha</code> es la única fuente de verdad para el rango efectivo de una cancha en un día dado.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.10 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num profesor">3.10</span>
+          <div>
+            <div class="paso-titulo">Profesor — Toast de confirmación al crear una clase</div>
+            <div class="paso-ruta">/profesores/agenda → "Nueva clase" o "Autocompletar"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Iniciá sesión como profesor y andá a la agenda.</li>
+              <li>Creá una clase usando el botón <strong>"Nueva clase"</strong>. Al confirmar, el modal se cierra.</li>
+              <li>Verificá que aparece un <strong>toast verde esmeralda</strong> en la parte inferior central de la pantalla con el texto <em>"Clase creada exitosamente"</em>. Desaparece solo en 3.5 segundos.</li>
+              <li>Ahora usá <strong>"Autocompletar"</strong>. Al confirmar los bloques, el toast muestra <em>"N clases creadas exitosamente"</em> (con la cantidad real de clases generadas).</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            Toast verde con ícono CheckCircle aparece y desaparece automáticamente.
+            El mensaje adapta singular/plural: "1 clase creada" vs "3 clases creadas".
+            El toast se renderiza fuera del árbol DOM principal (via <code>createPortal</code>) para no afectar el layout.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.11 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num profesor">3.11</span>
+          <div>
+            <div class="paso-titulo">Profesor — Campana de notificaciones en el top bar</div>
+            <div class="paso-ruta">/profesores/agenda o /profesores/disponibilidad</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Tras loguearte como profesor, observá el <strong>top bar</strong> (barra superior oscura que aparece en todas las páginas del portal).</li>
+              <li>A la derecha del top bar hay un ícono de <strong>campana 🔔</strong>. Si hay notificaciones sin leer, muestra un badge naranja con el conteo.</li>
+              <li>Hacé clic en la campana — se despliega un panel con el listado de notificaciones (máximo 25).</li>
+              <li>Cada notificación sin leer tiene un punto naranja. Las leídas tienen un punto gris.</li>
+              <li>Podés marcar una notificación como leída haciendo clic en el ícono de check ✓ de la derecha.</li>
+              <li>El botón <strong>"Marcar todas"</strong> marca todas como leídas de una vez.</li>
+              <li>Hacé clic fuera del panel para cerrarlo.</li>
+              <li>Navegá a <strong>"Mi disponibilidad"</strong> — la campana y su conteo persisten (está en el layout, no en la página).</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La campana está siempre visible en el top bar, en todas las páginas del portal profesor.
+            El badge desaparece cuando todas las notificaciones están leídas.
+            El panel es scrolleable si hay muchas notificaciones.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Arquitectura: sin localStorage</div>
+            Las notificaciones del profesor se guardan en la tabla <code>Notificacion</code> de Supabase
+            con el campo <code>profesorId</code> no nulo. El store <code>profesorNotificationsStore</code>
+            hace un <code>GET /notificaciones/profesor/me</code> al montar el layout.
+            No hay localStorage ni datos hardcodeados — todo viene del backend.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.12 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">3.12</span>
+          <div>
+            <div class="paso-titulo">Admin — Recibe notificación cuando el profesor crea o cancela una clase</div>
+            <div class="paso-ruta">/dashboard → campana de notificaciones del admin</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Abrí dos ventanas del navegador: una como <strong>admin</strong> y otra como <strong>profesor</strong>.</li>
+              <li><strong>Ventana profesor:</strong> creá una nueva clase en el portal.</li>
+              <li><strong>Ventana admin:</strong> recargá la página (o el admin ya puede ver la campana actualizada si la página refresca notificaciones). Abrí la campana 🔔 en la Navbar del admin.</li>
+              <li>Debe aparecer una notificación tipo <strong>"Nueva clase"</strong> con el nombre del profesor, la cancha, y el horario.</li>
+              <li>De vuelta en la <strong>ventana profesor</strong>: eliminá la clase recién creada (ícono de tacho).</li>
+              <li><strong>Ventana admin:</strong> recargá y verificá que aparece una nueva notificación tipo <strong>"Clase cancelada"</strong>.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            Cada acción del profesor genera una notificación al admin.
+            <code>nueva_clase_profesor</code> → título "Nueva clase" con datos de cancha y horario.
+            <code>cancelacion_clase_profesor</code> → título "Clase cancelada" con los mismos datos.
+          </div>
+
+          <div class="notif-box">
+            <div class="titulo">🔔 Notificaciones generadas (backend)</div>
+            <div class="notif-item">Profesor crea clase → <code>POST /reservas/profesor</code> → notif <code>nueva_clase_profesor</code> al admin (jugadorId=null, profesorId=null).</div>
+            <div class="notif-item">Profesor cancela clase → <code>DELETE /reservas/:id</code> → notif <code>cancelacion_clase_profesor</code> al admin.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 3.13 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">3.13</span>
+          <div>
+            <div class="paso-titulo">Admin cancela clase de un profesor → profesor recibe notificación</div>
+            <div class="paso-ruta">/dashboard/reservas → grilla → cancelar clase</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Con una clase de profesor ya cargada en la grilla del admin, abrí la ventana del <strong>admin</strong> y andá a <span class="campo">/dashboard/reservas</span>.</li>
+              <li>Hacé clic sobre la celda naranja de la clase (tipo <strong>Clase</strong> en la grilla).</li>
+              <li>En el panel de detalle, usá la opción de <strong>cancelar</strong> (PATCH al estado <em>cancelada</em>).</li>
+              <li>Cambiá a la ventana del <strong>profesor</strong> y recargá. Abrí la campana 🔔.</li>
+              <li>Debe aparecer una notificación <strong>"Clase cancelada por el admin"</strong> con la cancha, fecha y horario de la clase cancelada.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El profesor ve la notificación en su campana con punto naranja (sin leer).
+            El body de la notificación muestra: nombre de cancha · fecha · horario (ej. "Cancha 1 · 01/06/2026 · 10:00–11:00").
+          </div>
+
+          <div class="notif-box">
+            <div class="titulo">🔔 Notificación generada (backend)</div>
+            <div class="notif-item">Admin cancela clase vía <code>PATCH /reservas/:id/estado</code> con <code>estado: 'cancelada'</code> → si la reserva tiene <code>profesorId</code> y <code>tipo: 'clase'</code> → genera notif <code>clase_cancelada_admin</code> al profesor correspondiente.</div>
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué es PATCH y no DELETE</div>
+            El admin nunca borra físicamente una reserva — la pasa al estado <code>cancelada</code> para
+            mantener el historial. Por eso la notificación al profesor está en <code>PATCH /:id/estado</code>
+            y no en <code>DELETE /:id</code> (que solo usa el propio profesor para cancelar sus clases).
           </div>
         </div>
       </div>
@@ -1910,6 +2241,16 @@
         <li>Puede crear clase en nombre de un profesor desde Tab Clases.</li>
         <li>La clase del profesor aparece en la grilla inmediatamente (sin polling).</li>
         <li>Ve el nombre del profesor en los slots de clases.</li>
+        <li>Puede editar el perfil de un profesor (nombre, email, celular, especialidad) desde /quienes-somos.</li>
+        <li>Campo celular guardado correctamente vía PATCH /api/profesores/:id.</li>
+        <li>Campo contraseña vacío → hash existente no se toca. Con valor → se resetea con bcrypt.</li>
+        <li>Toggle "Acceso al portal" desactivado + Guardar → profesor no puede iniciar sesión.</li>
+        <li>No hay botón directo "Desactivar" en la card — la acción siempre pasa por el formulario de edición.</li>
+        <li>Recibe notificación <code>nueva_clase_profesor</code> cuando el profesor crea una clase.</li>
+        <li>Recibe notificación <code>cancelacion_clase_profesor</code> cuando el profesor elimina una clase.</li>
+        <li>Recibe notificación <code>actualizacion_disponibilidad_profesor</code> cuando el profesor actualiza su disponibilidad semanal.</li>
+        <li>Al cancelar una clase de profesor desde la grilla (PATCH estado=cancelada) → el profesor recibe notificación.</li>
+        <li>Una clase de profesor que se extiende más allá de su franja de inicio aparece con fondo naranja en <strong>todas las franjas que cubre</strong> (no solo en la primera).</li>
       </ul>
 
       <h3 style="font-size:0.95rem; color:var(--morado); margin-top:20px; margin-bottom:10px;">📚 Profesor</h3>
@@ -1918,11 +2259,23 @@
         <li>Al refrescar la página, la sesión se restaura (fetch a /auth/profesor/me).</li>
         <li>Ve solo las canchas que tiene asignadas (o todas si no tiene asignación).</li>
         <li>Los slots de turnos fijos de jugadores aparecen bloqueados en su grilla.</li>
-        <li>Puede crear una clase → aparece confirmada inmediatamente.</li>
+        <li>Puede crear una clase → aparece confirmada inmediatamente + <strong>toast verde esmeralda</strong> al pie.</li>
         <li>No puede crear clase en horario de turno fijo de jugador.</li>
         <li>No puede crear clase en horario donde ya tiene otra clase (en cualquier cancha).</li>
-        <li>Puede eliminar solo sus propias clases.</li>
+        <li>Puede eliminar solo sus propias clases. Eliminar una clase no afecta las demás del mismo día.</li>
         <li>La clase creada por el profesor es visible en la grilla del admin.</li>
+        <li><strong>Autocompletar</strong> genera bloques individuales de 1h (no un único bloque que abarca todo el tiempo libre). Al confirmar, toast con la cantidad de clases creadas.</li>
+        <li>Si hay 2.5h libres, Autocompletar genera 2 clases de 1h (el fragmento restante se descarta).</li>
+        <li>El modal "Nueva clase" filtra las franjas según el horario propio de la cancha seleccionada.</li>
+        <li>Canchas cerradas en el día actual no aparecen en el selector de "Nueva clase".</li>
+        <li>Cancha con horario 14:00–22:00: el selector solo muestra franjas ≥ 14:00.</li>
+        <li>"Esta semana" agrupa las clases del día por cancha con conteo de horas y número de clases.</li>
+        <li>Panel de ayuda (HelpCircle) explica el funcionamiento de Autocompletar, Nueva clase, Eliminar y Esta semana.</li>
+        <li>La <strong>campana 🔔</strong> en el top bar es visible en toda la navegación del portal (agenda y disponibilidad).</li>
+        <li>El badge naranja en la campana muestra la cantidad de notificaciones sin leer.</li>
+        <li>Recibe notificación <code>clase_cancelada_admin</code> cuando el admin cancela una de sus clases.</li>
+        <li>Puede marcar notificaciones individuales como leídas o marcar todas de una vez.</li>
+        <li>El selector de días en la agenda ocupa todo el ancho disponible con conteo de clases visible por día.</li>
       </ul>
 
       <h3 style="font-size:0.95rem; color:var(--gris); margin-top:20px; margin-bottom:10px;">🔒 Validaciones de seguridad</h3>
@@ -1933,12 +2286,415 @@
         <li>El clubId siempre viene del JWT — no se puede falsificar vía body o query param.</li>
         <li>Dos jugadores simultáneos no pueden reservar el mismo slot (transacción atómica).</li>
       </ul>
+
+      <h3 style="font-size:0.95rem; color:var(--verde); margin-top:20px; margin-bottom:10px;">🔄 Concurrencia real (Bloque 8)</h3>
+      <ul class="checklist">
+        <li>Dos ventanas (normal + incógnito) pueden loguearse con distintas cuentas simultáneamente.</li>
+        <li>El segundo jugador en reservar el mismo slot recibe 409 y toast de error.</li>
+        <li>Solo una reserva existe en la base de datos para el slot disputado.</li>
+        <li>La grilla de Jugador B se actualiza automáticamente en ≤30 seg al reservar Jugador A (polling activo).</li>
+        <li>El turno fijo de Jugador 1 aparece bloqueado en la grilla de Jugador 2.</li>
+        <li>Toast persistente del jugador desaparece cuando admin aprueba la reserva (sin refresco manual, ≤30 seg).</li>
+      </ul>
+
+      <h3 style="font-size:0.95rem; color:var(--naranja); margin-top:20px; margin-bottom:10px;">📚 Sección "Clases profesores" — admin (Nuevo)</h3>
+      <ul class="checklist">
+        <li>El sidebar desktop muestra un nuevo ítem <strong>"Clases"</strong> con ícono de birrete (GraduationCap) entre Jugadores y Torneos.</li>
+        <li>En mobile, el bottom nav incluye el ítem "Clases" en la misma posición.</li>
+        <li>La página <span class="campo">/dashboardAdmin/clases</span> carga y muestra el título "Clases profesores" en el Navbar.</li>
+        <li>La navegación semanal (flechas prev/next) cambia la semana y recarga las clases desde el backend.</li>
+        <li>Botón <strong>"Hoy"</strong> aparece cuando no se está en la semana actual; al pulsarlo vuelve a ella.</li>
+        <li>Las 3 métricas muestran: total de clases de la semana, profesores con clases / total activos, y horas totales.</li>
+        <li>Aparece una tarjeta por cada profesor activo, con sus iniciales, nombre y especialidad.</li>
+        <li>Los chips de días en cada tarjeta muestran en naranja los días con clases (con conteo), punto gris si el profesor está disponible pero sin clases, y opaco si no trabaja ese día según su disponibilidad.</li>
+        <li>Las horas totales de la semana aparecen al pie de cada tarjeta (solo si > 0).</li>
+        <li>La <strong>grilla combinada</strong> muestra filas = días de la semana, columnas = profesores.</li>
+        <li>Las celdas de la grilla muestran horario + cancha de cada clase, o "disponible" si el profesor tiene disponibilidad pero sin clases, o "—" si no trabaja ese día.</li>
+        <li>Si no hay profesores activos, se muestra un estado vacío con mensaje explicativo.</li>
+      </ul>
+
+      <h3 style="font-size:0.95rem; color:var(--naranja); margin-top:20px; margin-bottom:10px;">🛠 Tab "Clases del profesor" — correcciones admin</h3>
+      <ul class="checklist">
+        <li>La sección <strong>Disponibilidad</strong> arranca en modo lectura (candado cerrado visible).</li>
+        <li>Al hacer clic en <strong>"Editar"</strong> (Lock → Unlock), los controles se habilitan y el botón cambia a "Edición activa" con fondo ámbar.</li>
+        <li>Al cambiar de profesor seleccionado, la edición se desactiva automáticamente (vuelve a modo lectura).</li>
+        <li>El bloque informativo explica que esta sección sobreescribe la configuración del profesor.</li>
+        <li>En disponibilidad: si apertura es :00, las opciones de cierre son solo :00 (09:00, 10:00, etc.). Si apertura es :30, cierre solo muestra :30.</li>
+        <li>En <strong>"Nueva clase manual"</strong>: el selector de <em>Fin</em> filtra opciones por el mismo mark de minutos que el <em>Inicio</em> elegido.</li>
+        <li>Si la cancha tiene horario propio activo para el día, el selector de <em>Inicio</em> respeta ese rango (no el horario general del club).</li>
+        <li>Cambiar de cancha limpia los campos Inicio y Fin (no quedan opciones inválidas).</li>
+        <li>Una clase de profesor que ocupa más de una franja horaria aparece con fondo naranja en <strong>todas las franjas que cubre</strong> en la grilla admin (no solo en la primera).</li>
+      </ul>
+
+      <h3 style="font-size:0.95rem; color:var(--naranja); margin-top:20px; margin-bottom:10px;">📐 Horarios por cancha (Bloque 9)</h3>
+      <ul class="checklist">
+        <li>Grilla admin muestra secciones separadas: una por cancha con horario propio + sección general para el resto.</li>
+        <li>Cancha con horario 14:00–22:00 no muestra slots antes de las 14:00 en la grilla jugador.</li>
+        <li>Cancha cerrada un día determinado → jugador ve mensaje de no disponible, sin slots.</li>
+        <li>Cancha sin horario propio sigue mostrando el horario general del club.</li>
+        <li>Combinación compleja (horario propio + turno fijo + reserva existente) filtra correctamente las tres capas.</li>
+        <li><code>generarSlots()</code> usa el horario de la cancha seleccionada como límite externo antes de filtrar conflictos.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       BLOQUE 8 — PRUEBA REAL CON DOS JUGADORES SIMULTÁNEOS
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="seccion" id="bloque8">
+    <div class="seccion-header">
+      <div class="numero">8</div>
+      <h2>Bloque 8 — Prueba real con dos jugadores simultáneos</h2>
+      <span class="rol-chip chip-jugador">Jugador × 2</span>
+    </div>
+    <div class="seccion-body">
+
+      <p style="margin-bottom:20px; font-size:0.93rem; color:var(--texto-suave);">
+        Esta prueba valida que el sistema protege correctamente contra <strong>race conditions</strong>
+        cuando dos jugadores intentan reservar el mismo slot al mismo tiempo.
+        Se usa una ventana normal + una ventana de incógnito (o dos perfiles de Chrome distintos)
+        para tener dos sesiones JWT independientes.
+      </p>
+
+      <div class="alerta" style="margin-bottom:20px;">
+        <div class="titulo">⚙️ Setup: cómo abrir dos sesiones</div>
+        <ul style="margin:0; padding-left:18px; line-height:2;">
+          <li><strong>Ventana A (Jugador 1):</strong> Navegador normal → <code>http://localhost:5173/jugadores</code> → login con el jugador principal.</li>
+          <li><strong>Ventana B (Jugador 2):</strong> Ventana de incógnito (Ctrl+Shift+N en Chrome) → misma URL → login con un segundo jugador distinto.</li>
+          <li>Ambas ventanas deben quedar en <span class="campo">/jugadores/reservas</span> y mostrar la grilla.</li>
+        </ul>
+      </div>
+
+      <!-- PASO 8.1 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">8.1</span>
+          <div>
+            <div class="paso-titulo">Doble reserva en el mismo slot — validación de atomicidad</div>
+            <div class="paso-ruta">Ventana A + Ventana B → /jugadores/reservas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En ambas ventanas, navegá a la misma <strong>fecha futura</strong> y elegí la <strong>misma cancha</strong>.</li>
+              <li>Verificá que ambas grillas muestran el mismo slot como disponible (blanco/libre).</li>
+              <li>En <strong>Ventana A</strong>: abrí el modal de reserva para ese slot pero <em>no confirmes todavía</em>.</li>
+              <li>En <strong>Ventana B</strong>: abrí el modal del mismo slot.</li>
+              <li>Hacé clic en <strong>"Confirmar"</strong> en Ventana B primero — esperá el toast de éxito.</li>
+              <li>Ahora hacé clic en <strong>"Confirmar"</strong> en Ventana A (el slot ya fue tomado por B).</li>
+            </ol>
+          </div>
+
+          <div class="validaciones">
+            <div class="titulo">🔒 Lo que el backend debe hacer</div>
+            <div class="val-item">La primera reserva (B) se procesa: <code>POST /api/reservas</code> verifica disponibilidad y crea la reserva en una transacción.</div>
+            <div class="val-item">La segunda reserva (A) llega después: el backend detecta el conflicto y responde con <code>409 Conflict</code>.</div>
+            <div class="val-item">El frontend de A muestra un toast de error: <em>"El horario ya no está disponible"</em>.</div>
+            <div class="val-item">La reserva de A <strong>no se crea</strong> — no queda registro huérfano en la base de datos.</div>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            Solo una reserva existe en la base de datos para ese slot. El jugador de Ventana A recibe error claro.
+            Al refrescar la grilla en Ventana A, el slot aparece ocupado (gris/bloqueado).
+          </div>
+
+          <div class="resultado error" style="margin-top:10px;">
+            <div class="titulo">❌ Si falla</div>
+            Si ambas reservas se crean: hay una race condition real. Verificar que el endpoint
+            <code>POST /api/reservas</code> hace la comprobación de disponibilidad dentro de una
+            <strong>transacción Prisma</strong> (<code>prisma.$transaction()</code>) y no en dos queries separadas.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 8.2 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">8.2</span>
+          <div>
+            <div class="paso-titulo">Grilla se actualiza sin refresco manual — polling entre ventanas</div>
+            <div class="paso-ruta">Ventana A + Ventana B → /jugadores/reservas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Con ambas ventanas abiertas en la misma fecha y cancha.</li>
+              <li>En <strong>Ventana A</strong> reservá un slot cualquiera (que esté libre).</li>
+              <li>Sin refrescar, esperá hasta <strong>30 segundos</strong> en Ventana B.</li>
+              <li>Observá si el slot reservado por A aparece bloqueado en la grilla de B.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            En ≤30 segundos, la grilla de Ventana B muestra el slot como ocupado (gris),
+            sin que el jugador B haya refrescado manualmente.
+            Esto confirma que el polling de <code>fetchReservasBackend()</code> cada 30 seg está activo.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué existe el polling</div>
+            El frontend no usa WebSockets. Para que la grilla refleje cambios de otros jugadores,
+            <code>PlayerReservasPage</code> hace un fetch periódico al backend cada 30 segundos
+            y actualiza el estado local. La grilla es reactiva a ese estado.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 8.3 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">8.3</span>
+          <div>
+            <div class="paso-titulo">Turno fijo de un jugador bloquea el slot para el otro</div>
+            <div class="paso-ruta">Ventana B → /jugadores/reservas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Asegurate de que <strong>Jugador 1</strong> tiene un turno fijo confirmado (por ejemplo, lunes 10:00–11:30 en Cancha 1).</li>
+              <li>En <strong>Ventana B</strong> (Jugador 2), seleccioná el próximo lunes como fecha.</li>
+              <li>Observá el slot de 10:00–11:30 en Cancha 1 — debe aparecer bloqueado (gris, no clickeable).</li>
+              <li>Intentá hacer clic de todos modos (si está habilitado a nivel UI) y verificá que el backend rechaza con <code>409</code>.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El slot del turno fijo de Jugador 1 aparece bloqueado para Jugador 2.
+            El bloqueo es consistente para todas las semanas donde el TF esté activo.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 8.4 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">8.4</span>
+          <div>
+            <div class="paso-titulo">Admin aprueba una reserva → toast del jugador desaparece en tiempo real</div>
+            <div class="paso-ruta">Admin + Ventana A (Jugador) abiertos simultáneamente</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En <strong>Ventana A</strong> (Jugador 1), creá una reserva eventual. Debe aparecer un toast persistente verde/lima "Reserva pendiente de confirmación".</li>
+              <li>Abrí el <strong>panel admin</strong> (en la misma ventana normal o en otra) en la Grilla de reservas.</li>
+              <li>En el panel de "Avisos de jugadores", aprobá la reserva del Jugador 1.</li>
+              <li>Volvé a mirar <strong>Ventana A</strong> — sin refrescar manualmente.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            En ≤30 segundos, el toast persistente desaparece de la vista del jugador.
+            La reserva en "Mis Reservas" ahora aparece con estado <strong>confirmada</strong>.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Por qué el toast desaparece solo</div>
+            El polling de la grilla re-fetcha las reservas. Cuando la reserva pasa de
+            <code>pendiente</code> a <code>confirmada</code>, el store ya no la cuenta como pendiente
+            y el toast deja de renderizarse.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       BLOQUE 9 — HORARIOS PERSONALIZADOS POR CANCHA
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="seccion" id="bloque9">
+    <div class="seccion-header">
+      <div class="numero">9</div>
+      <h2>Bloque 9 — Horarios personalizados por cancha</h2>
+      <span class="rol-chip chip-admin">Admin + Jugador</span>
+    </div>
+    <div class="seccion-body">
+
+      <p style="margin-bottom:20px; font-size:0.93rem; color:var(--texto-suave);">
+        El sistema soporta que cada cancha tenga sus propios horarios, distintos al horario general
+        del club. Esto se usa para canchas con iluminación diferente, cierre técnico,
+        o simplemente política de horario reducido. Esta sección verifica que la grilla
+        refleje correctamente esos horarios y no permita reservas fuera de ellos.
+      </p>
+
+      <div class="alerta" style="margin-bottom:20px;">
+        <div class="titulo">⚙️ Pre-requisito — cómo configurar horario personalizado en una cancha</div>
+        <ol style="margin:0; padding-left:18px; line-height:2; font-size:0.9rem;">
+          <li>Iniciá sesión como admin → <span class="campo">/dashboard</span> → sección <strong>Canchas</strong>.</li>
+          <li>Editá una cancha (por ej. "Cancha 3") y activá la opción <strong>"Horario propio"</strong>.</li>
+          <li>Configurá un horario diferente al general: por ejemplo, lunes a viernes 14:00–22:00 (en lugar del horario general que podría ser 08:00–23:00).</li>
+          <li>Guardá los cambios.</li>
+        </ol>
+      </div>
+
+      <!-- PASO 9.1 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">9.1</span>
+          <div>
+            <div class="paso-titulo">Grilla admin — verifica secciones separadas por cancha con horario propio</div>
+            <div class="paso-ruta">/dashboard → Grilla de reservas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Con al menos una cancha con horario propio configurado, navegá a la Grilla de reservas del admin.</li>
+              <li>Verificá que la grilla muestra <strong>secciones separadas</strong>: una sección por cada cancha con horario propio (con el nombre de la cancha como header de sección), y una sección general para las canchas sin horario propio.</li>
+              <li>Las canchas con horario propio deben mostrar <strong>solo los slots dentro de su rango</strong>. Por ej., si Cancha 3 abre a las 14:00, no debe mostrar slots de 08:00 a 13:30.</li>
+              <li>La sección general muestra el rango horario del club (ej. 08:00–23:00) para el resto de canchas.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La grilla admin está segmentada: cada cancha con horario propio tiene su propia sub-tabla
+            con solo los slots habilitados. Las canchas sin horario propio comparten la tabla general.
+          </div>
+
+          <div class="resultado error" style="margin-top:10px;">
+            <div class="titulo">❌ Si falla</div>
+            Si todas las canchas muestran el mismo rango: verificar que <code>cancha.horarios</code>
+            llega poblado desde el backend y que <code>franjasMainGrilla</code> usa el fallback
+            general 08:00–23:00 solo cuando no hay horario propio.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 9.2 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">9.2</span>
+          <div>
+            <div class="paso-titulo">Jugador — grilla de reserva solo muestra slots válidos de cada cancha</div>
+            <div class="paso-ruta">/jugadores/reservas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Iniciá sesión como jugador y navegá a <span class="campo">/jugadores/reservas</span>.</li>
+              <li>Seleccioná una fecha y cambiá entre canchas usando el selector de cancha.</li>
+              <li>Cuando seleccionás "Cancha 3" (con horario propio 14:00–22:00): la grilla debe mostrar <strong>solo slots de 14:00 a 22:00</strong>.</li>
+              <li>Cuando seleccionás "Cancha 1" (sin horario propio): la grilla debe mostrar el horario general del club.</li>
+              <li>Intentá hacer clic en el área de slots no disponibles de Cancha 3 (si los muestra) — no debe ser posible confirmar.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            Cada cancha muestra únicamente los slots que corresponden a su horario (propio o general).
+            El jugador no ve franjas vacías ni habilitadas fuera del horario configurado.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Cómo funciona internamente</div>
+            La función <code>generarSlots()</code> en <code>PlayerReservasPage</code> es la única fuente
+            de verdad para los slots disponibles. Recibe el horario de la cancha seleccionada
+            y genera franjas de 1.5h dentro de ese rango. Si la cancha tiene <code>horarios</code>
+            propio, usa ese; si no, usa <code>clubStore.horarios</code> general.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 9.3 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">9.3</span>
+          <div>
+            <div class="paso-titulo">Cancha con horario propio — días cerrados no muestran slots</div>
+            <div class="paso-ruta">/jugadores/reservas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Configurá "Cancha 3" para que esté <strong>cerrada los domingos</strong> en su horario propio.</li>
+              <li>En la grilla jugador, seleccioná el próximo domingo y elegí "Cancha 3".</li>
+              <li>Verificá que la grilla muestra el estado <strong>"Cancha cerrada"</strong> o similar — sin ningún slot disponible.</li>
+              <li>Repetí con "Cancha 1" (sin horario propio): si el club en general abre los domingos, deben aparecer slots.</li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            Cancha 3 el domingo: sin slots, mensaje de cancha no disponible.
+            Cancha 1 el domingo: slots normales del horario general del club.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 9.4 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">9.4</span>
+          <div>
+            <div class="paso-titulo">Combinación compleja — cancha con horario propio + turno fijo + reserva de otro jugador</div>
+            <div class="paso-ruta">Dos ventanas → /jugadores/reservas (distintas cuentas)</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Asegurate de que:
+                <ul style="padding-left:18px; margin-top:6px; line-height:1.9;">
+                  <li>"Cancha 3" tiene horario propio (ej. 14:00–22:00).</li>
+                  <li>Jugador 1 tiene un turno fijo confirmado en Cancha 3 los miércoles a las 17:00–18:30.</li>
+                  <li>Jugador 1 ya hizo una reserva eventual en Cancha 3 para el próximo miércoles a las 19:30–21:00.</li>
+                </ul>
+              </li>
+              <li>En <strong>Ventana B</strong> (Jugador 2), navegá a la misma fecha (próximo miércoles) y seleccioná "Cancha 3".</li>
+              <li>Verificá que la grilla de Jugador 2 muestra:
+                <ul style="padding-left:18px; margin-top:6px; line-height:1.9;">
+                  <li>Slots de <strong>14:00 a 17:00</strong> disponibles (máximo 1 slot completo: 14:00–15:30 y 15:30–17:00).</li>
+                  <li>Slot de 17:00–18:30 <strong>bloqueado</strong> (turno fijo de Jugador 1).</li>
+                  <li>Slot de 18:30–20:00 debería ser disponible (si no hay conflicto).</li>
+                  <li>Slot de 19:30–21:00 <strong>bloqueado</strong> (reserva de Jugador 1) — nota: si los slots son fijos de 1.5h, revisar superposición.</li>
+                  <li>No aparecen slots antes de las 14:00 (fuera del horario propio de Cancha 3).</li>
+                </ul>
+              </li>
+            </ol>
+          </div>
+
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La grilla combina correctamente: horario propio de la cancha (limite externo) + turno fijo bloqueado
+            + reserva individual bloqueada. Solo quedan libres los slots realmente disponibles dentro del rango habilitado.
+          </div>
+
+          <div class="porque">
+            <div class="titulo">💡 Este es el caso más complejo</div>
+            <code>generarSlots()</code> debe filtrar usando tres capas:
+            (1) rango horario de la cancha, (2) turnos fijos confirmados, (3) reservas existentes confirmadas o pendientes.
+            Si alguna capa falla, los slots bloqueados aparecen libres — la única forma de verificarlo correctamente
+            es con datos reales en ambas sesiones, no con mocks.
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
   <!-- ══════ FOOTER ══════ -->
   <div class="footer">
-    PadelOS · Documento de prueba interno · Generado 2026-05-23<br>
+    PadelOS · Documento de prueba interno · Generado 2026-05-24<br>
     Versión del backend: Express + Prisma · Frontend: React 19 + Vite 8 + TailwindCSS<br>
     <strong>Para actualizar este documento:</strong> editar <code>flujo-prueba-reservas-turnos.html</code> en la raíz del proyecto.
   </div>

@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ChevronLeft, ChevronRight, Plus, X, GraduationCap,
-  CalendarDays, Trash2, Save, AlertCircle, Clock, MapPin, Zap,
+  CalendarDays, Trash2, Save, AlertCircle, Clock, MapPin, Zap, HelpCircle, CheckCircle,
 } from 'lucide-react'
 import useAuthProfesorStore from '../store/authProfesorStore'
 import useClubStore from '../store/clubStore'
@@ -40,10 +40,11 @@ const getDiaNombre = (iso) => {
 const generarFranjas = (apertura, cierre) => {
   const franjas = []
   const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
-  const toStr = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+  const toStr = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
   let cur = toMin(apertura)
   let end = toMin(cierre)
-  if (end === 0) end = 1440
+  // Cierre después de medianoche: 00:00→1440, 00:30→1470, etc.
+  if (end <= cur) end += 1440
   while (cur + 60 <= end) {
     franjas.push({ inicio: toStr(cur), fin: toStr(cur + 60) })
     cur += 30
@@ -73,14 +74,10 @@ const toMinFill = (t) => {
 }
 const toStrFill = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 
-const calcularBloquesFaltantes = (canchas, franjasDelDia, todasReservasDia, turnosFijosDia, misClasesDia) => {
+const calcularBloquesFaltantes = (canchas, franjasDelDia, todasReservasDia, turnosFijosDia, misClasesDia, rangosPorCancha) => {
   if (!franjasDelDia.length || !canchas.length) return []
-
-  // Rango de disponibilidad del profesor hoy
   const apMin = toMinFill(franjasDelDia[0].inicio)
   const ciMin = toMinFill(franjasDelDia[franjasDelDia.length - 1].fin)
-
-  // Tiempo libre del profesor: restar sus clases existentes del rango disponible
   const profOcupado = misClasesDia.map((c) => [toMinFill(c.inicio), toMinFill(c.fin)])
   let libres = [[apMin, ciMin]]
   for (const [bFrom, bTo] of profOcupado) {
@@ -93,55 +90,32 @@ const calcularBloquesFaltantes = (canchas, franjasDelDia, todasReservasDia, turn
     })
   }
   if (!libres.length) return []
-
-  // Todos los eventos del día (reservas + turnos fijos)
   const allEvents = [...todasReservasDia, ...turnosFijosDia]
-  const isFreeAt = (canchaId, from) =>
-    !allEvents.some(
-      (r) => String(r.canchaId) === String(canchaId) && toMinFill(r.inicio) <= from && toMinFill(r.fin) > from
-    )
-
   const resultado = []
-
-  const MIN_BLOQUE = 60 // minutos — bloques menores se descartan
-
   for (const [segFrom, segTo] of libres) {
     let cur = segFrom
-    while (cur < segTo) {
-      // Evaluar todas las canchas disponibles en 'cur' y cuánto tiempo libre tienen
-      const candidatos = canchas
-        .filter((c) => isFreeAt(c.id, cur))
-        .map((c) => {
-          const nextConflicto = allEvents
-            .filter((r) => String(r.canchaId) === String(c.id) && toMinFill(r.inicio) > cur && toMinFill(r.inicio) <= segTo)
-            .map((r) => toMinFill(r.inicio))
-          const blockEnd = nextConflicto.length ? Math.min(...nextConflicto, segTo) : segTo
-          return { cancha: c, blockEnd, duracion: blockEnd - cur }
-        })
-        .filter((x) => x.duracion >= MIN_BLOQUE) // descartar bloques muy cortos
-
+    while (cur + 60 <= segTo) {
+      const slotEnd = cur + 60
+      const candidatos = canchas.filter((c) => {
+        const rango = rangosPorCancha?.[c.id]
+        if (rango) {
+          const apC = toMinFill(rango.apertura)
+          const ciC = toMinFill(rango.cierre) || 1440
+          if (cur < apC || slotEnd > ciC) return false
+        }
+        return !allEvents.some(
+          (r) => String(r.canchaId) === String(c.id) && toMinFill(r.inicio) < slotEnd && toMinFill(r.fin) > cur
+        )
+      })
       if (!candidatos.length) {
-        // Ninguna cancha tiene suficiente tiempo libre — avanzar al próximo evento
-        const siguienteFin = allEvents
-          .map((r) => toMinFill(r.fin))
-          .filter((t) => t > cur && t <= segTo)
-        const next = siguienteFin.length ? Math.min(...siguienteFin) : segTo
-        cur = next
+        const siguienteFin = allEvents.map((r) => toMinFill(r.fin)).filter((t) => t > cur && t <= segTo)
+        cur = siguienteFin.length ? Math.min(...siguienteFin) : segTo
         continue
       }
-
-      // Elegir la cancha con el bloque más largo
-      const mejor = candidatos.reduce((a, b) => (b.duracion > a.duracion ? b : a))
-      resultado.push({
-        canchaId: mejor.cancha.id,
-        canchaNombre: mejor.cancha.nombre,
-        inicio: toStrFill(cur),
-        fin: toStrFill(mejor.blockEnd),
-      })
-      cur = mejor.blockEnd
+      resultado.push({ canchaId: candidatos[0].id, canchaNombre: candidatos[0].nombre, inicio: toStrFill(cur), fin: toStrFill(slotEnd) })
+      cur = slotEnd
     }
   }
-
   return resultado
 }
 
@@ -164,7 +138,6 @@ const ModalAutoFill = ({ fecha, bloques, onClose, onConfirm, submitting }) => cr
           <X size={16} />
         </button>
       </div>
-
       <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
         <p className="text-white/40 text-xs leading-relaxed">
           Se crearán {bloques.length} clase{bloques.length !== 1 ? 's' : ''} cubriendo los slots libres de tu disponibilidad en orden de canchas:
@@ -182,7 +155,6 @@ const ModalAutoFill = ({ fecha, bloques, onClose, onConfirm, submitting }) => cr
             </div>
           ))}
         </div>
-
         <div className="flex gap-3 pt-1">
           <button type="button" onClick={onClose}
             className="flex-1 border border-white/10 text-white/40 hover:text-white hover:border-white/20 rounded-xl py-3 text-sm font-medium transition-all">
@@ -202,29 +174,62 @@ const ModalAutoFill = ({ fecha, bloques, onClose, onConfirm, submitting }) => cr
 
 // ─── Modal para crear una clase ───────────────────────────────────────────────
 
-const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor, canchasDisponibles, franjasDelDia, submitting }) => {
-  const [canchaId, setCanchaId] = useState(canchasDisponibles[0]?.id ?? '')
+const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor, canchasDisponibles, franjasDelDia, rangosPorCancha, submitting }) => {
+  const [canchaId, setCanchaId] = useState('')
   const [inicio, setInicio] = useState('')
   const [fin, setFin] = useState('')
   const [nota, setNota] = useState('')
   const [error, setError] = useState('')
 
-  const opcionesFin = useMemo(
-    () => inicio ? franjasDelDia.filter((f) => f.fin > inicio) : [],
-    [inicio, franjasDelDia]
-  )
+  const franjasCancha = useMemo(() => {
+    if (!canchaId) return []
+    const rango = rangosPorCancha?.[canchaId]
+    if (!rango) return franjasDelDia
+    const apMin = toMinFill(rango.apertura)
+    const ciMin = toMinFill(rango.cierre)
+    return franjasDelDia.filter((f) => toMinFill(f.inicio) >= apMin && toMinFill(f.fin) <= ciMin)
+  }, [canchaId, franjasDelDia, rangosPorCancha])
 
-  const franjasEnRango = useMemo(
-    () => (inicio && fin) ? franjasDelDia.filter((f) => f.inicio >= inicio && f.fin <= fin) : [],
-    [inicio, fin, franjasDelDia]
-  )
+  const handleCanchaChange = (id) => {
+    setCanchaId(id)
+    setInicio('')
+    setFin('')
+    setError('')
+  }
+
+  const opcionesFin = useMemo(() => {
+    if (!inicio) return []
+    const minMark = toMinFill(inicio) % 60
+    const seen = new Set()
+    const result = []
+    franjasCancha.forEach((f) => {
+      if (toMinFill(f.fin) > toMinFill(inicio) && toMinFill(f.fin) % 60 === minMark && !seen.has(f.fin)) {
+        seen.add(f.fin)
+        result.push({ fin: f.fin })
+      }
+    })
+    return result
+  }, [inicio, franjasCancha])
+
+  const franjasEnRango = useMemo(() => {
+    if (!inicio || !fin) return []
+    const slots = []
+    let cur = toMinFill(inicio)
+    const end = toMinFill(fin)
+    while (cur + 60 <= end) {
+      const s = toStrFill(cur)
+      const e = toStrFill(cur + 60)
+      if (franjasCancha.some((f) => f.inicio === s)) slots.push({ inicio: s, fin: e })
+      cur += 60
+    }
+    return slots
+  }, [inicio, fin, franjasCancha])
 
   const estadoFranjas = useMemo(
     () => franjasEnRango.map((f) => {
       const ocupadoCancha = reservasDelDia.some(
         (r) => r.canchaId === canchaId && r.inicio < f.fin && r.fin > f.inicio
       )
-      // El profesor ya tiene clase en otro cancha en este horario
       const ocupadoProfesor = !ocupadoCancha && (misClasesProfesor ?? []).some(
         (r) => r.canchaId !== canchaId && r.inicio < f.fin && r.fin > f.inicio
       )
@@ -237,7 +242,8 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor,
 
   const handleSetInicio = (val) => {
     setInicio(val)
-    if (fin && fin <= val) setFin('')
+    const newMark = toMinFill(val) % 60
+    if (fin && (toMinFill(fin) <= toMinFill(val) || toMinFill(fin) % 60 !== newMark)) setFin('')
   }
 
   const duracionTotal = useMemo(() => {
@@ -254,12 +260,9 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor,
     if (!canchaId) { setError('Seleccioná una cancha.'); return }
     if (!inicio || !fin) { setError('Seleccioná el horario de inicio y fin.'); return }
     if (franjasEnRango.length === 0) { setError('El rango no contiene franjas válidas.'); return }
-    const tieneOcupadoCancha = estadoFranjas.some((f) => f.ocupado)
-    const tieneOcupadoProfesor = estadoFranjas.some((f) => f.ocupadoProfesor)
-    if (tieneOcupadoCancha) { setError('El rango tiene franjas ocupadas en esta cancha. Revisá el detalle.'); return }
-    if (tieneOcupadoProfesor) { setError('Ya tenés una clase en ese horario en otra cancha.'); return }
-    const horaFin = fin === '24:00' ? '00:00' : fin
-    onSave({ canchaId, horaInicio: inicio, horaFin, notas: nota.trim() })
+    if (estadoFranjas.some((f) => f.ocupado)) { setError('El rango tiene franjas ocupadas en esta cancha.'); return }
+    if (estadoFranjas.some((f) => f.ocupadoProfesor)) { setError('Ya tenés una clase en ese horario en otra cancha.'); return }
+    onSave({ canchaId, horaInicio: inicio, horaFin: fin, notas: nota.trim() })
   }
 
   return createPortal(
@@ -284,11 +287,8 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor,
           <div>
             <label className="text-white/40 text-[10px] font-bold uppercase tracking-widest block mb-2">Cancha</label>
             <div className="relative">
-              <select
-                value={canchaId}
-                onChange={(e) => setCanchaId(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 hover:border-orange-400/40 focus:border-orange-400/50 rounded-xl px-4 py-3 text-white text-sm focus:outline-none transition-all appearance-none"
-              >
+              <select value={canchaId} onChange={(e) => handleCanchaChange(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 hover:border-orange-400/40 focus:border-orange-400/50 rounded-xl px-4 py-3 text-white text-sm focus:outline-none transition-all appearance-none">
                 <option value="" className="bg-[#0d1117]">— Seleccioná una cancha —</option>
                 {canchasDisponibles.map((c) => (
                   <option key={c.id} value={c.id} className="bg-[#0d1117]">{c.nombre}</option>
@@ -306,13 +306,10 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor,
               <div>
                 <label className="text-white/25 text-[9px] block mb-1.5 uppercase tracking-wide">Desde</label>
                 <div className="relative">
-                  <select
-                    value={inicio}
-                    onChange={(e) => handleSetInicio(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 hover:border-orange-400/40 focus:border-orange-400/50 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none transition-all appearance-none"
-                  >
+                  <select value={inicio} onChange={(e) => handleSetInicio(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 hover:border-orange-400/40 focus:border-orange-400/50 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none transition-all appearance-none">
                     <option value="" className="bg-[#0d1117]">— Inicio —</option>
-                    {franjasDelDia.map((f) => (
+                    {franjasCancha.map((f) => (
                       <option key={f.inicio} value={f.inicio} className="bg-[#0d1117]">{f.inicio}</option>
                     ))}
                   </select>
@@ -324,12 +321,8 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor,
               <div>
                 <label className="text-white/25 text-[9px] block mb-1.5 uppercase tracking-wide">Hasta</label>
                 <div className="relative">
-                  <select
-                    value={fin}
-                    onChange={(e) => setFin(e.target.value)}
-                    disabled={!inicio}
-                    className="w-full bg-white/5 border border-white/10 hover:border-orange-400/40 focus:border-orange-400/50 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none transition-all appearance-none disabled:opacity-30"
-                  >
+                  <select value={fin} onChange={(e) => setFin(e.target.value)} disabled={!inicio}
+                    className="w-full bg-white/5 border border-white/10 hover:border-orange-400/40 focus:border-orange-400/50 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none transition-all appearance-none disabled:opacity-30">
                     <option value="" className="bg-[#0d1117]">— Fin —</option>
                     {opcionesFin.map((f) => (
                       <option key={f.fin} value={f.fin} className="bg-[#0d1117]">{f.fin}</option>
@@ -357,11 +350,9 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor,
                 {estadoFranjas.map((f) => (
                   <div key={f.inicio} className={[
                     'flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium',
-                    f.ocupado
-                      ? 'bg-red-500/12 border border-red-500/20 text-red-400'
-                      : f.ocupadoProfesor
-                        ? 'bg-amber-400/12 border border-amber-400/20 text-amber-400'
-                        : 'bg-orange-400/8 border border-orange-400/12 text-orange-300',
+                    f.ocupado ? 'bg-red-500/12 border border-red-500/20 text-red-400'
+                      : f.ocupadoProfesor ? 'bg-amber-400/12 border border-amber-400/20 text-amber-400'
+                      : 'bg-orange-400/8 border border-orange-400/12 text-orange-300',
                   ].join(' ')}>
                     <span>{f.inicio} → {f.fin}</span>
                     <span className="text-[10px] opacity-70">
@@ -377,14 +368,9 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor,
             <label className="text-white/40 text-[10px] font-bold uppercase tracking-widest block mb-2">
               Descripción <span className="text-white/20 normal-case font-normal">(opcional)</span>
             </label>
-            <input
-              type="text"
-              value={nota}
-              onChange={(e) => setNota(e.target.value)}
-              placeholder="Ej: Clase nivel principiante"
-              maxLength={80}
-              className="w-full bg-white/5 border border-white/10 hover:border-white/20 focus:border-orange-400/50 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none transition-all"
-            />
+            <input type="text" value={nota} onChange={(e) => setNota(e.target.value)}
+              placeholder="Ej: Clase nivel principiante" maxLength={80}
+              className="w-full bg-white/5 border border-white/10 hover:border-white/20 focus:border-orange-400/50 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none transition-all" />
           </div>
 
           {error && (
@@ -460,7 +446,16 @@ const ProfesorAgendaPage = () => {
   const [bloquesAutoFill, setBloquesAutoFill] = useState([])
   const [claseEliminar, setClaseEliminar] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [showHelper, setShowHelper] = useState(false)
   const [clasesSemana, setClasesSemana] = useState({})
+  const [toast, setToast] = useState(null)
+  const toastTimer = useRef(null)
+
+  const showToast = useCallback((msg) => {
+    setToast(msg)
+    clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(null), 3500)
+  }, [])
 
   const hoy = todayISO()
   const headers = { Authorization: `Bearer ${token}` }
@@ -558,11 +553,30 @@ const ProfesorAgendaPage = () => {
     return generarFranjas(toStr(ap), toStr(ci))
   }, [fecha, horarios, profesor?.disponibilidad])
 
+  const diaNombreActual = useMemo(() => getDiaNombre(fecha), [fecha])
+
+  // Para una cancha, devuelve {apertura, cierre} efectivos para este día (custom > general)
+  // Devuelve null solo si el horario general del club está cerrado este día.
+  // Un día desactivado en el custom de la cancha NO cierra la cancha: hereda el general.
+  const getRangoCancha = useCallback((cancha) => {
+    const custom = cancha.horarios?.[diaNombreActual]
+    if (custom?.activo) {
+      return { apertura: custom.apertura || '08:00', cierre: custom.cierre || '23:00' }
+    }
+    // Sin custom activo para este día: usa el horario general del club
+    const general = horarios?.[diaNombreActual]
+    if (!general?.activo) return null
+    return { apertura: general.apertura || '08:00', cierre: general.cierre || '23:00' }
+  }, [diaNombreActual, horarios])
+
   const canchasHabilitadas = useMemo(() => {
     const activas = canchas.filter((c) => c.activa !== false)
-    if (!profesor?.canchasIds?.length) return activas
-    return activas.filter((c) => profesor.canchasIds.includes(c.id))
-  }, [canchas, profesor?.canchasIds])
+    const conPermiso = profesor?.canchasIds?.length
+      ? activas.filter((c) => profesor.canchasIds.includes(c.id))
+      : activas
+    // Excluir canchas cerradas este día (por su horario custom o el general)
+    return conPermiso.filter((c) => getRangoCancha(c) !== null)
+  }, [canchas, profesor?.canchasIds, getRangoCancha])
 
   const misClasesDia = useMemo(
     () => [...misClases.filter((r) => r.fecha === fecha)].sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)),
@@ -585,10 +599,46 @@ const ProfesorAgendaPage = () => {
       setMisClases((prev) => [...prev, normalizar(nueva)])
       setClasesSemana((prev) => ({ ...prev, [fecha]: [...(prev[fecha] ?? []), normalizar(nueva)] }))
       setModalNueva(false)
+      showToast('Clase creada exitosamente')
     } catch (err) {
       alert(err?.message || 'Error al crear la clase')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleAbrirAutoFill = () => {
+    const rangosPorCancha = Object.fromEntries(canchasHabilitadas.map((c) => [c.id, getRangoCancha(c)]))
+    const bloques = calcularBloquesFaltantes(canchasHabilitadas, franjasDelDia, todasReservasDia, turnosFijosDia, misClasesDia, rangosPorCancha)
+    if (!bloques.length) { alert('No hay slots libres. Todos los horarios de tu disponibilidad ya están cubiertos.'); return }
+    setBloquesAutoFill(bloques)
+    setModalAutoFill(true)
+  }
+
+  const handleConfirmarAutoFill = async () => {
+    if (submitting) return
+    setSubmitting(true)
+    const nuevas = []
+    const errores = []
+    for (const b of bloquesAutoFill) {
+      try {
+        const nueva = await api.post('/reservas/profesor', { canchaId: b.canchaId, fecha, horaInicio: b.inicio, horaFin: b.fin, notas: '' }, headers)
+        nuevas.push(normalizar(nueva))
+      } catch (err) {
+        errores.push(`${b.inicio}-${b.fin} en ${b.canchaNombre}: ${err?.message || 'Error'}`)
+      }
+    }
+    if (nuevas.length) {
+      setMisClases((prev) => [...prev, ...nuevas])
+      setClasesSemana((prev) => ({ ...prev, [fecha]: [...(prev[fecha] ?? []), ...nuevas] }))
+    }
+    setModalAutoFill(false)
+    setBloquesAutoFill([])
+    setSubmitting(false)
+    if (errores.length) {
+      alert(`Algunas clases no pudieron crearse:\n${errores.join('\n')}`)
+    } else if (nuevas.length) {
+      showToast(`${nuevas.length} clase${nuevas.length !== 1 ? 's' : ''} creada${nuevas.length !== 1 ? 's' : ''} exitosamente`)
     }
   }
 
@@ -610,41 +660,6 @@ const ProfesorAgendaPage = () => {
     }
   }
 
-  const handleAbrirAutoFill = () => {
-    const bloques = calcularBloquesFaltantes(
-      canchasHabilitadas, franjasDelDia, todasReservasDia, turnosFijosDia, misClasesDia
-    )
-    if (!bloques.length) {
-      alert('No hay slots libres para completar. Todos los horarios de tu disponibilidad ya están cubiertos.')
-      return
-    }
-    setBloquesAutoFill(bloques)
-    setModalAutoFill(true)
-  }
-
-  const handleConfirmarAutoFill = async () => {
-    if (submitting) return
-    setSubmitting(true)
-    const nuevas = []
-    const errores = []
-    for (const b of bloquesAutoFill) {
-      try {
-        const horaFin = b.fin === '24:00' ? '00:00' : b.fin
-        const nueva = await api.post('/reservas/profesor', { canchaId: b.canchaId, fecha, horaInicio: b.inicio, horaFin, notas: '' }, headers)
-        nuevas.push(normalizar(nueva))
-      } catch (err) {
-        errores.push(`${b.inicio}-${b.fin} en ${b.canchaNombre}: ${err?.message || 'Error'}`)
-      }
-    }
-    if (nuevas.length) {
-      setMisClases((prev) => [...prev, ...nuevas])
-      setClasesSemana((prev) => ({ ...prev, [fecha]: [...(prev[fecha] ?? []), ...nuevas] }))
-    }
-    setModalAutoFill(false)
-    setBloquesAutoFill([])
-    setSubmitting(false)
-    if (errores.length) alert(`Algunas clases no pudieron crearse:\n${errores.join('\n')}`)
-  }
 
   // Horas de clase del día
   const horasDia = useMemo(() => {
@@ -666,7 +681,7 @@ const ProfesorAgendaPage = () => {
   }, [franjasDelDia, fecha, horarios, profesor?.disponibilidad, esDiaPasado])
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-6">
+    <div className="w-full flex flex-col gap-6">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -675,6 +690,13 @@ const ProfesorAgendaPage = () => {
           <p className="text-white/40 text-sm mt-0.5 capitalize">{fmtFecha(fecha)}</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowHelper((v) => !v)}
+            title="Cómo funciona esta sección"
+            className={['p-2 rounded-xl border transition-all', showHelper ? 'bg-white/10 border-white/20 text-white/70' : 'border-white/10 text-white/25 hover:text-white/50 hover:border-white/20'].join(' ')}
+          >
+            <HelpCircle size={15} />
+          </button>
           {!esDiaPasado && franjasDelDia.length > 0 && (
             <button
               onClick={handleAbrirAutoFill}
@@ -696,57 +718,99 @@ const ProfesorAgendaPage = () => {
         </div>
       </div>
 
-      {/* Selector de días */}
-      <div>
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            onClick={goBack}
-            disabled={fecha <= hoy}
-            className="w-9 h-9 rounded-xl border border-white/10 flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 disabled:opacity-20 transition-all shrink-0"
-          >
-            <ChevronLeft size={15} />
-          </button>
-          <div className="flex gap-1.5 flex-1 overflow-x-auto pb-0.5">
-            {diasSemana.map((d) => {
-              const sel = d === fecha
-              const cnt = (clasesSemana[d] ?? []).length
-              const esHoy = d === hoy
-              return (
-                <button
-                  key={d}
-                  onClick={() => setFecha(d)}
-                  className={[
-                    'flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-xl border transition-all min-w-[52px] shrink-0 relative',
-                    sel
-                      ? 'bg-orange-400/15 border-orange-400/40 shadow-lg shadow-orange-400/10'
-                      : 'border-white/8 hover:border-white/20 hover:bg-white/4',
-                  ].join(' ')}
-                >
-                  <span className={['text-[9px] font-bold uppercase tracking-wide', sel ? 'text-orange-400' : esHoy ? 'text-orange-400/60' : 'text-white/30'].join(' ')}>
-                    {esHoy ? 'Hoy' : fmtDiaCorto(d)}
-                  </span>
-                  <span className={['text-base font-black leading-none', sel ? 'text-white' : 'text-white/50'].join(' ')}>
-                    {new Date(d + 'T12:00:00').getDate()}
-                  </span>
-                  <span className={[
-                    'text-[8px] font-bold px-1.5 py-0.5 rounded-full min-h-[14px]',
-                    cnt > 0
-                      ? sel ? 'bg-orange-400 text-white' : 'bg-orange-400/20 text-orange-400'
-                      : 'text-transparent',
-                  ].join(' ')}>
-                    {cnt > 0 ? cnt : '·'}
-                  </span>
-                </button>
-              )
-            })}
+      {/* Panel helper */}
+      {showHelper && (
+        <div className="bg-white/4 border border-white/10 rounded-2xl px-5 py-4 flex flex-col gap-3">
+          <p className="text-white/60 text-xs font-bold uppercase tracking-wide">Cómo funciona Mi agenda</p>
+          <div className="flex flex-col gap-2.5">
+            <div className="flex gap-3">
+              <div className="w-6 h-6 bg-orange-400/15 border border-orange-400/25 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                <Zap size={11} className="text-orange-400" />
+              </div>
+              <div>
+                <p className="text-white/70 text-xs font-semibold">Autocompletar</p>
+                <p className="text-white/30 text-xs leading-relaxed mt-0.5">Llena automáticamente todos los slots libres del día con clases de 1h, respetando tu disponibilidad configurada y las reservas existentes de los jugadores. Solo aparece si tenés franjas disponibles en el día seleccionado.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="w-6 h-6 bg-orange-400/15 border border-orange-400/25 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                <Plus size={11} className="text-orange-400" />
+              </div>
+              <div>
+                <p className="text-white/70 text-xs font-semibold">Nueva clase</p>
+                <p className="text-white/30 text-xs leading-relaxed mt-0.5">Crea una clase puntual eligiendo cancha, horario y una nota opcional. Se confirma al instante sin aprobación del admin. Solo disponible en días futuros dentro de tu horario.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="w-6 h-6 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                <Trash2 size={11} className="text-white/30" />
+              </div>
+              <div>
+                <p className="text-white/70 text-xs font-semibold">Eliminar una clase</p>
+                <p className="text-white/30 text-xs leading-relaxed mt-0.5">Hacé clic en el ícono de tacho en una clase del listado. Solo podés eliminar tus propias clases y solo si aún no comenzaron.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="w-6 h-6 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                <CalendarDays size={11} className="text-white/30" />
+              </div>
+              <div>
+                <p className="text-white/70 text-xs font-semibold">Esta semana</p>
+                <p className="text-white/30 text-xs leading-relaxed mt-0.5">Resumen de tus clases agrupadas por día y cancha. Hacé clic en cualquier día para ir directo a esa fecha. Las flechas ‹ › cambian de día; el calendario navega por semanas.</p>
+              </div>
+            </div>
           </div>
-          <button
-            onClick={goForward}
-            className="w-9 h-9 rounded-xl border border-white/10 flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 transition-all shrink-0"
-          >
-            <ChevronRight size={15} />
-          </button>
         </div>
+      )}
+
+      {/* Selector de días */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={goBack}
+          disabled={fecha <= hoy}
+          className="w-9 h-9 rounded-xl border border-white/10 flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 disabled:opacity-20 transition-all shrink-0"
+        >
+          <ChevronLeft size={15} />
+        </button>
+        <div className="flex gap-2 flex-1">
+          {diasSemana.map((d) => {
+            const sel = d === fecha
+            const cnt = (clasesSemana[d] ?? []).length
+            const esHoy = d === hoy
+            return (
+              <button
+                key={d}
+                onClick={() => setFecha(d)}
+                className={[
+                  'flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border transition-all',
+                  sel
+                    ? 'bg-orange-400/15 border-orange-400/40 shadow-lg shadow-orange-400/10'
+                    : 'border-white/8 hover:border-white/20 hover:bg-white/4',
+                ].join(' ')}
+              >
+                <span className={['text-[10px] font-bold uppercase tracking-wide', sel ? 'text-orange-400' : esHoy ? 'text-orange-400/60' : 'text-white/30'].join(' ')}>
+                  {esHoy ? 'Hoy' : fmtDiaCorto(d)}
+                </span>
+                <span className={['text-lg font-black leading-none', sel ? 'text-white' : 'text-white/50'].join(' ')}>
+                  {new Date(d + 'T12:00:00').getDate()}
+                </span>
+                {cnt > 0 ? (
+                  <span className={['text-xs font-black leading-none', sel ? 'text-orange-400' : 'text-orange-400/50'].join(' ')}>
+                    {cnt} {cnt === 1 ? 'clase' : 'clases'}
+                  </span>
+                ) : (
+                  <span className="text-xs text-white/10 leading-none">—</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+        <button
+          onClick={goForward}
+          className="w-9 h-9 rounded-xl border border-white/10 flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 transition-all shrink-0"
+        >
+          <ChevronRight size={15} />
+        </button>
       </div>
 
       {/* Stats del día */}
@@ -878,7 +942,7 @@ const ProfesorAgendaPage = () => {
           <CalendarDays size={14} className="text-white/30" />
           <span className="text-white font-bold text-sm">Esta semana</span>
           <span className="ml-auto text-white/25 text-xs">
-            {Object.values(clasesSemana).flat().length} clases totales
+            {Object.values(clasesSemana).flat().length} clases · {Object.values(clasesSemana).flat().length}h
           </span>
         </div>
         <div className="divide-y divide-white/5">
@@ -886,44 +950,66 @@ const ProfesorAgendaPage = () => {
             const clasesDia = [...(clasesSemana[d] ?? [])].sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
             const sel = d === fecha
             const esHoy = d === hoy
+
+            // Agrupar por cancha
+            const porCancha = clasesDia.reduce((acc, c) => {
+              const key = c.cancha?.nombre || c.canchaId || 'Sin cancha'
+              if (!acc[key]) acc[key] = []
+              acc[key].push(c)
+              return acc
+            }, {})
+            const canchas = Object.keys(porCancha)
+
             return (
               <button
                 key={d}
                 onClick={() => setFecha(d)}
                 className={[
-                  'w-full px-5 py-3.5 flex items-center gap-4 text-left transition-all hover:bg-white/4',
+                  'w-full px-5 py-3.5 flex items-start gap-4 text-left transition-all hover:bg-white/4',
                   sel ? 'bg-white/4' : '',
                 ].join(' ')}
               >
-                <div className="shrink-0 w-20">
+                {/* Día */}
+                <div className="shrink-0 w-16 pt-0.5">
                   <p className={[
                     'text-xs font-bold capitalize',
                     sel ? 'text-orange-400' : esHoy ? 'text-orange-400/50' : 'text-white/35',
                   ].join(' ')}>
                     {esHoy ? 'Hoy' : fmtDiaCorto(d)} {new Date(d + 'T12:00:00').getDate()}
                   </p>
+                  {clasesDia.length > 0 && (
+                    <p className={['text-[10px] mt-0.5', sel ? 'text-orange-400/50' : 'text-white/15'].join(' ')}>
+                      {clasesDia.length}h · {clasesDia.length} clase{clasesDia.length !== 1 ? 's' : ''}
+                    </p>
+                  )}
                 </div>
-                <div className="flex-1 flex gap-1.5 flex-wrap">
+
+                {/* Clases agrupadas por cancha */}
+                <div className="flex-1 flex flex-col gap-1.5">
                   {clasesDia.length === 0 ? (
-                    <span className="text-white/15 text-xs">Sin clases</span>
+                    <span className="text-white/15 text-xs pt-0.5">Sin clases</span>
                   ) : (
-                    clasesDia.map((c) => (
-                      <span key={c.id} className={[
-                        'text-[10px] font-bold px-2 py-0.5 rounded-full border',
-                        sel
-                          ? 'bg-orange-400/20 text-orange-400 border-orange-400/30'
-                          : 'bg-white/5 text-white/40 border-white/10',
-                      ].join(' ')}>
-                        {c.horaInicio}
-                      </span>
+                    canchas.map((nombreCancha) => (
+                      <div key={nombreCancha} className="flex items-center gap-2 flex-wrap">
+                        <span className={['text-[10px] font-semibold shrink-0', sel ? 'text-white/50' : 'text-white/20'].join(' ')}>
+                          {nombreCancha}
+                        </span>
+                        <div className="flex gap-1 flex-wrap">
+                          {porCancha[nombreCancha].map((c) => (
+                            <span key={c.id} className={[
+                              'text-[10px] font-bold px-2 py-0.5 rounded-full border',
+                              sel
+                                ? 'bg-orange-400/20 text-orange-400 border-orange-400/30'
+                                : 'bg-white/5 text-white/40 border-white/10',
+                            ].join(' ')}>
+                              {c.horaInicio}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     ))
                   )}
                 </div>
-                {clasesDia.length > 0 && (
-                  <span className={['text-[10px] font-bold shrink-0', sel ? 'text-orange-400' : 'text-white/20'].join(' ')}>
-                    {clasesDia.length}
-                  </span>
-                )}
               </button>
             )
           })}
@@ -949,6 +1035,7 @@ const ProfesorAgendaPage = () => {
           misClasesProfesor={misClases}
           canchasDisponibles={canchasHabilitadas}
           franjasDelDia={franjasDelDia}
+          rangosPorCancha={Object.fromEntries(canchasHabilitadas.map((c) => [c.id, getRangoCancha(c)]))}
           submitting={submitting}
         />
       )}
@@ -959,6 +1046,14 @@ const ProfesorAgendaPage = () => {
           onClose={() => setClaseEliminar(null)}
           submitting={submitting}
         />
+      )}
+      {/* Toast de éxito */}
+      {toast && createPortal(
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2.5 bg-emerald-500 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl shadow-emerald-500/30 animate-toast-enter">
+          <CheckCircle size={16} className="shrink-0" />
+          {toast}
+        </div>,
+        document.body
       )}
     </div>
   )

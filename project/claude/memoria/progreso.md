@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-25 (sesión — Página "Mis reservas" jugador, toasts duales persistentes, banners compactos de acceso rápido, mejoras panel admin Avisos + click notificación TF.)
+**Última actualización:** 2026-05-25 (sesión — Editar clase profesor (UX tiempo→cancha), agrupación Mis turnos fijos por día, agrupación Mis reservas por fecha + historial, estadísticas admin reservas con heatmap.)
 
 ---
 

@@ -6,7 +6,91 @@ import useReservasStore from '../store/reservasStore'
 import { api } from '../lib/api'
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+const MESES_LARGO = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
 const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+const fmtFechaHeader = (fechaStr, hoyStr) => {
+  const [y, m, d] = fechaStr.split('-').map(Number)
+  const diaSemana = DIAS_SEMANA[new Date(y, m - 1, d).getDay()]
+  return fechaStr === hoyStr
+    ? `Hoy · ${diaSemana} ${d} de ${MESES_LARGO[m - 1]}`
+    : `${diaSemana} ${d} de ${MESES_LARGO[m - 1]}`
+}
+
+// ─── Fila de reserva ──────────────────────────────────────────────────────────
+// showDate=true: muestra el date box (usado en historial donde no hay header de fecha)
+
+const FilaReserva = ({ r, onCancelar, showDate = false }) => {
+  const esPendiente = r.estado === 'pendiente'
+  const esPasada = r.esPasada
+  const mesIdx = parseInt(r.fecha.slice(5, 7)) - 1
+  const dia = r.fecha.slice(8)
+
+  const dateBoxCls = esPasada
+    ? 'bg-white/3 border border-white/5'
+    : esPendiente
+    ? 'bg-amber-500/10 border border-amber-500/20'
+    : 'bg-[#afca0b]/10 border border-[#afca0b]/20'
+  const dateTextCls = esPasada ? 'text-white/20' : esPendiente ? 'text-amber-400' : 'text-[#afca0b]'
+
+  return (
+    <div className={`px-4 py-3.5 flex items-center gap-3 transition-colors ${
+      esPasada ? 'opacity-40' : esPendiente ? 'bg-amber-500/3 hover:bg-amber-500/6' : 'hover:bg-white/2'
+    }`}>
+      {showDate && (
+        <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 ${dateBoxCls}`}>
+          <span className={`font-black text-base leading-none ${dateTextCls}`}>{dia}</span>
+          <span className={`text-[9px] uppercase ${dateTextCls} opacity-60`}>{MESES[mesIdx]}</span>
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className={`font-semibold text-sm truncate ${esPasada ? 'text-white/40' : 'text-white'}`}>
+            {r.canchaNombre}
+          </p>
+          {esPendiente && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">
+              Pendiente
+            </span>
+          )}
+          {!esPendiente && !esPasada && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shrink-0 flex items-center gap-1">
+              <CheckCircle size={9} /> Confirmada
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 mt-1">
+          <span className="text-white/40 text-xs flex items-center gap-1">
+            <Clock size={10} /> {r.hora}{r.horaFin ? ` a ${r.horaFin}` : ''}
+          </span>
+          {r.precio > 0 && (
+            <span className={`text-xs font-medium ${esPasada ? 'text-white/20' : esPendiente ? 'text-amber-400/70' : 'text-[#afca0b]/70'}`}>
+              ${r.precio.toLocaleString('es-AR')}
+            </span>
+          )}
+          {r.canchaInfo && (
+            <span className="text-white/20 text-[10px] hidden sm:inline">{r.canchaInfo}</span>
+          )}
+        </div>
+      </div>
+      {esPasada ? (
+        <span className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/8 text-white/25 text-xs font-medium">
+          <CheckCircle size={12} /> Finalizado
+        </span>
+      ) : (
+        <button
+          onClick={() => onCancelar(r)}
+          className="shrink-0 flex items-center gap-1 text-xs font-medium text-red-400/60 hover:text-red-400 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-500/8"
+        >
+          <XCircle size={13} /> Cancelar
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PlayerMisReservasPage() {
   const token = usePlayerStore((s) => s.token)
@@ -41,11 +125,15 @@ export default function PlayerMisReservasPage() {
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reservasMapped = useMemo(() => {
-    const hoyStr = fmtDate(new Date())
+    const ahora = new Date()
     return reservas
       .filter((r) => !r.esTurnoFijo && r.estado !== 'cancelada')
       .map((r) => {
         const canchaDB = canchas.find((c) => c.id === r.canchaId)
+        // Comparar fecha + horaFin con la hora actual exacta
+        const [y, m, d] = r.fecha.split('-').map(Number)
+        const [hh, mm] = (r.horaFin || r.horaInicio || '23:59').split(':').map(Number)
+        const finDt = new Date(y, m - 1, d, hh, mm)
         return {
           id: r.id,
           canchaNombre: r.cancha?.nombre ?? canchaDB?.nombre ?? 'Cancha',
@@ -55,7 +143,7 @@ export default function PlayerMisReservasPage() {
           horaFin: r.horaFin,
           precio: r.precio ?? 0,
           estado: r.estado,
-          esPasada: r.fecha < hoyStr,
+          esPasada: finDt < ahora,
         }
       })
       .sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora))
@@ -63,14 +151,21 @@ export default function PlayerMisReservasPage() {
 
   const hoyStr = fmtDate(new Date())
   const proximas = useMemo(
-    () => reservasMapped.filter((r) => r.fecha >= hoyStr),
-    [reservasMapped, hoyStr]
+    () => reservasMapped.filter((r) => !r.esPasada),
+    [reservasMapped]
   )
   const pasadas = useMemo(
-    () => reservasMapped.filter((r) => r.fecha < hoyStr).reverse(),
-    [reservasMapped, hoyStr]
+    () => reservasMapped.filter((r) => r.esPasada).reverse(),
+    [reservasMapped]
   )
-  const lista = filtro === 'proximas' ? proximas : reservasMapped
+  const proximasPorFecha = useMemo(() => {
+    const grupos = {}
+    proximas.forEach((r) => {
+      if (!grupos[r.fecha]) grupos[r.fecha] = []
+      grupos[r.fecha].push(r)
+    })
+    return Object.entries(grupos).sort(([a], [b]) => a.localeCompare(b))
+  }, [proximas])
 
   // Política de cancelación
   const cancelacionInfo = useMemo(() => {
@@ -139,96 +234,74 @@ export default function PlayerMisReservasPage() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
           </div>
-        ) : lista.length === 0 ? (
+        ) : filtro === 'proximas' && proximas.length === 0 ? (
           <div className="py-16 flex flex-col items-center gap-3 text-white/20">
             <CalendarDays size={32} className="opacity-40" />
-            <p className="text-sm">
-              {filtro === 'proximas' ? 'No tenés reservas próximas' : 'No tenés reservas registradas'}
-            </p>
+            <p className="text-sm">No tenés reservas próximas</p>
           </div>
-        ) : (
-          <div className="divide-y divide-white/5">
-            {lista.map((r) => {
-              const mesIdx = parseInt(r.fecha.slice(5, 7)) - 1
-              const dia = r.fecha.slice(8)
-              const esPendiente = r.estado === 'pendiente'
-              const esPasada = r.esPasada
-
-              const dateBoxCls = esPasada
-                ? 'bg-white/3 border border-white/5'
-                : esPendiente
-                ? 'bg-amber-500/10 border border-amber-500/20'
-                : 'bg-[#afca0b]/10 border border-[#afca0b]/20'
-
-              const dateTextCls = esPasada
-                ? 'text-white/20'
-                : esPendiente
-                ? 'text-amber-400'
-                : 'text-[#afca0b]'
-
-              return (
-                <div
-                  key={r.id}
-                  className={`px-4 py-3.5 flex items-center gap-3 transition-colors ${
-                    esPasada ? 'opacity-40' : esPendiente ? 'bg-amber-500/3 hover:bg-amber-500/6' : 'hover:bg-white/2'
-                  }`}
-                >
-                  {/* Fecha box */}
-                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 ${dateBoxCls}`}>
-                    <span className={`font-black text-base leading-none ${dateTextCls}`}>{dia}</span>
-                    <span className={`text-[9px] uppercase ${dateTextCls} opacity-60`}>{MESES[mesIdx]}</span>
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className={`font-semibold text-sm truncate ${esPasada ? 'text-white/40' : 'text-white'}`}>
-                        {r.canchaNombre}
-                      </p>
-                      {esPendiente && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">
-                          Pendiente
-                        </span>
-                      )}
-                      {!esPendiente && !esPasada && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shrink-0 flex items-center gap-1">
-                          <CheckCircle size={9} /> Confirmada
-                        </span>
-                      )}
-                      {esPasada && (
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/5 text-white/25 shrink-0">
-                          Finalizada
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-white/40 text-xs flex items-center gap-1">
-                        <Clock size={10} /> {r.hora}{r.horaFin ? ` a ${r.horaFin}` : ''}
-                      </span>
-                      {r.precio > 0 && (
-                        <span className={`text-xs font-medium ${esPasada ? 'text-white/20' : esPendiente ? 'text-amber-400/70' : 'text-[#afca0b]/70'}`}>
-                          ${r.precio.toLocaleString('es-AR')}
-                        </span>
-                      )}
-                      {r.canchaInfo && (
-                        <span className="text-white/20 text-[10px] hidden sm:inline">{r.canchaInfo}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Botón cancelar (solo futuras) */}
-                  {!esPasada && (
-                    <button
-                      onClick={() => setReservaACancelar(r)}
-                      className="shrink-0 flex items-center gap-1 text-xs font-medium text-red-400/60 hover:text-red-400 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-500/8"
-                    >
-                      <XCircle size={13} />
-                      Cancelar
-                    </button>
+        ) : filtro === 'todas' && reservasMapped.length === 0 ? (
+          <div className="py-16 flex flex-col items-center gap-3 text-white/20">
+            <CalendarDays size={32} className="opacity-40" />
+            <p className="text-sm">No tenés reservas registradas</p>
+          </div>
+        ) : filtro === 'proximas' ? (
+          /* ── Vista Próximas: agrupada por fecha ───────────────────────── */
+          <div>
+            {proximasPorFecha.map(([fecha, reservasDia]) => (
+              <div key={fecha}>
+                <div className="px-4 py-2.5 bg-white/3 border-b border-white/5 flex items-center gap-2.5">
+                  {fecha === hoyStr && (
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-[#afca0b]/20 text-[#afca0b] border border-[#afca0b]/30">HOY</span>
+                  )}
+                  <span className="text-white/60 text-[11px] font-bold capitalize">{fmtFechaHeader(fecha, hoyStr)}</span>
+                  {reservasDia.length > 1 && (
+                    <span className="text-white/20 text-[10px]">{reservasDia.length} reservas</span>
                   )}
                 </div>
-              )
-            })}
+                <div className="divide-y divide-white/5">
+                  {reservasDia.map((r) => <FilaReserva key={r.id} r={r} onCancelar={setReservaACancelar} />)}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* ── Vista Todas: sección Próximas + sección Historial ────────── */
+          <div>
+            {proximas.length > 0 && (
+              <div>
+                <div className="px-4 py-2.5 bg-[#afca0b]/5 border-b border-[#afca0b]/10 flex items-center gap-2">
+                  <span className="text-[#afca0b]/70 text-[10px] font-black uppercase tracking-widest">Próximas</span>
+                  <span className="text-[#afca0b]/30 text-[10px]">{proximas.length}</span>
+                </div>
+                {proximasPorFecha.map(([fecha, reservasDia]) => (
+                  <div key={fecha}>
+                    <div className="px-4 py-2 bg-white/2 border-b border-white/4 flex items-center gap-2">
+                      {fecha === hoyStr && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-[#afca0b]/20 text-[#afca0b] border border-[#afca0b]/30">HOY</span>
+                      )}
+                      <span className="text-white/40 text-[10px] font-semibold capitalize">{fmtFechaHeader(fecha, hoyStr)}</span>
+                      {reservasDia.length > 1 && (
+                        <span className="text-white/15 text-[10px]">{reservasDia.length} reservas</span>
+                      )}
+                    </div>
+                    <div className="divide-y divide-white/5">
+                      {reservasDia.map((r) => <FilaReserva key={r.id} r={r} onCancelar={setReservaACancelar} />)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {pasadas.length > 0 && (
+              <div>
+                <div className="px-4 py-2.5 bg-white/2 border-b border-white/5 border-t border-t-white/8 flex items-center gap-2">
+                  <span className="text-white/30 text-[10px] font-black uppercase tracking-widest">Historial</span>
+                  <span className="text-white/15 text-[10px]">{pasadas.length}</span>
+                </div>
+                <div className="divide-y divide-white/5">
+                  {pasadas.map((r) => <FilaReserva key={r.id} r={r} onCancelar={setReservaACancelar} showDate />)}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

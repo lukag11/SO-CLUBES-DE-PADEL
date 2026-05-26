@@ -1,4 +1,4 @@
-import { Repeat, AlertTriangle, CalendarDays, X, Clock, Ban } from 'lucide-react'
+import { Repeat, AlertTriangle, CalendarDays, X, Clock, Ban, CheckCircle } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
 import useClubStore from '../store/clubStore'
@@ -15,6 +15,8 @@ const DIAS_INDEX = {
   jueves: 4, viernes: 5, sabado: 6,
 }
 
+const DIAS_ORDEN = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
 
 const localISO = (d) =>
@@ -27,16 +29,18 @@ const getFechaDisponible = (diaKey, horaInicio) => {
   const target = DIAS_INDEX[diaKey]
 
   if (ahora.getDay() === target) {
-    // Estamos en el día correcto: ver si la hora de inicio todavía no pasó
     const [h, m] = horaInicio.split(':').map(Number)
     const inicioMs = h * 60 + m
     const ahoraMs = ahora.getHours() * 60 + ahora.getMinutes()
     if (ahoraMs < inicioMs) {
-      // Turno vigente hoy
       const hoy = new Date(ahora)
       hoy.setHours(0, 0, 0, 0)
       return hoy
     }
+    // Ya arrancó o terminó hoy → igual devolvemos hoy para mostrar estado "Finalizado"
+    const hoy = new Date(ahora)
+    hoy.setHours(0, 0, 0, 0)
+    return hoy
   }
 
   // Próxima ocurrencia (nunca hoy)
@@ -45,6 +49,16 @@ const getFechaDisponible = (diaKey, horaInicio) => {
   const diff = (target - base.getDay() + 7) % 7
   base.setDate(base.getDate() + (diff === 0 ? 7 : diff))
   return base
+}
+
+// true si el turno de hoy ya terminó
+const turnoYaTerminoHoy = (diaKey, horaFin) => {
+  const ahora = new Date()
+  if (ahora.getDay() !== DIAS_INDEX[diaKey]) return false
+  const [h, m] = (horaFin || '00:00').split(':').map(Number)
+  const finMs = h * 60 + m
+  const ahoraMs = ahora.getHours() * 60 + ahora.getMinutes()
+  return ahoraMs >= finMs
 }
 
 const fmtFechaLegible = (d) =>
@@ -260,6 +274,15 @@ const PlayerTurnosFijosPage = () => {
   const activos = turnosFijos.filter((t) => t.activo)
   const pendientes = turnosFijos.filter((t) => t.estado === 'pendiente')
 
+  const turnosPorDia = useMemo(() => {
+    const grupos = {}
+    DIAS_ORDEN.forEach((dia) => {
+      const del_dia = activos.filter((t) => t.dia === dia).sort((a, b) => a.inicio.localeCompare(b.inicio))
+      if (del_dia.length > 0) grupos[dia] = del_dia
+    })
+    return grupos
+  }, [activos])
+
   const handleCancelarTurnoFijo = async () => {
     if (!modalCancelar?.turno) return
     setCancelando(true)
@@ -397,83 +420,105 @@ const PlayerTurnosFijosPage = () => {
             <p className="text-xs text-white/20">Solicitá uno desde "Reservar cancha" activando la opción de turno fijo.</p>
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
-            {activos.map((turno) => {
-              const pendientes = turno.ausenciasPendientes || []
-              const ausentes = turno.diasAusentes || []
-              const ausentesJugador = turno.diasAusentesJugador || []
-
-              const proxFecha = getFechaDisponible(turno.dia, turno.inicio)
-              const proxISO = localISO(proxFecha)
-              const esPendiente = pendientes.includes(proxISO)
-              const esAusente = ausentes.includes(proxISO)
-              const esAusenteJugador = ausentesJugador.includes(proxISO)
-              const bloqueado = esPendiente || esAusente
-
-              return (
-                <div key={turno.id} className="px-6 py-4 flex items-center gap-4">
-                  <div className={`w-1.5 h-12 rounded-full shrink-0 ${esPendiente ? 'bg-amber-500/60' : esAusente ? 'bg-white/15' : 'bg-violet-500/60'}`} />
-
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-semibold ${bloqueado ? 'text-white/40' : 'text-white'}`}>
-                      {turno.canchaNombre}
-                    </p>
-                    <p className="text-white/40 text-xs mt-0.5">
-                      {DIAS_LABEL[turno.dia] ?? turno.dia} · {turno.inicio} a {turno.fin}
-                    </p>
-                    <p className="text-white/25 text-[10px] mt-0.5">
-                      {localISO(proxFecha) === localISO(new Date())
-                        ? `Hoy · ${turno.inicio} a ${turno.fin}`
-                        : `Próximo: ${fmtFechaLegible(proxFecha)}`}
-                    </p>
-                    {esPendiente && (
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Clock size={10} className="text-amber-400 animate-pulse" />
-                        <span className="text-amber-400 text-[10px] font-semibold">Ausencia pendiente de confirmación</span>
-                      </div>
-                    )}
-                    {esAusente && (
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Clock size={10} className="text-white/30" />
-                        <span className="text-white/30 text-[10px]">
-                          {esAusenteJugador ? 'Tu ausencia fue confirmada' : 'El club liberó tu turno este día'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <p className={`font-bold text-sm ${bloqueado ? 'text-white/20' : 'text-violet-400'}`}>
-                      ${turno.precio?.toLocaleString('es-AR')}
-                    </p>
-                    <p className="text-white/25 text-[10px]">por turno</p>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 shrink-0">
-                    <button
-                      disabled={bloqueado}
-                      onClick={() => setModalTurno(turno)}
-                      className={[
-                        'flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all border',
-                        bloqueado
-                          ? 'text-white/20 border-white/8 bg-white/3 cursor-not-allowed'
-                          : 'text-red-400 border-red-400/25 bg-red-400/8 hover:bg-red-400/15',
-                      ].join(' ')}
-                    >
-                      <AlertTriangle size={12} />
-                      No puedo ir
-                    </button>
-                    <button
-                      onClick={() => setModalCancelar({ turno, errorDeuda: null })}
-                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all border text-white/30 border-white/10 bg-white/3 hover:text-red-400 hover:border-red-400/25 hover:bg-red-400/8"
-                    >
-                      <Ban size={12} />
-                      Eliminar turno
-                    </button>
-                  </div>
+          <div>
+            {Object.entries(turnosPorDia).map(([dia, turnosDia]) => (
+              <div key={dia}>
+                {/* Separador de día */}
+                <div className="px-6 py-2.5 bg-white/3 border-b border-white/5 flex items-center gap-2.5">
+                  <span className="text-white/60 text-[11px] font-black uppercase tracking-widest">{DIAS_LABEL[dia]}</span>
+                  <span className="text-white/20 text-[10px]">{turnosDia.length} turno{turnosDia.length !== 1 ? 's' : ''}</span>
                 </div>
-              )
-            })}
+                {/* Filas del día */}
+                <div className="divide-y divide-white/5">
+                  {turnosDia.map((turno) => {
+                    const ausenciasPend = turno.ausenciasPendientes || []
+                    const ausentes = turno.diasAusentes || []
+                    const ausentesJugador = turno.diasAusentesJugador || []
+
+                    const proxFecha = getFechaDisponible(turno.dia, turno.inicio)
+                    const proxISO = localISO(proxFecha)
+                    const esPendiente = ausenciasPend.includes(proxISO)
+                    const esAusente = ausentes.includes(proxISO)
+                    const esAusenteJugador = ausentesJugador.includes(proxISO)
+                    const bloqueado = esPendiente || esAusente
+                    const yaTermino = turnoYaTerminoHoy(turno.dia, turno.fin)
+
+                    return (
+                      <div key={turno.id} className="px-6 py-4 flex items-center gap-4">
+                        <div className={`w-1.5 h-12 rounded-full shrink-0 ${esPendiente ? 'bg-amber-500/60' : esAusente ? 'bg-white/15' : 'bg-violet-500/60'}`} />
+
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-semibold ${bloqueado ? 'text-white/40' : 'text-white'}`}>
+                            {turno.canchaNombre}
+                          </p>
+                          <p className="text-white/40 text-xs mt-0.5">
+                            {turno.inicio} a {turno.fin}
+                          </p>
+                          <p className="text-white/25 text-[10px] mt-0.5">
+                            {localISO(proxFecha) === localISO(new Date())
+                              ? yaTermino
+                                ? 'Hoy · Finalizado'
+                                : `Hoy · ${turno.inicio} a ${turno.fin}`
+                              : `Próximo: ${fmtFechaLegible(proxFecha)}`}
+                          </p>
+                          {esPendiente && (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <Clock size={10} className="text-amber-400 animate-pulse" />
+                              <span className="text-amber-400 text-[10px] font-semibold">Ausencia pendiente de confirmación</span>
+                            </div>
+                          )}
+                          {esAusente && (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <Clock size={10} className="text-white/30" />
+                              <span className="text-white/30 text-[10px]">
+                                {esAusenteJugador ? 'Tu ausencia fue confirmada' : 'El club liberó tu turno este día'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <p className={`font-bold text-sm ${bloqueado ? 'text-white/20' : 'text-violet-400'}`}>
+                            ${turno.precio?.toLocaleString('es-AR')}
+                          </p>
+                          <p className="text-white/25 text-[10px]">por turno</p>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5 shrink-0">
+                          {yaTermino ? (
+                            <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border bg-white/3 border-white/8 text-white/20 cursor-default">
+                              <CheckCircle size={12} />
+                              Finalizado
+                            </span>
+                          ) : (
+                            <button
+                              disabled={bloqueado}
+                              onClick={() => setModalTurno(turno)}
+                              className={[
+                                'flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all border',
+                                bloqueado
+                                  ? 'text-white/20 border-white/8 bg-white/3 cursor-not-allowed'
+                                  : 'text-red-400 border-red-400/25 bg-red-400/8 hover:bg-red-400/15',
+                              ].join(' ')}
+                            >
+                              <AlertTriangle size={12} />
+                              No puedo ir
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setModalCancelar({ turno, errorDeuda: null })}
+                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all border text-white/30 border-white/10 bg-white/3 hover:text-red-400 hover:border-red-400/25 hover:bg-red-400/8"
+                          >
+                            <Ban size={12} />
+                            Eliminar turno
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

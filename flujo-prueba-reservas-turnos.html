@@ -2326,6 +2326,22 @@
         <li>Una clase de profesor que ocupa más de una franja horaria aparece con fondo naranja en <strong>todas las franjas que cubre</strong> en la grilla admin (no solo en la primera).</li>
       </ul>
 
+      <h3 style="font-size:0.95rem; color:var(--naranja); margin-top:20px; margin-bottom:10px;">✏️ Editar clase — dashboard profesor (Nuevo)</h3>
+      <ul class="checklist">
+        <li>En la agenda del profesor, cada clase futura muestra un ícono de <strong>lápiz</strong> junto al tacho de eliminar.</li>
+        <li>Las clases con estado "Realizada" (pasadas) NO muestran los botones de edición ni eliminación.</li>
+        <li>Al hacer clic en el lápiz, se abre el modal <strong>"Editar clase"</strong> con los datos pre-llenados: cancha actual, inicio y fin actuales, descripción actual.</li>
+        <li>El modal permite cambiar cancha, rango horario y descripción.</li>
+        <li>El selector de <em>Fin</em> filtra por el mismo mark de minutos que el <em>Inicio</em> (ej: inicio en :00 → solo fines en :00).</li>
+        <li>La visualización de franjas excluye la propia clase al calcular conflictos (no se marca como "Ocupado" a sí misma).</li>
+        <li>Si el nuevo horario choca con otra reserva en la misma cancha, la franja aparece en rojo "Ocupado" y el formulario no se envía.</li>
+        <li>Si el nuevo horario choca con otra clase del mismo profesor en otra cancha, aparece en ámbar "Clase en otra cancha".</li>
+        <li>Al guardar, la clase se actualiza en la lista del día y en el resumen semanal sin recargar la página.</li>
+        <li>Aparece el toast verde "Clase actualizada exitosamente" al completar la edición.</li>
+        <li>El backend rechaza editar una clase que ya comenzó (responde 400 con mensaje "La clase ya comenzó y no puede editarse").</li>
+        <li>El backend rechaza editar una clase de otro profesor (responde 403).</li>
+      </ul>
+
       <h3 style="font-size:0.95rem; color:var(--naranja); margin-top:20px; margin-bottom:10px;">📐 Horarios por cancha (Bloque 9)</h3>
       <ul class="checklist">
         <li>Grilla admin muestra secciones separadas: una por cancha con horario propio + sección general para el resto.</li>

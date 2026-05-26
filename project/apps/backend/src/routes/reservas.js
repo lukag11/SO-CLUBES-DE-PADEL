@@ -107,6 +107,137 @@ router.get('/profesor/mis-clases', requireAuth, requireRole('profesor'), async (
   }
 })
 
+// GET /api/reservas/admin/stats?periodo=semana|mes  — estadísticas agregadas para el admin
+router.get('/admin/stats', requireAuth, requireRole('admin'), async (req, res) => {
+  const { periodo = 'semana' } = req.query
+  const clubId = req.user.clubId
+  const dias = periodo === 'mes' ? 30 : 7
+
+  const desdeDate = new Date()
+  desdeDate.setDate(desdeDate.getDate() - dias)
+  const desdeISO = desdeDate.toISOString().split('T')[0]
+  const hoyDate = new Date()
+
+  // Día de semana en string → índice JS (getDay): Dom=0, Lun=1 … Sáb=6
+  const DIA_IDX = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 }
+
+  try {
+    const [reservasActivas, canceladas, turnosFijosActivos] = await Promise.all([
+      // Reservas eventuales y clases (no turnosFijos) activas en el período
+      prisma.reserva.findMany({
+        where: {
+          clubId,
+          fecha: { gte: desdeISO },
+          estado: { not: 'cancelada' },
+          esTurnoFijo: false,
+        },
+        select: {
+          fecha: true, horaInicio: true, precio: true,
+          profesorId: true, jugadorId: true,
+          cancha: { select: { nombre: true } },
+        },
+      }),
+      // Reservas canceladas en el período (para el análisis de cancelaciones)
+      prisma.reserva.findMany({
+        where: { clubId, fecha: { gte: desdeISO }, estado: 'cancelada' },
+        select: { horaInicio: true },
+      }),
+      // TurnosFijos confirmados vigentes (tabla separada — registros recurrentes)
+      prisma.turnoFijo.findMany({
+        where: { clubId, estado: 'confirmado' },
+        select: {
+          dia: true, horaInicio: true, diasAusentes: true, desde: true, precio: true,
+          cancha: { select: { nombre: true } },
+        },
+      }),
+    ])
+
+    // Separar eventuales y clases
+    const eventuales = reservasActivas.filter((r) => !r.profesorId && r.jugadorId)
+    const clases     = reservasActivas.filter((r) => !!r.profesorId)
+
+    // Ingresos: reservas eventuales + clases + precio de turnosFijos × ocurrencias en período
+    const ingresosReservas = reservasActivas.reduce((acc, r) => acc + (r.precio ?? 0), 0)
+
+    // Heatmap y por-cancha para reservas eventuales y clases
+    const heatmapMap = {}
+    const canchaMap  = {}
+
+    reservasActivas.forEach((r) => {
+      const [y, m, d] = r.fecha.split('-').map(Number)
+      const dia  = new Date(y, m - 1, d).getDay()
+      const hora = r.horaInicio.substring(0, 5)
+      heatmapMap[`${dia}|${hora}`] = (heatmapMap[`${dia}|${hora}`] ?? 0) + 1
+      const nombre = r.cancha?.nombre ?? 'Sin cancha'
+      canchaMap[nombre] = (canchaMap[nombre] ?? 0) + 1
+    })
+
+    // Agregar ocurrencias de TurnosFijos al heatmap, cancha-map e ingresos
+    let ingresosTF = 0
+    turnosFijosActivos.forEach((tf) => {
+      const diaIdx = DIA_IDX[tf.dia]
+      if (diaIdx === undefined) return
+      const nombre = tf.cancha?.nombre ?? 'Sin cancha'
+
+      // Iterar cada ocurrencia del día dentro del período
+      const cursor = new Date(desdeDate)
+      while (cursor.getDay() !== diaIdx) cursor.setDate(cursor.getDate() + 1)
+
+      while (cursor <= hoyDate) {
+        const fechaISO = cursor.toISOString().split('T')[0]
+        const vigente = !tf.desde || fechaISO >= tf.desde
+        const ausente = tf.diasAusentes.includes(fechaISO)
+
+        if (vigente && !ausente) {
+          const hora = tf.horaInicio.substring(0, 5)
+          heatmapMap[`${diaIdx}|${hora}`] = (heatmapMap[`${diaIdx}|${hora}`] ?? 0) + 1
+          canchaMap[nombre] = (canchaMap[nombre] ?? 0) + 1
+          ingresosTF += tf.precio ?? 0
+        }
+        cursor.setDate(cursor.getDate() + 7)
+      }
+    })
+
+    const heatmap = Object.entries(heatmapMap).map(([key, count]) => {
+      const [dia, hora] = key.split('|')
+      return { dia: Number(dia), hora, count }
+    })
+
+    const porCancha = Object.entries(canchaMap)
+      .map(([nombre, count]) => ({ nombre, count }))
+      .sort((a, b) => b.count - a.count)
+
+    // Cancelaciones por franja
+    const cancelMap = {}
+    canceladas.forEach((r) => {
+      const hora = r.horaInicio.substring(0, 5)
+      cancelMap[hora] = (cancelMap[hora] ?? 0) + 1
+    })
+    const cancelacionesPorFranja = Object.entries(cancelMap)
+      .map(([hora, count]) => ({ hora, count }))
+      .sort((a, b) => b.count - a.count)
+
+    res.json({
+      periodo,
+      desde: desdeISO,
+      totales: {
+        total: eventuales.length + clases.length + turnosFijosActivos.length,
+        eventuales: eventuales.length,
+        turnosFijos: turnosFijosActivos.length, // slots fijos activos (no ocurrencias)
+        clases: clases.length,
+        canceladas: canceladas.length,
+        ingresos: ingresosReservas + ingresosTF,
+      },
+      heatmap,
+      porCancha,
+      cancelacionesPorFranja,
+    })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener estadísticas' })
+  }
+})
+
 // GET /api/reservas?fecha=   — clubId siempre del JWT (nunca del query param por seguridad multi-tenant)
 router.get('/', requireAuth, async (req, res) => {
   const { fecha } = req.query
@@ -305,6 +436,25 @@ router.post('/profesor', requireAuth, requireRole('profesor'), async (req, res) 
         profesor: { select: { id: true, nombre: true, apellido: true } },
       },
     })
+
+    // Notificar al admin
+    prisma.notificacion.create({
+      data: {
+        clubId,
+        tipo: 'nueva_clase_profesor',
+        data: {
+          profesorNombre: `${reserva.profesor.nombre} ${reserva.profesor.apellido}`,
+          profesorId,
+          canchaNombre: reserva.cancha.nombre,
+          canchaId,
+          fecha,
+          horaInicio,
+          horaFin,
+          reservaId: reserva.id,
+        },
+      },
+    }).catch(() => {})
+
     res.status(201).json(reserva)
   } catch (err) {
     console.error(err)
@@ -313,6 +463,74 @@ router.post('/profesor', requireAuth, requireRole('profesor'), async (req, res) 
 })
 
 // POST /api/reservas/admin/clase-profesor — admin crea una clase en nombre de un profesor
+// PATCH /api/reservas/profesor/:id  — profesor edita su propia clase (horario, cancha, notas)
+router.patch('/profesor/:id', requireAuth, requireRole('profesor'), async (req, res) => {
+  const { id } = req.params
+  const { canchaId, horaInicio, horaFin, notas } = req.body
+  const { id: profesorId, clubId } = req.user
+
+  if (!canchaId || !horaInicio || !horaFin) {
+    return res.status(400).json({ error: 'Faltan campos requeridos' })
+  }
+
+  try {
+    const reserva = await prisma.reserva.findUnique({ where: { id } })
+    if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
+    if (reserva.clubId !== clubId) return res.status(403).json({ error: 'Sin permisos' })
+    if (reserva.profesorId !== profesorId) return res.status(403).json({ error: 'Solo podés editar tus propias clases' })
+    if (reserva.estado === 'cancelada') return res.status(400).json({ error: 'La clase ya está cancelada' })
+
+    // No permitir editar clases que ya comenzaron
+    const ahoraArg = new Date(Date.now() - 3 * 60 * 60 * 1000)
+    const hoyArg = ahoraArg.toISOString().split('T')[0]
+    const horaAhoraArg = ahoraArg.toISOString().substring(11, 16)
+    if (reserva.fecha === hoyArg && reserva.horaInicio <= horaAhoraArg) {
+      return res.status(400).json({ error: 'La clase ya comenzó y no puede editarse' })
+    }
+
+    // Verificar cancha
+    const cancha = await prisma.cancha.findFirst({ where: { id: canchaId, clubId, activo: true } })
+    if (!cancha) return res.status(404).json({ error: 'Cancha no encontrada' })
+
+    // Conflictos en la cancha (excluir la propia reserva)
+    const existentes = await prisma.reserva.findMany({
+      where: { canchaId, fecha: reserva.fecha, estado: { in: ['pendiente', 'confirmada'] }, NOT: { id } },
+    })
+    if (existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
+      return res.status(409).json({ error: 'El horario ya está reservado en esa cancha' })
+    }
+
+    // Conflicto con turnos fijos
+    const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+    const [fy, fm, fd] = reserva.fecha.split('-').map(Number)
+    const dia = DIAS_SEMANA[new Date(fy, fm - 1, fd).getDay()]
+    const turnosFijosActivos = await prisma.turnoFijo.findMany({ where: { canchaId, dia, estado: 'confirmado' } })
+    const hayConflictoFijo = turnosFijosActivos.some(
+      (tf) => overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) && !tf.diasAusentes.includes(reserva.fecha) && (!tf.desde || tf.desde <= reserva.fecha)
+    )
+    if (hayConflictoFijo) return res.status(409).json({ error: 'Ese horario tiene un turno fijo activo de un jugador' })
+
+    // Conflicto con otras clases del mismo profesor (excluir la propia)
+    const clasesProfesor = await prisma.reserva.findMany({
+      where: { profesorId, fecha: reserva.fecha, estado: { not: 'cancelada' }, NOT: { id } },
+    })
+    if (clasesProfesor.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
+      return res.status(409).json({ error: 'Ya tenés una clase en ese horario en otra cancha' })
+    }
+
+    const updated = await prisma.reserva.update({
+      where: { id },
+      data: { canchaId, horaInicio, horaFin, notas: notas ?? reserva.notas },
+      include: { cancha: true, profesor: { select: { id: true, nombre: true, apellido: true } } },
+    })
+
+    res.json(updated)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al editar la clase' })
+  }
+})
+
 router.post('/admin/clase-profesor', requireAuth, requireRole('admin'), async (req, res) => {
   const { profesorId, canchaId, fecha, horaInicio, horaFin, notas, precio } = req.body
   const clubId = req.user.clubId
@@ -608,6 +826,25 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
       }
     }
 
+    // Admin cancela clase de un profesor → notificar al profesor
+    if (estado === 'cancelada' && updated.profesorId && updated.tipo === 'clase') {
+      prisma.notificacion.create({
+        data: {
+          clubId: updated.clubId,
+          profesorId: updated.profesorId,
+          tipo: 'clase_cancelada_admin',
+          data: {
+            canchaNombre: updated.cancha?.nombre ?? '',
+            canchaId: updated.canchaId,
+            fecha: updated.fecha,
+            horaInicio: updated.horaInicio,
+            horaFin: updated.horaFin,
+            reservaId: id,
+          },
+        },
+      }).catch(() => {})
+    }
+
     res.json(updated)
   } catch (err) {
     console.error(err)
@@ -662,7 +899,25 @@ router.delete('/:id', requireAuth, async (req, res) => {
     // Profesor solo puede cancelar sus propias clases
     if (req.user.role === 'profesor') {
       if (reserva.profesorId !== req.user.id) return res.status(403).json({ error: 'Sin permisos' })
+      const profData = await prisma.profesor.findUnique({ where: { id: req.user.id }, select: { nombre: true, apellido: true } })
       await prisma.reserva.update({ where: { id }, data: { estado: 'cancelada' } })
+      // Notificar al admin
+      prisma.notificacion.create({
+        data: {
+          clubId: reserva.clubId,
+          tipo: 'cancelacion_clase_profesor',
+          data: {
+            profesorNombre: profData ? `${profData.nombre} ${profData.apellido}` : '',
+            profesorId: req.user.id,
+            canchaNombre: reserva.cancha?.nombre ?? '',
+            canchaId: reserva.canchaId,
+            fecha: reserva.fecha,
+            horaInicio: reserva.horaInicio,
+            horaFin: reserva.horaFin,
+            reservaId: id,
+          },
+        },
+      }).catch(() => {})
       return res.json({ ok: true, cargoAplicado: false })
     }
 
@@ -722,6 +977,25 @@ router.delete('/:id', requireAuth, async (req, res) => {
     }
 
     await prisma.reserva.update({ where: { id }, data: { estado: 'cancelada' } })
+
+    // Admin cancela clase de un profesor → notificar al profesor
+    if (req.user.role === 'admin' && reserva.profesorId && reserva.tipo === 'clase') {
+      prisma.notificacion.create({
+        data: {
+          clubId: reserva.clubId,
+          profesorId: reserva.profesorId,
+          tipo: 'clase_cancelada_admin',
+          data: {
+            canchaNombre: reserva.cancha?.nombre ?? '',
+            canchaId: reserva.canchaId,
+            fecha: reserva.fecha,
+            horaInicio: reserva.horaInicio,
+            horaFin: reserva.horaFin,
+            reservaId: id,
+          },
+        },
+      }).catch(() => {})
+    }
 
     // Notificar al admin si el jugador cancela
     if (req.user.role === 'jugador') {

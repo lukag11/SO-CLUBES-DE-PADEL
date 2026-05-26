@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ChevronLeft, ChevronRight, Plus, X, GraduationCap,
-  CalendarDays, Trash2, Save, AlertCircle, Clock, MapPin, Zap, HelpCircle, CheckCircle,
+  CalendarDays, Trash2, Save, AlertCircle, Clock, MapPin, Zap, HelpCircle, CheckCircle, Pencil,
 } from 'lucide-react'
 import useAuthProfesorStore from '../store/authProfesorStore'
 import useClubStore from '../store/clubStore'
@@ -228,10 +228,10 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor,
   const estadoFranjas = useMemo(
     () => franjasEnRango.map((f) => {
       const ocupadoCancha = reservasDelDia.some(
-        (r) => r.canchaId === canchaId && r.inicio < f.fin && r.fin > f.inicio
+        (r) => String(r.canchaId) === String(canchaId) && r.inicio < f.fin && r.fin > f.inicio
       )
       const ocupadoProfesor = !ocupadoCancha && (misClasesProfesor ?? []).some(
-        (r) => r.canchaId !== canchaId && r.inicio < f.fin && r.fin > f.inicio
+        (r) => String(r.canchaId) !== String(canchaId) && r.inicio < f.fin && r.fin > f.inicio
       )
       return { ...f, ocupado: ocupadoCancha, ocupadoProfesor }
     }),
@@ -398,6 +398,242 @@ const ModalClase = ({ fecha, onClose, onSave, reservasDelDia, misClasesProfesor,
   )
 }
 
+// ─── Modal editar clase ───────────────────────────────────────────────────────
+// Flujo: primero elegís el nuevo horario → el modal muestra qué canchas están libres.
+
+const ModalEditarClase = ({ clase, fecha, onClose, onSave, reservasDelDia, misClasesProfesor, canchasDisponibles, franjasDelDia, rangosPorCancha, submitting }) => {
+  const [inicio, setInicio] = useState(clase.horaInicio ?? '')
+  const [fin, setFin] = useState(clase.horaFin ?? '')
+  // Pre-seleccionar la cancha actual
+  const [canchaSeleccionada, setCanchaSeleccionada] = useState(
+    () => canchasDisponibles.find((c) => String(c.id) === String(clase.canchaId)) ?? null
+  )
+  const [nota, setNota] = useState(clase.notas ?? '')
+  const [error, setError] = useState('')
+
+  const reservasSinSelf = useMemo(() => reservasDelDia.filter((r) => r.id !== clase.id), [reservasDelDia, clase.id])
+  const clasesSinSelf = useMemo(() => (misClasesProfesor ?? []).filter((r) => r.id !== clase.id), [misClasesProfesor, clase.id])
+
+  // Opciones de fin: mismo mark de minutos que inicio, sobre franjasDelDia (sin filtrar por cancha)
+  const opcionesFin = useMemo(() => {
+    if (!inicio) return []
+    const minMark = toMinFill(inicio) % 60
+    const seen = new Set()
+    const result = []
+    franjasDelDia.forEach((f) => {
+      if (toMinFill(f.fin) > toMinFill(inicio) && toMinFill(f.fin) % 60 === minMark && !seen.has(f.fin)) {
+        seen.add(f.fin)
+        result.push({ fin: f.fin })
+      }
+    })
+    return result
+  }, [inicio, franjasDelDia])
+
+  const handleSetInicio = (val) => {
+    setInicio(val)
+    const newMark = toMinFill(val) % 60
+    if (fin && (toMinFill(fin) <= toMinFill(val) || toMinFill(fin) % 60 !== newMark)) setFin('')
+    setCanchaSeleccionada(null)
+  }
+
+  const handleSetFin = (val) => {
+    setFin(val)
+    setCanchaSeleccionada(null)
+  }
+
+  const duracionTotal = useMemo(() => {
+    if (!inicio || !fin) return null
+    const mins = toMinFill(fin) - toMinFill(inicio)
+    if (mins <= 0) return null
+    const h = Math.floor(mins / 60)
+    const m = mins % 60
+    return m ? `${h}h ${m}min` : `${h}h`
+  }, [inicio, fin])
+
+  // Conflicto de profesor: independiente de la cancha
+  const conflictoProfesor = useMemo(() => {
+    if (!inicio || !fin) return false
+    return clasesSinSelf.some((r) => r.inicio < fin && r.fin > inicio)
+  }, [inicio, fin, clasesSinSelf])
+
+  // Para cada cancha: estado libre/ocupada/fuera-de-horario
+  const disponibilidadPorCancha = useMemo(() => {
+    if (!inicio || !fin) return []
+    return canchasDisponibles.map((c) => {
+      const rango = rangosPorCancha?.[c.id]
+      const fuera = rango && (toMinFill(inicio) < toMinFill(rango.apertura) || toMinFill(fin) > (toMinFill(rango.cierre) || 1440))
+      const ocupada = !fuera && reservasSinSelf.some(
+        (r) => String(r.canchaId) === String(c.id) && r.inicio < fin && r.fin > inicio
+      )
+      const estado = fuera ? 'fuera' : ocupada ? 'ocupada' : 'libre'
+      const motivo = fuera ? 'Fuera de horario' : ocupada ? 'Ocupada' : ''
+      return { ...c, estado, motivo }
+    })
+  }, [inicio, fin, canchasDisponibles, reservasSinSelf, rangosPorCancha])
+
+  const hayAlgunaLibre = !conflictoProfesor && disponibilidadPorCancha.some((c) => c.estado === 'libre')
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    setError('')
+    if (!inicio || !fin) { setError('Seleccioná el nuevo horario.'); return }
+    if (conflictoProfesor) { setError('Ya tenés otra clase en ese horario.'); return }
+    if (!canchaSeleccionada) { setError('Seleccioná una cancha disponible.'); return }
+    onSave({ canchaId: canchaSeleccionada.id, horaInicio: inicio, horaFin: fin, notas: nota.trim() })
+  }
+
+  const svgArrow = <svg width="9" height="5" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+      <div className="bg-[#0d1117] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/8 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-orange-400/15 border border-orange-400/25 rounded-xl flex items-center justify-center">
+              <Pencil size={17} className="text-orange-400" />
+            </div>
+            <div>
+              <h3 className="text-white font-bold text-sm">Mover clase</h3>
+              <p className="text-white/30 text-xs">{clase.horaInicio} – {clase.horaFin} · {clase.cancha?.nombre ?? `Cancha ${clase.canchaId}`}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
+
+          {/* Paso 1: Nuevo horario */}
+          <div className="flex flex-col gap-3">
+            <label className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
+              1 · Nuevo horario
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-white/25 text-[9px] block mb-1.5 uppercase tracking-wide">Desde</label>
+                <div className="relative">
+                  <select value={inicio} onChange={(e) => handleSetInicio(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 hover:border-orange-400/40 focus:border-orange-400/50 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none transition-all appearance-none">
+                    <option value="" className="bg-[#0d1117]">— Inicio —</option>
+                    {franjasDelDia.map((f) => (
+                      <option key={f.inicio} value={f.inicio} className="bg-[#0d1117]">{f.inicio}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25">{svgArrow}</div>
+                </div>
+              </div>
+              <div>
+                <label className="text-white/25 text-[9px] block mb-1.5 uppercase tracking-wide">Hasta</label>
+                <div className="relative">
+                  <select value={fin} onChange={(e) => handleSetFin(e.target.value)} disabled={!inicio}
+                    className="w-full bg-white/5 border border-white/10 hover:border-orange-400/40 focus:border-orange-400/50 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none transition-all appearance-none disabled:opacity-30">
+                    <option value="" className="bg-[#0d1117]">— Fin —</option>
+                    {opcionesFin.map((f) => (
+                      <option key={f.fin} value={f.fin} className="bg-[#0d1117]">{f.fin}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25">{svgArrow}</div>
+                </div>
+              </div>
+            </div>
+            {duracionTotal && (
+              <p className="text-white/25 text-xs pl-1">{inicio} → {fin} · {duracionTotal}</p>
+            )}
+          </div>
+
+          {/* Paso 2: Canchas disponibles (aparece al elegir horario) */}
+          {inicio && fin && (
+            <div className="flex flex-col gap-3">
+              <label className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
+                2 · {conflictoProfesor ? 'Sin disponibilidad' : hayAlgunaLibre ? 'Elegí una cancha' : 'Sin canchas disponibles'}
+              </label>
+
+              {conflictoProfesor ? (
+                <div className="flex items-center gap-2 bg-amber-400/8 border border-amber-400/20 rounded-xl px-4 py-3">
+                  <AlertCircle size={13} className="text-amber-400 shrink-0" />
+                  <p className="text-amber-400 text-xs">Ya tenés otra clase en ese horario — no podés mover aquí.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {disponibilidadPorCancha.map((c) => {
+                    const libre = c.estado === 'libre'
+                    const sel = canchaSeleccionada?.id === c.id
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        disabled={!libre}
+                        onClick={() => setCanchaSeleccionada(sel ? null : c)}
+                        className={[
+                          'flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all',
+                          sel
+                            ? 'bg-orange-400/15 border-orange-400/40 shadow-lg shadow-orange-400/10'
+                            : libre
+                              ? 'bg-white/3 border-white/10 hover:border-orange-400/30 hover:bg-white/5 cursor-pointer'
+                              : 'bg-white/2 border-white/5 opacity-35 cursor-not-allowed',
+                        ].join(' ')}
+                      >
+                        {/* Radio visual */}
+                        <div className={[
+                          'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                          sel ? 'border-orange-400 bg-orange-400' : libre ? 'border-white/25' : 'border-white/10',
+                        ].join(' ')}>
+                          {sel && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                        {/* Nombre */}
+                        <p className={['flex-1 text-sm font-semibold', sel ? 'text-white' : libre ? 'text-white/75' : 'text-white/25'].join(' ')}>
+                          {c.nombre}
+                        </p>
+                        {/* Badge */}
+                        {libre && !sel && <span className="text-emerald-400 text-[10px] font-bold shrink-0">Libre</span>}
+                        {sel && <span className="text-orange-400 text-[10px] font-bold shrink-0">Seleccionada</span>}
+                        {!libre && c.motivo && <span className="text-white/20 text-[10px] shrink-0">{c.motivo}</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Descripción */}
+          <div>
+            <label className="text-white/40 text-[10px] font-bold uppercase tracking-widest block mb-2">
+              Descripción <span className="text-white/20 normal-case font-normal">(opcional)</span>
+            </label>
+            <input type="text" value={nota} onChange={(e) => setNota(e.target.value)}
+              placeholder="Ej: Clase nivel principiante" maxLength={80}
+              className="w-full bg-white/5 border border-white/10 hover:border-white/20 focus:border-orange-400/50 rounded-xl px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none transition-all" />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 bg-red-400/8 border border-red-400/20 rounded-xl px-4 py-3">
+              <AlertCircle size={13} className="text-red-400 shrink-0" />
+              <p className="text-red-400 text-xs">{error}</p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 border border-white/10 text-white/40 hover:text-white hover:border-white/20 rounded-xl py-3 text-sm font-medium transition-all">
+              Cancelar
+            </button>
+            <button type="submit" disabled={submitting || !canchaSeleccionada}
+              className="flex-1 bg-orange-400 hover:bg-orange-300 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold rounded-xl py-3 text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-400/20">
+              <Save size={14} />
+              {submitting ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 // ─── Modal confirmar eliminar ─────────────────────────────────────────────────
 
 const ModalConfirmarEliminar = ({ clase, onConfirm, onClose, submitting }) => createPortal(
@@ -445,6 +681,7 @@ const ProfesorAgendaPage = () => {
   const [modalAutoFill, setModalAutoFill] = useState(false)
   const [bloquesAutoFill, setBloquesAutoFill] = useState([])
   const [claseEliminar, setClaseEliminar] = useState(null)
+  const [claseEditar, setClaseEditar] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [showHelper, setShowHelper] = useState(false)
   const [clasesSemana, setClasesSemana] = useState({})
@@ -661,6 +898,27 @@ const ProfesorAgendaPage = () => {
   }
 
 
+  const handleEditarClase = async ({ canchaId, horaInicio, horaFin, notas }) => {
+    if (submitting || !claseEditar) return
+    setSubmitting(true)
+    try {
+      const updated = await api.patch(`/reservas/profesor/${claseEditar.id}`, { canchaId, horaInicio, horaFin, notas }, headers)
+      const norm = normalizar(updated)
+      setMisClases((prev) => prev.map((r) => r.id === claseEditar.id ? norm : r))
+      setClasesSemana((prev) => ({
+        ...prev,
+        [fecha]: (prev[fecha] ?? []).map((r) => r.id === claseEditar.id ? norm : r),
+      }))
+      setClaseEditar(null)
+      showToast('Clase actualizada exitosamente')
+      fetchTodasDia(fecha)
+    } catch (err) {
+      alert(err?.message || 'Error al editar la clase')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   // Horas de clase del día
   const horasDia = useMemo(() => {
     const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
@@ -742,12 +1000,21 @@ const ProfesorAgendaPage = () => {
               </div>
             </div>
             <div className="flex gap-3">
+              <div className="w-6 h-6 bg-orange-400/10 border border-orange-400/20 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                <Pencil size={11} className="text-orange-400/60" />
+              </div>
+              <div>
+                <p className="text-white/70 text-xs font-semibold">Editar una clase</p>
+                <p className="text-white/30 text-xs leading-relaxed mt-0.5">Hacé clic en el ícono de lápiz para cambiar la cancha, el horario o la descripción. Útil si acordaste un nuevo horario con los alumnos. Solo disponible en clases que aún no comenzaron.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
               <div className="w-6 h-6 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
                 <Trash2 size={11} className="text-white/30" />
               </div>
               <div>
-                <p className="text-white/70 text-xs font-semibold">Eliminar una clase</p>
-                <p className="text-white/30 text-xs leading-relaxed mt-0.5">Hacé clic en el ícono de tacho en una clase del listado. Solo podés eliminar tus propias clases y solo si aún no comenzaron.</p>
+                <p className="text-white/70 text-xs font-semibold">Cancelar una clase</p>
+                <p className="text-white/30 text-xs leading-relaxed mt-0.5">Hacé clic en el ícono de tacho en una clase del listado. Solo podés cancelar tus propias clases y solo si aún no comenzaron.</p>
               </div>
             </div>
             <div className="flex gap-3">
@@ -921,12 +1188,20 @@ const ProfesorAgendaPage = () => {
                     {pasada ? (
                       <span className="text-white/20 text-[10px] font-medium shrink-0">Realizada</span>
                     ) : (
-                      <button
-                        onClick={() => setClaseEliminar(clase)}
-                        className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white/20 hover:text-red-400 hover:bg-red-400/8 transition-all"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => setClaseEditar(clase)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-white/20 hover:text-orange-400 hover:bg-orange-400/8 transition-all"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => setClaseEliminar(clase)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-white/20 hover:text-red-400 hover:bg-red-400/8 transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -942,7 +1217,14 @@ const ProfesorAgendaPage = () => {
           <CalendarDays size={14} className="text-white/30" />
           <span className="text-white font-bold text-sm">Esta semana</span>
           <span className="ml-auto text-white/25 text-xs">
-            {Object.values(clasesSemana).flat().length} clases · {Object.values(clasesSemana).flat().length}h
+            {(() => {
+              const todas = Object.values(clasesSemana).flat()
+              const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+              const totalMins = todas.reduce((acc, c) => acc + (toMin(c.horaFin) - toMin(c.horaInicio)), 0)
+              const h = Math.floor(totalMins / 60)
+              const m = totalMins % 60
+              return `${todas.length} clases · ${m ? `${h}h ${m}m` : `${h}h`}`
+            })()}
           </span>
         </div>
         <div className="divide-y divide-white/5">
@@ -1031,6 +1313,20 @@ const ProfesorAgendaPage = () => {
           fecha={fecha}
           onClose={() => setModalNueva(false)}
           onSave={handleCrearClase}
+          reservasDelDia={[...todasReservasDia, ...turnosFijosDia]}
+          misClasesProfesor={misClases}
+          canchasDisponibles={canchasHabilitadas}
+          franjasDelDia={franjasDelDia}
+          rangosPorCancha={Object.fromEntries(canchasHabilitadas.map((c) => [c.id, getRangoCancha(c)]))}
+          submitting={submitting}
+        />
+      )}
+      {claseEditar && (
+        <ModalEditarClase
+          clase={claseEditar}
+          fecha={claseEditar.fecha}
+          onClose={() => setClaseEditar(null)}
+          onSave={handleEditarClase}
           reservasDelDia={[...todasReservasDia, ...turnosFijosDia]}
           misClasesProfesor={misClases}
           canchasDisponibles={canchasHabilitadas}

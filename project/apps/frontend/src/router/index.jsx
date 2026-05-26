@@ -30,6 +30,8 @@ import ProfesorDisponibilidadPage from '../pages/ProfesorDisponibilidadPage'
 import TorneoPublicoPage from '../pages/TorneoPublicoPage'
 import JugadoresAdminPage from '../pages/JugadoresAdminPage'
 import ClasesProfesorAdminPage from '../pages/ClasesProfesorAdminPage'
+import AdminReservasLayout from '../layouts/AdminReservasLayout'
+import AdminReservasEstadisticasPage from '../pages/AdminReservasEstadisticasPage'
 import NotFoundPage from '../pages/NotFoundPage'
 
 const router = createBrowserRouter([
@@ -79,7 +81,14 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <AdminDashboardPage /> },
       { path: 'club', element: <ClubPage /> },
-      { path: 'reservas', element: <ReservasPage /> },
+      {
+        path: 'reservas',
+        element: <AdminReservasLayout />,
+        children: [
+          { index: true, element: <ReservasPage /> },
+          { path: 'estadisticas', element: <AdminReservasEstadisticasPage /> },
+        ],
+      },
       { path: 'torneos', element: <TorneosPage /> },
       { path: 'torneos/:id', element: <TorneoDetallePage /> },
       { path: 'pagos', element: <PagosPage /> },

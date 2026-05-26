@@ -144,7 +144,7 @@ const PlayerRegisterPage = () => {
 
     setSubmitting(true)
     try {
-      const clubId = 'cmoryx4a900008t4qmzdzuiee'
+      const clubId = import.meta.env.VITE_CLUB_ID
       const data = await api.post('/auth/jugador/registro', {
         clubId,
         nombre:              form.nombre,

@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, Plus, X, Save, Check,
   CalendarDays, DollarSign, Lock, Repeat, Clock,
-  Users, AlertCircle, AlertTriangle, CheckCircle, Ban, Pencil, Bell, GraduationCap, Trash2, XCircle, MapPin, HelpCircle,
+  Users, AlertCircle, AlertTriangle, CheckCircle, Ban, Pencil, Bell, GraduationCap, Trash2, XCircle, MapPin, HelpCircle, Search,
 } from 'lucide-react'
 import {
   RAZONES_BLOQUEO, METODOS_PAGO, CLASES_PROFESOR, DIAS_SEMANA_OPCIONES,
@@ -718,6 +718,126 @@ const GrillaConHorarioPropio = ({ cancha, franjas, reservas, clasesDia, fecha, o
   </div>
 )
 
+// ─── Modal búsqueda especializada de jugadores ────────────────────────────────
+
+const ModalBusquedaJugadores = ({ onSelect, onClose, adminToken }) => {
+  const [todos, setTodos]     = useState([])
+  const [cargando, setCargando] = useState(true)
+  const [filtroNombre, setFiltroNombre]     = useState('')
+  const [filtroApellido, setFiltroApellido] = useState('')
+  const [filtroCuenta, setFiltroCuenta]     = useState('todos') // 'todos' | 'con' | 'sin'
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    const authH = adminToken ? { Authorization: `Bearer ${adminToken}` } : {}
+    api.get('/jugadores', authH)
+      .then((res) => setTodos(Array.isArray(res) ? res : []))
+      .catch(() => setTodos([]))
+      .finally(() => { setCargando(false); setTimeout(() => inputRef.current?.focus(), 50) })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const fn = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [onClose])
+
+  const filtrados = todos.filter((j) => {
+    const matchNombre   = j.nombre?.toLowerCase().includes(filtroNombre.toLowerCase().trim())
+    const matchApellido = j.apellido?.toLowerCase().includes(filtroApellido.toLowerCase().trim())
+    const matchCuenta   = filtroCuenta === 'todos'
+      ? true
+      : filtroCuenta === 'con' ? j.cuentaActiva : !j.cuentaActiva
+    return matchNombre && matchApellido && matchCuenta
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: '82vh' }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Search size={14} className="text-slate-400" />
+            <span className="text-sm font-semibold text-slate-700">Buscar jugador</span>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Filtros */}
+        <div className="px-4 py-3 border-b border-slate-100 flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Nombre..."
+              value={filtroNombre}
+              onChange={(e) => setFiltroNombre(e.target.value)}
+              className="border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/10 transition-all placeholder:text-slate-300"
+            />
+            <input
+              type="text"
+              placeholder="Apellido..."
+              value={filtroApellido}
+              onChange={(e) => setFiltroApellido(e.target.value)}
+              className="border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/10 transition-all placeholder:text-slate-300"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            {[['todos','Todos'],['con','Con cuenta'],['sin','Sin cuenta']].map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setFiltroCuenta(val)}
+                className={`text-[10px] font-medium px-2.5 py-1 rounded-lg border transition-all ${
+                  filtroCuenta === val
+                    ? 'bg-emerald-500 text-white border-emerald-500'
+                    : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            <span className="ml-auto text-[10px] text-slate-400 self-center">{filtrados.length} jugador{filtrados.length !== 1 ? 'es' : ''}</span>
+          </div>
+        </div>
+
+        {/* Lista */}
+        <div className="overflow-y-auto flex-1">
+          {cargando && (
+            <div className="flex items-center justify-center py-10 gap-2">
+              <div className="w-4 h-4 border-2 border-slate-200 border-t-emerald-400 rounded-full animate-spin" />
+              <span className="text-xs text-slate-400">Cargando jugadores...</span>
+            </div>
+          )}
+          {!cargando && filtrados.length === 0 && (
+            <p className="text-center text-slate-400 text-xs py-10">Sin coincidencias</p>
+          )}
+          {!cargando && filtrados.map((j) => (
+            <button
+              key={j.id}
+              type="button"
+              onClick={() => { onSelect(j); onClose() }}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-emerald-50 active:bg-emerald-100 transition-colors text-left border-b border-slate-50 last:border-0"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-700 truncate">{j.nombre} {j.apellido}</p>
+                {j.dni && <p className="text-xs text-slate-400">DNI {j.dni}</p>}
+              </div>
+              {!j.cuentaActiva && (
+                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 shrink-0 ml-2">Sin cuenta</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Panel lateral — Formulario nueva reserva ─────────────────────────────────
 
 const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
@@ -741,6 +861,7 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
   const [jugadorSel, setJugadorSel] = useState(null) // { id, nombre, apellido, dni }
   const [buscando, setBuscando] = useState(false)
   const [errorNombre, setErrorNombre] = useState(false)
+  const [modalBusqueda, setModalBusqueda] = useState(false)
 
   // Alta rápida de jugador
   const [altaRapida, setAltaRapida] = useState(false)
@@ -911,25 +1032,35 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
               </div>
             ) : (
               <div className={`relative ${errorNombre ? 'animate-shake' : ''}`} onAnimationEnd={() => {}}>
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre o DNI..."
-                  value={query}
-                  onChange={(e) => {
-                    const raw = e.target.value
-                    const esSoloDni = /^\d+$/.test(raw)
-                    if (esSoloDni && raw.length > 8) { showHintQuery('El DNI tiene máximo 8 dígitos'); return }
-                    setQuery(raw); setResultados([]); setErrorNombre(false)
-                  }}
-                  className={`w-full border rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:ring-2 ${
-                    errorNombre
-                      ? 'border-red-400 focus:border-red-400 focus:ring-red-400/10'
-                      : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/10'
-                  }`}
-                />
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="Buscar por nombre o DNI..."
+                    value={query}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      const esSoloDni = /^\d+$/.test(raw)
+                      if (esSoloDni && raw.length > 8) { showHintQuery('El DNI tiene máximo 8 dígitos'); return }
+                      setQuery(raw); setResultados([]); setErrorNombre(false)
+                    }}
+                    className={`flex-1 border rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:ring-2 ${
+                      errorNombre
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-400/10'
+                        : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/10'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setModalBusqueda(true)}
+                    title="Búsqueda avanzada"
+                    className="shrink-0 px-2.5 border border-slate-200 rounded-xl text-slate-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all"
+                  >
+                    <Search size={15} />
+                  </button>
+                </div>
                 {hintQuery && <p className="text-amber-500 text-xs mt-1 animate-pulse">{hintQuery}</p>}
                 {buscando && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-slate-300 border-t-emerald-400 rounded-full animate-spin" />
+                  <div className="absolute right-12 top-3 w-3.5 h-3.5 border-2 border-slate-300 border-t-emerald-400 rounded-full animate-spin" />
                 )}
                 {resultados.length > 0 && (
                   <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
@@ -1093,6 +1224,14 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
           Confirmar
         </button>
       </div>
+
+      {modalBusqueda && (
+        <ModalBusquedaJugadores
+          adminToken={adminToken}
+          onSelect={(j) => { setJugadorSel(j); setQuery(''); setResultados([]) }}
+          onClose={() => setModalBusqueda(false)}
+        />
+      )}
     </div>
   )
 }
@@ -1481,6 +1620,7 @@ const EditarReserva = ({ reserva, onSave, onCancel }) => {
   const [resultados, setResultados] = useState([])
   const [buscando, setBuscando] = useState(false)
   const [errorNombre, setErrorNombre] = useState(false)
+  const [modalBusqueda, setModalBusqueda] = useState(false)
   const [altaRapida, setAltaRapida] = useState(false)
   const [altaForm, setAltaForm] = useState({ nombre: '', apellido: '', dni: '' })
   const [altaErrors, setAltaErrors] = useState({ nombre: '', apellido: '', dni: '' })
@@ -1574,25 +1714,35 @@ const EditarReserva = ({ reserva, onSave, onCancel }) => {
             </div>
           ) : (
             <div className={`relative ${errorNombre ? 'animate-shake' : ''}`} onAnimationEnd={() => {}}>
-              <input
-                type="text"
-                placeholder="Buscar por nombre o DNI..."
-                value={query}
-                onChange={(e) => {
-                  const raw = e.target.value
-                  const esSoloDni = /^\d+$/.test(raw)
-                  if (esSoloDni && raw.length > 8) { showHintQuery('El DNI tiene máximo 8 dígitos'); return }
-                  setQuery(raw); setErrorNombre(false)
-                }}
-                className={`w-full border rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:ring-2 ${
-                  errorNombre
-                    ? 'border-red-400 focus:border-red-400 focus:ring-red-400/10'
-                    : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/10'
-                }`}
-              />
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre o DNI..."
+                  value={query}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    const esSoloDni = /^\d+$/.test(raw)
+                    if (esSoloDni && raw.length > 8) { showHintQuery('El DNI tiene máximo 8 dígitos'); return }
+                    setQuery(raw); setErrorNombre(false)
+                  }}
+                  className={`flex-1 border rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:ring-2 ${
+                    errorNombre
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-400/10'
+                      : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/10'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setModalBusqueda(true)}
+                  title="Búsqueda avanzada"
+                  className="shrink-0 px-2.5 border border-slate-200 rounded-xl text-slate-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all"
+                >
+                  <Search size={15} />
+                </button>
+              </div>
               {hintQuery && <p className="text-amber-500 text-xs mt-1 animate-pulse">{hintQuery}</p>}
               {buscando && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-slate-300 border-t-emerald-400 rounded-full animate-spin" />
+                <div className="absolute right-12 top-3 w-3.5 h-3.5 border-2 border-slate-300 border-t-emerald-400 rounded-full animate-spin" />
               )}
               {(resultados.length > 0 || buscando) && (
                 <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
@@ -1738,6 +1888,14 @@ const EditarReserva = ({ reserva, onSave, onCancel }) => {
           Guardar
         </button>
       </div>
+
+      {modalBusqueda && (
+        <ModalBusquedaJugadores
+          adminToken={adminToken}
+          onSelect={(j) => { setJugadorSel(j); setQuery(''); setResultados([]) }}
+          onClose={() => setModalBusqueda(false)}
+        />
+      )}
     </div>
   )
 }

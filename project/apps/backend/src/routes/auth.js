@@ -215,6 +215,19 @@ router.patch('/profesor/disponibilidad', requireAuth, requireRole('profesor'), a
         especialidad: true, canchasIds: true, disponibilidad: true, activo: true, createdAt: true,
       },
     })
+
+    // Notificar al admin que el profesor actualizó su disponibilidad
+    prisma.notificacion.create({
+      data: {
+        clubId: req.user.clubId,
+        tipo: 'actualizacion_disponibilidad_profesor',
+        data: {
+          profesorNombre: `${profesor.nombre} ${profesor.apellido}`,
+          profesorId: req.user.id,
+        },
+      },
+    }).catch(() => {})
+
     res.json(profesor)
   } catch (err) {
     console.error(err)

@@ -5,7 +5,7 @@ import {
   Phone, Mail, MapPin, Sun, Moon,
   Pencil, Wifi, WifiOff, ChevronDown, ChevronUp,
   Images, Wrench, Users, HelpCircle, CalendarDays,
-  Plus, Trash2, User, Check, UserX, X,
+  Plus, Trash2, User, Check, X, AlertTriangle,
   ShowerHead, Car, GraduationCap, Coffee, Dumbbell,
   Shield, Wind, Utensils, Music, Info,
 } from 'lucide-react'
@@ -903,6 +903,7 @@ const CanchaRow = ({ cancha, onUpdate }) => {
 
 const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, saveClub, updateClub }) => {
   const [saved, setSaved] = useState(false)
+  const [pendingDesactivar, setPendingDesactivar] = useState(null)
   const cantidad = club.canchas.length
   const horasCancelacion = club.horasCancelacion ?? 0
 
@@ -1082,7 +1083,13 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
               <div key={c.id} className="border border-slate-100 rounded-xl overflow-hidden">
                 <div className="flex items-center gap-3 px-4 py-3 bg-slate-50">
                   <button
-                    onClick={() => updateCancha(c.id, { ...c, horarios: tieneCustom ? null : { ...HORARIOS_CANCHA_DEFAULT } })}
+                    onClick={() => {
+                      if (tieneCustom) {
+                        setPendingDesactivar(c)
+                      } else {
+                        updateCancha(c.id, { ...c, horarios: { ...HORARIOS_CANCHA_DEFAULT } })
+                      }
+                    }}
                     className={[
                       'relative w-10 h-5 rounded-full transition-all duration-300 shrink-0',
                       tieneCustom ? 'bg-blue-500' : 'bg-slate-200',
@@ -1143,6 +1150,42 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
       </SectionCard>
 
       <SaveButton onClick={handleSave} saved={saved} />
+
+      {/* Modal advertencia desactivar horario propio */}
+      {pendingDesactivar && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center mb-4">
+              <AlertTriangle size={20} className="text-amber-500" />
+            </div>
+            <h3 className="text-slate-800 font-bold mb-2">¿Desactivar horario propio?</h3>
+            <p className="text-slate-500 text-sm leading-relaxed mb-1">
+              <span className="font-semibold text-slate-700">{pendingDesactivar.nombre}</span> tiene horarios personalizados configurados.
+            </p>
+            <p className="text-slate-500 text-sm leading-relaxed mb-6">
+              Si los desactivás, la cancha hereda el horario general del club. Las reservas existentes con horarios distintos pueden quedar{' '}
+              <span className="text-amber-600 font-medium">fuera de la grilla visual</span>.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPendingDesactivar(null)}
+                className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl py-2.5 text-sm font-medium transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  updateCancha(pendingDesactivar.id, { ...pendingDesactivar, horarios: null })
+                  setPendingDesactivar(null)
+                }}
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-white font-bold rounded-xl py-2.5 text-sm transition-all"
+              >
+                Desactivar igual
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1794,17 +1837,10 @@ const ProfesorCard = ({ profesor, canchas, onUpdate, onDelete }) => {
           </span>
           <button
             onClick={() => { setEditing((v) => !v); setLocal({ ...profesor }) }}
-            title={editing ? 'Cancelar' : 'Editar'}
+            title={editing ? 'Cancelar edición' : 'Editar profesor'}
             className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${editing ? 'bg-slate-100 text-slate-600' : 'text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'}`}
           >
             <Pencil size={13} />
-          </button>
-          <button
-            onClick={() => onDelete(profesor.id)}
-            title="Desactivar profesor"
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-400 transition-colors"
-          >
-            <UserX size={14} />
           </button>
         </div>
       </div>
@@ -1839,13 +1875,17 @@ const ProfesorCard = ({ profesor, canchas, onUpdate, onDelete }) => {
               />
             </div>
             <div>
-              <label className="block text-slate-500 text-xs font-medium mb-1.5">Contraseña</label>
+              <label className="block text-slate-500 text-xs font-medium mb-1.5">
+                Contraseña
+                <span className="text-slate-300 font-normal ml-1">(vacío = no cambiar)</span>
+              </label>
               <div className="relative">
                 <input
                   type={showPass ? 'text' : 'password'}
                   value={local.password}
+                  placeholder="Nueva contraseña..."
                   onChange={(e) => setLocal((p) => ({ ...p, password: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-9 text-sm text-slate-700 outline-none focus:border-emerald-400 transition-colors"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-9 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-emerald-400 transition-colors"
                 />
                 <button
                   type="button"
@@ -1855,6 +1895,16 @@ const ProfesorCard = ({ profesor, canchas, onUpdate, onDelete }) => {
                   {showPass ? <Moon size={14} /> : <Sun size={14} />}
                 </button>
               </div>
+            </div>
+            <div>
+              <label className="block text-slate-500 text-xs font-medium mb-1.5">Celular</label>
+              <input
+                type="tel"
+                value={local.celular ?? ''}
+                onChange={(e) => setLocal((p) => ({ ...p, celular: e.target.value }))}
+                placeholder="+54 9 11 ..."
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-emerald-400 transition-colors"
+              />
             </div>
             <div className="sm:col-span-2">
               <label className="block text-slate-500 text-xs font-medium mb-1.5">Especialidad</label>
@@ -2123,8 +2173,7 @@ const TabProfesores = ({ club, token }) => {
                 <p className="text-xs font-semibold text-slate-600 mb-2.5">Acciones por profesor</p>
                 <div className="flex flex-col gap-2">
                   {[
-                    { icon: <Pencil size={12} />, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', label: 'Lápiz', desc: 'Abre el formulario para editar datos del profesor: nombre, email, contraseña, especialidad y canchas asignadas.' },
-                    { icon: <UserX size={12} />,  color: 'text-red-400 bg-red-50 border-red-200',       label: 'Desactivar', desc: 'Desactiva la cuenta del profesor. No puede iniciar sesión hasta que se vuelva a activar desde el formulario de edición.' },
+                    { icon: <Pencil size={12} />, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', label: 'Lápiz', desc: 'Abre el formulario para editar nombre, email, celular, especialidad, canchas asignadas y contraseña. Para activar o desactivar el acceso al portal usá el toggle dentro del formulario.' },
                   ].map(({ icon, color, label, desc }) => (
                     <div key={label} className="flex items-start gap-2.5">
                       <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 mt-0.5 ${color}`}>{icon}</div>
@@ -2156,6 +2205,21 @@ const TabProfesores = ({ club, token }) => {
               <div className="pt-3 border-t border-slate-100">
                 <p className="text-xs font-semibold text-slate-600 mb-1.5">Canchas habilitadas</p>
                 <p className="text-xs text-slate-500 leading-relaxed">Si no se selecciona ninguna cancha, el profesor puede crear clases en todas las canchas activas del club. Seleccioná una o más para restringir su acceso.</p>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-600 mb-2">Contraseña</p>
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    <span className="font-medium text-slate-700">El campo aparece vacío al editar</span> — esto es normal. Por seguridad, las contraseñas se guardan cifradas y nunca se pueden recuperar.
+                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    <span className="font-medium text-slate-700">Para no cambiarla:</span> dejá el campo en blanco y guardá. La contraseña actual queda intacta.
+                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    <span className="font-medium text-slate-700">Para resetearla:</span> escribí la nueva contraseña en el campo y guardá. El profesor puede ingresar con la nueva contraseña desde ese momento.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

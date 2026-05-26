@@ -4,7 +4,7 @@ import {
   ArrowLeft, Trophy, Medal, Users, Calendar, Zap, Trash2,
   ToggleLeft, ToggleRight, Lock, CheckCircle, Clock, Archive,
   AlertTriangle, Shuffle, CheckCheck, GitMerge, UserPlus, Plus, X, Pencil, Swords,
-  Palette, ChevronDown, Maximize2, Minimize2, Share2, Upload,
+  Palette, ChevronDown, Maximize2, Minimize2, Share2, Upload, Search,
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
 import useAuthStore from '../store/authStore'
@@ -1225,9 +1225,114 @@ const PublicarBracketModal = ({ torneo, club, activeBracket, seedingMap, selecte
   )
 }
 
+// ── Modal búsqueda avanzada de jugadores ──────────────────────────────────────
+
+const ModalBusquedaJugadores = ({ onSelect, onClose, token }) => {
+  const [todos, setTodos]               = useState([])
+  const [cargando, setCargando]         = useState(true)
+  const [filtroNombre, setFiltroNombre] = useState('')
+  const [filtroApellido, setFiltroApellido] = useState('')
+  const [filtroCuenta, setFiltroCuenta] = useState('todos')
+  const inputRef = useRef(null)
+  const authH = token ? { Authorization: `Bearer ${token}` } : {}
+
+  useEffect(() => {
+    api.get('/jugadores', authH)
+      .then((res) => setTodos(Array.isArray(res) ? res : []))
+      .catch(() => setTodos([]))
+      .finally(() => { setCargando(false); setTimeout(() => inputRef.current?.focus(), 50) })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const fn = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [onClose])
+
+  const filtrados = todos.filter((j) => {
+    const matchNombre   = j.nombre?.toLowerCase().includes(filtroNombre.toLowerCase().trim())
+    const matchApellido = j.apellido?.toLowerCase().includes(filtroApellido.toLowerCase().trim())
+    const matchCuenta   = filtroCuenta === 'todos' ? true : filtroCuenta === 'con' ? j.cuentaActiva : !j.cuentaActiva
+    return matchNombre && matchApellido && matchCuenta
+  })
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: '80vh' }}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Search size={14} className="text-slate-400" />
+            <span className="text-sm font-semibold text-slate-700">Buscar jugador</span>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-4 py-3 border-b border-slate-100 flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Nombre..."
+              value={filtroNombre}
+              onChange={(e) => setFiltroNombre(e.target.value)}
+              className="border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/10 transition-all placeholder:text-slate-300"
+            />
+            <input
+              type="text"
+              placeholder="Apellido..."
+              value={filtroApellido}
+              onChange={(e) => setFiltroApellido(e.target.value)}
+              className="border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/10 transition-all placeholder:text-slate-300"
+            />
+          </div>
+          <div className="flex gap-1.5 items-center">
+            {[['todos','Todos'],['con','Con cuenta'],['sin','Sin cuenta']].map(([val, label]) => (
+              <button key={val} type="button" onClick={() => setFiltroCuenta(val)}
+                className={`text-[10px] font-medium px-2.5 py-1 rounded-lg border transition-all ${
+                  filtroCuenta === val ? 'bg-brand-500 text-white border-brand-500' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                }`}>
+                {label}
+              </button>
+            ))}
+            <span className="ml-auto text-[10px] text-slate-400">{filtrados.length} jugador{filtrados.length !== 1 ? 'es' : ''}</span>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto flex-1">
+          {cargando && (
+            <div className="flex items-center justify-center py-10 gap-2">
+              <div className="w-4 h-4 border-2 border-slate-200 border-t-brand-400 rounded-full animate-spin" />
+              <span className="text-xs text-slate-400">Cargando jugadores...</span>
+            </div>
+          )}
+          {!cargando && filtrados.length === 0 && (
+            <p className="text-center text-slate-400 text-xs py-10">Sin coincidencias</p>
+          )}
+          {!cargando && filtrados.map((j) => (
+            <button key={j.id} type="button"
+              onClick={() => { onSelect(j); onClose() }}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-brand-50 transition-colors text-left border-b border-slate-50 last:border-0">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-700 truncate">{j.nombre} {j.apellido}</p>
+                {j.dni && <p className="text-xs text-slate-400">DNI {j.dni}</p>}
+              </div>
+              {!j.cuentaActiva && (
+                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 shrink-0 ml-2">Sin cuenta</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Modal agregar pareja (admin — carga manual) ───────────────────────────────
 
-const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
+const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token }) => {
   const [jugador1, setJugador1]                 = useState('')
   const [jugador1Dni, setJugador1Dni]           = useState('')
   const [jugador2, setJugador2]                 = useState('')
@@ -1241,6 +1346,114 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
   const [dniErrors, setDniErrors]               = useState({ j1: '', j2: '' })
   const [nameErrors, setNameErrors]             = useState({ j1: '', j2: '' })
   const [sinCompanero, setSinCompanero]         = useState(false)
+  const [modalBusquedaPara, setModalBusquedaPara] = useState(null) // null | 'j1' | 'j2'
+  const [sugerenciasJ1, setSugerenciasJ1] = useState([])
+  const [sugerenciasJ2, setSugerenciasJ2] = useState([])
+  const [buscandoNombreJ1, setBuscandoNombreJ1] = useState(false)
+  const [buscandoNombreJ2, setBuscandoNombreJ2] = useState(false)
+
+  const LOOKUP_INIT = { estado: 'idle', jugador: null }
+  const ALTA_INIT   = { activa: false, nombre: '', apellido: '', errores: {}, guardando: false }
+  const [lookupJ1, setLookupJ1] = useState(LOOKUP_INIT)
+  const [lookupJ2, setLookupJ2] = useState(LOOKUP_INIT)
+  const [altaJ1,   setAltaJ1]  = useState(ALTA_INIT)
+  const [altaJ2,   setAltaJ2]  = useState(ALTA_INIT)
+  const authH = token ? { Authorization: `Bearer ${token}` } : {}
+
+  useEffect(() => {
+    if (lookupJ1.estado === 'encontrado') return
+    const t = setTimeout(async () => {
+      if (!/^\d{7,8}$/.test(jugador1Dni)) { setLookupJ1(LOOKUP_INIT); return }
+      setLookupJ1({ estado: 'buscando', jugador: null })
+      try {
+        const res = await api.get(`/jugadores/buscar?q=${jugador1Dni}`, authH)
+        const exacto = Array.isArray(res) ? res.find((j) => j.dni === jugador1Dni) : null
+        if (exacto) {
+          setLookupJ1({ estado: 'encontrado', jugador: exacto })
+          setJugador1(`${exacto.nombre} ${exacto.apellido}`)
+          setAltaJ1(ALTA_INIT)
+          setNameErrors((p) => ({ ...p, j1: '' }))
+        } else {
+          setLookupJ1({ estado: 'no_encontrado', jugador: null })
+        }
+      } catch { setLookupJ1(LOOKUP_INIT) }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [jugador1Dni]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (sinCompanero || lookupJ2.estado === 'encontrado') return
+    const t = setTimeout(async () => {
+      if (!/^\d{7,8}$/.test(jugador2Dni)) { setLookupJ2(LOOKUP_INIT); return }
+      setLookupJ2({ estado: 'buscando', jugador: null })
+      try {
+        const res = await api.get(`/jugadores/buscar?q=${jugador2Dni}`, authH)
+        const exacto = Array.isArray(res) ? res.find((j) => j.dni === jugador2Dni) : null
+        if (exacto) {
+          setLookupJ2({ estado: 'encontrado', jugador: exacto })
+          setJugador2(`${exacto.nombre} ${exacto.apellido}`)
+          setAltaJ2(ALTA_INIT)
+          setNameErrors((p) => ({ ...p, j2: '' }))
+        } else {
+          setLookupJ2({ estado: 'no_encontrado', jugador: null })
+        }
+      } catch { setLookupJ2(LOOKUP_INIT) }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [jugador2Dni, sinCompanero]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Búsqueda por nombre J1
+  useEffect(() => {
+    if (lookupJ1.estado === 'encontrado') { setSugerenciasJ1([]); return }
+    if (jugador1.trim().length < 2) { setSugerenciasJ1([]); return }
+    const t = setTimeout(async () => {
+      setBuscandoNombreJ1(true)
+      try {
+        const res = await api.get(`/jugadores/buscar?q=${encodeURIComponent(jugador1.trim())}`, authH)
+        setSugerenciasJ1(Array.isArray(res) ? res.slice(0, 6) : [])
+      } catch { setSugerenciasJ1([]) }
+      finally { setBuscandoNombreJ1(false) }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [jugador1]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Búsqueda por nombre J2
+  useEffect(() => {
+    if (sinCompanero || lookupJ2.estado === 'encontrado') { setSugerenciasJ2([]); return }
+    if (jugador2.trim().length < 2) { setSugerenciasJ2([]); return }
+    const t = setTimeout(async () => {
+      setBuscandoNombreJ2(true)
+      try {
+        const res = await api.get(`/jugadores/buscar?q=${encodeURIComponent(jugador2.trim())}`, authH)
+        setSugerenciasJ2(Array.isArray(res) ? res.slice(0, 6) : [])
+      } catch { setSugerenciasJ2([]) }
+      finally { setBuscandoNombreJ2(false) }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [jugador2, sinCompanero]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAltaJugador = async (who) => {
+    const alta      = who === 1 ? altaJ1    : altaJ2
+    const setAlta   = who === 1 ? setAltaJ1  : setAltaJ2
+    const setLookup = who === 1 ? setLookupJ1 : setLookupJ2
+    const setNombre = who === 1 ? setJugador1 : setJugador2
+    const dni       = who === 1 ? jugador1Dni : jugador2Dni
+    const errs = {}
+    if (!alta.nombre.trim())             errs.nombre   = 'Requerido'
+    else if (/\d/.test(alta.nombre))     errs.nombre   = 'Solo letras'
+    if (!alta.apellido.trim())           errs.apellido = 'Requerido'
+    else if (/\d/.test(alta.apellido))   errs.apellido = 'Solo letras'
+    if (Object.keys(errs).length) { setAlta((p) => ({ ...p, errores: errs })); return }
+    setAlta((p) => ({ ...p, guardando: true }))
+    try {
+      const nuevo = await api.post('/jugadores', { nombre: alta.nombre.trim(), apellido: alta.apellido.trim(), dni }, authH)
+      setLookup({ estado: 'encontrado', jugador: nuevo })
+      setNombre(`${nuevo.nombre} ${nuevo.apellido}`)
+      setAlta(ALTA_INIT)
+    } catch (err) {
+      setAlta((p) => ({ ...p, guardando: false, errores: { general: err.message || 'Error al dar de alta' } }))
+    }
+  }
 
   const soloUnDia = [...new Set(slots.map((s) => s.dia))].length <= 1
   useEffect(() => { if (!soloUnDia) setPrefiereMismoDia(false) }, [soloUnDia])
@@ -1295,6 +1508,15 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
       else if (!/^\d{7,8}$/.test(jugador2Dni.trim()))   newDniErrors.j2 = 'Entre 7 y 8 números'
     }
     if (newDniErrors.j1 || newDniErrors.j2) { setDniErrors(newDniErrors); return }
+    // Validar que ambos jugadores estén registrados en el sistema
+    if (lookupJ1.estado === 'no_encontrado') {
+      setDniErrors((p) => ({ ...p, j1: 'Debe estar dado de alta antes de continuar' }))
+      return
+    }
+    if (!sinCompanero && lookupJ2.estado === 'no_encontrado') {
+      setDniErrors((p) => ({ ...p, j2: 'Debe estar dado de alta antes de continuar' }))
+      return
+    }
     setDniErrors({ j1: '', j2: '' })
     if (!sinCompanero) {
       if (slots.length === 0) { setSlotError('Agregá al menos un horario disponible.'); return }
@@ -1319,7 +1541,7 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
           <div>
@@ -1363,48 +1585,133 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
 
           {/* Jugadores — grilla 2x2: nombre | DNI para cada uno */}
           <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+            {/* Nombre J1 */}
             <div>
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 1</label>
-              <input
-                type="text"
-                placeholder="Nombre y apellido"
-                value={jugador1}
-                onChange={(e) => {
-                  const raw = e.target.value
-                  setJugador1(raw.replace(/[0-9]/g, ''))
-                  if (/[0-9]/.test(raw))
-                    setNameErrors((p) => ({ ...p, j1: 'Solo letras permitidas' }))
-                  else
-                    setNameErrors((p) => ({ ...p, j1: '' }))
-                }}
-                className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameErrors.j1 ? 'border-red-400' : 'border-slate-200'}`}
-              />
-              {nameErrors.j1 && <p className="text-red-500 text-[10px] mt-0.5">{nameErrors.j1}</p>}
+              {lookupJ1.estado === 'encontrado' ? (
+                <div className="flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 rounded-xl px-2.5 py-2 min-h-[42px]">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-medium text-emerald-800 block truncate">{jugador1}</span>
+                    {lookupJ1.jugador && !lookupJ1.jugador.cuentaActiva && (
+                      <span className="text-[9px] text-amber-600 font-semibold leading-tight">Sin cuenta</span>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => { setLookupJ1(LOOKUP_INIT); setJugador1('') }} className="text-slate-400 hover:text-slate-600 shrink-0 transition-colors">
+                    <X size={11} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-1 relative">
+                    <input
+                      type="text"
+                      placeholder="Nombre y apellido"
+                      value={jugador1}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                        setJugador1(raw.replace(/[0-9]/g, ''))
+                        setNameErrors((p) => ({ ...p, j1: /[0-9]/.test(raw) ? 'Solo letras permitidas' : '' }))
+                        setSugerenciasJ1([])
+                      }}
+                      className={`flex-1 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameErrors.j1 ? 'border-red-400' : 'border-slate-200'}`}
+                    />
+                    {buscandoNombreJ1 && <div className="absolute right-10 top-2.5 w-3 h-3 border-2 border-slate-200 border-t-brand-400 rounded-full animate-spin" />}
+                    <button type="button" onClick={() => setModalBusquedaPara('j1')}
+                      className="shrink-0 px-2 border border-slate-200 rounded-xl text-slate-400 hover:text-brand-600 hover:border-brand-300 hover:bg-brand-50 transition-all">
+                      <Search size={12} />
+                    </button>
+                    {sugerenciasJ1.length > 0 && (
+                      <div className="absolute z-20 top-full left-0 right-8 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                        {sugerenciasJ1.map((j) => (
+                          <button key={j.id} type="button"
+                            onClick={() => {
+                              setJugador1(`${j.nombre} ${j.apellido}`)
+                              setJugador1Dni(j.dni ?? '')
+                              setLookupJ1({ estado: 'encontrado', jugador: j })
+                              setAltaJ1(ALTA_INIT)
+                              setSugerenciasJ1([])
+                              setDniErrors((p) => ({ ...p, j1: '' }))
+                              setNameErrors((p) => ({ ...p, j1: '' }))
+                            }}
+                            className="w-full flex items-center justify-between px-3 py-2 hover:bg-brand-50 transition-colors text-left border-b border-slate-50 last:border-0">
+                            <span className="text-xs font-medium text-slate-700 truncate">{j.nombre} {j.apellido}</span>
+                            {j.dni && <span className="text-[10px] text-slate-400 shrink-0 ml-2">DNI {j.dni}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {nameErrors.j1 && <p className="text-red-500 text-[10px] mt-0.5">{nameErrors.j1}</p>}
+                </>
+              )}
             </div>
+
+            {/* Nombre J2 */}
             <div>
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 2</label>
               {sinCompanero ? (
-                <div className="border border-amber-200 bg-amber-50 rounded-xl px-2.5 py-2 text-xs text-amber-600 italic">
+                <div className="border border-amber-200 bg-amber-50 rounded-xl px-2.5 py-2 text-xs text-amber-600 italic min-h-[42px] flex items-center">
                   Por definir
                 </div>
+              ) : lookupJ2.estado === 'encontrado' ? (
+                <div className="flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 rounded-xl px-2.5 py-2 min-h-[42px]">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-medium text-emerald-800 block truncate">{jugador2}</span>
+                    {lookupJ2.jugador && !lookupJ2.jugador.cuentaActiva && (
+                      <span className="text-[9px] text-amber-600 font-semibold leading-tight">Sin cuenta</span>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => { setLookupJ2(LOOKUP_INIT); setJugador2('') }} className="text-slate-400 hover:text-slate-600 shrink-0 transition-colors">
+                    <X size={11} />
+                  </button>
+                </div>
               ) : (
-                <input
-                  type="text"
-                  placeholder="Nombre y apellido"
-                  value={jugador2}
-                  onChange={(e) => {
-                    const raw = e.target.value
-                    setJugador2(raw.replace(/[0-9]/g, ''))
-                    if (/[0-9]/.test(raw))
-                      setNameErrors((p) => ({ ...p, j2: 'Solo letras permitidas' }))
-                    else
-                      setNameErrors((p) => ({ ...p, j2: '' }))
-                  }}
-                  className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameErrors.j2 ? 'border-red-400' : 'border-slate-200'}`}
-                />
+                <>
+                  <div className="flex gap-1 relative">
+                    <input
+                      type="text"
+                      placeholder="Nombre y apellido"
+                      value={jugador2}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                        setJugador2(raw.replace(/[0-9]/g, ''))
+                        setNameErrors((p) => ({ ...p, j2: /[0-9]/.test(raw) ? 'Solo letras permitidas' : '' }))
+                        setSugerenciasJ2([])
+                      }}
+                      className={`flex-1 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameErrors.j2 ? 'border-red-400' : 'border-slate-200'}`}
+                    />
+                    {buscandoNombreJ2 && <div className="absolute right-10 top-2.5 w-3 h-3 border-2 border-slate-200 border-t-brand-400 rounded-full animate-spin" />}
+                    <button type="button" onClick={() => setModalBusquedaPara('j2')}
+                      className="shrink-0 px-2 border border-slate-200 rounded-xl text-slate-400 hover:text-brand-600 hover:border-brand-300 hover:bg-brand-50 transition-all">
+                      <Search size={12} />
+                    </button>
+                    {sugerenciasJ2.length > 0 && (
+                      <div className="absolute z-20 top-full left-0 right-8 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                        {sugerenciasJ2.map((j) => (
+                          <button key={j.id} type="button"
+                            onClick={() => {
+                              setJugador2(`${j.nombre} ${j.apellido}`)
+                              setJugador2Dni(j.dni ?? '')
+                              setLookupJ2({ estado: 'encontrado', jugador: j })
+                              setAltaJ2(ALTA_INIT)
+                              setSugerenciasJ2([])
+                              setDniErrors((p) => ({ ...p, j2: '' }))
+                              setNameErrors((p) => ({ ...p, j2: '' }))
+                            }}
+                            className="w-full flex items-center justify-between px-3 py-2 hover:bg-brand-50 transition-colors text-left border-b border-slate-50 last:border-0">
+                            <span className="text-xs font-medium text-slate-700 truncate">{j.nombre} {j.apellido}</span>
+                            {j.dni && <span className="text-[10px] text-slate-400 shrink-0 ml-2">DNI {j.dni}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {nameErrors.j2 && <p className="text-red-500 text-[10px] mt-0.5">{nameErrors.j2}</p>}
+                </>
               )}
-              {nameErrors.j2 && <p className="text-red-500 text-[10px] mt-0.5">{nameErrors.j2}</p>}
             </div>
+
+            {/* DNI J1 */}
             <div>
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
                 DNI J1 <span className="text-red-400">*</span>
@@ -1415,47 +1722,159 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
                 value={jugador1Dni}
                 onChange={(e) => {
                   const val = e.target.value.replace(/\D/g, '').slice(0, 8)
+                  if (lookupJ1.estado === 'encontrado') { setJugador1(''); setAltaJ1(ALTA_INIT) }
+                  setLookupJ1(LOOKUP_INIT)
                   setJugador1Dni(val)
-                  if (val.length > 0 && val.length < 7)
-                    setDniErrors((p) => ({ ...p, j1: 'Mínimo 7 dígitos' }))
-                  else
-                    setDniErrors((p) => ({ ...p, j1: '' }))
+                  setDniErrors((p) => ({ ...p, j1: val.length > 0 && val.length < 7 ? 'Mínimo 7 dígitos' : '' }))
                 }}
                 maxLength={8}
                 inputMode="numeric"
                 className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${dniErrors.j1 ? 'border-red-400' : 'border-slate-200'}`}
               />
               {dniErrors.j1 && <p className="text-red-500 text-[10px] mt-0.5">{dniErrors.j1}</p>}
+              {/* Status lookup J1 */}
+              {jugador1Dni.length >= 7 && !dniErrors.j1 && (
+                <div className="mt-1">
+                  {lookupJ1.estado === 'buscando' && <p className="text-[10px] text-slate-400">Verificando...</p>}
+                  {lookupJ1.estado === 'encontrado' && <p className="text-[10px] text-emerald-600 font-medium">✓ Registrado</p>}
+                  {lookupJ1.estado === 'no_encontrado' && !altaJ1.activa && (
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-[10px] text-amber-600">No registrado</p>
+                      <button type="button" onClick={() => setAltaJ1((p) => ({ ...p, activa: true, nombre: jugador1.trim() }))}
+                        className="text-[10px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 px-1.5 py-0.5 rounded-md transition-colors shrink-0">
+                        + Dar de alta
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* DNI J2 */}
             <div>
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
                 DNI J2 {!sinCompanero && <span className="text-red-400">*</span>}
               </label>
               {sinCompanero ? (
-                <div className="border border-amber-200 bg-amber-50 rounded-xl px-2.5 py-2 text-xs text-amber-600 italic">
+                <div className="border border-amber-200 bg-amber-50 rounded-xl px-2.5 py-2 text-xs text-amber-600 italic min-h-[42px] flex items-center">
                   Por definir
                 </div>
               ) : (
-                <input
-                  type="text"
-                  placeholder="12345678"
-                  value={jugador2Dni}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '').slice(0, 8)
-                    setJugador2Dni(val)
-                    if (val.length > 0 && val.length < 7)
-                      setDniErrors((p) => ({ ...p, j2: 'Mínimo 7 dígitos' }))
-                    else
-                      setDniErrors((p) => ({ ...p, j2: '' }))
-                  }}
-                  maxLength={8}
-                  inputMode="numeric"
-                  className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${dniErrors.j2 ? 'border-red-400' : 'border-slate-200'}`}
-                />
+                <>
+                  <input
+                    type="text"
+                    placeholder="12345678"
+                    value={jugador2Dni}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 8)
+                      if (lookupJ2.estado === 'encontrado') { setJugador2(''); setAltaJ2(ALTA_INIT) }
+                      setLookupJ2(LOOKUP_INIT)
+                      setJugador2Dni(val)
+                      setDniErrors((p) => ({ ...p, j2: val.length > 0 && val.length < 7 ? 'Mínimo 7 dígitos' : '' }))
+                    }}
+                    maxLength={8}
+                    inputMode="numeric"
+                    className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${dniErrors.j2 ? 'border-red-400' : 'border-slate-200'}`}
+                  />
+                  {dniErrors.j2 && <p className="text-red-500 text-[10px] mt-0.5">{dniErrors.j2}</p>}
+                  {/* Status lookup J2 */}
+                  {jugador2Dni.length >= 7 && !dniErrors.j2 && (
+                    <div className="mt-1">
+                      {lookupJ2.estado === 'buscando' && <p className="text-[10px] text-slate-400">Verificando...</p>}
+                      {lookupJ2.estado === 'encontrado' && <p className="text-[10px] text-emerald-600 font-medium">✓ Registrado</p>}
+                      {lookupJ2.estado === 'no_encontrado' && !altaJ2.activa && (
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-[10px] text-amber-600">No registrado</p>
+                          <button type="button" onClick={() => setAltaJ2((p) => ({ ...p, activa: true, nombre: jugador2.trim() }))}
+                            className="text-[10px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 px-1.5 py-0.5 rounded-md transition-colors shrink-0">
+                            + Dar de alta
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
-              {dniErrors.j2 && <p className="text-red-500 text-[10px] mt-0.5">{dniErrors.j2}</p>}
             </div>
           </div>
+
+          {/* Alta rápida J1 */}
+          {altaJ1.activa && (
+            <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-3 flex flex-col gap-2">
+              <p className="text-[11px] font-semibold text-emerald-700">Alta rápida J1 — sin cuenta</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input type="text" placeholder="Nombre" value={altaJ1.nombre}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[0-9]/g, '')
+                      setAltaJ1((p) => ({ ...p, nombre: val, errores: { ...p.errores, nombre: '' } }))
+                      setJugador1(`${val} ${altaJ1.apellido}`.trim())
+                    }}
+                    className={`w-full border rounded-xl px-2.5 py-2 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 bg-white ${altaJ1.errores.nombre ? 'border-red-400' : 'border-slate-200'}`}
+                  />
+                  {altaJ1.errores.nombre && <p className="text-red-500 text-[10px] mt-0.5">{altaJ1.errores.nombre}</p>}
+                </div>
+                <div>
+                  <input type="text" placeholder="Apellido" value={altaJ1.apellido}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[0-9]/g, '')
+                      setAltaJ1((p) => ({ ...p, apellido: val, errores: { ...p.errores, apellido: '' } }))
+                      setJugador1(`${altaJ1.nombre} ${val}`.trim())
+                    }}
+                    className={`w-full border rounded-xl px-2.5 py-2 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 bg-white ${altaJ1.errores.apellido ? 'border-red-400' : 'border-slate-200'}`}
+                  />
+                  {altaJ1.errores.apellido && <p className="text-red-500 text-[10px] mt-0.5">{altaJ1.errores.apellido}</p>}
+                </div>
+              </div>
+              {altaJ1.errores.general && <p className="text-red-500 text-[10px]">{altaJ1.errores.general}</p>}
+              <div className="flex gap-2 justify-end">
+                <button type="button" onClick={() => setAltaJ1(ALTA_INIT)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Cancelar</button>
+                <button type="button" onClick={() => handleAltaJugador(1)} disabled={altaJ1.guardando}
+                  className="text-xs font-semibold px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg transition-all">
+                  {altaJ1.guardando ? 'Guardando...' : 'Dar de alta'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Alta rápida J2 */}
+          {!sinCompanero && altaJ2.activa && (
+            <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-3 flex flex-col gap-2">
+              <p className="text-[11px] font-semibold text-emerald-700">Alta rápida J2 — sin cuenta</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input type="text" placeholder="Nombre" value={altaJ2.nombre}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[0-9]/g, '')
+                      setAltaJ2((p) => ({ ...p, nombre: val, errores: { ...p.errores, nombre: '' } }))
+                      setJugador2(`${val} ${altaJ2.apellido}`.trim())
+                    }}
+                    className={`w-full border rounded-xl px-2.5 py-2 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 bg-white ${altaJ2.errores.nombre ? 'border-red-400' : 'border-slate-200'}`}
+                  />
+                  {altaJ2.errores.nombre && <p className="text-red-500 text-[10px] mt-0.5">{altaJ2.errores.nombre}</p>}
+                </div>
+                <div>
+                  <input type="text" placeholder="Apellido" value={altaJ2.apellido}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[0-9]/g, '')
+                      setAltaJ2((p) => ({ ...p, apellido: val, errores: { ...p.errores, apellido: '' } }))
+                      setJugador2(`${altaJ2.nombre} ${val}`.trim())
+                    }}
+                    className={`w-full border rounded-xl px-2.5 py-2 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 bg-white ${altaJ2.errores.apellido ? 'border-red-400' : 'border-slate-200'}`}
+                  />
+                  {altaJ2.errores.apellido && <p className="text-red-500 text-[10px] mt-0.5">{altaJ2.errores.apellido}</p>}
+                </div>
+              </div>
+              {altaJ2.errores.general && <p className="text-red-500 text-[10px]">{altaJ2.errores.general}</p>}
+              <div className="flex gap-2 justify-end">
+                <button type="button" onClick={() => setAltaJ2(ALTA_INIT)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Cancelar</button>
+                <button type="button" onClick={() => handleAltaJugador(2)} disabled={altaJ2.guardando}
+                  className="text-xs font-semibold px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg transition-all">
+                  {altaJ2.guardando ? 'Guardando...' : 'Dar de alta'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Categoría */}
           {torneo.categorias.length > 1 && (
@@ -1579,6 +1998,20 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
           )}
         </div>
 
+        {/* Aviso jugadores sin registrar */}
+        {!cupoLleno && (lookupJ1.estado === 'no_encontrado' || (!sinCompanero && lookupJ2.estado === 'no_encontrado')) && (
+          <div className="mx-5 mb-1 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            <AlertTriangle size={12} className="text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-amber-700 text-[11px] leading-snug">
+              {lookupJ1.estado === 'no_encontrado' && !sinCompanero && lookupJ2.estado === 'no_encontrado'
+                ? 'Ambos jugadores no están en el sistema. Darlos de alta preserva el historial.'
+                : lookupJ1.estado === 'no_encontrado'
+                  ? 'J1 no está en el sistema. Darlo/a de alta preserva el historial.'
+                  : 'J2 no está en el sistema. Darlo/a de alta preserva el historial.'}
+            </p>
+          </div>
+        )}
+
         {/* Alerta cupo lleno */}
         {cupoLleno && (
           <div className="mx-5 mb-2 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
@@ -1599,20 +2032,39 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar }) => {
           </button>
           <button
             onClick={handleConfirmar}
-            disabled={cupoLleno}
+            disabled={cupoLleno || lookupJ1.estado === 'buscando' || (!sinCompanero && lookupJ2.estado === 'buscando')}
             className="flex-1 py-2 text-xs font-semibold text-white bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-sm shadow-brand-500/20"
           >
-            Agregar pareja
+            {(lookupJ1.estado === 'buscando' || (!sinCompanero && lookupJ2.estado === 'buscando')) ? 'Verificando...' : 'Agregar pareja'}
           </button>
         </div>
       </div>
+
+      {modalBusquedaPara && (
+        <ModalBusquedaJugadores
+          token={token}
+          onClose={() => setModalBusquedaPara(null)}
+          onSelect={(j) => {
+            const setNombre = modalBusquedaPara === 'j1' ? setJugador1 : setJugador2
+            const setDni    = modalBusquedaPara === 'j1' ? setJugador1Dni : setJugador2Dni
+            const setLookup = modalBusquedaPara === 'j1' ? setLookupJ1 : setLookupJ2
+            const setAlta   = modalBusquedaPara === 'j1' ? setAltaJ1 : setAltaJ2
+            setNombre(`${j.nombre} ${j.apellido}`)
+            setDni(j.dni ?? '')
+            setLookup({ estado: 'encontrado', jugador: j })
+            setAlta(ALTA_INIT)
+            setDniErrors((p) => ({ ...p, [modalBusquedaPara]: '' }))
+            setNameErrors((p) => ({ ...p, [modalBusquedaPara]: '' }))
+          }}
+        />
+      )}
     </div>
   )
 }
 
 // ── Modal editar disponibilidad ───────────────────────────────────────────────
 
-const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) => {
+const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar, token }) => {
   const [slots, setSlots]               = useState(inscripto.disponibilidad ? [...inscripto.disponibilidad] : [])
   const [diaSelec, setDiaSelec]         = useState('')
   const [horaSelec, setHoraSelec]       = useState('')
@@ -1623,6 +2075,66 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
   const [jugador2Dni, setJugador2Dni]   = useState(inscripto.sinCompanero ? '' : (inscripto.jugador2Dni ?? ''))
   const [nameError, setNameError]       = useState('')
   const [dniError, setDniError]         = useState('')
+
+  const [jugador1, setJugador1]         = useState(inscripto.jugador1 ?? '')
+  const [jugador1Dni, setJugador1Dni]   = useState(inscripto.jugador1Dni ?? '')
+  const [nameErrorJ1, setNameErrorJ1]   = useState('')
+  const [dniErrorJ1, setDniErrorJ1]     = useState('')
+
+  const LOOKUP_INIT = { estado: 'idle', jugador: null }
+  const ALTA_INIT   = { activa: false, nombre: '', apellido: '', errores: {}, guardando: false }
+  const [lookupJ1, setLookupJ1] = useState(LOOKUP_INIT)
+  const [altaJ1,   setAltaJ1]  = useState(ALTA_INIT)
+  const [lookupJ2, setLookupJ2] = useState(LOOKUP_INIT)
+  const [altaJ2,   setAltaJ2]  = useState(ALTA_INIT)
+  const [modalBusquedaPara, setModalBusquedaPara] = useState(null) // null | 'j1' | 'j2'
+  const authH = token ? { Authorization: `Bearer ${token}` } : {}
+
+  const makeLookupEffect = (dni, setLookup, setNombre, setAlta, skip) => {
+    if (skip || setLookup === setLookupJ1 ? lookupJ1.estado === 'encontrado' : lookupJ2.estado === 'encontrado') return
+    if (!/^\d{7,8}$/.test(dni)) { setLookup(LOOKUP_INIT); return }
+    setLookup({ estado: 'buscando', jugador: null })
+    api.get(`/jugadores/buscar?q=${dni}`, authH).then((res) => {
+      const exacto = Array.isArray(res) ? res.find((j) => j.dni === dni) : null
+      if (exacto) { setLookup({ estado: 'encontrado', jugador: exacto }); setNombre(`${exacto.nombre} ${exacto.apellido}`); setAlta(ALTA_INIT) }
+      else setLookup({ estado: 'no_encontrado', jugador: null })
+    }).catch(() => setLookup(LOOKUP_INIT))
+  }
+
+  useEffect(() => {
+    if (lookupJ1.estado === 'encontrado') return
+    const t = setTimeout(() => makeLookupEffect(jugador1Dni, setLookupJ1, setJugador1, setAltaJ1, false), 400)
+    return () => clearTimeout(t)
+  }, [jugador1Dni]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (sinCompanero || lookupJ2.estado === 'encontrado') return
+    const t = setTimeout(() => makeLookupEffect(jugador2Dni, setLookupJ2, setJugador2, setAltaJ2, false), 400)
+    return () => clearTimeout(t)
+  }, [jugador2Dni, sinCompanero]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAltaJ = async (who) => {
+    const alta      = who === 1 ? altaJ1    : altaJ2
+    const setAlta   = who === 1 ? setAltaJ1  : setAltaJ2
+    const setLookup = who === 1 ? setLookupJ1 : setLookupJ2
+    const setNombre = who === 1 ? setJugador1 : setJugador2
+    const dni       = who === 1 ? jugador1Dni : jugador2Dni
+    const errs = {}
+    if (!alta.nombre.trim())           errs.nombre   = 'Requerido'
+    else if (/\d/.test(alta.nombre))   errs.nombre   = 'Solo letras'
+    if (!alta.apellido.trim())         errs.apellido = 'Requerido'
+    else if (/\d/.test(alta.apellido)) errs.apellido = 'Solo letras'
+    if (Object.keys(errs).length) { setAlta((p) => ({ ...p, errores: errs })); return }
+    setAlta((p) => ({ ...p, guardando: true }))
+    try {
+      const nuevo = await api.post('/jugadores', { nombre: alta.nombre.trim(), apellido: alta.apellido.trim(), dni }, authH)
+      setLookup({ estado: 'encontrado', jugador: nuevo })
+      setNombre(`${nuevo.nombre} ${nuevo.apellido}`)
+      setAlta(ALTA_INIT)
+    } catch (err) {
+      setAlta((p) => ({ ...p, guardando: false, errores: { general: err.message || 'Error al dar de alta' } }))
+    }
+  }
 
   const diaCorte    = torneo.diaInicioEliminatoria  ?? null
   const horaCorte   = torneo.horaInicioEliminatoria ?? null
@@ -1643,17 +2155,33 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
   }
 
   const handleGuardar = () => {
+    // Validar J1
+    if (!jugador1.trim()) { setNameErrorJ1('Requerido'); return }
+    setNameErrorJ1('')
+    if (!jugador1Dni.trim()) { setDniErrorJ1('Requerido'); return }
+    if (!/^\d{7,8}$/.test(jugador1Dni.trim())) { setDniErrorJ1('Entre 7 y 8 números'); return }
+    const j1DniCambiado = jugador1Dni.trim() !== (inscripto.jugador1Dni ?? '')
+    const j1NoReg = j1DniCambiado && lookupJ1.estado === 'no_encontrado' && !altaJ1.activa
+    if (j1NoReg) { setAltaJ1((p) => ({ ...p, activa: true, nombre: jugador1.trim() })); return }
+    if (altaJ1.activa) return
+    setDniErrorJ1('')
     if (!sinCompanero) {
       if (!jugador2.trim()) { setNameError('Requerido'); return }
       setNameError('')
       if (!jugador2Dni.trim()) { setDniError('Requerido'); return }
       if (!/^\d{7,8}$/.test(jugador2Dni.trim())) { setDniError('Entre 7 y 8 números'); return }
+      const dniCambiado = jugador2Dni.trim() !== (inscripto.jugador2Dni ?? '')
+      const j2NoReg = dniCambiado && lookupJ2.estado === 'no_encontrado' && !altaJ2.activa
+      if (j2NoReg) { setAltaJ2((p) => ({ ...p, activa: true, nombre: jugador2.trim() })); return }
+      if (altaJ2.activa) return
       setDniError('')
       if (slots.length === 0) { setSlotError('Agregá al menos un horario.'); return }
       if (slots.length === 1 && !prefiereMismoDia) { setSlotError('Con un solo horario, marcá "Mismo día" o agregá un segundo día.'); return }
     }
     setSlotError('')
     onGuardar(inscripto.id, {
+      jugador1: jugador1.trim(),
+      jugador1Dni: jugador1Dni.trim(),
       jugador2: sinCompanero ? 'Por definir' : jugador2.trim(),
       jugador2Dni: sinCompanero ? '' : jugador2Dni.trim(),
       sinCompanero,
@@ -1681,6 +2209,99 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
+
+          {/* Jugador 1 */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 1</label>
+              {lookupJ1.estado === 'encontrado' ? (
+                <div className="flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 rounded-xl px-2.5 py-2 min-h-[42px]">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-medium text-emerald-800 block truncate">{jugador1}</span>
+                    {lookupJ1.jugador && !lookupJ1.jugador.cuentaActiva && (
+                      <span className="text-[9px] text-amber-600 font-semibold leading-tight">Sin cuenta</span>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => { setLookupJ1(LOOKUP_INIT); setJugador1('') }} className="text-slate-400 hover:text-slate-600 shrink-0 transition-colors"><X size={11} /></button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-1">
+                    <input type="text" value={jugador1}
+                      onChange={(e) => { setJugador1(e.target.value.replace(/[0-9]/g, '')); setNameErrorJ1('') }}
+                      placeholder="Nombre y apellido"
+                      className={`flex-1 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 min-h-[42px] ${nameErrorJ1 ? 'border-red-400' : 'border-slate-200'}`}
+                    />
+                    <button type="button" onClick={() => setModalBusquedaPara('j1')}
+                      className="shrink-0 px-2 border border-slate-200 rounded-xl text-slate-400 hover:text-brand-600 hover:border-brand-300 hover:bg-brand-50 transition-all">
+                      <Search size={12} />
+                    </button>
+                  </div>
+                  {nameErrorJ1 && <p className="text-red-500 text-[10px] mt-0.5">{nameErrorJ1}</p>}
+                </>
+              )}
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">DNI J1 <span className="text-red-400">*</span></label>
+              <input type="text" value={jugador1Dni}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 8)
+                  if (lookupJ1.estado === 'encontrado') { setJugador1(''); setAltaJ1(ALTA_INIT) }
+                  setLookupJ1(LOOKUP_INIT); setJugador1Dni(val)
+                  setDniErrorJ1(val.length > 0 && val.length < 7 ? 'Mínimo 7 dígitos' : '')
+                }}
+                placeholder="12345678" maxLength={8} inputMode="numeric"
+                className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${dniErrorJ1 ? 'border-red-400' : 'border-slate-200'}`}
+              />
+              {dniErrorJ1 && <p className="text-red-500 text-[10px] mt-0.5">{dniErrorJ1}</p>}
+              {jugador1Dni.length >= 7 && !dniErrorJ1 && (
+                <div className="mt-1">
+                  {lookupJ1.estado === 'buscando' && <p className="text-[10px] text-slate-400">Verificando...</p>}
+                  {lookupJ1.estado === 'encontrado' && <p className="text-[10px] text-emerald-600 font-medium">✓ Registrado</p>}
+                  {lookupJ1.estado === 'no_encontrado' && !altaJ1.activa && (
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-[10px] text-amber-600">No registrado</p>
+                      <button type="button" onClick={() => setAltaJ1((p) => ({ ...p, activa: true, nombre: jugador1.trim() }))}
+                        className="text-[10px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 px-1.5 py-0.5 rounded-md transition-colors shrink-0">
+                        + Dar de alta
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Alta rápida J1 */}
+          {altaJ1.activa && (
+            <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-3 flex flex-col gap-2">
+              <p className="text-[11px] font-semibold text-emerald-700">Alta rápida J1 — sin cuenta</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input type="text" placeholder="Nombre" value={altaJ1.nombre}
+                    onChange={(e) => { const v = e.target.value.replace(/[0-9]/g, ''); setAltaJ1((p) => ({ ...p, nombre: v, errores: { ...p.errores, nombre: '' } })); setJugador1(`${v} ${altaJ1.apellido}`.trim()) }}
+                    className={`w-full border rounded-xl px-2.5 py-2 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 bg-white ${altaJ1.errores.nombre ? 'border-red-400' : 'border-slate-200'}`}
+                  />
+                  {altaJ1.errores.nombre && <p className="text-red-500 text-[10px] mt-0.5">{altaJ1.errores.nombre}</p>}
+                </div>
+                <div>
+                  <input type="text" placeholder="Apellido" value={altaJ1.apellido}
+                    onChange={(e) => { const v = e.target.value.replace(/[0-9]/g, ''); setAltaJ1((p) => ({ ...p, apellido: v, errores: { ...p.errores, apellido: '' } })); setJugador1(`${altaJ1.nombre} ${v}`.trim()) }}
+                    className={`w-full border rounded-xl px-2.5 py-2 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 bg-white ${altaJ1.errores.apellido ? 'border-red-400' : 'border-slate-200'}`}
+                  />
+                  {altaJ1.errores.apellido && <p className="text-red-500 text-[10px] mt-0.5">{altaJ1.errores.apellido}</p>}
+                </div>
+              </div>
+              {altaJ1.errores.general && <p className="text-red-500 text-[10px]">{altaJ1.errores.general}</p>}
+              <div className="flex gap-2 justify-end">
+                <button type="button" onClick={() => setAltaJ1(ALTA_INIT)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Cancelar</button>
+                <button type="button" onClick={() => handleAltaJ(1)} disabled={altaJ1.guardando}
+                  className="text-xs font-semibold px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg transition-all">
+                  {altaJ1.guardando ? 'Guardando...' : 'Dar de alta'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Toggle sin compañero */}
           <button
@@ -1713,32 +2334,112 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 2</label>
-                <input
-                  type="text"
-                  value={jugador2}
-                  onChange={(e) => { setJugador2(e.target.value.replace(/[0-9]/g, '')); setNameError('') }}
-                  placeholder="Nombre y apellido"
-                  className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameError ? 'border-red-400' : 'border-slate-200'}`}
-                />
-                {nameError && <p className="text-red-500 text-[10px] mt-0.5">{nameError}</p>}
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Nombre J2 */}
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 2</label>
+                  {lookupJ2.estado === 'encontrado' ? (
+                    <div className="flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 rounded-xl px-2.5 py-2 min-h-[42px]">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium text-emerald-800 block truncate">{jugador2}</span>
+                        {lookupJ2.jugador && !lookupJ2.jugador.cuentaActiva && (
+                          <span className="text-[9px] text-amber-600 font-semibold leading-tight">Sin cuenta</span>
+                        )}
+                      </div>
+                      <button type="button" onClick={() => { setLookupJ2(LOOKUP_INIT); setJugador2('') }} className="text-slate-400 hover:text-slate-600 shrink-0 transition-colors">
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-1">
+                        <input type="text" value={jugador2}
+                          onChange={(e) => { setJugador2(e.target.value.replace(/[0-9]/g, '')); setNameError('') }}
+                          placeholder="Nombre y apellido"
+                          className={`flex-1 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 min-h-[42px] ${nameError ? 'border-red-400' : 'border-slate-200'}`}
+                        />
+                        <button type="button" onClick={() => setModalBusquedaPara('j2')}
+                          className="shrink-0 px-2 border border-slate-200 rounded-xl text-slate-400 hover:text-brand-600 hover:border-brand-300 hover:bg-brand-50 transition-all">
+                          <Search size={12} />
+                        </button>
+                      </div>
+                      {nameError && <p className="text-red-500 text-[10px] mt-0.5">{nameError}</p>}
+                    </>
+                  )}
+                </div>
+                {/* DNI J2 */}
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">DNI J2 <span className="text-red-400">*</span></label>
+                  <input type="text" value={jugador2Dni}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 8)
+                      if (lookupJ2.estado === 'encontrado') { setJugador2(''); setAltaJ2(ALTA_INIT) }
+                      setLookupJ2(LOOKUP_INIT)
+                      setJugador2Dni(val)
+                      setDniError(val.length > 0 && val.length < 7 ? 'Mínimo 7 dígitos' : '')
+                    }}
+                    placeholder="12345678" maxLength={8} inputMode="numeric"
+                    className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${dniError ? 'border-red-400' : 'border-slate-200'}`}
+                  />
+                  {dniError && <p className="text-red-500 text-[10px] mt-0.5">{dniError}</p>}
+                  {jugador2Dni.length >= 7 && !dniError && (
+                    <div className="mt-1">
+                      {lookupJ2.estado === 'buscando' && <p className="text-[10px] text-slate-400">Verificando...</p>}
+                      {lookupJ2.estado === 'encontrado' && <p className="text-[10px] text-emerald-600 font-medium">✓ Registrado</p>}
+                      {lookupJ2.estado === 'no_encontrado' && !altaJ2.activa && (
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-[10px] text-amber-600">No registrado</p>
+                          <button type="button" onClick={() => setAltaJ2((p) => ({ ...p, activa: true, nombre: jugador2.trim() }))}
+                            className="text-[10px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 px-1.5 py-0.5 rounded-md transition-colors shrink-0">
+                            + Dar de alta
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">DNI J2 <span className="text-red-400">*</span></label>
-                <input
-                  type="text"
-                  value={jugador2Dni}
-                  onChange={(e) => { setJugador2Dni(e.target.value.replace(/\D/g, '').slice(0, 8)); setDniError('') }}
-                  placeholder="12345678"
-                  maxLength={8}
-                  inputMode="numeric"
-                  className={`w-full border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${dniError ? 'border-red-400' : 'border-slate-200'}`}
-                />
-                {dniError && <p className="text-red-500 text-[10px] mt-0.5">{dniError}</p>}
-              </div>
-            </div>
+
+              {/* Alta rápida J2 */}
+              {altaJ2.activa && (
+                <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-3 flex flex-col gap-2">
+                  <p className="text-[11px] font-semibold text-emerald-700">Alta rápida J2 — sin cuenta</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <input type="text" placeholder="Nombre" value={altaJ2.nombre}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[0-9]/g, '')
+                          setAltaJ2((p) => ({ ...p, nombre: val, errores: { ...p.errores, nombre: '' } }))
+                          setJugador2(`${val} ${altaJ2.apellido}`.trim())
+                        }}
+                        className={`w-full border rounded-xl px-2.5 py-2 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 bg-white ${altaJ2.errores.nombre ? 'border-red-400' : 'border-slate-200'}`}
+                      />
+                      {altaJ2.errores.nombre && <p className="text-red-500 text-[10px] mt-0.5">{altaJ2.errores.nombre}</p>}
+                    </div>
+                    <div>
+                      <input type="text" placeholder="Apellido" value={altaJ2.apellido}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[0-9]/g, '')
+                          setAltaJ2((p) => ({ ...p, apellido: val, errores: { ...p.errores, apellido: '' } }))
+                          setJugador2(`${altaJ2.nombre} ${val}`.trim())
+                        }}
+                        className={`w-full border rounded-xl px-2.5 py-2 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 bg-white ${altaJ2.errores.apellido ? 'border-red-400' : 'border-slate-200'}`}
+                      />
+                      {altaJ2.errores.apellido && <p className="text-red-500 text-[10px] mt-0.5">{altaJ2.errores.apellido}</p>}
+                    </div>
+                  </div>
+                  {altaJ2.errores.general && <p className="text-red-500 text-[10px]">{altaJ2.errores.general}</p>}
+                  <div className="flex gap-2 justify-end">
+                    <button type="button" onClick={() => setAltaJ2(ALTA_INIT)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Cancelar</button>
+                    <button type="button" onClick={() => handleAltaJ(2)} disabled={altaJ2.guardando}
+                      className="text-xs font-semibold px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg transition-all">
+                      {altaJ2.guardando ? 'Guardando...' : 'Dar de alta'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* Disponibilidad */}
@@ -1829,6 +2530,28 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar }) =>
           </button>
         </div>
       </div>
+
+      {modalBusquedaPara && (
+        <ModalBusquedaJugadores
+          token={token}
+          onClose={() => setModalBusquedaPara(null)}
+          onSelect={(j) => {
+            if (modalBusquedaPara === 'j1') {
+              setJugador1(`${j.nombre} ${j.apellido}`)
+              setJugador1Dni(j.dni ?? '')
+              setLookupJ1({ estado: 'encontrado', jugador: j })
+              setAltaJ1(ALTA_INIT)
+              setNameErrorJ1(''); setDniErrorJ1('')
+            } else {
+              setJugador2(`${j.nombre} ${j.apellido}`)
+              setJugador2Dni(j.dni ?? '')
+              setLookupJ2({ estado: 'encontrado', jugador: j })
+              setAltaJ2(ALTA_INIT)
+              setNameError(''); setDniError('')
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -2016,6 +2739,8 @@ const TorneoDetallePage = () => {
   const [bracketFullscreen, setBracketFullscreen] = useState(false)
   const [bracketPublicar,   setBracketPublicar]   = useState(false)
   const [vistaParalela,     setVistaParalela]     = useState(false)
+  const [toast, setToast] = useState(null)
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
   const [persona, setPersona] = useState(() => {
     const t = torneos.find((x) => String(x.id) === id)
     return {
@@ -2130,6 +2855,8 @@ const TorneoDetallePage = () => {
             inscriptos: (t.parejas ?? []).map((p) => ({
               id: p.id, jugador1: p.jugador1, jugador2: p.jugador2,
               jugador1Dni: p.jugador1Dni, jugador2Dni: p.jugador2Dni,
+              jugador1Id: p.jugador1Id ?? null, jugador2Id: p.jugador2Id ?? null,
+              sinCompanero: p.sinCompanero ?? false, estado: p.estado ?? 'inscripto',
               categoria: p.categoria, fecha: p.fecha,
               disponibilidad: p.disponibilidad ?? [], prefiereMismoDia: p.prefiereMismoDia ?? false,
             })),
@@ -2272,18 +2999,48 @@ const TorneoDetallePage = () => {
         addParejaFromApi(torneo.id, {
           id: p.id, jugador1: p.jugador1, jugador2: p.jugador2,
           jugador1Dni: p.jugador1Dni, jugador2Dni: p.jugador2Dni,
+          jugador1Id: p.jugador1Id ?? null, jugador2Id: p.jugador2Id ?? null,
+          sinCompanero: p.sinCompanero ?? false, estado: p.estado ?? 'inscripto',
           categoria: p.categoria, fecha: p.fecha,
           disponibilidad: p.disponibilidad ?? [], prefiereMismoDia: p.prefiereMismoDia ?? false,
         })
+        showToast(`Pareja agregada: ${p.jugador1} / ${p.jugador2}`)
         return
       } catch { /* fallback */ }
     }
     addPareja(torneo.id, datos)
+    showToast(`Pareja agregada: ${datos.jugador1} / ${datos.jugador2}`)
   }
 
   // ── Handlers grupos ──────────────────────────────────────────────────────────
 
   const handleGenerarGrupos = () => {
+    const tieneResultados = (torneo.grupos ?? []).some((z) =>
+      (z.partidos ?? []).some((p) => p.resultado !== null && p.resultado !== undefined)
+    )
+    if (tieneResultados) {
+      const confirmar = window.confirm(
+        'Ya hay resultados cargados en la fase de grupos.\n\nRegenerá los grupos va a borrar esos resultados para siempre.\n\n¿Confirmás que querés continuar?'
+      )
+      if (!confirmar) return
+    }
+
+    // Validaciones preventivas por categoría
+    const categorias = [...new Set(torneo.inscriptos.map((p) => p.categoria).filter(Boolean))]
+    const conUnaSola = categorias.filter((c) => torneo.inscriptos.filter((p) => p.categoria === c).length === 1)
+    const conExceso  = categorias.filter((c) => torneo.inscriptos.filter((p) => p.categoria === c).length > 32)
+
+    if (conExceso.length > 0) {
+      alert(`Las siguientes categorías tienen más de 32 parejas y no pueden generar grupos (máximo soportado: 32):\n\n${conExceso.join('\n')}\n\nReducí el cupo o usá cupo libre antes de continuar.`)
+      return
+    }
+    if (conUnaSola.length > 0) {
+      const confirmar = window.confirm(
+        `Las siguientes categorías tienen solo 1 pareja inscripta y no van a ser incluidas en los grupos:\n\n${conUnaSola.join('\n')}\n\n¿Querés continuar igual?`
+      )
+      if (!confirmar) return
+    }
+
     try {
       const grupos = generateGroupPhase(torneo.inscriptos)
       setGrupos(torneo.id, grupos)
@@ -3418,6 +4175,7 @@ const TorneoDetallePage = () => {
       {modalAgregarAdmin && (
         <ModalAgregarParejaAdmin
           torneo={torneo}
+          token={token}
           onClose={() => setModalAgregarAdmin(false)}
           onConfirmar={handleAgregarAdmin}
         />
@@ -3428,6 +4186,7 @@ const TorneoDetallePage = () => {
         <ModalEditarDisponibilidad
           torneo={torneo}
           inscripto={editando}
+          token={token}
           onClose={() => setEditando(null)}
           onGuardar={(pid, changes) => {
             updatePareja(torneo.id, pid, changes)
@@ -3442,6 +4201,14 @@ const TorneoDetallePage = () => {
           }}
         />
       )}
+
+      {/* Toast */}
+      <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] transition-all duration-500 ${toast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+        <div className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2.5 rounded-2xl shadow-xl">
+          <CheckCircle size={14} className="text-emerald-400 shrink-0" />
+          <p className="text-sm font-semibold">{toast}</p>
+        </div>
+      </div>
     </div>
   )
 }

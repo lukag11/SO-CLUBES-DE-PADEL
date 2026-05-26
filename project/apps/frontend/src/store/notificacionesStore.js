@@ -25,6 +25,9 @@ const normBackend = (n) => ({
   dia: n.data?.dia ?? '',
   turnoFijoId: n.data?.turnoFijoId ?? null,
   backendReservaId: n.data?.backendReservaId ?? null,
+  // Campos de notificaciones de profesor
+  profesorNombre: n.data?.profesorNombre ?? '',
+  profesorId: n.data?.profesorId ?? null,
   leida: n.leida,
   timestamp: n.createdAt,
   _fromBackend: true,
@@ -59,25 +62,8 @@ const useNotificacionesStore = create((set, get) => ({
     }
   },
 
-  // ── Notificaciones in-memory (torneos, profesor — sin endpoint de backend todavía) ──
-
-  nuevaClaseProfesor: ({ profesorNombre, canchaNombre, fecha, inicio, fin }) => {
-    const nueva = {
-      id: Date.now(), tipo: 'nueva_clase_profesor', profesorNombre,
-      cancha: canchaNombre, fecha, inicio, fin,
-      leida: false, timestamp: new Date().toISOString(),
-    }
-    set((state) => ({ notificaciones: [nueva, ...state.notificaciones] }))
-  },
-
-  cancelacionClaseProfesor: ({ profesorNombre, canchaNombre, fecha, inicio, fin }) => {
-    const nueva = {
-      id: Date.now(), tipo: 'cancelacion_clase_profesor', profesorNombre,
-      cancha: canchaNombre, fecha, inicio, fin,
-      leida: false, timestamp: new Date().toISOString(),
-    }
-    set((state) => ({ notificaciones: [nueva, ...state.notificaciones] }))
-  },
+  // ── Notificaciones in-memory (torneos — sin endpoint de backend todavía) ──
+  // Las notificaciones de clases de profesor vienen del backend vía fetchNotificaciones.
 
   completacionTorneo: ({ jugador1, jugador2, categoria, torneoNombre, torneoId }) => {
     const nueva = {
@@ -148,7 +134,7 @@ const useNotificacionesStore = create((set, get) => ({
 
   sinLeer: () =>
     get().notificaciones.filter(
-      (n) => !n.leida && !TIPOS_TORNEO.includes(n.tipo) && n.tipo !== 'nueva_reserva'
+      (n) => !n.leida && !TIPOS_TORNEO.includes(n.tipo)
     ).length,
 
   sinLeerTorneos: () =>

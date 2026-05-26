@@ -45,3 +45,25 @@ Thumbs.db
 .swarm/
 sync.sh
 dev.log
+
+# Carpetas basura creadas por hooks que parsean clases Tailwind
+bg-*/
+border*/
+flex-*/
+gap-*/
+grid-*/
+items-*/
+justify-*/
+px-*/
+py-*/
+p-*/
+m-*/
+mt-*/
+mb-*/
+rounded-*/
+shrink-*/
+text-*/
+font-*/
+{,
+*.swo
+*.swp

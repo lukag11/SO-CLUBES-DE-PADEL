@@ -28,7 +28,12 @@ const clubDiaCerrado = (dia, horarios) => {
 
 // Opciones fijas iguales para todos los días — la intersección con el club se aplica en la agenda
 const OPTS_APERTURA = ALL_TIMES.filter((t) => t !== '24:00')
-const opcionesCierre = (apertura) => ALL_TIMES.filter((t) => t > apertura)
+// Cierre solo muestra horarios con el mismo minuto (:00 con :00, :30 con :30)
+const opcionesCierre = (apertura) => {
+  const apMin = toMin(apertura)
+  const minMark = apMin % 60
+  return ALL_TIMES.filter((t) => toMin(t) > apMin && toMin(t) % 60 === minMark)
+}
 
 
 const buildInitialState = (disponibilidad, horarios) => {
@@ -185,6 +190,24 @@ const ProfesorDisponibilidadPage = () => {
     setDisp(buildInitialState(profesor?.disponibilidad, horarios))
   }, [profesor?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Todos los hooks deben estar antes del early return para no violar las reglas de hooks
+  const errores = useMemo(() => {
+    const errs = {}
+    DIAS.forEach((dia) => {
+      if (!disp[dia].activo) return
+      if (toMin(disp[dia].apertura) >= toMin(disp[dia].cierre))
+        errs[dia] = 'El cierre debe ser posterior a la apertura'
+    })
+    return errs
+  }, [disp])
+
+  const diasActivos = useMemo(() => DIAS.filter((d) => disp[d].activo), [disp])
+
+  const horasSemanales = useMemo(
+    () => diasActivos.reduce((acc, d) => acc + (toMin(disp[d].cierre) - toMin(disp[d].apertura)) / 60, 0),
+    [diasActivos, disp]
+  )
+
   // Mientras los datos del profesor no cargaron, no mostramos el form.
   // Así la inicialización del useState siempre usa datos reales.
   if (!profesor) {
@@ -210,24 +233,16 @@ const ProfesorDisponibilidadPage = () => {
   }
 
   const setHora = (dia, campo, valor) =>
-    setDisp((prev) => ({ ...prev, [dia]: { ...prev[dia], [campo]: valor } }))
-
-  const errores = useMemo(() => {
-    const errs = {}
-    DIAS.forEach((dia) => {
-      if (!disp[dia].activo) return
-      if (toMin(disp[dia].apertura) >= toMin(disp[dia].cierre))
-        errs[dia] = 'El cierre debe ser posterior a la apertura'
+    setDisp((prev) => {
+      const next = { ...prev[dia], [campo]: valor }
+      if (campo === 'apertura') {
+        const newMark = toMin(valor) % 60
+        if (toMin(next.cierre) <= toMin(valor) || toMin(next.cierre) % 60 !== newMark) {
+          next.cierre = ALL_TIMES.find((t) => toMin(t) > toMin(valor) && toMin(t) % 60 === newMark) ?? next.cierre
+        }
+      }
+      return { ...prev, [dia]: next }
     })
-    return errs
-  }, [disp])
-
-  const diasActivos = useMemo(() => DIAS.filter((d) => disp[d].activo), [disp])
-
-  const horasSemanales = useMemo(
-    () => diasActivos.reduce((acc, d) => acc + (toMin(disp[d].cierre) - toMin(disp[d].apertura)) / 60, 0),
-    [diasActivos, disp]
-  )
 
   const hayErrores = Object.keys(errores).length > 0
 

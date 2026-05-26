@@ -4,7 +4,7 @@ import { GraduationCap, Zap, Eye, EyeOff } from 'lucide-react'
 import useAuthProfesorStore from '../store/authProfesorStore'
 import { api } from '../lib/api'
 
-const CLUB_ID = import.meta.env.VITE_CLUB_ID || 'cmoryx4a900008t4qmzdzuiee'
+const CLUB_ID = import.meta.env.VITE_CLUB_ID
 
 const ProfesorLoginPage = () => {
   const navigate = useNavigate()

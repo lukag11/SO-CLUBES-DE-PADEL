@@ -53,14 +53,16 @@ model Profesor {
   email        String
   password     String
   especialidad String?
+  celular      String?
   canchasIds     String[]
   disponibilidad Json?
   activo         Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  club     Club      @relation(fields: [clubId], references: [id])
-  reservas Reserva[]
+  club           Club           @relation(fields: [clubId], references: [id])
+  reservas       Reserva[]
+  notificaciones Notificacion[]
 
   @@unique([clubId, email])
   @@map("profesores")
@@ -98,6 +100,8 @@ model Jugador {
   turnosFijos    TurnoFijo[]
   notificaciones Notificacion[]
   cargos         Cargo[]
+  parejasComoJ1  Pareja[]       @relation("ParejaJugador1")
+  parejasComoJ2  Pareja[]       @relation("ParejaJugador2")
 
   @@unique([clubId, dni])
   @@map("jugadores")
@@ -222,16 +226,18 @@ model Cargo {
 }
 
 model Notificacion {
-  id        String   @id @default(cuid())
-  clubId    String
-  jugadorId String?  // null = notificación para el admin del club
-  tipo      String
-  leida     Boolean  @default(false)
-  data      Json?
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  clubId     String
+  jugadorId  String?  // null + profesorId null = para el admin del club
+  profesorId String?  // non-null = para el profesor
+  tipo       String
+  leida      Boolean  @default(false)
+  data       Json?
+  createdAt  DateTime @default(now())
 
-  club    Club     @relation(fields: [clubId], references: [id])
-  jugador Jugador? @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
+  club     Club      @relation(fields: [clubId], references: [id])
+  jugador  Jugador?  @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
+  profesor Profesor? @relation(fields: [profesorId], references: [id], onDelete: Cascade)
 
   @@map("notificaciones")
 }
@@ -244,13 +250,19 @@ model Pareja {
   jugador2         String
   jugador1Dni      String?
   jugador2Dni      String?
+  jugador1Id       String?  // FK opcional → Jugador (auto-linked por DNI)
+  jugador2Id       String?  // FK opcional → Jugador (auto-linked por DNI)
+  sinCompanero     Boolean  @default(false)
+  estado           String   @default("inscripto")  // inscripto | espera
   categoria        String
   fecha            String?
   disponibilidad   Json?
   prefiereMismoDia Boolean  @default(false)
   createdAt        DateTime @default(now())
 
-  torneo Torneo @relation(fields: [torneoId], references: [id], onDelete: Cascade)
+  torneo    Torneo   @relation(fields: [torneoId], references: [id], onDelete: Cascade)
+  jugador1R Jugador? @relation("ParejaJugador1", fields: [jugador1Id], references: [id], onDelete: SetNull)
+  jugador2R Jugador? @relation("ParejaJugador2", fields: [jugador2Id], references: [id], onDelete: SetNull)
 
   @@map("parejas")
 }

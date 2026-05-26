@@ -5,16 +5,18 @@ import { requireAuth, requireRole } from '../middleware/auth.js'
 
 const router = Router()
 
+const PROFESOR_SELECT = {
+  id: true, nombre: true, apellido: true, email: true,
+  especialidad: true, celular: true, canchasIds: true, disponibilidad: true, activo: true, createdAt: true,
+}
+
 // GET /api/profesores — admin lista sus profesores
 router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     const profesores = await prisma.profesor.findMany({
       where: { clubId: req.user.clubId },
       orderBy: { apellido: 'asc' },
-      select: {
-        id: true, nombre: true, apellido: true, email: true,
-        especialidad: true, canchasIds: true, disponibilidad: true, activo: true, createdAt: true,
-      },
+      select: PROFESOR_SELECT,
     })
     res.json(profesores)
   } catch (err) {
@@ -25,7 +27,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
 
 // POST /api/profesores — admin crea un profesor
 router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
-  const { nombre, apellido, email, password, especialidad, canchasIds, disponibilidad } = req.body
+  const { nombre, apellido, email, password, especialidad, celular, canchasIds, disponibilidad } = req.body
   if (!nombre || !apellido || !email || !password) {
     return res.status(400).json({ error: 'Nombre, apellido, email y contraseña son requeridos' })
   }
@@ -37,13 +39,11 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         nombre, apellido, email,
         password: passwordHash,
         especialidad: especialidad ?? null,
+        celular: celular ?? null,
         canchasIds: canchasIds ?? [],
         disponibilidad: disponibilidad ?? null,
       },
-      select: {
-        id: true, nombre: true, apellido: true, email: true,
-        especialidad: true, canchasIds: true, disponibilidad: true, activo: true, createdAt: true,
-      },
+      select: PROFESOR_SELECT,
     })
     res.status(201).json(profesor)
   } catch (err) {
@@ -58,16 +58,17 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
 // PATCH /api/profesores/:id — admin edita un profesor
 router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params
-  const { nombre, apellido, email, password, especialidad, canchasIds, disponibilidad, activo } = req.body
+  const { nombre, apellido, email, password, especialidad, celular, canchasIds, disponibilidad, activo } = req.body
   try {
     const existe = await prisma.profesor.findFirst({ where: { id, clubId: req.user.clubId } })
     if (!existe) return res.status(404).json({ error: 'Profesor no encontrado' })
 
     const data = {}
-    if (nombre      !== undefined) data.nombre      = nombre
-    if (apellido    !== undefined) data.apellido    = apellido
-    if (email       !== undefined) data.email       = email
-    if (especialidad !== undefined) data.especialidad = especialidad
+    if (nombre         !== undefined) data.nombre         = nombre
+    if (apellido       !== undefined) data.apellido       = apellido
+    if (email          !== undefined) data.email          = email
+    if (especialidad   !== undefined) data.especialidad   = especialidad
+    if (celular        !== undefined) data.celular        = celular || null
     if (canchasIds     !== undefined) data.canchasIds     = canchasIds
     if (disponibilidad !== undefined) data.disponibilidad = disponibilidad
     if (activo         !== undefined) data.activo         = activo
@@ -76,10 +77,7 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
     const profesor = await prisma.profesor.update({
       where: { id },
       data,
-      select: {
-        id: true, nombre: true, apellido: true, email: true,
-        especialidad: true, canchasIds: true, disponibilidad: true, activo: true, createdAt: true,
-      },
+      select: PROFESOR_SELECT,
     })
     res.json(profesor)
   } catch (err) {

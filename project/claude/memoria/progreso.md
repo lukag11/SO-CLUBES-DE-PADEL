@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-25 (sesión — Editar clase profesor (UX tiempo→cancha), agrupación Mis turnos fijos por día, agrupación Mis reservas por fecha + historial, estadísticas admin reservas con heatmap.)
+**Última actualización:** 2026-05-26 (sesión — Auditoría QA/PM/Tech Lead sección Torneos + correcciones de seguridad y correctitud en backend y frontend.)
 
 ---
 
@@ -132,6 +132,64 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-05-26) — Auditoría QA/PM/Tech Lead sección Torneos + correcciones
+
+### Objetivo
+Auditoría en tres pasadas (QA senior, Product Manager, Tech Lead) del módulo Torneos. Corrección de los issues encontrados en backend y frontend en una sola sesión.
+
+### Auditoría — issues encontrados y estado
+
+| # | Pasada | Issue | Estado |
+|---|--------|-------|--------|
+| P0 | QA | Race condition cupo en inscripción (admin y jugador) | ✅ Resuelto |
+| P1 | QA | Sin confirmación antes de regenerar grupos con resultados cargados | ✅ Resuelto |
+| P1 | QA | Check de propiedad en PATCH/DELETE /inscribir usaba clubId (cualquier jugador podía editar/cancelar) | ✅ Resuelto |
+| P1 | QA | fechaLimiteInscripcion no validada en backend al inscribir | ✅ Resuelto |
+| P2 | QA | Sin validación de fechas (fin < inicio, límite > inicio) en creación/edición de torneo | ✅ Resuelto |
+| P2 | QA | Sin guard para categorías con >32 parejas (APA_DRAWS solo soporta 2-10 zonas → max 32 parejas) | ✅ Resuelto |
+| P2 | QA | Categorías con 1 sola pareja se incluyen silenciosamente en fase de grupos (generan zona vacía) | ✅ Resuelto |
+
+### Backend — `routes/torneos.js`
+
+**Importación Prisma.TransactionIsolationLevel:**
+- Agregado `import { Prisma } from '@prisma/client'` (por separado del cliente)
+- Nota: `../lib/prisma.js` solo exporta la instancia del cliente; `Prisma` viene de `@prisma/client`
+
+**POST /torneos/:id/parejas (admin carga pareja):**
+- Race condition: refetch del torneo + verificación de cupo envueltos en `$transaction` con `Serializable` isolation
+- Si cupo lleno: `e.httpStatus = 400` para distinguir del error DB en el catch externo
+
+**POST /torneos/:id/inscribir (jugador):**
+- Misma solución `$transaction` serializable para race condition
+- Agregada validación de `fechaLimiteInscripcion`: si ya pasó → 400 "El plazo de inscripción ya venció"
+- Notificación al admin movida fuera de la transacción (no bloquear el commit por fallo de notif)
+
+**PATCH /inscribir/:pid y DELETE /inscribir/:pid:**
+- Cambiado `pareja.clubId !== req.user.clubId` → `pareja.jugador1Id !== req.user.id`
+- `req.user.clubId` es el mismo para todos los jugadores del club → bug: cualquier jugador podía editar la inscripción de otro
+- `req.user.id` es el ID de DB del jugador autenticado (seteado en JWT en login)
+
+**POST /torneos y PATCH /torneos/:id:**
+- Validación de fechas: `fechaFin < fechaInicio` → 400
+- Validación: `fechaLimiteInscripcion > fechaInicio` → 400
+- En PATCH: usa fallback a valores actuales del torneo para cada campo no enviado
+
+### Frontend — `TorneoDetallePage.jsx` — `handleGenerarGrupos`
+
+**Confirmación antes de regenerar con resultados:**
+- Detecta si hay resultados cargados en algún partido de la fase actual
+- Modal `window.confirm` claro que avisa que se borrarán los resultados
+
+**Validaciones preventivas:**
+- Categorías con >32 parejas: bloquea con `alert` explicativo (APA_DRAWS max 10 zonas = 32 parejas)
+- Categorías con 1 sola pareja: `window.confirm` pregunta si continuar sin incluirla
+
+### Archivos modificados
+- `project/apps/backend/src/routes/torneos.js`
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx`
 
 ---
 

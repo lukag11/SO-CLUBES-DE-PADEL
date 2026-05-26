@@ -41,7 +41,7 @@ const PlayerAuthPage = () => {
     setError('')
 
     try {
-      const clubId = 'cmoryx4a900008t4qmzdzuiee'
+      const clubId = import.meta.env.VITE_CLUB_ID
       const data = await api.post('/auth/jugador/login', { dni: form.dni, password: form.password, clubId })
       login(data.user, data.token)
       navigate('/dashboardJugadores/dashboard')

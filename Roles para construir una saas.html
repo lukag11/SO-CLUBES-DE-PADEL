@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roles para construir un SaaS — Guía de prompts</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1115;
+    --surface: #181b22;
+    --surface-2: #20242d;
+    --border: #2a2f3a;
+    --text: #e6e8ec;
+    --text-dim: #9ba1ad;
+    --accent: #7c5cff;
+    --accent-2: #4ade80;
+    --tag-product: #f59e0b;
+    --tag-eng: #60a5fa;
+    --tag-quality: #f472b6;
+    --tag-data: #34d399;
+    --tag-business: #fb923c;
+    --tag-domain: #a78bfa;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 60px;
+    padding: 40px 20px;
+    background: linear-gradient(135deg, #1a1d26 0%, #232838 100%);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+  }
+
+  header h1 {
+    font-size: 2.4rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #7c5cff 0%, #4ade80 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  header p {
+    color: var(--text-dim);
+    font-size: 1.1rem;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .intro {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    padding: 24px 28px;
+    border-radius: 12px;
+    margin-bottom: 50px;
+  }
+
+  .intro h2 {
+    font-size: 1.2rem;
+    margin-bottom: 12px;
+    color: var(--accent);
+  }
+
+  .intro p {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+  }
+
+  .category-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 50px 0 24px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .category-title::before {
+    content: "";
+    width: 6px;
+    height: 24px;
+    background: var(--accent);
+    border-radius: 3px;
+  }
+
+  .roles-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .role-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+
+  .role-card:hover {
+    border-color: var(--accent);
+  }
+
+  .role-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
+  .role-name {
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+
+  .role-tag {
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .tag-product { background: rgba(245, 158, 11, 0.15); color: var(--tag-product); }
+  .tag-eng { background: rgba(96, 165, 250, 0.15); color: var(--tag-eng); }
+  .tag-quality { background: rgba(244, 114, 182, 0.15); color: var(--tag-quality); }
+  .tag-data { background: rgba(52, 211, 153, 0.15); color: var(--tag-data); }
+  .tag-business { background: rgba(251, 146, 60, 0.15); color: var(--tag-business); }
+  .tag-domain { background: rgba(167, 139, 250, 0.15); color: var(--tag-domain); }
+
+  .role-tagline {
+    color: var(--text-dim);
+    font-style: italic;
+    margin-bottom: 18px;
+    font-size: 0.95rem;
+  }
+
+  .role-section {
+    margin-top: 16px;
+  }
+
+  .role-section h4 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  .role-section p {
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+
+  .examples-list {
+    list-style: none;
+    padding: 0;
+  }
+
+  .examples-list li {
+    padding: 8px 0 8px 22px;
+    position: relative;
+    font-size: 0.93rem;
+    color: var(--text);
+  }
+
+  .examples-list li::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .prompt-block {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-top: 12px;
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    position: relative;
+    line-height: 1.5;
+  }
+
+  .prompt-label {
+    font-size: 0.7rem;
+    color: var(--accent-2);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+  }
+
+  .copy-btn:hover {
+    color: var(--accent-2);
+    border-color: var(--accent-2);
+  }
+
+  .copy-btn.copied {
+    color: var(--accent-2);
+    border-color: var(--accent-2);
+  }
+
+  .super-prompt {
+    background: linear-gradient(135deg, #1a1d26 0%, #2a1f3d 100%);
+    border: 1px solid var(--accent);
+    border-radius: 14px;
+    padding: 32px;
+    margin-top: 60px;
+  }
+
+  .super-prompt h2 {
+    font-size: 1.4rem;
+    margin-bottom: 8px;
+    color: var(--accent);
+  }
+
+  .super-prompt > p {
+    color: var(--text-dim);
+    margin-bottom: 20px;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 60px;
+    padding: 30px;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    border-top: 1px solid var(--border);
+  }
+
+  @media (min-width: 768px) {
+    .roles-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+    .role-card.wide {
+      grid-column: 1 / -1;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Roles para construir un SaaS</h1>
+    <p>Guía rápida de los profesionales que necesitás, qué hace cada uno y prompts listos para usar con IA. Ejemplos aplicados a un SaaS de pádel, pero reutilizables en cualquier proyecto.</p>
+  </header>
+
+  <div class="intro">
+    <h2>Cómo usar esta guía</h2>
+    <p>Cada rol es una "lente" distinta para mirar tu producto. Cuando le pidas a Claude (o cualquier IA) que actúe como uno de ellos, vas a recibir feedback enfocado en lo que ese profesional mira. Para auditorías serias, combiná 2-3 roles en pasadas separadas. Los prompts de cada tarjeta están listos para copiar y adaptar.</p>
+  </div>
+
+  <!-- PRODUCTO Y DISEÑO -->
+  <h2 class="category-title">Producto y Diseño</h2>
+  <div class="roles-grid">
+
+    <div class="role-card">
+      <div class="role-header">
+        <div class="role-name">Product Manager (PM)</div>
+        <span class="role-tag tag-product">Producto</span>
+      </div>
+      <p class="role-tagline">"¿Esto resuelve el problema del usuario?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Define qué construir y por qué. Piensa en el usuario, el mercado y el negocio. Prioriza features y mide si lo que se construyó realmente sirve.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"Falta lista de espera. Si se llena el cupo, la gente se va y no vuelve."</li>
+          <li>"El organizador necesita mandar un WhatsApp masivo, en pádel se usa muchísimo."</li>
+          <li>"¿Dónde está el ranking histórico del jugador? Es lo primero que mira al inscribirse."</li>
+          <li>"Falta el flujo de 'invitar a mi pareja habitual' para no escribir el nombre cada vez."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como Product Manager Senior. Revisá la sección [X] de mi SaaS y decime: (1) qué flujos espera el usuario que no estén implementados, (2) qué fricciones tiene el journey actual, (3) qué 3 features sumarían más valor en el corto plazo. Priorizá por impacto vs esfuerzo.
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-header">
+        <div class="role-name">UX/UI Designer</div>
+        <span class="role-tag tag-product">Producto</span>
+      </div>
+      <p class="role-tagline">"¿El usuario entiende qué hacer en cada pantalla?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Diseña cómo se ve y se usa el producto. Cuida que sea fácil, claro y agradable de usar, especialmente en móvil.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"El botón de inscripción está abajo del fold en mobile, la gente no lo ve."</li>
+          <li>"El cuadro del torneo no se entiende en pantallas chicas, hay que rediseñarlo en formato lista."</li>
+          <li>"Demasiados pasos para cargar un resultado: debería ser 1 tap desde la notificación."</li>
+          <li>"Los colores de estados (pendiente / confirmado / cancelado) no tienen suficiente contraste."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como UX/UI Designer Senior. Revisá los flujos de [X] y decime: (1) puntos de fricción en mobile, (2) pantallas donde la jerarquía visual confunde, (3) microinteracciones o feedback que faltan, (4) 3 mejoras concretas con mayor impacto en usabilidad.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- INGENIERÍA -->
+  <h2 class="category-title">Ingeniería</h2>
+  <div class="roles-grid">
+
+    <div class="role-card">
+      <div class="role-header">
+        <div class="role-name">Tech Lead / Arquitecto</div>
+        <span class="role-tag tag-eng">Ingeniería</span>
+      </div>
+      <p class="role-tagline">"¿Esto se va a romper cuando crezca?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Mira la arquitectura y las decisiones técnicas a largo plazo. Se asegura de que el sistema sea mantenible, escalable y no acumule deuda técnica peligrosa.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"Generás el fixture en el frontend; con 64 parejas se cuelga el navegador. Movelo al backend."</li>
+          <li>"No hay lock en la base: dos pagos simultáneos venden el mismo cupo dos veces."</li>
+          <li>"Guardás precios como string, vas a tener problemas con monedas y decimales."</li>
+          <li>"Falta paginación en el listado de torneos. Con 1.000 registros, la API explota."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como Tech Lead Senior. Revisá la arquitectura de [X] y decime: (1) red flags técnicas que se vuelven caras si no se arreglan ahora, (2) cuellos de botella cuando escale a 10x usuarios, (3) decisiones de diseño que te harían refactorizar en 6 meses. Priorizá P0/P1/P2.
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-header">
+        <div class="role-name">Frontend Developer</div>
+        <span class="role-tag tag-eng">Ingeniería</span>
+      </div>
+      <p class="role-tagline">"¿La UI es performante, accesible y mantenible?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Construye la interfaz que ve el usuario. Cuida la performance del navegador, los estados de carga, errores, animaciones y la calidad del código del lado cliente.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"Estás renderizando todo el cuadro en cada cambio, optimizá con memo."</li>
+          <li>"Falta estado de loading cuando se carga un resultado, parece que no pasó nada."</li>
+          <li>"Si falla la API de inscripción, no hay manejo de error, solo se queda colgado."</li>
+          <li>"Los formularios no validan en el cliente, hace ida y vuelta innecesaria al backend."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como Frontend Developer Senior. Revisá los componentes de [X] y decime: (1) problemas de performance, (2) estados que faltan (loading, error, empty), (3) accesibilidad básica que se está pasando por alto, (4) refactors concretos con impacto real.
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-header">
+        <div class="role-name">Backend Developer</div>
+        <span class="role-tag tag-eng">Ingeniería</span>
+      </div>
+      <p class="role-tagline">"¿La API es robusta, segura y bien modelada?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Construye la lógica del servidor, las APIs y el modelo de datos. Se asegura de que las reglas de negocio se cumplan, que los datos sean consistentes y que las queries sean eficientes.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"La inscripción no es transaccional, si falla el pago el registro queda colgado."</li>
+          <li>"No estás validando en el backend que el cupo no esté lleno, solo en el front."</li>
+          <li>"Falta índice en torneo_id + estado, esa query la haces 100 veces por minuto."</li>
+          <li>"Devolvés todos los campos del usuario en la API pública, incluso el email."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como Backend Developer Senior. Revisá la API y el modelo de datos de [X] y decime: (1) endpoints sin validación adecuada, (2) operaciones que deberían ser transaccionales y no lo son, (3) queries lentas o sin índices, (4) datos sensibles expuestos en respuestas públicas.
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-header">
+        <div class="role-name">DevOps / SRE</div>
+        <span class="role-tag tag-eng">Ingeniería</span>
+      </div>
+      <p class="role-tagline">"¿Esto se puede desplegar, monitorear y recuperar?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Se encarga de infraestructura, despliegues, monitoreo y disponibilidad. Hace que el sistema esté online, que se pueda lanzar sin miedo y que cuando algo falle, te enteres rápido.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"No hay backups automáticos de la base, un drop accidental te borra todo."</li>
+          <li>"Falta alerta cuando los pagos fallan más del 5%: te vas a enterar por Twitter."</li>
+          <li>"Los logs no tienen request_id, debuggear un error real es imposible."</li>
+          <li>"No hay rollback automatizado: si un deploy rompe producción, sufrís 30 minutos."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como DevOps Engineer Senior. Revisá la infraestructura y deployment de [X] y decime: (1) puntos únicos de falla, (2) métricas y alertas críticas que faltan, (3) qué pasaría si la base se cae 5 minutos, (4) mejoras urgentes antes de salir a producción.
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-header">
+        <div class="role-name">Mobile Developer</div>
+        <span class="role-tag tag-eng">Ingeniería</span>
+      </div>
+      <p class="role-tagline">"¿Funciona bien en cualquier celular?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Si tu SaaS tiene app, este rol se enfoca en iOS/Android. Cuida que la app sea rápida, funcione offline cuando se pueda, y respete las guías de cada plataforma.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"Las notificaciones push no llegan en iOS si la app está cerrada, falta configurar bien APNs."</li>
+          <li>"La app pesa 80 MB porque incluís todas las imágenes en el bundle."</li>
+          <li>"En conexiones lentas (típico en un club), no hay reintento al cargar resultados."</li>
+          <li>"El deep link a un torneo no funciona si la app no está instalada."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como Mobile Developer Senior. Revisá la app de [X] y decime: (1) problemas de performance percibida, (2) manejo de conectividad pobre, (3) features de plataforma desaprovechadas (push, deep links, share), (4) gaps entre iOS y Android.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CALIDAD Y SEGURIDAD -->
+  <h2 class="category-title">Calidad y Seguridad</h2>
+  <div class="roles-grid">
+
+    <div class="role-card">
+      <div class="role-header">
+        <div class="role-name">QA Senior</div>
+        <span class="role-tag tag-quality">Calidad</span>
+      </div>
+      <p class="role-tagline">"¿Cómo rompo esto?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Busca bugs y casos límite probando el producto como un usuario distraído o malicioso. Define casos de prueba, escenarios negativos y verifica que todo siga funcionando después de cada cambio.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"¿Qué pasa si me inscribo en dos categorías con horarios superpuestos?"</li>
+          <li>"Cargo un resultado 6-0, 0-6, 0-0. ¿Lo deja guardar como válido?"</li>
+          <li>"Inscribo, pago, cancelo desde el banco. ¿El sistema me saca del cuadro?"</li>
+          <li>"Pongo emojis en el nombre del torneo. ¿Se rompe el cuadro PDF?"</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como QA Senior. Para la sección [X] de mi SaaS, dame: (1) casos límite que probarías antes de producción, (2) escenarios negativos (datos rotos, concurrencia, fallas de red), (3) tests de regresión imprescindibles, (4) 5 cosas que romperías a propósito para validar robustez.
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-header">
+        <div class="role-name">Security Engineer</div>
+        <span class="role-tag tag-quality">Calidad</span>
+      </div>
+      <p class="role-tagline">"¿Por dónde me hackean?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Encuentra vulnerabilidades antes que los atacantes. Revisa autenticación, autorización, manejo de datos sensibles y exposición de endpoints.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"El endpoint /api/torneos/:id/inscriptos devuelve datos sin chequear si soy admin."</li>
+          <li>"Estás guardando contraseñas con MD5, hay que pasar a bcrypt o argon2."</li>
+          <li>"Cualquiera puede cambiar el resultado de un partido modificando el JSON del request."</li>
+          <li>"El webhook de Stripe no valida la firma, alguien puede falsear pagos."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como Security Engineer Senior. Revisá la sección [X] y decime: (1) vulnerabilidades del OWASP Top 10 presentes, (2) endpoints con autorización rota o ausente, (3) datos sensibles mal manejados, (4) integraciones de terceros mal validadas (webhooks, pagos).
+      </div>
+    </div>
+
+  </div>
+
+  <!-- DATOS -->
+  <h2 class="category-title">Datos</h2>
+  <div class="roles-grid">
+
+    <div class="role-card wide">
+      <div class="role-header">
+        <div class="role-name">Data Analyst</div>
+        <span class="role-tag tag-data">Datos</span>
+      </div>
+      <p class="role-tagline">"¿Qué te están diciendo los datos del producto?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Analiza cómo se usa el producto, qué funciona y qué no. Define métricas, embudos y reportes que ayudan a tomar mejores decisiones.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"El 40% de los usuarios abandona en el paso de elegir pareja, hay que revisar ese flujo."</li>
+          <li>"Los torneos con menos de 8 parejas inscriptas en la primera semana, nunca se llenan."</li>
+          <li>"Los clubes que crean 3+ torneos tienen 10x más retención. Hay que empujar al segundo torneo."</li>
+          <li>"Falta tracking del evento 'cuadro generado', no podemos medir adopción del feature."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como Data Analyst Senior. Para la sección [X], decime: (1) qué métricas clave deberían trackearse y no se están midiendo, (2) qué embudos definirías para detectar fricciones, (3) qué eventos faltan instrumentar, (4) qué preguntas de negocio podría responder con esos datos.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- NEGOCIO Y CRECIMIENTO -->
+  <h2 class="category-title">Negocio y Crecimiento</h2>
+  <div class="roles-grid">
+
+    <div class="role-card">
+      <div class="role-header">
+        <div class="role-name">Growth Marketer</div>
+        <span class="role-tag tag-business">Negocio</span>
+      </div>
+      <p class="role-tagline">"¿Cómo conseguimos más usuarios y los retenemos?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Diseña estrategias para atraer, activar y retener usuarios. Hace experimentos, optimiza onboarding y busca loops de crecimiento.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"Cuando un jugador se inscribe, debería invitar automáticamente a su pareja. Loop viral."</li>
+          <li>"Falta un programa de referidos para clubes: 1 mes gratis por club referido."</li>
+          <li>"El onboarding es muy largo, hay que reducir de 6 pasos a 2 para llegar al 'aha moment'."</li>
+          <li>"Los emails de bienvenida tienen 12% de open rate, hay que rehacer el subject."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como Growth Marketer Senior. Para mi SaaS de [X], decime: (1) loops de crecimiento que podría implementar dentro del producto, (2) puntos de fricción en el onboarding actual, (3) 3 experimentos de retención que probarías primero, (4) métricas north star a trackear.
+      </div>
+    </div>
+
+    <div class="role-card">
+      <div class="role-header">
+        <div class="role-name">Customer Success</div>
+        <span class="role-tag tag-business">Negocio</span>
+      </div>
+      <p class="role-tagline">"¿Los clientes están logrando lo que vinieron a hacer?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Asegura que los clientes (especialmente los que pagan) tengan éxito usando el producto. Detecta señales de churn, ayuda en la adopción y recoge feedback estructurado.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"Los clubes que no crean su primer torneo en 7 días, churneann en el 80% de los casos."</li>
+          <li>"Falta una guía de 'tu primer torneo en 10 minutos' para clubes nuevos."</li>
+          <li>"Los organizadores piden poder duplicar un torneo del año pasado, es la feature request #1."</li>
+          <li>"No hay un canal claro para reportar problemas durante un torneo en vivo."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como Customer Success Manager. Para mi SaaS de [X], decime: (1) señales tempranas de churn que debería trackear, (2) momentos críticos del journey donde falta acompañamiento, (3) qué recursos de self-service deberían existir, (4) cómo estructurar el feedback de clientes para que sea accionable.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- EXPERTO DE DOMINIO -->
+  <h2 class="category-title">Experto de dominio</h2>
+  <div class="roles-grid">
+
+    <div class="role-card wide">
+      <div class="role-header">
+        <div class="role-name">Domain Expert (Pádel / Industria)</div>
+        <span class="role-tag tag-domain">Dominio</span>
+      </div>
+      <p class="role-tagline">"¿Esto refleja cómo funciona realmente el negocio?"</p>
+
+      <div class="role-section">
+        <h4>Qué hace</h4>
+        <p>Es alguien que conoce profundamente la industria (en tu caso, pádel: organizadores, clubes, jugadores, federaciones). Detecta cosas que ningún técnico vería porque no juega/no organiza torneos.</p>
+      </div>
+
+      <div class="role-section">
+        <h4>Ejemplos en SaaS de pádel</h4>
+        <ul class="examples-list">
+          <li>"En pádel los walkovers son comunes, hay que tener un flujo claro para no romper el cuadro."</li>
+          <li>"Los americanos y mexicanos son formatos clave en clubes, no podés solo soportar eliminación directa."</li>
+          <li>"Las categorías van por nivel (3ª, 4ª, 5ª...) y varían por país: en Argentina hay hasta 8ª."</li>
+          <li>"Los organizadores cobran inscripción en efectivo el día del torneo el 70% de las veces."</li>
+        </ul>
+      </div>
+
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt</span>
+        <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Actuá como experto en [INDUSTRIA: ej. organización de torneos de pádel]. Olvidate de la parte técnica. Revisá la sección [X] y decime: (1) qué cosas no se entienden si no conocés cómo funciona el negocio real, (2) qué casos típicos del día a día no están contemplados, (3) qué jerga/convenciones del rubro están mal usadas, (4) qué te frenaría como profesional del sector a usar este producto.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SÚPER PROMPT -->
+  <div class="super-prompt">
+    <h2>Súper prompt: auditoría 360º</h2>
+    <p>Cuando quieras una revisión completa antes de una prueba real o lanzamiento, combiná varios roles en pasadas separadas. Acá te dejo un prompt completo listo para copiar:</p>
+
+    <div class="prompt-block">
+      <span class="prompt-label">Prompt completo</span>
+      <button class="copy-btn" onclick="copyPrompt(this)">Copiar</button>
+Hacé una auditoría 360° de la sección [X] de mi SaaS en 5 pasadas separadas. Para cada pasada, devolveme: (a) checklist de cobertura, (b) issues priorizados P0/P1/P2, (c) 3 recomendaciones accionables.
+
+Pasada 1 - Como Product Manager: ¿qué flujos faltan? ¿qué espera el usuario y no encuentra?
+Pasada 2 - Como QA Senior: casos límite, escenarios negativos, qué romperías a propósito.
+Pasada 3 - Como Tech Lead: red flags arquitecturales, cuellos de botella a escala, deuda técnica peligrosa.
+Pasada 4 - Como Security Engineer: vulnerabilidades, autorización rota, datos sensibles expuestos.
+Pasada 5 - Como Experto de dominio en [INDUSTRIA]: qué no refleja la realidad del negocio, qué casos típicos faltan.
+
+Al final, dame una lista única de bloqueantes (P0) ordenados por urgencia antes del lanzamiento.
+    </div>
+  </div>
+
+  <footer>
+    <p>Guía de roles para construir SaaS · Aplicable a cualquier proyecto · Adaptá los corchetes [X] a tu caso</p>
+  </footer>
+
+</div>
+
+<script>
+  function copyPrompt(btn) {
+    const block = btn.parentElement;
+    const text = block.innerText.replace(/^Prompt(\s+completo)?\s*Copiar\s*/, '').trim();
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = "Copiado";
+      btn.classList.add("copied");
+      setTimeout(() => {
+        btn.textContent = "Copiar";
+        btn.classList.remove("copied");
+      }, 1800);
+    });
+  }
+</script>
+
+</body>
+</html>

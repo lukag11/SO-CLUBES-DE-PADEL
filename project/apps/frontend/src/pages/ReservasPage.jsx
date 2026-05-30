@@ -326,7 +326,7 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = [] }) => {
         </div>
         {inconsistenteRowspan && (
           <div
-            title={`⚠ Problema: esta reserva está a las ${reserva.inicio} pero ese horario ya no existe en esta cancha (el horario propio fue desactivado). Solución: reactivá el horario propio desde Configuración → Canchas, o cancelá esta reserva y volvé a crearla en el nuevo horario.`}
+            title={`⚠ Fuera de grilla: la reserva está a las ${reserva.inicio} pero ese horario ya no existe en la grilla actual. Causa probable: se modificó el horario de apertura o se desactivó el horario propio de esta cancha después de crear la reserva. Solución: reactivá el horario anterior desde Configuración → Canchas y Horarios, o cancelá esta reserva y volvé a crearla en el nuevo horario.`}
             className="absolute top-1 right-1 flex items-center gap-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-none animate-pulse cursor-help shadow-sm shadow-amber-400/50"
           >
             <AlertTriangle size={9} />
@@ -376,7 +376,7 @@ const Celda = ({ reserva, franja, cancha, fecha, onClick, franjas = [] }) => {
       </div>
       {inconsistente && (
         <div
-          title={`⚠ Problema: esta reserva está a las ${reserva.inicio} pero ese horario ya no existe en esta cancha (el horario propio fue desactivado). Solución: reactivá el horario propio desde Configuración → Canchas, o cancelá esta reserva y volvé a crearla en el nuevo horario.`}
+          title={`⚠ Fuera de grilla: la reserva está a las ${reserva.inicio} pero ese horario ya no existe en la grilla actual. Causa probable: se modificó el horario de apertura o se desactivó el horario propio de esta cancha después de crear la reserva. Solución: reactivá el horario anterior desde Configuración → Canchas y Horarios, o cancelá esta reserva y volvé a crearla en el nuevo horario.`}
           className="absolute top-1 right-1 flex items-center gap-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-none animate-pulse cursor-help shadow-sm shadow-amber-400/50"
         >
           <AlertTriangle size={9} />

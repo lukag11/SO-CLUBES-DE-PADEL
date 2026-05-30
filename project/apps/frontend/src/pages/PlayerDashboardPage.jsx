@@ -37,6 +37,16 @@ const DIAS_LABEL = {
   jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado',
 }
 
+const TORNEO_ESTADO_CONFIG = {
+  open:        { label: 'Inscripciones abiertas', dot: 'bg-amber-400',   badge: 'bg-amber-500/15 text-amber-400 border-amber-500/20'    },
+  closed:      { label: 'Por arrancar',           dot: 'bg-blue-400',    badge: 'bg-blue-500/15 text-blue-400 border-blue-500/20'       },
+  in_progress: { label: 'En juego',               dot: 'bg-emerald-400', badge: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' },
+  finished:    { label: 'Finalizado',             dot: 'bg-white/20',    badge: 'bg-white/8 text-white/30 border-white/10'              },
+  draft:       { label: 'Próximamente',           dot: 'bg-white/20',    badge: 'bg-white/8 text-white/30 border-white/10'              },
+}
+
+const ESTADO_ORDEN = { in_progress: 0, closed: 1, open: 2, finished: 3, draft: 4 }
+
 const PlayerDashboardPage = () => {
   const player = usePlayerStore((s) => s.player)
   const token = usePlayerStore((s) => s.token)
@@ -48,6 +58,8 @@ const PlayerDashboardPage = () => {
   const horasCancelacion = useClubStore((s) => s.club?.horasCancelacion ?? 0)
   const navigate = useNavigate()
   const [reservaACancelar, setReservaACancelar] = useState(null)
+  const [misInscripciones, setMisInscripciones] = useState([])
+  const [loadingTorneos, setLoadingTorneos] = useState(false)
 
   const cancelacionInfo = useMemo(() => {
     if (!reservaACancelar) return { horasMinimas: 0, horasRestantes: Infinity, fueraDePlazo: false }
@@ -90,6 +102,26 @@ const PlayerDashboardPage = () => {
       })
       .catch(() => {})
   }, [token])
+
+  const playerClubId = player?.club?.id ?? player?.clubId ?? null
+
+  useEffect(() => {
+    if (!token || !player?.id || !playerClubId) return
+    setLoadingTorneos(true)
+    api.get(`/torneos?clubId=${playerClubId}`, { Authorization: `Bearer ${token}` })
+      .then((data) => {
+        if (!Array.isArray(data)) return
+        const inscs = []
+        data.forEach((t) => {
+          const miPareja = (t.parejas ?? []).find((p) => p.jugador1Id === player.id)
+          if (miPareja) inscs.push({ torneo: t, pareja: miPareja })
+        })
+        inscs.sort((a, b) => (ESTADO_ORDEN[a.torneo.estado] ?? 5) - (ESTADO_ORDEN[b.torneo.estado] ?? 5))
+        setMisInscripciones(inscs)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingTorneos(false))
+  }, [token, player?.id, playerClubId])
 
   const hoy = fmtDate(new Date())
   const proximasReservas = reservas
@@ -148,7 +180,9 @@ const PlayerDashboardPage = () => {
           {mockStats.map(({ label, value, icon: Icon }) => (
             <div key={label} className="text-center">
               <Icon size={16} className="text-[#afca0b] mx-auto mb-1.5" />
-              <p className="text-xl font-bold text-white">{value}</p>
+              <p className="text-xl font-bold text-white">
+                {label === 'Torneos' ? (loadingTorneos ? '…' : misInscripciones.length) : value}
+              </p>
               <p className="text-white/35 text-xs">{label}</p>
             </div>
           ))}
@@ -288,6 +322,86 @@ const PlayerDashboardPage = () => {
                     ? '1 turno pendiente de aprobación del admin'
                     : `${turnosFijosPendientes.length} turnos pendientes de aprobación del admin`}
                 </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Widget torneos ── */}
+      <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-white/6 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Trophy size={15} className="text-amber-400" />
+            <h3 className="text-white font-semibold text-sm">Mis torneos</h3>
+            {misInscripciones.filter((i) => i.torneo.estado === 'in_progress').length > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                {misInscripciones.filter((i) => i.torneo.estado === 'in_progress').length} en juego
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => navigate('/dashboardJugadores/torneos')}
+            className="flex items-center gap-1 text-amber-400 text-xs font-medium hover:text-amber-300 transition-colors"
+          >
+            Ver todos <ArrowRight size={12} />
+          </button>
+        </div>
+
+        {loadingTorneos ? (
+          <div className="px-5 py-5 flex items-center gap-3">
+            <div className="w-4 h-4 rounded-full border-2 border-amber-400/40 border-t-amber-400 animate-spin shrink-0" />
+            <p className="text-white/25 text-sm">Cargando torneos…</p>
+          </div>
+        ) : misInscripciones.length === 0 ? (
+          <div className="px-5 py-5 flex items-center justify-between">
+            <p className="text-white/30 text-sm">No estás inscripto en ningún torneo</p>
+            <button
+              onClick={() => navigate('/dashboardJugadores/torneos')}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/15 transition-colors"
+            >
+              Ver torneos
+            </button>
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {misInscripciones.slice(0, 3).map(({ torneo, pareja }) => {
+              const cfg = TORNEO_ESTADO_CONFIG[torneo.estado] ?? TORNEO_ESTADO_CONFIG.draft
+              const enEspera = pareja.estado === 'espera'
+              const companero = pareja.jugador2Nombre
+                ? `${pareja.jugador2Nombre} ${pareja.jugador2Apellido ?? ''}`.trim()
+                : null
+              return (
+                <div key={torneo.id} className="px-5 py-3.5 flex items-center gap-3">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-semibold truncate">{torneo.nombre}</p>
+                    <p className="text-white/40 text-xs mt-0.5 truncate">
+                      {pareja.categoria}
+                      {companero ? ` · con ${companero}` : ' · Sin compañero/a'}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${cfg.badge}`}>
+                      {cfg.label}
+                    </span>
+                    {enEspera && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                        En espera
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+            {misInscripciones.length > 3 && (
+              <div className="px-5 py-3 text-center">
+                <button
+                  onClick={() => navigate('/dashboardJugadores/torneos')}
+                  className="text-xs text-white/30 hover:text-amber-400 transition-colors"
+                >
+                  + {misInscripciones.length - 3} más → Ver todos
+                </button>
               </div>
             )}
           </div>

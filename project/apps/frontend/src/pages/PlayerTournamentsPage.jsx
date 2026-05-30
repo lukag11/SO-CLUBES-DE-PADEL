@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  Trophy, Calendar, X, ChevronDown, ChevronUp,
+  Trophy, Calendar, Flag, X, ChevronDown, ChevronUp,
   Zap, Clock, Lock, CheckCircle, Archive, Plus, Infinity as InfinityIcon, Pencil,
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
@@ -711,9 +711,22 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse, playerGenero }) => {
         <Badge estado={torneo.estado} />
       </div>
 
-      <div className="flex items-center gap-1.5 text-white/35 text-xs">
-        <Calendar size={12} className="shrink-0" />
-        {fmtFecha(torneo.fechaInicio)} → {fmtFecha(torneo.fechaFin)}
+      <div className="flex items-center gap-3">
+        <span className="flex items-center gap-2 bg-white/8 border border-white/10 rounded-xl px-3 py-1.5">
+          <Calendar size={11} className="text-brand-400 shrink-0" />
+          <span className="flex flex-col leading-none">
+            <span className="text-white/80 font-bold text-sm">{new Date(torneo.fechaInicio + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit' })}</span>
+            <span className="text-white/35 text-[10px] uppercase tracking-wide">{new Date(torneo.fechaInicio + 'T12:00:00').toLocaleDateString('es-AR', { month: 'short' })}</span>
+          </span>
+        </span>
+        <span className="text-white/20 text-xs">────</span>
+        <span className="flex items-center gap-2 bg-white/8 border border-white/10 rounded-xl px-3 py-1.5">
+          <Flag size={11} className="text-white/30 shrink-0" />
+          <span className="flex flex-col leading-none">
+            <span className="text-white/80 font-bold text-sm">{new Date(torneo.fechaFin + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit' })}</span>
+            <span className="text-white/35 text-[10px] uppercase tracking-wide">{new Date(torneo.fechaFin + 'T12:00:00').toLocaleDateString('es-AR', { month: 'short' })}</span>
+          </span>
+        </span>
       </div>
 
       {torneo.descripcion && (
@@ -775,7 +788,7 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse, playerGenero }) => {
 
 // ── Modal inscripción ─────────────────────────────────────────────────────────
 
-const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaExistente, onClose, onConfirmar }) => {
+const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaExistente, onClose, onConfirmar, token }) => {
   const isEdit = !!parejaExistente
   const catsDisponibles = categoriasParaJugador(torneo, playerGenero)
   const diaCorte  = torneo.diaInicioEliminatoria  ?? null
@@ -791,6 +804,11 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
 
   const [jugador2, setJugador2]         = useState(parejaExistente?.jugador2 ?? '')
   const [jugador2Dni, setJugador2Dni]   = useState(parejaExistente?.jugador2Dni ?? '')
+  // lookup del compañero por DNI
+  const [dniLookup, setDniLookup]       = useState({ status: 'idle', data: null })
+  // campos del mini-form cuando el compañero no está registrado
+  const [jugador2Nombre, setJugador2Nombre]     = useState('')
+  const [jugador2Apellido, setJugador2Apellido] = useState('')
   const [categoria, setCategoria]     = useState(parejaExistente?.categoria ?? catsDisponibles[0] ?? '')
   const [slots, setSlots]             = useState(parejaExistente?.disponibilidad ?? [])
   const [prefiereMismoDia, setPrefiereMismoDia] = useState(parejaExistente?.prefiereMismoDia ?? false)
@@ -817,6 +835,48 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
     }
   }, [slots]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Lookup del compañero por DNI (debounce 400ms)
+  useEffect(() => {
+    if (sinCompanero || !token) return
+    if (jugador2Dni.length < 7) {
+      if (dniLookup.status !== 'idle') {
+        setDniLookup({ status: 'idle', data: null })
+        setJugador2('')
+        setJugador2Nombre('')
+        setJugador2Apellido('')
+      }
+      return
+    }
+    // No re-disparar si el usuario ya confirmó el alta manual
+    if (dniLookup.status === 'confirmed') return
+    setDniLookup({ status: 'loading', data: null })
+    const timer = setTimeout(() => {
+      api.get(`/jugadores/por-dni?dni=${jugador2Dni}`, { Authorization: `Bearer ${token}` })
+        .then((res) => {
+          if (res.found) {
+            setDniLookup({ status: 'found', data: res })
+            setJugador2(`${res.nombre} ${res.apellido}`.trim())
+            setJugador2Nombre('')
+            setJugador2Apellido('')
+          } else {
+            setDniLookup({ status: 'not_found', data: null })
+            setJugador2('')
+          }
+        })
+        .catch(() => {
+          setDniLookup({ status: 'error', data: null })
+        })
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [jugador2Dni, sinCompanero]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Mientras el usuario escribe en el mini-form, actualizar el campo nombre en tiempo real
+  useEffect(() => {
+    if (dniLookup.status === 'not_found' || dniLookup.status === 'confirmed') {
+      setJugador2(`${jugador2Nombre} ${jugador2Apellido}`.trim())
+    }
+  }, [jugador2Nombre, jugador2Apellido, dniLookup.status])
+
   const MAX_SLOTS = 2
 
   const agregarSlot = () => {
@@ -833,9 +893,16 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
   const validate = () => {
     const e = {}
     if (!sinCompanero) {
-      if (!jugador2.trim())                             e.jugador2    = 'Completá el nombre de tu compañero/a'
       if (!jugador2Dni.trim())                          e.jugador2Dni = 'Completá el DNI de tu compañero/a'
       else if (!/^\d{7,8}$/.test(jugador2Dni.trim()))  e.jugador2Dni = 'El DNI debe tener entre 7 y 8 números'
+
+      if (dniLookup.status === 'not_found') {
+        // Forzar que confirmen el alta antes de inscribirse
+        e.jugador2 = 'Completá el nombre y apellido y hacé clic en "Dar de alta"'
+      } else if (!jugador2.trim()) {
+        e.jugador2 = 'Completá el nombre de tu compañero/a'
+      }
+
       if (slots.length === 0) {
         e.slots = 'Agregá al menos un horario disponible'
       } else if (slots.length === 1 && !prefiereMismoDia) {
@@ -848,11 +915,21 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
   const handleConfirmar = () => {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
+    // Si el compañero no existía, construir nombre completo desde el mini-form
+    const j2NombreCompleto = dniLookup.status === 'not_found'
+      ? `${jugador2Nombre.trim()} ${jugador2Apellido.trim()}`.trim()
+      : jugador2.trim()
+
     const data = {
       jugador1,
       jugador1Dni: jugador1Dni ?? '',
-      jugador2: sinCompanero ? 'Por definir' : jugador2.trim(),
+      jugador2: sinCompanero ? 'Por definir' : j2NombreCompleto,
       jugador2Dni: sinCompanero ? '' : jugador2Dni.trim(),
+      // Solo se envían cuando el compañero no está en DB (para crear el pre-registro)
+      ...(dniLookup.status === 'not_found' && !sinCompanero && {
+        jugador2Nombre: jugador2Nombre.trim(),
+        jugador2Apellido: jugador2Apellido.trim(),
+      }),
       categoria,
       fecha: new Date().toISOString().split('T')[0],
       disponibilidad: slots,
@@ -1003,12 +1080,46 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                 {jugador1}
               </div>
             </div>
-            {/* J2 nombre */}
+            {/* J2 nombre — siempre visible, se actualiza en tiempo real */}
             <div>
               <label className="text-[10px] font-medium text-white/40 block mb-1">Compañero/a</label>
               {sinCompanero ? (
                 <div className="bg-white/3 border border-white/5 rounded-xl px-2.5 py-2 text-xs text-amber-300/50 italic">
                   Por definir
+                </div>
+              ) : (dniLookup.status === 'found' || dniLookup.status === 'confirmed') ? (
+                <div className={`flex items-center gap-2 rounded-xl px-2.5 py-2 ${
+                  dniLookup.status === 'found'
+                    ? 'bg-emerald-500/8 border border-emerald-500/20'
+                    : 'bg-amber-500/8 border border-amber-500/20'
+                }`}>
+                  <span className="text-xs text-white flex-1 truncate">{jugador2 || <span className="text-white/25 italic">Nombre y apellido</span>}</span>
+                  <span className={`text-[10px] font-semibold shrink-0 flex items-center gap-1 ${
+                    dniLookup.status === 'found' ? 'text-emerald-400' : 'text-amber-400'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full inline-block ${
+                      dniLookup.status === 'found' ? 'bg-emerald-400' : 'bg-amber-400'
+                    }`} />
+                    {dniLookup.status === 'found'
+                      ? (dniLookup.data?.cuentaActiva ? 'Registrado' : 'Pre-registrado')
+                      : 'Sin cuenta'}
+                  </span>
+                  {dniLookup.status === 'confirmed' && (
+                    <button
+                      type="button"
+                      onClick={() => setDniLookup({ status: 'not_found', data: null })}
+                      className="text-white/30 hover:text-amber-400 transition-colors ml-1 p-0.5"
+                    >
+                      <Pencil size={11} />
+                    </button>
+                  )}
+                </div>
+              ) : (dniLookup.status === 'not_found') ? (
+                // Preview en vivo mientras escribe en el mini-form
+                <div className="flex items-center gap-2 bg-white/3 border border-amber-500/20 rounded-xl px-2.5 py-2">
+                  <span className={`text-xs flex-1 truncate ${jugador2 ? 'text-white' : 'text-white/20 italic'}`}>
+                    {jugador2 || 'Nombre y apellido'}
+                  </span>
                 </div>
               ) : (
                 <input
@@ -1023,7 +1134,8 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                       setErrors((p) => ({ ...p, jugador2: '' }))
                   }}
                   placeholder="Nombre y apellido"
-                  className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 ${
+                  disabled={dniLookup.status === 'loading'}
+                  className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 disabled:opacity-40 ${
                     errors.jugador2 ? 'border-red-500/50' : 'border-white/10'
                   }`}
                 />
@@ -1047,33 +1159,129 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                   Por definir
                 </div>
               ) : (
-                <input
-                  type="text"
-                  value={jugador2Dni}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '').slice(0, 8)
-                    setJugador2Dni(val)
-                    if (val.length > 0 && val.length < 7)
-                      setErrors((p) => ({ ...p, jugador2Dni: 'Mínimo 7 dígitos' }))
-                    else
-                      setErrors((p) => ({ ...p, jugador2Dni: '' }))
-                  }}
-                  placeholder="12345678"
-                  maxLength={8}
-                  inputMode="numeric"
-                  className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 ${
-                    errors.jugador2Dni ? 'border-red-500/50' : 'border-white/10'
-                  }`}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={jugador2Dni}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 8)
+                      setJugador2Dni(val)
+                      if (val.length > 0 && val.length < 7)
+                        setErrors((p) => ({ ...p, jugador2Dni: 'Mínimo 7 dígitos' }))
+                      else
+                        setErrors((p) => ({ ...p, jugador2Dni: '' }))
+                    }}
+                    placeholder="12345678"
+                    maxLength={8}
+                    inputMode="numeric"
+                    className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 pr-7 ${
+                      errors.jugador2Dni ? 'border-red-500/50' : dniLookup.status === 'found' ? 'border-emerald-500/30' : 'border-white/10'
+                    }`}
+                  />
+                  {/* Indicador de estado del lookup */}
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                    {dniLookup.status === 'loading' && (
+                      <div className="w-3 h-3 rounded-full border border-white/20 border-t-white/60 animate-spin" />
+                    )}
+                    {dniLookup.status === 'found' && (
+                      <span className="text-emerald-400 text-[11px] font-bold">✓</span>
+                    )}
+                    {dniLookup.status === 'not_found' && (
+                      <span className="text-amber-400 text-[11px]">?</span>
+                    )}
+                  </div>
+                </div>
               )}
               {errors.jugador2Dni && <p className="text-red-400 text-[10px] mt-0.5">{errors.jugador2Dni}</p>}
             </div>
           </div>
 
+          {/* Mini-form alta compañero — visible solo cuando el DNI no está registrado */}
+          {!sinCompanero && dniLookup.status === 'not_found' && (
+            <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl p-3 flex flex-col gap-2.5">
+              <div className="flex items-start gap-2">
+                <span className="text-amber-400 text-sm shrink-0 mt-0.5">⚠</span>
+                <p className="text-amber-300/80 text-[11px] leading-relaxed">
+                  Alta rápida — sin cuenta · Tu compañero/a podrá registrarse después con este DNI y quedará vinculado automáticamente.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-medium text-white/40 block mb-1">Nombre <span className="text-red-400">*</span></label>
+                  <input
+                    type="text"
+                    value={jugador2Nombre}
+                    onChange={(e) => {
+                      setJugador2Nombre(e.target.value.replace(/[0-9]/g, ''))
+                      setErrors((p) => ({ ...p, jugador2Nombre: '' }))
+                    }}
+                    placeholder="Juan"
+                    className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400/50 transition-all placeholder-white/20 ${
+                      errors.jugador2Nombre ? 'border-red-500/50' : 'border-white/10'
+                    }`}
+                  />
+                  {errors.jugador2Nombre && <p className="text-red-400 text-[10px] mt-0.5">{errors.jugador2Nombre}</p>}
+                </div>
+                <div>
+                  <label className="text-[10px] font-medium text-white/40 block mb-1">Apellido <span className="text-red-400">*</span></label>
+                  <input
+                    type="text"
+                    value={jugador2Apellido}
+                    onChange={(e) => {
+                      setJugador2Apellido(e.target.value.replace(/[0-9]/g, ''))
+                      setErrors((p) => ({ ...p, jugador2Apellido: '' }))
+                    }}
+                    placeholder="Pérez"
+                    className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400/50 transition-all placeholder-white/20 ${
+                      errors.jugador2Apellido ? 'border-red-500/50' : 'border-white/10'
+                    }`}
+                  />
+                  {errors.jugador2Apellido && <p className="text-red-400 text-[10px] mt-0.5">{errors.jugador2Apellido}</p>}
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setJugador2Dni('')
+                    setJugador2('')
+                    setJugador2Nombre('')
+                    setJugador2Apellido('')
+                    setDniLookup({ status: 'idle', data: null })
+                  }}
+                  className="text-xs text-white/40 hover:text-white/70 transition-colors px-2 py-1"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const eNombre   = !jugador2Nombre.trim()   ? 'Nombre requerido'   : ''
+                    const eApellido = !jugador2Apellido.trim() ? 'Apellido requerido' : ''
+                    if (eNombre || eApellido) {
+                      setErrors((p) => ({ ...p, jugador2Nombre: eNombre, jugador2Apellido: eApellido }))
+                      return
+                    }
+                    setDniLookup({ status: 'confirmed', data: null })
+                  }}
+                  className="text-xs font-semibold text-white bg-amber-500 hover:bg-amber-400 rounded-lg px-3 py-1.5 transition-all"
+                >
+                  Dar de alta
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Info DNI */}
           <InfoBlock label="¿Por qué pedimos el DNI del compañero/a?" variant="dark">
-            <p>Usamos el DNI para vincular el historial de partidos y estadísticas de cada jugador. Sin él no podemos hacer el seguimiento correcto dentro del torneo.</p>
-            <p>Asegurate de cargarlo bien — si hay un error podés editarlo antes de que el admin cierre las inscripciones.</p>
+            <p>Usamos el DNI para buscar si tu compañero/a ya está en el sistema y vincular su historial de partidos y estadísticas correctamente.</p>
+            <p>Al ingresar el DNI vas a ver uno de estos estados:</p>
+            <ul className="mt-1 flex flex-col gap-1">
+              <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" /><span><span className="font-semibold text-emerald-400">Registrado</span> — tiene cuenta activa en el club.</span></li>
+              <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" /><span><span className="font-semibold text-emerald-400">Pre-registrado</span> — el admin lo cargó pero aún no activó su cuenta.</span></li>
+              <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" /><span><span className="font-semibold text-amber-400">Sin cuenta</span> — no existe en el sistema. Podés crearlo vos ingresando su nombre y apellido. Cuando se registre quedará vinculado automáticamente.</span></li>
+            </ul>
+            <p className="mt-1">Si cometiste un error en el DNI podés editarlo antes de que el admin cierre las inscripciones.</p>
           </InfoBlock>
 
           {/* Categoría */}
@@ -1280,8 +1488,11 @@ const mapBackendTorneoPlayer = (t) => ({
   descripcion: t.descripcion ?? '',
   inscriptos: (t.parejas ?? []).map((p) => ({
     id: p.id, jugador1: p.jugador1, jugador2: p.jugador2,
+    jugador1Id: p.jugador1Id ?? null,
     jugador1Dni: p.jugador1Dni, jugador2Dni: p.jugador2Dni,
     categoria: p.categoria, fecha: p.fecha,
+    estado: p.estado ?? 'inscripto',
+    sinCompanero: p.sinCompanero ?? false,
     disponibilidad: p.disponibilidad ?? [], prefiereMismoDia: p.prefiereMismoDia ?? false,
   })),
   grupos: t.grupos ?? null,
@@ -1547,6 +1758,7 @@ const PlayerTournamentsPage = () => {
           jugador1={playerName}
           jugador1Dni={playerDni}
           playerGenero={player?.genero}
+          token={playerToken}
           onClose={() => setModalTorneo(null)}
           onConfirmar={handleConfirmarInscripcion}
         />
@@ -1560,6 +1772,7 @@ const PlayerTournamentsPage = () => {
           jugador1Dni={playerDni}
           playerGenero={player?.genero}
           parejaExistente={modalEdicion.pareja}
+          token={playerToken}
           onClose={() => setModalEdicion(null)}
           onConfirmar={handleConfirmarEdicion}
         />

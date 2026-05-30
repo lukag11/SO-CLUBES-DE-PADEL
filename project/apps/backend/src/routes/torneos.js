@@ -7,6 +7,14 @@ const router = Router()
 
 const ESTADOS_VALIDOS = ['draft', 'open', 'closed', 'in_progress', 'finished']
 
+const TRANSICIONES_VALIDAS = {
+  draft:       ['open'],
+  open:        ['closed', 'draft'],
+  closed:      ['in_progress', 'open'],
+  in_progress: ['finished'],
+  finished:    [],
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Extrae los campos del flyer del body y los devuelve como objeto
@@ -196,6 +204,11 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
     const torneo = await prisma.torneo.findUnique({ where: { id } })
     if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' })
     if (torneo.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
+
+    const permitidos = TRANSICIONES_VALIDAS[torneo.estado] ?? []
+    if (!permitidos.includes(estado)) {
+      return res.status(422).json({ error: `Transición inválida: ${torneo.estado} → ${estado}` })
+    }
 
     const updated = await prisma.torneo.update({
       where: { id },
@@ -485,6 +498,7 @@ router.post('/:id/inscribir', requireAuth, requireRole('jugador'), requireActive
   const { id: torneoId } = req.params
   const {
     jugador1, jugador2, jugador1Dni, jugador2Dni,
+    jugador2Nombre, jugador2Apellido,
     categoria, disponibilidad, prefiereMismoDia, sinCompanero,
   } = req.body
 
@@ -513,10 +527,34 @@ router.post('/:id/inscribir', requireAuth, requireRole('jugador'), requireActive
     const cupoEsperaMax = torneo.cupoEsperaPorCategoria?.[categoria] ?? 0
 
     // DNI lookup fuera de la transacción (solo lectura)
-    const [j1Id, j2Id] = await Promise.all([
+    const [j1Id, j2IdExistente] = await Promise.all([
       findJugadorByDni(torneo.clubId, jugador1Dni),
       sinCompanero ? Promise.resolve(null) : findJugadorByDni(torneo.clubId, jugador2Dni),
     ])
+
+    // Si el compañero no existe y se mandaron nombre+apellido, lo pre-registramos (cuentaActiva: false)
+    let j2Id = j2IdExistente
+    if (!sinCompanero && jugador2Dni && !j2IdExistente && jugador2Nombre?.trim() && jugador2Apellido?.trim()) {
+      try {
+        const nuevoJ2 = await prisma.jugador.create({
+          data: {
+            clubId:       torneo.clubId,
+            nombre:       jugador2Nombre.trim(),
+            apellido:     jugador2Apellido.trim(),
+            dni:          String(jugador2Dni).trim(),
+            cuentaActiva: false,
+            activo:       true,
+          },
+        })
+        j2Id = nuevoJ2.id
+      } catch (e) {
+        // Race condition: otro proceso creó el registro antes — re-buscar
+        if (e.code === 'P2002') {
+          j2Id = await findJugadorByDni(torneo.clubId, jugador2Dni)
+        }
+        // Cualquier otro error no bloquea la inscripción, j2Id queda null
+      }
+    }
 
     // Check de cupo + create en una sola transacción serializable para evitar race conditions
     const pareja = await prisma.$transaction(async (tx) => {

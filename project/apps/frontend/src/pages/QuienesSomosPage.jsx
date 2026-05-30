@@ -723,14 +723,15 @@ const HorarioSelect = ({ apertura, cierre, onAperturaChange, onCierreChange, siz
   const handleHora = (newH) => {
     const newAp = `${newH}:${apM}`
     const newOpts = getCierreOpciones(newAp)
-    onAperturaChange(newAp)
-    onCierreChange(snapCierre(cierre, newOpts))
+    const newCierre = snapCierre(cierre, newOpts)
+    // Solo llamamos onAperturaChange — el padre recibe ambos valores y aplica juntos o los usa en el applyFn del modal
+    onAperturaChange(newAp, newCierre)
   }
   const handleMin = (newM) => {
     const newAp = `${apH}:${newM}`
     const newOpts = getCierreOpciones(newAp)
-    onAperturaChange(newAp)
-    onCierreChange(snapCierre(cierre, newOpts))
+    const newCierre = snapCierre(cierre, newOpts)
+    onAperturaChange(newAp, newCierre)
   }
 
   return (
@@ -901,11 +902,62 @@ const CanchaRow = ({ cancha, onUpdate }) => {
   )
 }
 
-const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, saveClub, updateClub }) => {
+// Convierte "HH:MM" a minutos totales
+const _hMin = (t) => { const [h, m] = (t || '00:00').split(':').map(Number); return h * 60 + (m || 0) }
+
+const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, saveClub, updateClub, token }) => {
   const [saved, setSaved] = useState(false)
   const [pendingDesactivar, setPendingDesactivar] = useState(null)
+  // { titulo, mensaje, nivel: 'apertura'|'cierre', checked, applyFn }
+  const [pendingHorario, setPendingHorario] = useState(null)
+  // sets vacíos hasta que el backend responda (optimista)
+  const [existingData, setExistingData] = useState({ diasConDatos: new Set(), canchaDiaConDatos: new Set() })
   const cantidad = club.canchas.length
   const horasCancelacion = club.horasCancelacion ?? 0
+
+  useEffect(() => {
+    if (!token) return
+    const auth = { Authorization: `Bearer ${token}` }
+    const DIAS_SEM = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+    Promise.all([
+      api.get('/reservas', auth).catch(() => []),
+      api.get('/turnos-fijos', auth).catch(() => []),
+    ]).then(([reservas, turnos]) => {
+      const hoy = new Date().toISOString().split('T')[0]
+      const diasConDatos = new Set()
+      const canchaDiaConDatos = new Set()
+      // Solo reservas futuras (las pasadas ya ocurrieron, cambiar apertura no las afecta)
+      reservas.filter(r => r.fecha >= hoy).forEach((r) => {
+        const dia = DIAS_SEM[new Date(r.fecha + 'T00:00:00').getDay()]
+        diasConDatos.add(dia)
+        canchaDiaConDatos.add(`${r.canchaId}:${dia}`)
+      })
+      // Solo turnos activos (confirmado/pendiente). Normalizar lowercase del DB a capitalizado del frontend.
+      const diaMap = Object.fromEntries(DIAS_SEM.map(d => [d.toLowerCase(), d]))
+      turnos.filter(t => t.estado === 'confirmado' || t.estado === 'pendiente').forEach((t) => {
+        const dia = diaMap[t.dia?.toLowerCase()] ?? t.dia
+        diasConDatos.add(dia)
+        canchaDiaConDatos.add(`${t.canchaId}:${dia}`)
+      })
+      setExistingData({ diasConDatos, canchaDiaConDatos })
+    }).catch(() => {
+      setExistingData({ diasConDatos: new Set(['*']), canchaDiaConDatos: new Set(['*']) })
+    })
+  }, [token])
+
+  // Retorna true si hay reservas/turnos en ese día (para horario global)
+  const hasDatosDia = (dia) => existingData.diasConDatos.has(dia) || existingData.diasConDatos.has('*')
+
+  // Retorna true si hay reservas/turnos en esa cancha ese día (para horario custom)
+  const hasDatosCanchaDia = (canchaId, dia) => existingData.canchaDiaConDatos.has(`${canchaId}:${dia}`) || existingData.canchaDiaConDatos.has('*')
+
+  const confirmarApertura = ({ titulo, mensaje, applyFn }) => {
+    setPendingHorario({ titulo, mensaje, nivel: 'apertura', checked: false, applyFn })
+  }
+
+  const confirmarCierreReducido = ({ titulo, mensaje, applyFn }) => {
+    setPendingHorario({ titulo, mensaje, nivel: 'cierre', checked: false, applyFn })
+  }
 
   const handleSave = () => {
     saveClub()
@@ -1060,8 +1112,28 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
                     <HorarioSelect
                       apertura={h.apertura}
                       cierre={h.cierre}
-                      onAperturaChange={(v) => updateHorario(dia, { apertura: v })}
-                      onCierreChange={(v) => updateHorario(dia, { cierre: v })}
+                      onAperturaChange={(newAp, newCierre) => {
+                        if (newAp === h.apertura) { updateHorario(dia, { apertura: newAp, cierre: newCierre }); return }
+                        if (!hasDatosDia(dia)) { updateHorario(dia, { apertura: newAp, cierre: newCierre }); return }
+                        confirmarApertura({
+                          titulo: `Cambiar apertura — ${dia} (horario general)`,
+                          mensaje: `Estás por cambiar la apertura del ${dia} de ${h.apertura} a ${newAp}. Esto desplaza todas las franjas de la grilla en ese día para todas las canchas que no tienen horario propio. Las reservas y turnos fijos existentes en esos horarios pueden quedar fuera de la grilla visual.`,
+                          applyFn: () => updateHorario(dia, { apertura: newAp, cierre: newCierre }),
+                        })
+                      }}
+                      onCierreChange={(newCierre) => {
+                        const oldMin = _hMin(h.cierre)
+                        const newMin = _hMin(newCierre)
+                        if (newMin < oldMin && hasDatosDia(dia)) {
+                          confirmarCierreReducido({
+                            titulo: `Reducir cierre — ${dia} (horario general)`,
+                            mensaje: `Estás por reducir el cierre del ${dia} de ${h.cierre} a ${newCierre}. Las reservas o turnos fijos en las franjas que queden fuera del nuevo horario van a aparecer como "Fuera de grilla".`,
+                            applyFn: () => updateHorario(dia, { cierre: newCierre }),
+                          })
+                        } else {
+                          updateHorario(dia, { cierre: newCierre })
+                        }
+                      }}
                     />
                   ) : (
                     <span className="text-slate-400 text-sm italic">Cerrado</span>
@@ -1128,12 +1200,29 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
                               <HorarioSelect
                                 apertura={h.apertura}
                                 cierre={h.cierre}
-                                onAperturaChange={(v) => updateCancha(c.id, (curr) => ({
-                                  horarios: { ...curr.horarios, [dia]: { ...(curr.horarios?.[dia] ?? h), apertura: v } },
-                                }))}
-                                onCierreChange={(v) => updateCancha(c.id, (curr) => ({
-                                  horarios: { ...curr.horarios, [dia]: { ...(curr.horarios?.[dia] ?? h), cierre: v } },
-                                }))}
+                                onAperturaChange={(newAp, newCierre) => {
+                                  const apply = () => updateCancha(c.id, (curr) => ({ horarios: { ...curr.horarios, [dia]: { ...(curr.horarios?.[dia] ?? h), apertura: newAp, cierre: newCierre } } }))
+                                  if (newAp === h.apertura || !hasDatosCanchaDia(c.id, dia)) { apply(); return }
+                                  confirmarApertura({
+                                    titulo: `Cambiar apertura — ${c.nombre} · ${dia}`,
+                                    mensaje: `Estás por cambiar la apertura de ${c.nombre} el ${dia} de ${h.apertura} a ${newAp}. Esto desplaza todas las franjas de la grilla para esa cancha ese día. Las reservas y turnos fijos existentes en esos horarios pueden quedar fuera de la grilla visual.`,
+                                    applyFn: apply,
+                                  })
+                                }}
+                                onCierreChange={(newCierre) => {
+                                  const oldMin = _hMin(h.cierre)
+                                  const newMin = _hMin(newCierre)
+                                  const apply = () => updateCancha(c.id, (curr) => ({ horarios: { ...curr.horarios, [dia]: { ...(curr.horarios?.[dia] ?? h), cierre: newCierre } } }))
+                                  if (newMin < oldMin && hasDatosCanchaDia(c.id, dia)) {
+                                    confirmarCierreReducido({
+                                      titulo: `Reducir cierre — ${c.nombre} · ${dia}`,
+                                      mensaje: `Estás por reducir el cierre de ${c.nombre} el ${dia} de ${h.cierre} a ${newCierre}. Las reservas o turnos fijos en las franjas que queden fuera del nuevo horario van a aparecer como "Fuera de grilla".`,
+                                      applyFn: apply,
+                                    })
+                                  } else {
+                                    apply()
+                                  }
+                                }}
                                 size="xs"
                               />
                             )}
@@ -1150,6 +1239,53 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
       </SectionCard>
 
       <SaveButton onClick={handleSave} saved={saved} />
+
+      {/* Modal advertencia cambio de apertura / cierre reducido */}
+      {pendingHorario && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${pendingHorario.nivel === 'apertura' ? 'bg-red-100' : 'bg-amber-100'}`}>
+              <AlertTriangle size={20} className={pendingHorario.nivel === 'apertura' ? 'text-red-500' : 'text-amber-500'} />
+            </div>
+            <h3 className="text-slate-800 font-bold mb-2 text-base">{pendingHorario.titulo}</h3>
+            <p className="text-slate-500 text-sm leading-relaxed mb-4">{pendingHorario.mensaje}</p>
+
+            {pendingHorario.nivel === 'apertura' && (
+              <label className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={pendingHorario.checked}
+                  onChange={(e) => setPendingHorario((p) => ({ ...p, checked: e.target.checked }))}
+                  className="mt-0.5 shrink-0 accent-red-500"
+                />
+                <span className="text-red-700 text-sm font-medium leading-snug">
+                  Entiendo que las reservas y turnos fijos existentes pueden quedar fuera de la grilla visual y requerirán revisión manual.
+                </span>
+              </label>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPendingHorario(null)}
+                className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl py-2.5 text-sm font-medium transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={pendingHorario.nivel === 'apertura' && !pendingHorario.checked}
+                onClick={() => { pendingHorario.applyFn(); setPendingHorario(null) }}
+                className={`flex-1 text-white font-bold rounded-xl py-2.5 text-sm transition-all ${
+                  pendingHorario.nivel === 'apertura'
+                    ? 'bg-red-500 hover:bg-red-400 disabled:opacity-40 disabled:cursor-not-allowed'
+                    : 'bg-amber-500 hover:bg-amber-400'
+                }`}
+              >
+                {pendingHorario.nivel === 'apertura' ? 'Confirmar cambio' : 'Cambiar igual'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal advertencia desactivar horario propio */}
       {pendingDesactivar && (
@@ -2579,7 +2715,7 @@ const QuienesSomosPage = () => {
 
       {/* Contenido */}
       {activeTab === 'info'       && <TabInfo       club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
-      {activeTab === 'canchas'    && <TabCanchas    club={club} updateCancha={updateCancha} setCantidadCanchas={setCantidadCanchas} updateHorario={updateHorario} saveClub={boundSaveClub} updateClub={updateClub} />}
+      {activeTab === 'canchas'    && <TabCanchas    club={club} updateCancha={updateCancha} setCantidadCanchas={setCantidadCanchas} updateHorario={updateHorario} saveClub={boundSaveClub} updateClub={updateClub} token={token} />}
       {activeTab === 'historia'   && <TabHistoria   club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
       {activeTab === 'hero'       && <TabHero       club={club} updateClub={updateClub} saveClub={boundSaveClub} />}
       {activeTab === 'galeria'    && <TabGaleria    club={club} updateClub={updateClub} saveClub={boundSaveClub} />}

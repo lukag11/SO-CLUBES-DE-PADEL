@@ -30,6 +30,25 @@ router.get('/buscar', requireAuth, requireRole('admin'), async (req, res) => {
   }
 })
 
+// GET /api/jugadores/por-dni?dni= — jugador busca compañero por DNI dentro de su club
+router.get('/por-dni', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
+  const { dni } = req.query
+  if (!dni || !/^\d{7,8}$/.test(dni.trim())) {
+    return res.json({ found: false })
+  }
+  try {
+    const jugador = await prisma.jugador.findUnique({
+      where: { clubId_dni: { clubId: req.user.clubId, dni: dni.trim() } },
+      select: { id: true, nombre: true, apellido: true, cuentaActiva: true },
+    })
+    if (!jugador) return res.json({ found: false })
+    res.json({ found: true, id: jugador.id, nombre: jugador.nombre, apellido: jugador.apellido, cuentaActiva: jugador.cuentaActiva })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al buscar jugador' })
+  }
+})
+
 // GET /api/jugadores/me — datos actualizados del jugador autenticado
 router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   try {

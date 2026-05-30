@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PadelOS — Guía de prueba: Torneos</title>
+  <style>
+    :root {
+      --verde: #16a34a;
+      --verde-light: #dcfce7;
+      --azul: #2563eb;
+      --azul-light: #dbeafe;
+      --naranja: #ea580c;
+      --naranja-light: #ffedd5;
+      --rojo: #dc2626;
+      --rojo-light: #fee2e2;
+      --gris: #64748b;
+      --gris-light: #f1f5f9;
+      --borde: #e2e8f0;
+      --texto: #1e293b;
+      --texto-suave: #475569;
+      --morado: #7c3aed;
+      --morado-light: #ede9fe;
+      --dorado: #b45309;
+      --dorado-light: #fef3c7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: var(--texto); background: #f8fafc; line-height: 1.6; }
+
+    /* ─── Portada ─────────────────────────── */
+    .portada {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e3a5f 100%);
+      color: white; padding: 60px 40px; text-align: center;
+    }
+    .portada h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 10px; }
+    .portada .subtitulo { font-size: 1.1rem; opacity: 0.8; margin-bottom: 28px; }
+    .portada .badge-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    .badge { padding: 6px 18px; border-radius: 999px; font-size: 0.82rem; font-weight: 700; }
+    .badge-admin { background: #ea580c; }
+    .badge-jugador { background: #16a34a; }
+    .badge-seguridad { background: #7c3aed; }
+    .portada .version { font-size: 0.75rem; opacity: 0.45; }
+    .portada .alerta-nueva {
+      display: inline-block; margin-top: 18px; background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.25); border-radius: 10px;
+      padding: 10px 20px; font-size: 0.85rem; color: #fde68a;
+    }
+
+    /* ─── Índice ─────────────────────────── */
+    .indice { background: white; border-bottom: 1px solid var(--borde); padding: 28px 40px; max-width: 960px; margin: 0 auto; }
+    .indice h2 { font-size: 0.9rem; font-weight: 700; color: var(--gris); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 14px; }
+    .indice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px 20px; }
+    .indice a { color: var(--azul); text-decoration: none; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+    .indice a:hover { text-decoration: underline; }
+    .indice a .blq { font-size: 0.75rem; background: var(--gris-light); color: var(--gris); border-radius: 4px; padding: 1px 6px; font-weight: 700; }
+
+    /* ─── Layout ─────────────────────────── */
+    .contenido { max-width: 960px; margin: 0 auto; padding: 36px 20px; }
+
+    /* ─── Secciones ─────────────────────── */
+    .seccion { background: white; border: 1px solid var(--borde); border-radius: 16px; margin-bottom: 28px; overflow: hidden; }
+    .seccion-header { padding: 18px 26px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--borde); }
+    .seccion-header .numero {
+      width: 38px; height: 38px; background: var(--azul); color: white;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1rem; flex-shrink: 0;
+    }
+    .seccion-header .numero.admin { background: var(--naranja); }
+    .seccion-header .numero.jugador { background: var(--verde); }
+    .seccion-header .numero.multi { background: var(--morado); }
+    .seccion-header .numero.seguridad { background: var(--rojo); }
+    .seccion-header h2 { font-size: 1.15rem; font-weight: 700; }
+    .seccion-header .rol-chip {
+      margin-left: auto; padding: 4px 14px; border-radius: 999px;
+      font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap;
+    }
+    .chip-admin { background: var(--naranja-light); color: var(--naranja); }
+    .chip-jugador { background: var(--verde-light); color: var(--verde); }
+    .chip-multi { background: var(--azul-light); color: var(--azul); }
+    .chip-seguridad { background: var(--rojo-light); color: var(--rojo); }
+    .chip-setup { background: var(--gris-light); color: var(--gris); }
+    .seccion-body { padding: 22px 26px; }
+
+    /* ─── Pasos ─────────────────────────── */
+    .paso { border: 1px solid var(--borde); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+    .paso-header { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; background: var(--gris-light); cursor: pointer; user-select: none; }
+    .paso-header:hover { background: #e8eef6; }
+    .paso-num { border-radius: 6px; padding: 2px 9px; font-size: 0.78rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; color: white; }
+    .paso-num.admin { background: var(--naranja); }
+    .paso-num.jugador { background: var(--verde); }
+    .paso-num.multi { background: var(--morado); }
+    .paso-num.seguridad { background: var(--rojo); }
+    .paso-num.setup { background: var(--gris); }
+    .paso-titulo { font-weight: 600; font-size: 0.95rem; }
+    .paso-ruta { font-size: 0.8rem; color: var(--gris); margin-top: 2px; font-family: monospace; }
+    .paso-toggle { margin-left: auto; color: var(--gris); font-size: 1.2rem; flex-shrink: 0; transition: transform 0.2s; }
+    .paso-toggle.abierto { transform: rotate(90deg); }
+    .paso-body { padding: 18px 20px; display: none; border-top: 1px solid var(--borde); }
+    .paso-body.visible { display: block; }
+
+    /* ─── Instrucciones ─────────────────── */
+    .instrucciones ol { padding-left: 22px; }
+    .instrucciones li { margin: 10px 0; font-size: 0.93rem; }
+
+    .campo {
+      display: inline-block; background: #f0f4ff; border: 1px solid #c7d7ff;
+      border-radius: 5px; padding: 1px 8px; font-family: monospace; font-size: 0.86rem; color: #3730a3;
+    }
+
+    /* ─── Resultados esperados ───────────── */
+    .resultado { margin-top: 14px; padding: 13px 15px; border-radius: 10px; border-left: 4px solid; font-size: 0.89rem; }
+    .resultado.ok { background: var(--verde-light); border-color: var(--verde); }
+    .resultado.error { background: var(--rojo-light); border-color: var(--rojo); }
+    .resultado.info { background: var(--azul-light); border-color: var(--azul); }
+    .resultado.warning { background: var(--naranja-light); border-color: var(--naranja); }
+    .resultado.dorado { background: var(--dorado-light); border-color: var(--dorado); }
+    .resultado .titulo { font-weight: 700; margin-bottom: 5px; }
+
+    /* ─── Notificaciones ─────────────────── */
+    .notif-box { margin-top: 12px; background: #fef9c3; border: 1px solid #fde68a; border-radius: 10px; padding: 11px 15px; font-size: 0.87rem; }
+    .notif-box .titulo { font-weight: 700; color: #92400e; margin-bottom: 5px; }
+    .notif-item { margin: 3px 0; color: #78350f; }
+    .notif-item::before { content: '🔔 '; }
+
+    /* ─── Validaciones ───────────────────── */
+    .validaciones { margin-top: 12px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 10px; padding: 13px 15px; font-size: 0.87rem; }
+    .validaciones .titulo { font-weight: 700; color: #6b21a8; margin-bottom: 7px; }
+    .val-item { margin: 5px 0; color: #581c87; }
+    .val-item::before { content: '✓ '; color: #7c3aed; font-weight: 700; }
+    .val-item.fail::before { content: '✗ '; color: var(--rojo); }
+
+    /* ─── Fix tag ────────────────────────── */
+    .fix-tag {
+      display: inline-block; background: #fef2f2; border: 1px solid #fca5a5;
+      color: var(--rojo); border-radius: 5px; padding: 1px 8px; font-size: 0.75rem; font-weight: 700;
+      vertical-align: middle; margin-left: 6px;
+    }
+    .new-tag {
+      display: inline-block; background: #f0fdf4; border: 1px solid #86efac;
+      color: var(--verde); border-radius: 5px; padding: 1px 8px; font-size: 0.75rem; font-weight: 700;
+      vertical-align: middle; margin-left: 6px;
+    }
+
+    /* ─── Tabla de datos ─────────────────── */
+    .tabla-datos { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 12px; }
+    .tabla-datos th { background: var(--gris-light); padding: 8px 12px; text-align: left; font-weight: 700; font-size: 0.82rem; color: var(--gris); border-bottom: 2px solid var(--borde); }
+    .tabla-datos td { padding: 8px 12px; border-bottom: 1px solid var(--borde); }
+    .tabla-datos tr:last-child td { border-bottom: none; }
+
+    /* ─── Separador ──────────────────────── */
+    .sep { height: 1px; background: var(--borde); margin: 18px 0; }
+
+    /* ─── Checklist estado ───────────────── */
+    .checklist { margin-top: 12px; }
+    .check-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--borde); margin-bottom: 6px; font-size: 0.9rem; }
+    .check-item input[type=checkbox] { margin-top: 2px; flex-shrink: 0; width: 16px; height: 16px; cursor: pointer; accent-color: var(--azul); }
+    .check-item label { cursor: pointer; flex: 1; }
+    .check-item.critico { border-left: 3px solid var(--rojo); }
+    .check-item.importante { border-left: 3px solid var(--naranja); }
+    .check-item.normal { border-left: 3px solid var(--azul); }
+
+    /* ─── Progress bar ───────────────────── */
+    .progress-wrap { margin: 20px 0; }
+    .progress-bar-outer { background: #e2e8f0; border-radius: 999px; height: 8px; overflow: hidden; }
+    .progress-bar-inner { background: linear-gradient(90deg, #2563eb, #7c3aed); height: 100%; width: 0%; transition: width 0.4s; border-radius: 999px; }
+    .progress-label { font-size: 0.82rem; color: var(--gris); margin-bottom: 6px; }
+
+    /* ─── Footer ─────────────────────────── */
+    .footer { text-align: center; padding: 30px; font-size: 0.82rem; color: var(--gris); }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ PORTADA -->
+<div class="portada">
+  <h1>🏆 Guía de prueba — Torneos</h1>
+  <p class="subtitulo">Flujo completo: Admin crea torneo → Jugador se inscribe → Grupos → Bracket</p>
+  <div class="badge-row">
+    <span class="badge badge-admin">👤 Admin</span>
+    <span class="badge badge-jugador">🎾 Jugador</span>
+    <span class="badge badge-seguridad">🔒 Seguridad</span>
+  </div>
+  <div class="alerta-nueva">
+    ⚠️ Fixes sesión anterior: race condition cupo · auth ownership · validación fechas · confirmación regenerar grupos<br>
+    ✅ Fixes 2026-05-30: widget torneos real en dashboard jugador · lookup DNI compañero + pre-registro · máquina de estados backend · modal confirmación custom · colores club en fixture · validaciones fechas mejoradas
+  </div>
+  <p class="version" style="margin-top:16px">PadelOS v1.0 · Backend Bloque 4 conectado · 2026-05-30</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ ÍNDICE -->
+<div class="indice">
+  <h2>Bloques de prueba</h2>
+  <div class="indice-grid">
+    <a href="#b0"><span class="blq">B0</span> Setup inicial</a>
+    <a href="#b1"><span class="blq">B1</span> Admin: Crear torneo</a>
+    <a href="#b2"><span class="blq">B2</span> Dashboard jugador → Torneos</a>
+    <a href="#b3"><span class="blq">B3</span> Jugador: Inscribirse</a>
+    <a href="#b4"><span class="blq">B4</span> Admin: Gestión inscripciones</a>
+    <a href="#b5"><span class="blq">B5</span> Admin: Fase de grupos</a>
+    <a href="#b6"><span class="blq">B6</span> Admin: Resultados de grupos</a>
+    <a href="#b7"><span class="blq">B7</span> Admin: Fase eliminatoria</a>
+    <a href="#b8"><span class="blq">B8</span> Seguridad y casos límite</a>
+    <a href="#b9"><span class="blq">B9</span> Torneos: estados y transiciones</a>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ CONTENIDO -->
+<div class="contenido">
+
+  <!-- ─── B0: SETUP ─── -->
+  <div class="seccion" id="b0">
+    <div class="seccion-header">
+      <div class="numero">0</div>
+      <h2>Setup inicial — Antes de empezar</h2>
+      <span class="rol-chip chip-setup">SETUP</span>
+    </div>
+    <div class="seccion-body">
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num setup">0.1</span>
+          <div>
+            <div class="paso-titulo">Levantar backend y frontend</div>
+            <div class="paso-ruta">Dos terminales separadas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Terminal 1 — Backend: <span class="campo">cd project/apps/backend</span> → <span class="campo">npm run dev</span> (nodemon)</li>
+              <li>Terminal 2 — Frontend: <span class="campo">cd project/apps/frontend</span> → <span class="campo">npm run dev</span></li>
+              <li>Verificar que backend responde en <span class="campo">http://localhost:3001</span></li>
+              <li>Verificar que frontend responde en <span class="campo">http://localhost:5173</span></li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Estado esperado</div>
+            Consola backend: <strong>"PadelOS API corriendo en puerto 3001"</strong><br>
+            Sin errores de importación ni crashes de nodemon
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num setup">0.2</span>
+          <div>
+            <div class="paso-titulo">Credenciales de prueba</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <table class="tabla-datos">
+            <tr><th>Rol</th><th>URL</th><th>Usuario / DNI</th><th>Password</th></tr>
+            <tr><td>Admin</td><td><code>/dashboardAdmin</code></td><td>admin@club.com</td><td>123456</td></tr>
+            <tr><td>Jugador A</td><td><code>/jugadores</code></td><td>DNI del jugador de prueba</td><td>password del jugador</td></tr>
+            <tr><td>Jugador B</td><td><code>/jugadores</code></td><td>Segundo jugador (para test auth)</td><td>—</td></tr>
+          </table>
+          <div class="resultado info">
+            <div class="titulo">ℹ️ Tip</div>
+            Para los tests de seguridad (B8) necesitás dos jugadores distintos logueados en distintas pestañas o browsers. Jugador B no debe estar en la pareja del Jugador A.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num setup">0.3</span>
+          <div>
+            <div class="paso-titulo">Estado de la DB — Torneos existentes</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Admin → sidebar → <strong>Torneos</strong> (<span class="campo">/dashboardAdmin/torneos</span>)</li>
+              <li>Si hay torneos en estado <span class="campo">in_progress</span> o <span class="campo">finished</span> de pruebas anteriores, es útil anotarlos para no confundirlos con los nuevos</li>
+              <li>Podés crear un torneo nuevo con nombre distinto para identificar los de esta sesión</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── B1: CREAR TORNEO ─── -->
+  <div class="seccion" id="b1">
+    <div class="seccion-header">
+      <div class="numero admin">1</div>
+      <h2>Admin: Crear y publicar torneo</h2>
+      <span class="rol-chip chip-admin">ADMIN</span>
+    </div>
+    <div class="seccion-body">
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">1.1</span>
+          <div>
+            <div class="paso-titulo">Crear torneo con datos válidos</div>
+            <div class="paso-ruta">/dashboardAdmin/torneos → "Nuevo torneo"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Clic en <strong>"+ Nuevo torneo"</strong></li>
+              <li>Completar:
+                <ul style="margin:8px 0 0 18px">
+                  <li>Nombre: <span class="campo">Copa Prueba Mayo 2026</span></li>
+                  <li>Fecha inicio: <span class="campo">2026-06-10</span></li>
+                  <li>Fecha fin: <span class="campo">2026-06-15</span></li>
+                  <li>Fecha límite inscripción: <span class="campo">2026-06-05</span></li>
+                  <li>Cupo por categoría: <span class="campo">8</span></li>
+                  <li>Cupo espera por categoría: <span class="campo">4</span></li>
+                  <li>Categorías: <span class="campo">4° Categoría, 5° Categoría</span></li>
+                </ul>
+              </li>
+              <li>Guardar</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Torneo creado con estado <strong>draft</strong>. Aparece en la lista de torneos. No visible para los jugadores todavía.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">1.2</span>
+          <div>
+            <div class="paso-titulo">Validación: fechas inválidas <span class="fix-tag">FIX NUEVO</span></div>
+            <div class="paso-ruta">Modal crear torneo</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Abrir modal "Nuevo torneo"</li>
+              <li>Ingresar: Fecha inicio <span class="campo">2026-06-15</span>, Fecha fin <span class="campo">2026-06-10</span> (fin &lt; inicio)</li>
+              <li>Guardar → debe rechazar</li>
+              <li>Corregir: Fecha fin <span class="campo">2026-06-20</span>, Fecha límite <span class="campo">2026-06-25</span> (límite &gt; inicio)</li>
+              <li>Guardar → debe rechazar</li>
+            </ol>
+          </div>
+          <div class="resultado error">
+            <div class="titulo">✅ Esperado (rechazo con mensaje)</div>
+            Caso 1: "La fecha de fin no puede ser anterior a la fecha de inicio"<br>
+            Caso 2: "La fecha límite de inscripción debe ser anterior o igual a la fecha de inicio"
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">1.3</span>
+          <div>
+            <div class="paso-titulo">Cambiar estado: draft → open</div>
+            <div class="paso-ruta">/dashboardAdmin/torneos/:id → botón cambiar estado</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Entrar al detalle del torneo recién creado</li>
+              <li>Cambiar estado a <strong>open</strong> (inscripciones abiertas)</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Estado actualizado a <strong>open</strong>. El torneo aparece ahora en <strong>PlayerTournamentsPage</strong> para los jugadores.
+          </div>
+          <div class="notif-box">
+            <div class="titulo">Estado → visible para jugador</div>
+            <div class="notif-item">Un torneo en estado <strong>open</strong> es el único que permite inscripciones desde el lado del jugador</div>
+            <div class="notif-item">draft = no visible para jugador · closed = visible pero sin inscripción · in_progress = en juego · finished = finalizado</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">1.4</span>
+          <div>
+            <div class="paso-titulo">Editar torneo — validar fechas en edición <span class="fix-tag">FIX NUEVO</span></div>
+            <div class="paso-ruta">Modal editar torneo</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Abrir el torneo y editar</li>
+              <li>Cambiar fecha fin a una fecha anterior a la fecha inicio actual → guardar → debe rechazar</li>
+              <li>Cambiar solo la fecha límite a una fecha posterior a la fecha inicio → guardar → debe rechazar</li>
+              <li>Hacer una edición válida (ej: cambiar el nombre) → debe guardar</li>
+            </ol>
+          </div>
+          <div class="resultado error">
+            <div class="titulo">✅ Esperado (rechazo en edición también)</div>
+            Las mismas validaciones de fechas aplican tanto en creación como en edición parcial (PATCH).
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── B2: DASHBOARD JUGADOR ─── -->
+  <div class="seccion" id="b2">
+    <div class="seccion-header">
+      <div class="numero jugador">2</div>
+      <h2>Dashboard jugador → vínculo con torneos</h2>
+      <span class="rol-chip chip-jugador">JUGADOR</span>
+    </div>
+    <div class="seccion-body">
+
+      <div class="resultado ok" style="margin-bottom:16px">
+        <div class="titulo">✅ Widget "Mis torneos" conectado al backend</div>
+        <strong>PlayerDashboardPage</strong> hace <code>GET /api/torneos?clubId=X</code> al montar y filtra las parejas donde el jugador es J1.
+        El stat card "Torneos" muestra el conteo real. Si hay torneos <strong>in_progress</strong> aparece badge "N en juego".
+        Si no hay inscripciones muestra CTA para ir a inscribirse.
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">2.1</span>
+          <div>
+            <div class="paso-titulo">Acceder a Torneos desde el dashboard</div>
+            <div class="paso-ruta">/dashboardJugadores/dashboard</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Loguearse como Jugador A</li>
+              <li>Ir al dashboard (<span class="campo">/dashboardJugadores/dashboard</span>)</li>
+              <li>Buscar el acceso a torneos: sidebar izquierdo → ítem <strong>"Torneos"</strong></li>
+              <li>Verificar que el link lleva a <span class="campo">/dashboardJugadores/torneos</span></li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Sidebar muestra ítem de Torneos con ícono Trophy. Al clickear navega correctamente a la sección de torneos del jugador.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">2.2</span>
+          <div>
+            <div class="paso-titulo">Ver torneos disponibles (PlayerTournamentsPage)</div>
+            <div class="paso-ruta">/dashboardJugadores/torneos</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Ir a <span class="campo">/dashboardJugadores/torneos</span></li>
+              <li>El torneo creado en B1 (estado <strong>open</strong>) debe aparecer en la lista</li>
+              <li>Verificar que se muestra: nombre, fechas, categorías, cupo disponible</li>
+              <li>Si el jugador ya está inscrito en algún torneo, debe verse su estado en la card del torneo</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Lista carga desde backend (<span class="campo">GET /api/torneos</span> con player token).
+            Torneo en estado <strong>open</strong> muestra botón "Inscribirme". Torneos en otros estados muestran solo info.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── B3: JUGADOR INSCRIPCIÓN ─── -->
+  <div class="seccion" id="b3">
+    <div class="seccion-header">
+      <div class="numero jugador">3</div>
+      <h2>Jugador: Inscribirse en torneo</h2>
+      <span class="rol-chip chip-jugador">JUGADOR</span>
+    </div>
+    <div class="seccion-body">
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">3.1</span>
+          <div>
+            <div class="paso-titulo">Inscripción normal con compañero</div>
+            <div class="paso-ruta">/dashboardJugadores/torneos → "Inscribirme"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Clic en <strong>"Inscribirme"</strong> en el torneo Copa Prueba Mayo 2026</li>
+              <li>Seleccionar categoría: <span class="campo">4° Categoría</span></li>
+              <li>Ingresar DNI del compañero/a:
+                <ul style="margin-top:6px">
+                  <li><strong>Caso A — DNI registrado:</strong> el campo "Compañero/a" se auto-completa con nombre del sistema. Badge verde <em>"Registrado"</em> o <em>"Pre-registrado"</em>. No requiere acción extra.</li>
+                  <li><strong>Caso B — DNI no encontrado:</strong> aparece bloque ámbar "Alta rápida — sin cuenta". Ingresar nombre y apellido (el campo de arriba se actualiza en vivo). Clic <strong>"Dar de alta"</strong> para confirmar. Aparece badge ámbar <em>"Sin cuenta"</em> con ícono lápiz para editar si hace falta.</li>
+                </ul>
+              </li>
+              <li>Marcar disponibilidad (al menos 2 franjas horarias o 1 + "mismo día")</li>
+              <li>Confirmar inscripción</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Pareja creada con estado <strong>inscripto</strong>. Si el compañero no existía, se crea un <code>Jugador { cuentaActiva: false }</code> y queda visible en Admin → Jugadores con estado "Sin cuenta".
+            El torneo en la lista muestra badge "Inscripto". La card del torneo muestra los datos de la pareja.
+          </div>
+          <div class="notif-box">
+            <div class="titulo">Notificaciones esperadas</div>
+            <div class="notif-item">Admin recibe notificación de nueva inscripción</div>
+            <div class="notif-item">Jugador puede ver su inscripción en la tab "Mis torneos" de la página</div>
+            <div class="notif-item">Si hubo alta de compañero: aparece en /dashboardAdmin/jugadores con estado "Sin cuenta"</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">3.2</span>
+          <div>
+            <div class="paso-titulo">Inscripción sinCompañero</div>
+            <div class="paso-ruta">/dashboardJugadores/torneos → "Inscribirme"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Abrir modal de inscripción en la segunda categoría (<span class="campo">5° Categoría</span>)</li>
+              <li>Activar toggle <strong>"Todavía no sé con quién juego"</strong></li>
+              <li>Verificar que se ocultan los campos de compañero y DNI</li>
+              <li>Completar disponibilidad</li>
+              <li>Confirmar</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Inscripción guardada con <strong>sinCompanero: true</strong>. La card muestra badge ámbar "⚠ Sin compañero/a" y un banner de alerta si la fecha límite está próxima.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">3.3</span>
+          <div>
+            <div class="paso-titulo">Inscripción después del plazo <span class="fix-tag">FIX NUEVO</span></div>
+            <div class="paso-ruta">Backend valida fechaLimiteInscripcion</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Crear un torneo nuevo con <span class="campo">fechaLimiteInscripcion</span> en el pasado (ej: ayer)</li>
+              <li>Intentar inscribirse desde PlayerTournamentsPage</li>
+              <li>El frontend no debería mostrar el botón si la fecha ya pasó</li>
+              <li>Si por algún bug el botón aparece y se envía, el backend debe rechazar con 400</li>
+            </ol>
+          </div>
+          <div class="resultado error">
+            <div class="titulo">✅ Esperado</div>
+            Backend responde: <strong>"El plazo de inscripción ya venció"</strong> (400).
+            El frontend muestra el error en el modal.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">3.4</span>
+          <div>
+            <div class="paso-titulo">Editar inscripción propia</div>
+            <div class="paso-ruta">Editar disponibilidad / datos compañero</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En la card del torneo donde el jugador está inscripto, clic en <strong>"Editar"</strong></li>
+              <li>Modificar la disponibilidad (agregar/quitar franjas)</li>
+              <li>Si tiene compañero: cambiar el nombre del compañero</li>
+              <li>Si estaba sinCompañero: completar ahora el compañero (esto es "completar inscripción")</li>
+              <li>Guardar</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Cambios guardados. Si era sinCompañero y se completó, el badge desaparece y va notificación al admin.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">3.5</span>
+          <div>
+            <div class="paso-titulo">Cancelar inscripción propia</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En la card del torneo inscripto, buscar botón <strong>"Cancelar inscripción"</strong></li>
+              <li>Confirmar cancelación</li>
+              <li>La card debe volver a mostrar "Inscribirme"</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Pareja eliminada. El cupo disponible aumenta en 1. Admin recibe notificación de baja.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">3.6</span>
+          <div>
+            <div class="paso-titulo">Lista de espera — cupo completo</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Llenar el cupo del torneo (admin carga parejas hasta completarlo para una categoría)</li>
+              <li>Jugador intenta inscribirse en esa categoría</li>
+              <li>Si hay cupo de espera: debe quedar en estado <strong>espera</strong></li>
+            </ol>
+          </div>
+          <div class="resultado warning">
+            <div class="titulo">✅ Esperado</div>
+            La card muestra badge ámbar <strong>"En lista de espera"</strong>.
+            Posición numérica en la lista (nice-to-have, puede no estar implementada).
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── B4: ADMIN GESTIÓN INSCRIPCIONES ─── -->
+  <div class="seccion" id="b4">
+    <div class="seccion-header">
+      <div class="numero admin">4</div>
+      <h2>Admin: Gestión de inscripciones</h2>
+      <span class="rol-chip chip-admin">ADMIN</span>
+    </div>
+    <div class="seccion-body">
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">4.1</span>
+          <div>
+            <div class="paso-titulo">Ver lista de inscriptos</div>
+            <div class="paso-ruta">/dashboardAdmin/torneos/:id → Tab "Inscriptos"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Ir al detalle del torneo</li>
+              <li>Verificar que las parejas inscriptas por los jugadores aparecen en la lista</li>
+              <li>Verificar tabs por categoría</li>
+              <li>Verificar datos: nombre jugador 1, jugador 2, DNI, disponibilidad horaria</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Lista cargada desde backend. Datos en tiempo real (sin cache).
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">4.2</span>
+          <div>
+            <div class="paso-titulo">Agregar pareja manualmente</div>
+            <div class="paso-ruta">Botón "Agregar pareja" en tab Inscriptos</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Clic en <strong>"+ Agregar pareja"</strong></li>
+              <li>Completar: Jugador 1 (nombre + DNI), Jugador 2, categoría, disponibilidad</li>
+              <li>Verificar que el selector de horario muestra solo las horas del horario real del club (no un rango fijo 08:00-23:00 si el club abre más tarde) <span class="new-tag">FIX H1</span></li>
+              <li>Para testear el cupo: agregar parejas hasta completar el cupo de una categoría</li>
+              <li>Intentar agregar una pareja más → debe rechazar</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Parejas agregadas correctamente. El selector de hora muestra el rango configurado en el club (apertura mínima ↔ cierre máximo de los días activos).<br>
+            Al llegar al cupo: toast/error "El cupo para esta categoría ya está completo".
+          </div>
+          <div class="resultado error" style="margin-top:10px">
+            <div class="titulo">✅ Esperado (cupo lleno)</div>
+            Si el cupo está lleno y el cupoEspera no está lleno, la siguiente pareja va a espera.
+            Si ambos llenos: 400 "El cupo y la lista de espera para esta categoría ya están completos".
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">4.3</span>
+          <div>
+            <div class="paso-titulo">Editar inscripción de jugador (como admin)</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Abrir el modal de edición de una pareja inscripta</li>
+              <li>Modificar el nombre del compañero o la disponibilidad</li>
+              <li>Guardar</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Cambios guardados. Jugador recibe notificación "Tu inscripción fue actualizada por el club".
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">4.4</span>
+          <div>
+            <div class="paso-titulo">Cerrar inscripciones: open → closed</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Cambiar estado del torneo a <strong>closed</strong></li>
+              <li>Desde el lado del jugador: el torneo debe aparecer como "Inscripciones cerradas" sin botón de inscribirse</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Estado <strong>closed</strong>. Jugador ya no puede inscribirse ni editar. El admin puede seguir editando parejas y generando grupos.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── B5: FASE DE GRUPOS ─── -->
+  <div class="seccion" id="b5">
+    <div class="seccion-header">
+      <div class="numero admin">5</div>
+      <h2>Admin: Generar fase de grupos</h2>
+      <span class="rol-chip chip-admin">ADMIN</span>
+    </div>
+    <div class="seccion-body">
+
+      <div class="resultado info" style="margin-bottom:16px">
+        <div class="titulo">ℹ️ Requisito previo</div>
+        Para generar grupos necesitás mínimo <strong>2 parejas por categoría</strong> (las categorías con 1 pareja se excluyen).
+        Recomendado: al menos <strong>4 parejas por categoría</strong> para ver zonas distintas.
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">5.1</span>
+          <div>
+            <div class="paso-titulo">Generar grupos (sin resultados previos)</div>
+            <div class="paso-ruta">Tab "Grupos" → "Generar grupos"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Ir al tab <strong>"Grupos"</strong> del torneo</li>
+              <li>Clic en <strong>"Generar grupos"</strong></li>
+              <li>Si no hay resultados previos: debe generar directamente (sin confirmación)</li>
+              <li>Verificar que se crean zonas A, B, C según la cantidad de parejas</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Zonas generadas según algoritmo APA (3 parejas/zona estándar, resto distribuido).
+            Cada zona muestra tabla de partidos a disputar.
+          </div>
+          <div class="validaciones">
+            <div class="titulo">Distribución esperada según cantidad de parejas</div>
+            <div class="val-item">4 parejas → 2 zonas de 2</div>
+            <div class="val-item">6 parejas → 2 zonas de 3</div>
+            <div class="val-item">7 parejas → 1 zona de 4 + 1 zona de 3</div>
+            <div class="val-item">9 parejas → 3 zonas de 3</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">5.2</span>
+          <div>
+            <div class="paso-titulo">Confirmación antes de regenerar <span class="fix-tag">FIX NUEVO</span></div>
+            <div class="paso-ruta">handleGenerarGrupos con resultados existentes</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Con grupos ya generados, cargar al menos 1 resultado de partido (ver B6)</li>
+              <li>Volver al tab Grupos y clic en <strong>"Regenerar grupos"</strong></li>
+              <li>Debe aparecer un <strong>modal propio de la app</strong> (no un window.confirm del browser) advirtiendo que se borrarán los resultados</li>
+              <li>Cancelar → grupos intactos, resultados intactos</li>
+              <li>Confirmar → grupos regenerados, resultados borrados</li>
+            </ol>
+          </div>
+          <div class="resultado warning">
+            <div class="titulo">✅ Esperado</div>
+            Modal custom (fondo oscuro, ícono ⚠️ ámbar, botones "Cancelar" y "Confirmar"): "Ya hay resultados cargados. Regenerar va a borrar esos resultados para siempre. ¿Confirmás?"<br>
+            <em>Importante:</em> NO debe aparecer un popup nativo del browser. Si ves un alert/confirm del sistema, es un bug.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">5.3</span>
+          <div>
+            <div class="paso-titulo">Categoría con 1 sola pareja <span class="fix-tag">FIX NUEVO</span></div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Tener una categoría con exactamente 1 pareja inscripta</li>
+              <li>Clic en "Generar grupos"</li>
+              <li>Debe pedir confirmación avisando que esa categoría quedará sin grupos</li>
+              <li>Confirmar → las otras categorías generan grupos normalmente</li>
+            </ol>
+          </div>
+          <div class="resultado warning">
+            <div class="titulo">✅ Esperado</div>
+            Confirmación con la lista de categorías excluidas. Al confirmar, el torneo genera grupos para las categorías válidas.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">5.4</span>
+          <div>
+            <div class="paso-titulo">Intercambio de parejas entre zonas</div>
+            <div class="paso-ruta">Panel de pendientes (antes de confirmar grupos)</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Con grupos en estado <strong>pendiente</strong> (antes de confirmar), buscar el panel de intercambio</li>
+              <li>Seleccionar 2 parejas de zonas distintas y hacer swap</li>
+              <li>Verificar que las zonas se actualizan visualmente</li>
+              <li>Confirmar grupos cuando estén listos → estado pasa a <strong>in_progress</strong></li>
+            </ol>
+          </div>
+          <div class="resultado info">
+            <div class="titulo">ℹ️ Cuándo tiene sentido hacer swap</div>
+            Antes de arrancar el torneo, para ajustar que dos conocidos no queden en la misma zona, o distribuir mejor según nivel percibido.
+            Una vez confirmados (<strong>in_progress</strong>), el swap ya no está disponible.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── B6: RESULTADOS GRUPOS ─── -->
+  <div class="seccion" id="b6">
+    <div class="seccion-header">
+      <div class="numero admin">6</div>
+      <h2>Admin: Cargar resultados de grupos</h2>
+      <span class="rol-chip chip-admin">ADMIN</span>
+    </div>
+    <div class="seccion-body">
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">6.1</span>
+          <div>
+            <div class="paso-titulo">Cargar resultado de un partido</div>
+            <div class="paso-ruta">Tab Grupos → tabla de zona → botón resultado</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En la tabla de una zona, buscar el partido (ej: Pareja 1 vs Pareja 2)</li>
+              <li>Clic en el botón de cargar resultado</li>
+              <li>Ingresar resultado en sets: <span class="campo">6-3 / 6-2</span></li>
+              <li>Guardar</li>
+              <li>Verificar que el ganador queda marcado en verde</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Resultado guardado. La tabla muestra el resultado y el ganador resaltado.
+            Los puntos de la zona se actualizan automáticamente.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">6.2</span>
+          <div>
+            <div class="paso-titulo">Completar todos los partidos de todas las zonas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Cargar resultados de TODOS los partidos en TODAS las zonas y categorías</li>
+              <li>Verificar que los top 2 clasificados de cada zona quedan marcados</li>
+              <li>Si hay empate en puntos: verificar el indicador "Necesita desempate"</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Cuando todos los partidos tienen resultado, el botón <strong>"Generar fase eliminatoria"</strong> debe aparecer habilitado.
+          </div>
+          <div class="resultado warning" style="margin-top:10px">
+            <div class="titulo">⚠️ Si hay desempate</div>
+            Si dos parejas terminan con los mismos puntos, el sistema marca "necesita desempate". El admin resuelve manualmente quién clasifica antes de poder generar el bracket.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── B7: FASE ELIMINATORIA ─── -->
+  <div class="seccion" id="b7">
+    <div class="seccion-header">
+      <div class="numero admin">7</div>
+      <h2>Admin: Fase eliminatoria (bracket)</h2>
+      <span class="rol-chip chip-admin">ADMIN</span>
+    </div>
+    <div class="seccion-body">
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">7.1</span>
+          <div>
+            <div class="paso-titulo">Generar bracket (solo cuando grupos 100% completos)</div>
+            <div class="paso-ruta">Tab "Eliminatorias" → botón "Generar bracket"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Ir al tab <strong>"Eliminatorias"</strong></li>
+              <li>Si la fase de grupos no está completa, el botón debe estar deshabilitado o no visible</li>
+              <li>Una vez completa la fase de grupos, el botón debe habilitarse</li>
+              <li>Clic en "Generar bracket" → se arma el cuadro eliminatorio con los clasificados</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Bracket generado según tablas APA oficiales. Los BYEs se asignan automáticamente a los primeros de zona si hay plazas sobrantes. El bracket muestra los cruces iniciales.
+          </div>
+          <div class="resultado error" style="margin-top:10px">
+            <div class="titulo">✅ Esperado si grupos incompletos</div>
+            El botón "Generar bracket" no aparece o está deshabilitado hasta que todos los partidos de grupos tengan resultado.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">7.2</span>
+          <div>
+            <div class="paso-titulo">Cargar resultados del bracket</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En cada partido del bracket, cargar resultado en sets</li>
+              <li>El ganador avanza automáticamente a la siguiente ronda</li>
+              <li>Seguir hasta que quede solo 1 pareja (campeón)</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Ganadores avanzan automáticamente. El bracket se actualiza visualmente con cada resultado.
+            Al terminarse todos los partidos, el estado del torneo puede pasarse a <strong>finished</strong>.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">7.3</span>
+          <div>
+            <div class="paso-titulo">Finalizar torneo: in_progress → finished</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Con todos los resultados del bracket cargados, cambiar estado a <strong>finished</strong></li>
+              <li>Desde el dashboard del jugador: el torneo debe aparecer en el historial con el resultado final</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Estado <strong>finished</strong>. El torneo pasa al historial en la sección de torneos del jugador.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── B8: SEGURIDAD ─── -->
+  <div class="seccion" id="b8">
+    <div class="seccion-header">
+      <div class="numero seguridad">8</div>
+      <h2>Seguridad y casos límite</h2>
+      <span class="rol-chip chip-seguridad">SEGURIDAD</span>
+    </div>
+    <div class="seccion-body">
+
+      <div class="resultado warning" style="margin-bottom:16px">
+        <div class="titulo">⚠️ Estos tests requieren dos jugadores distintos</div>
+        Jugador A = inscripto en una pareja. Jugador B = otro jugador del mismo club, distinto.
+        Usá dos pestañas o dos browsers distintos.
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num seguridad">8.1</span>
+          <div>
+            <div class="paso-titulo">Auth ownership: Jugador B no puede editar inscripción de A <span class="fix-tag">FIX NUEVO</span></div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Jugador A se inscribe en el torneo → obtiene su <span class="campo">pairId</span> (visible en network tab o en la respuesta del POST)</li>
+              <li>Jugador B, autenticado con su propio token, intenta hacer: <span class="campo">PATCH /api/torneos/:id/inscribir/:pairId</span></li>
+              <li>Debe rechazar con 403</li>
+              <li>Mismo test para DELETE</li>
+            </ol>
+          </div>
+          <div class="instrucciones" style="margin-top:12px">
+            <strong>Cómo probar desde DevTools (F12 → Console):</strong>
+            <ol>
+              <li>Logueado como Jugador B, copiar el token de localStorage: <span class="campo">localStorage.getItem('player_token')</span></li>
+              <li>Hacer fetch manual: <code style="font-size:0.82rem; background:#f1f5f9; padding:2px 6px; border-radius:4px">fetch('/api/torneos/TORNEO_ID/inscribir/PAIR_ID_DE_A', { method:'DELETE', headers:{'Authorization':'Bearer TOKEN_JUGADOR_B'} })</code></li>
+            </ol>
+          </div>
+          <div class="resultado error">
+            <div class="titulo">✅ Esperado</div>
+            <strong>403 Forbidden</strong> — "No tenés permiso para modificar esta inscripción".<br>
+            <em>Bug anterior:</em> comparaba <code>pareja.clubId !== req.user.clubId</code> — todos los jugadores del mismo club tienen el mismo clubId, por lo que cualquier jugador podía modificar la inscripción de otro.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num seguridad">8.2</span>
+          <div>
+            <div class="paso-titulo">Race condition cupo: inscripciones simultáneas <span class="fix-tag">FIX NUEVO</span></div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Configurar un torneo con cupo = 1 en una categoría</li>
+              <li>Desde Jugador A y Jugador B simultáneamente, intentar inscribirse en esa categoría</li>
+              <li>Enviar las dos requests al mismo tiempo (desde dos pestañas, botón simultáneo)</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Solo UNA inscripción se acepta (cupo = 1). La otra recibe 400 "El cupo para esta categoría ya está completo" o va a lista de espera si está configurada.<br>
+            <em>Fix:</em> La verificación de cupo ahora usa <strong>transacción Serializable</strong> en Prisma, impidiendo que dos transacciones simultáneas lean cupo=1 y ambas pasen el check.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num seguridad">8.3</span>
+          <div>
+            <div class="paso-titulo">Límite APA: categoría con más de 32 parejas <span class="fix-tag">FIX NUEVO</span></div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Si podés, agregar muchas parejas a una categoría (o crear un test con cupo = 40)</li>
+              <li>Intentar generar grupos con más de 32 parejas en una categoría</li>
+            </ol>
+          </div>
+          <div class="resultado error">
+            <div class="titulo">✅ Esperado</div>
+            Alert: "Las siguientes categorías tienen más de 32 parejas y no pueden generar grupos (máximo soportado: 32): [nombre categoría]".<br>
+            <em>Razón:</em> APA_DRAWS solo soporta 2 a 10 zonas → máximo 10 zonas × 3-4 parejas = 32-40 parejas. Se bloquea conservadoramente en 32.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num seguridad">8.4</span>
+          <div>
+            <div class="paso-titulo">Transiciones de estado inválidas → 422 <span class="fix-tag">FIX NUEVO</span></div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Con un torneo en estado <strong>draft</strong>, intentar via DevTools hacer:<br>
+                <code style="font-size:0.82rem; background:#f1f5f9; padding:2px 6px; border-radius:4px">fetch('/api/torneos/ID/estado', { method:'PATCH', headers:{'Authorization':'Bearer TOKEN_ADMIN','Content-Type':'application/json'}, body: JSON.stringify({estado:'in_progress'}) })</code>
+              </li>
+              <li>Debe rechazar — no se puede ir de <strong>draft → in_progress</strong> directamente</li>
+              <li>Probar también: <strong>open → finished</strong>, <strong>finished → draft</strong> (cualquier transición fuera del grafo)</li>
+            </ol>
+          </div>
+          <div class="resultado error">
+            <div class="titulo">✅ Esperado</div>
+            <strong>422 Unprocessable Entity</strong> — "Transición inválida: draft → in_progress".<br>
+            El grafo válido es: <code>draft → open → closed → in_progress → finished</code> (y <code>open → draft</code>, <code>closed → open</code> para reversión).
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num seguridad">8.5</span>
+          <div>
+            <div class="paso-titulo">Token inválido — rutas protegidas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Desde console, intentar <span class="campo">GET /api/torneos</span> sin token → debe rechazar con 401</li>
+              <li>Intentar rutas de admin con token de jugador → debe rechazar con 403</li>
+            </ol>
+          </div>
+          <div class="resultado error">
+            <div class="titulo">✅ Esperado</div>
+            401 sin token. 403 con token de rol incorrecto.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── B9: ESTADOS Y TRANSICIONES ─── -->
+  <div class="seccion" id="b9">
+    <div class="seccion-header">
+      <div class="numero multi">9</div>
+      <h2>Estados del torneo y transiciones válidas</h2>
+      <span class="rol-chip chip-multi">REFERENCIA</span>
+    </div>
+    <div class="seccion-body">
+
+      <table class="tabla-datos">
+        <tr><th>Estado</th><th>Jugador puede inscribirse</th><th>Admin puede editar inscripciones</th><th>Siguiente estado</th></tr>
+        <tr><td><strong>draft</strong></td><td>❌ No visible</td><td>✅ Sí</td><td>open</td></tr>
+        <tr><td><strong>open</strong></td><td>✅ Sí</td><td>✅ Sí</td><td>closed</td></tr>
+        <tr><td><strong>closed</strong></td><td>❌ Inscripciones cerradas</td><td>✅ Sí</td><td>in_progress</td></tr>
+        <tr><td><strong>in_progress</strong></td><td>❌ Torneo en juego</td><td>✅ Solo admin</td><td>finished</td></tr>
+        <tr><td><strong>finished</strong></td><td>❌ Finalizado</td><td>❌ Solo lectura</td><td>—</td></tr>
+      </table>
+
+      <div class="sep"></div>
+
+      <div class="resultado info">
+        <div class="titulo">ℹ️ Bloqueo de canchas durante in_progress</div>
+        Cuando el torneo está en estado <strong>in_progress</strong>, las canchas aparecen bloqueadas en la grilla del jugador
+        (<span class="campo">PlayerReservasPage</span>) durante el rango fechaInicio → fechaFin del torneo.
+        Esto es intencional: las canchas están reservadas para los partidos del torneo.
+      </div>
+
+      <div class="sep"></div>
+
+      <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:12px;">Checklist final de flujo completo</h3>
+      <div class="checklist">
+        <div class="check-item critico"><input type="checkbox" id="c1"><label for="c1">Torneo creado con fechas válidas (backend valida)</label></div>
+        <div class="check-item critico"><input type="checkbox" id="c2"><label for="c2">Jugador se inscribió correctamente</label></div>
+        <div class="check-item critico"><input type="checkbox" id="c3"><label for="c3">Auth ownership: Jugador B NO pudo modificar inscripción de A</label></div>
+        <div class="check-item critico"><input type="checkbox" id="c4"><label for="c4">Grupos generados sin error</label></div>
+        <div class="check-item critico"><input type="checkbox" id="c5"><label for="c5">Confirmación antes de regenerar — modal custom, NO popup del browser</label></div>
+        <div class="check-item critico"><input type="checkbox" id="c6"><label for="c6">Todos los resultados de grupos cargados</label></div>
+        <div class="check-item critico"><input type="checkbox" id="c7"><label for="c7">Bracket generado desde clasificados de grupos</label></div>
+        <div class="check-item importante"><input type="checkbox" id="c8"><label for="c8">Inscripción después del plazo → rechazada por backend</label></div>
+        <div class="check-item importante"><input type="checkbox" id="c9"><label for="c9">Fechas inválidas en crear/editar → rechazadas</label></div>
+        <div class="check-item importante"><input type="checkbox" id="c10"><label for="c10">Cupo lleno → error correcto (sin race condition)</label></div>
+        <div class="check-item importante"><input type="checkbox" id="c14"><label for="c14">Transición inválida (draft → in_progress) → 422 del backend</label></div>
+        <div class="check-item normal"><input type="checkbox" id="c11"><label for="c11">sinCompañero inscripto + badge visible en jugador</label></div>
+        <div class="check-item normal"><input type="checkbox" id="c12"><label for="c12">Torneo finished → aparece en historial del jugador</label></div>
+        <div class="check-item normal"><input type="checkbox" id="c13"><label for="c13">Canchas bloqueadas en grilla jugador durante in_progress</label></div>
+        <div class="check-item normal"><input type="checkbox" id="c15"><label for="c15">Selector de horas en modal agregar pareja respeta horario del club</label></div>
+        <div class="check-item normal"><input type="checkbox" id="c16"><label for="c16">Color picker en tab Personalización visual usa color primario del club como default</label></div>
+      </div>
+
+      <div class="progress-wrap" style="margin-top:20px">
+        <div class="progress-label" id="progress-label">0 / 16 completado</div>
+        <div class="progress-bar-outer">
+          <div class="progress-bar-inner" id="progress-bar"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">PadelOS · Guía de prueba Torneos · 2026-05-28 · Backend Bloque 4 · Auditoría QA aplicada</div>
+
+<script>
+  function toggle(header) {
+    const body = header.nextElementSibling;
+    const arrow = header.querySelector('.paso-toggle');
+    const isOpen = body.classList.contains('visible');
+    body.classList.toggle('visible', !isOpen);
+    arrow.classList.toggle('abierto', !isOpen);
+  }
+
+  // Progress bar
+  const checks = document.querySelectorAll('.check-item input[type=checkbox]');
+  function updateProgress() {
+    const total = checks.length;
+    const done = Array.from(checks).filter(c => c.checked).length;
+    document.getElementById('progress-label').textContent = `${done} / ${total} completado`;
+    document.getElementById('progress-bar').style.width = `${(done / total) * 100}%`;
+  }
+  checks.forEach(c => c.addEventListener('change', updateProgress));
+  updateProgress();
+</script>
+
+</body>
+</html>

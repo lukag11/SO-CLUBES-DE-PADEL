@@ -711,14 +711,16 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
 
   const validate = () => {
     const e = {}
+    const hoy = new Date().toISOString().split('T')[0]
     if (!form.nombre.trim())         e.nombre      = 'Requerido'
     if (form.categorias.length === 0) e.categorias  = 'Seleccioná al menos una categoría'
-    if (!form.fechaInicio)           e.fechaInicio  = 'Requerido'
+    if (!form.fechaInicio)                              e.fechaInicio = 'Requerido'
+    else if (!esEdicion && form.fechaInicio < hoy)      e.fechaInicio = 'La fecha de inicio no puede ser en el pasado'
     if (!form.fechaFin)              e.fechaFin     = 'Requerido'
-    if (form.fechaFin && form.fechaInicio && form.fechaFin < form.fechaInicio)
-      e.fechaFin = 'Debe ser posterior al inicio'
+    if (form.fechaFin && form.fechaInicio && form.fechaFin <= form.fechaInicio)
+      e.fechaFin = 'Debe ser posterior al inicio (no puede ser el mismo día)'
     if (form.fechaLimiteInscripcion && form.fechaInicio && form.fechaLimiteInscripcion >= form.fechaInicio)
-      e.fechaLimiteInscripcion = 'Debe ser anterior al inicio del torneo'
+      e.fechaLimiteInscripcion = 'Debe ser anterior a la fecha de inicio del torneo'
     if (!form.cupoLibre) {
       form.categorias.forEach((cat) => {
         if (!form.cuposPorCategoria[cat] || form.cuposPorCategoria[cat] < 2)

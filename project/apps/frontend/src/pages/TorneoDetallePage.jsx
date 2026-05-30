@@ -22,9 +22,9 @@ import {
   autoScheduleGroups,
   esSlotDeGrupos,
   calcularGanadorDesdeResultado,
+  MAX_PAREJAS_POR_CATEGORIA,
 } from '../services/torneoService'
 import useClubStore from '../store/clubStore'
-import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 import BracketView, { BracketCard } from '../components/BracketView'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1054,7 +1054,7 @@ const PublicarBracketModal = ({ torneo, club, activeBracket, seedingMap, selecte
   const isLandscape = fmt.key === '16:9'
   const rondaActual = rondas[rondaIdx] ?? null
 
-  const accentColor = torneo.bracketColores?.[selectedCat]  || torneo.colorAcento   || '#afca0b'
+  const accentColor = torneo.bracketColores?.[selectedCat]  || torneo.colorAcento   || club?.colorPrimario || '#10b981'
   const colorCard   = torneo.bracketColorCards?.[selectedCat] || torneo.colorCard   || null
   const cardStyle   = torneo.estiloCardFixture ?? 'oscura'
 
@@ -1212,7 +1212,6 @@ const PublicarBracketModal = ({ torneo, club, activeBracket, seedingMap, selecte
           </button>
           <button
             disabled
-            title="Disponible cuando se conecte el backend"
             className="flex items-center gap-2 text-sm font-semibold text-white bg-brand-400 px-5 py-2 rounded-xl opacity-50 cursor-not-allowed"
           >
             <Share2 size={14} />
@@ -1332,7 +1331,9 @@ const ModalBusquedaJugadores = ({ onSelect, onClose, token }) => {
 
 // ── Modal agregar pareja (admin — carga manual) ───────────────────────────────
 
-const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token }) => {
+const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDisponibles: horasProp }) => {
+  const clubColor = useClubStore((s) => s.club?.colorPrimario) || 'var(--club-primary)'
+  const horasDisponibles = horasProp ?? HORAS_DISPONIBLES
   const [jugador1, setJugador1]                 = useState('')
   const [jugador1Dni, setJugador1Dni]           = useState('')
   const [jugador2, setJugador2]                 = useState('')
@@ -1463,7 +1464,7 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token }) => {
   const diasValidos  = getDiasValidos(torneo.fechaInicio, torneo.fechaFin)
     .filter((dia) => esSlotDeGrupos(dia, '00:00', diaCorte, horaCorte))
   const horasParaDia = (dia) =>
-    HORAS_DISPONIBLES.filter((h) => esSlotDeGrupos(dia, h, diaCorte, horaCorte))
+    horasDisponibles.filter((h) => esSlotDeGrupos(dia, h, diaCorte, horaCorte))
 
   const diasLibres = diasValidos.filter((d) => !slots.some((s) => s.dia === d))
 
@@ -1984,13 +1985,21 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token }) => {
                 !soloUnDia
                   ? 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
                   : prefiereMismoDia
-                    ? 'border-[#afca0b]/30 bg-[#afca0b]/8 text-slate-700'
+                    ? 'text-slate-700'
                     : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
               }`}
+              style={
+                soloUnDia && prefiereMismoDia
+                  ? { borderColor: clubColor, backgroundColor: `color-mix(in srgb, ${clubColor} 8%, white)` }
+                  : undefined
+              }
             >
-              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
-                prefiereMismoDia && soloUnDia ? 'bg-[#afca0b] border-[#afca0b]' : 'border-slate-300'
-              }`}>
+              <div
+                className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
+                  prefiereMismoDia && soloUnDia ? '' : 'border-slate-300'
+                }`}
+                style={prefiereMismoDia && soloUnDia ? { backgroundColor: clubColor, borderColor: clubColor } : undefined}
+              >
                 {prefiereMismoDia && soloUnDia && <span className="text-white text-[9px] font-bold">✓</span>}
               </div>
               <span className="text-xs">Prefieren jugar los 2 partidos el mismo día</span>
@@ -2064,7 +2073,8 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token }) => {
 
 // ── Modal editar disponibilidad ───────────────────────────────────────────────
 
-const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar, token }) => {
+const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar, token, horasDisponibles: horasProp }) => {
+  const horasDisponibles = horasProp ?? HORAS_DISPONIBLES
   const [slots, setSlots]               = useState(inscripto.disponibilidad ? [...inscripto.disponibilidad] : [])
   const [diaSelec, setDiaSelec]         = useState('')
   const [horaSelec, setHoraSelec]       = useState('')
@@ -2141,7 +2151,7 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar, toke
   const diasValidos = getDiasValidos(torneo.fechaInicio, torneo.fechaFin)
     .filter((dia) => esSlotDeGrupos(dia, '00:00', diaCorte, horaCorte))
   const horasParaDia = (dia) =>
-    HORAS_DISPONIBLES.filter((h) => esSlotDeGrupos(dia, h, diaCorte, horaCorte))
+    horasDisponibles.filter((h) => esSlotDeGrupos(dia, h, diaCorte, horaCorte))
 
   const soloUnDia = [...new Set(slots.map((s) => s.dia))].length <= 1
   useEffect(() => { if (!soloUnDia) setPrefiereMismoDia(false) }, [soloUnDia])
@@ -2721,13 +2731,27 @@ const TorneoDetallePage = () => {
           updatePersonalizacion } = useTorneosStore()
   const token = useAuthStore((s) => s.token)
   const adminClubId = useAuthStore((s) => s.user?.club?.id)
-  const addBajaInscripcionTorneo       = usePlayerNotificationsStore((s) => s.addBajaInscripcionTorneo)
-  const addPromovido                   = usePlayerNotificationsStore((s) => s.addPromovido)
-  const addInscripcionActualizadaAdmin = usePlayerNotificationsStore((s) => s.addInscripcionActualizadaAdmin)
+  // Notificaciones al jugador se crean en el backend (tabla notificaciones), no desde el admin
   const club           = useClubStore((s) => s.club)
   const canchas        = club.canchas
   const canchasActivas = canchas.filter((c) => c.activa)
   const canchaName     = (id) => canchas.find((c) => c.id === id)?.nombre ?? `Cancha ${id}`
+  const horasDisponibles = useMemo(() => {
+    const horarios = club?.horarios ?? {}
+    const aperturaMins = Object.values(horarios)
+      .filter((h) => h?.activo && h.apertura)
+      .map((h) => { const [hh, mm] = h.apertura.split(':').map(Number); return hh * 60 + (mm ?? 0) })
+    const cierreMins   = Object.values(horarios)
+      .filter((h) => h?.activo && h.cierre)
+      .map((h) => { const [hh, mm] = h.cierre.split(':').map(Number); return hh * 60 + (mm ?? 0) })
+    const desde = aperturaMins.length ? Math.min(...aperturaMins) : 8 * 60
+    const hasta = cierreMins.length   ? Math.max(...cierreMins)   : 23 * 60
+    const horas = []
+    for (let m = desde; m <= hasta; m += 60) {
+      horas.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`)
+    }
+    return horas.length ? horas : HORAS_DISPONIBLES
+  }, [club?.horarios])
   const [tab, setTab]                   = useState('inscriptos')
   const [catTab, setCatTab]             = useState(() => torneos.find((x) => String(x.id) === id)?.categorias?.[0] ?? null)
   const [swapSource, setSwapSource]     = useState(null)
@@ -2741,6 +2765,7 @@ const TorneoDetallePage = () => {
   const [vistaParalela,     setVistaParalela]     = useState(false)
   const [toast, setToast] = useState(null)
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
+  const [confirmModal, setConfirmModal] = useState(null) // { titulo, mensaje, onConfirmar }
   const [persona, setPersona] = useState(() => {
     const t = torneos.find((x) => String(x.id) === id)
     return {
@@ -2915,7 +2940,7 @@ const TorneoDetallePage = () => {
       syncBrackets(newBrackets)
       setTab('fixture')
     } catch (e) {
-      alert(e.message)
+      showToast(e.message)
     }
   }
 
@@ -2959,7 +2984,12 @@ const TorneoDetallePage = () => {
 
   const handleBajaInscripto = async (inscriptoId, ins) => {
     if (isBackend && typeof inscriptoId === 'string') {
-      await api.delete(`/torneos/${torneo.id}/parejas/${inscriptoId}`, authH).catch(() => {})
+      try {
+        await api.delete(`/torneos/${torneo.id}/parejas/${inscriptoId}`, authH)
+      } catch {
+        showToast('Error al dar de baja. Intentá de nuevo.')
+        return
+      }
     }
     bajaInscripto(torneo.id, inscriptoId)
     if (ins?.estado !== 'espera') {
@@ -2971,16 +3001,7 @@ const TorneoDetallePage = () => {
           api.patch(`/torneos/${torneo.id}/parejas/${primerEspera.id}`, { estado: 'inscripto' }, authH).catch(() => {})
         }
         updatePareja(torneo.id, primerEspera.id, { estado: 'inscripto' })
-        addPromovido({ torneoNombre: torneo.nombre, categoria: primerEspera.categoria })
       }
-    }
-    if (ins) {
-      addBajaInscripcionTorneo({
-        torneoNombre: torneo.nombre,
-        categoria:    ins.categoria,
-        jugador1:     ins.jugador1,
-        jugador2:     ins.jugador2,
-      })
     }
   }
 
@@ -2989,7 +3010,6 @@ const TorneoDetallePage = () => {
       api.patch(`/torneos/${torneo.id}/parejas/${ins.id}`, { estado: 'inscripto' }, authH).catch(() => {})
     }
     updatePareja(torneo.id, ins.id, { estado: 'inscripto' })
-    addPromovido({ torneoNombre: torneo.nombre, categoria: ins.categoria })
   }
 
   const handleAgregarAdmin = async (datos) => {
@@ -3015,38 +3035,48 @@ const TorneoDetallePage = () => {
   // ── Handlers grupos ──────────────────────────────────────────────────────────
 
   const handleGenerarGrupos = () => {
+    const categorias = [...new Set(torneo.inscriptos.map((p) => p.categoria).filter(Boolean))]
+    const conUnaSola = categorias.filter((c) => torneo.inscriptos.filter((p) => p.categoria === c).length === 1)
+    const conExceso  = categorias.filter((c) => torneo.inscriptos.filter((p) => p.categoria === c).length > MAX_PAREJAS_POR_CATEGORIA)
+
+    if (conExceso.length > 0) {
+      showToast(`Cupo excedido en: ${conExceso.join(', ')}. Máx. 32 parejas por categoría.`)
+      return
+    }
+
+    const ejecutar = () => {
+      try {
+        const grupos = generateGroupPhase(torneo.inscriptos)
+        setGrupos(torneo.id, grupos)
+        syncGrupos(grupos)
+        setTab('grupos')
+      } catch (e) { showToast(e.message) }
+    }
+
+    const pasoConUnaSola = () => {
+      if (conUnaSola.length > 0) {
+        setConfirmModal({
+          titulo: 'Categorías con una sola pareja',
+          mensaje: `Las siguientes categorías tienen solo 1 pareja y no van a ser incluidas en los grupos:\n${conUnaSola.join(', ')}\n\n¿Querés continuar igual?`,
+          onConfirmar: () => { setConfirmModal(null); ejecutar() },
+        })
+      } else {
+        ejecutar()
+      }
+    }
+
     const tieneResultados = (torneo.grupos ?? []).some((z) =>
       (z.partidos ?? []).some((p) => p.resultado !== null && p.resultado !== undefined)
     )
     if (tieneResultados) {
-      const confirmar = window.confirm(
-        'Ya hay resultados cargados en la fase de grupos.\n\nRegenerá los grupos va a borrar esos resultados para siempre.\n\n¿Confirmás que querés continuar?'
-      )
-      if (!confirmar) return
+      setConfirmModal({
+        titulo: 'Ya hay resultados cargados',
+        mensaje: 'Regenerar los grupos va a borrar esos resultados para siempre.\n\n¿Confirmás que querés continuar?',
+        onConfirmar: () => { setConfirmModal(null); pasoConUnaSola() },
+      })
+    } else {
+      pasoConUnaSola()
     }
-
-    // Validaciones preventivas por categoría
-    const categorias = [...new Set(torneo.inscriptos.map((p) => p.categoria).filter(Boolean))]
-    const conUnaSola = categorias.filter((c) => torneo.inscriptos.filter((p) => p.categoria === c).length === 1)
-    const conExceso  = categorias.filter((c) => torneo.inscriptos.filter((p) => p.categoria === c).length > 32)
-
-    if (conExceso.length > 0) {
-      alert(`Las siguientes categorías tienen más de 32 parejas y no pueden generar grupos (máximo soportado: 32):\n\n${conExceso.join('\n')}\n\nReducí el cupo o usá cupo libre antes de continuar.`)
-      return
-    }
-    if (conUnaSola.length > 0) {
-      const confirmar = window.confirm(
-        `Las siguientes categorías tienen solo 1 pareja inscripta y no van a ser incluidas en los grupos:\n\n${conUnaSola.join('\n')}\n\n¿Querés continuar igual?`
-      )
-      if (!confirmar) return
-    }
-
-    try {
-      const grupos = generateGroupPhase(torneo.inscriptos)
-      setGrupos(torneo.id, grupos)
-      syncGrupos(grupos)
-      setTab('grupos')
-    } catch (e) { alert(e.message) }
   }
 
   const handleSelectPair = (zonaIdx, parejaIdx) => {
@@ -3135,7 +3165,7 @@ const TorneoDetallePage = () => {
       }
       syncBrackets(newBrackets)
       setTab('fixture')
-    } catch (e) { alert(e.message) }
+    } catch (e) { showToast(e.message) }
   }
 
   const gruposConfirmados = torneo.grupos !== null && torneo.estado === 'in_progress'
@@ -3623,7 +3653,7 @@ const TorneoDetallePage = () => {
                       <div key={cat} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5">
                         <input
                           type="color"
-                          value={color || '#afca0b'}
+                          value={color || club?.colorPrimario || '#10b981'}
                           onChange={(e) => {
                             const val = e.target.value
                             setPersona(p => ({ ...p, bracketColores: { ...p.bracketColores, [cat]: val } }))
@@ -3768,7 +3798,7 @@ const TorneoDetallePage = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {Object.keys(torneo.brackets).map((cat) => {
                       const bracketCat = torneo.brackets[cat]
-                      const color = torneo.bracketColores?.[cat] || torneo.colorAcento || '#afca0b'
+                      const color = torneo.bracketColores?.[cat] || torneo.colorAcento || club?.colorPrimario || '#10b981'
                       return (
                         <div key={cat} className="flex flex-col gap-1.5">
                           <div className="flex items-center gap-2 px-1">
@@ -3862,8 +3892,8 @@ const TorneoDetallePage = () => {
             <div>
               <label className="text-xs font-medium text-slate-600 block mb-2">Color de acento <span className="text-slate-400 font-normal">(global)</span></label>
               <div className="flex items-center gap-2 max-w-xs">
-                <input type="color" value={persona.colorAcento || '#afca0b'} onChange={(e) => setP('colorAcento', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                <input type="text"  value={persona.colorAcento}              onChange={(e) => setP('colorAcento', e.target.value)} placeholder="#afca0b (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                <input type="color" value={persona.colorAcento || club?.colorPrimario || '#10b981'} onChange={(e) => setP('colorAcento', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                <input type="text"  value={persona.colorAcento}              onChange={(e) => setP('colorAcento', e.target.value)} placeholder="vacío = color del club" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
               </div>
               <p className="text-slate-400 text-xs mt-1">Se aplica en las tres tabs del torneo público. Vacío = verde por defecto.</p>
             </div>
@@ -4079,8 +4109,8 @@ const TorneoDetallePage = () => {
                   <div>
                     <label className="text-xs font-medium text-slate-600 block mb-1">Color del título</label>
                     <div className="flex items-center gap-2 max-w-xs">
-                      <input type="color" value={persona.drawColorTitulo || '#afca0b'} onChange={(e) => setP('drawColorTitulo', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                      <input type="text"  value={persona.drawColorTitulo}               onChange={(e) => setP('drawColorTitulo', e.target.value)} placeholder="#afca0b (vacío = color acento)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                      <input type="color" value={persona.drawColorTitulo || club?.colorPrimario || '#10b981'} onChange={(e) => setP('drawColorTitulo', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                      <input type="text"  value={persona.drawColorTitulo}               onChange={(e) => setP('drawColorTitulo', e.target.value)} placeholder="vacío = color acento" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -4176,6 +4206,7 @@ const TorneoDetallePage = () => {
         <ModalAgregarParejaAdmin
           torneo={torneo}
           token={token}
+          horasDisponibles={horasDisponibles}
           onClose={() => setModalAgregarAdmin(false)}
           onConfirmar={handleAgregarAdmin}
         />
@@ -4187,19 +4218,48 @@ const TorneoDetallePage = () => {
           torneo={torneo}
           inscripto={editando}
           token={token}
+          horasDisponibles={horasDisponibles}
           onClose={() => setEditando(null)}
           onGuardar={(pid, changes) => {
             updatePareja(torneo.id, pid, changes)
             if (isBackend && typeof pid === 'string') {
               api.patch(`/torneos/${torneo.id}/parejas/${pid}`, changes, authH).catch(() => {})
             }
-            addInscripcionActualizadaAdmin({
-              torneoNombre: torneo.nombre,
-              categoria: editando.categoria,
-              jugador2: changes.jugador2,
-            })
+            // Notificación al jugador se genera en backend vía prisma.notificacion
           }}
         />
+      )}
+
+      {/* Modal de confirmación genérico — reemplaza window.confirm() */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmModal(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                <AlertTriangle size={15} className="text-amber-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-slate-800">{confirmModal.titulo}</p>
+                <p className="text-xs text-slate-500 mt-1 whitespace-pre-line leading-relaxed">{confirmModal.mensaje}</p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmModal.onConfirmar}
+                className="px-4 py-2 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast */}

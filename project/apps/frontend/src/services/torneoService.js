@@ -15,6 +15,9 @@ const ROUND_NAMES = {
   16: '16avos de final',
 }
 
+// Máximo de parejas por categoría soportado por los draws APA (10 zonas × hasta 4 parejas)
+export const MAX_PAREJAS_POR_CATEGORIA = 32
+
 // ── Draws APA por cantidad de zonas ──────────────────────────────────────────
 // slots: lista ordenada de códigos para el bracket principal ('1A', '2B', null=BYE, 'pi0'=ganador previa 0)
 // previas: partidos previos al bracket principal

@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-26 (sesión — Auditoría QA/PM/Tech Lead sección Torneos + correcciones de seguridad y correctitud en backend y frontend.)
+**Última actualización:** 2026-05-30 (sesión — Mejoras módulo torneos: widget dashboard jugador real, lookup DNI compañero + pre-registro, máquina de estados backend, modal confirmación custom, colores club en TorneoDetallePage, validaciones fechas mejoradas, alertas horarios QuienesSomosPage.)
 
 ---
 
@@ -132,6 +132,75 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-05-30) — Torneos: widget dashboard real, lookup DNI compañero, mejoras UX
+
+### Objetivo
+Conectar el widget de torneos del dashboard jugador al backend real, implementar lookup automático de compañero por DNI con pre-registro inline, y mejorar la calidad general del módulo torneos (UX, validaciones, colores de club).
+
+### Backend — `routes/jugadores.js`
+- **`GET /api/jugadores/por-dni?dni=XXXXXXXX`** — nuevo endpoint para jugadores autenticados
+  - Busca por DNI exacto dentro del club del jugador logueado
+  - Devuelve `{ found: true, id, nombre, apellido, cuentaActiva }` o `{ found: false }` (siempre HTTP 200)
+  - Sin datos sensibles (sin email, teléfono, password)
+
+### Backend — `routes/torneos.js`
+- **Máquina de estados** — `TRANSICIONES_VALIDAS` map: el backend valida la transición antes de actualizarla. Transiciones inválidas devuelven 422.
+- **`POST /:id/inscribir`** — si el compañero no existe en DB y se envían `jugador2Nombre` + `jugador2Apellido`:
+  - Crea automáticamente `Jugador { cuentaActiva: false, activo: true }` con los datos del compañero
+  - Setea `jugador2Id` en la Pareja desde el primer momento
+  - Race condition cubierta: si P2002 (unique constraint), re-busca el registro ya creado
+
+### Frontend — `PlayerDashboardPage.jsx`
+- **Widget "Mis torneos"** conectado al backend real
+  - Fetch `GET /api/torneos?clubId=X` al montar, filtra las parejas donde `jugador1Id === player.id`
+  - Ordenado por estado: `in_progress > closed > open > finished > draft`
+  - Badge "N en juego" cuando hay torneos activos
+  - Stat card "Torneos" muestra conteo real (antes hardcodeado)
+  - Loading skeleton + estado vacío con CTA a inscribirse
+
+### Frontend — `PlayerTournamentsPage.jsx` — `ModalInscripcion`
+- **Lookup automático de compañero** al ingresar 7-8 dígitos en "DNI compañero/a" (debounce 400ms)
+  - `found` → nombre se auto-completa, readonly, badge verde "Registrado" / "Pre-registrado"
+  - `not_found` → aparece bloque ámbar "Alta rápida — sin cuenta" con campos nombre + apellido
+    - El campo "Compañero/a" de arriba se actualiza en tiempo real al escribir
+    - Botón **"Dar de alta"** valida y confirma (cambia estado a `confirmed`, cierra el bloque)
+    - Botón **"Cancelar"** limpia el DNI y vuelve al estado inicial
+    - Icono lápiz en el badge ámbar permite reabrir el mini-form para corregir
+  - `loading` → spinner en el campo DNI
+- **InfoBlock actualizado** explica los tres estados (Registrado / Pre-registrado / Sin cuenta)
+- `mapBackendTorneoPlayer` ahora incluye `jugador1Id`, `estado`, `sinCompanero`
+- Fechas de torneo rediseñadas en `TorneoDisponibleCard` (dos pills inicio/fin)
+
+### Frontend — `TorneoDetallePage.jsx`
+- `window.confirm()` y `window.alert()` reemplazados por `confirmModal` genérico (componente inline)
+- Notificaciones al jugador eliminadas del admin (son responsabilidad del backend)
+- `horasDisponibles` calculado desde los horarios reales del club (no hardcodeado)
+- Colores default en bracket/fixture usan `club.colorPrimario` en vez de `#afca0b` hardcodeado
+
+### Frontend — `TorneosPage.jsx`
+- Validación: `fechaInicio` no puede ser en el pasado al crear (no aplica en edición)
+- Validación: `fechaFin` debe ser estrictamente posterior (no mismo día)
+
+### Frontend — `QuienesSomosPage.jsx`
+- `HorarioSelect`: `onAperturaChange(newAp, newCierre)` unifica la llamada para evitar dobles re-renders
+- `TabCanchas`: recibe `token` y detecta reservas/turnos futuros antes de advertir al admin sobre cambios de horario que pueden generar inconsistencias
+
+### Frontend — `ReservasPage.jsx`
+- Tooltip del indicador "fuera de grilla" mejorado: describe la causa probable y los pasos de solución
+
+### Archivos modificados
+- `project/apps/backend/src/routes/jugadores.js`
+- `project/apps/backend/src/routes/torneos.js`
+- `project/apps/frontend/src/pages/PlayerDashboardPage.jsx`
+- `project/apps/frontend/src/pages/PlayerTournamentsPage.jsx`
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx`
+- `project/apps/frontend/src/pages/TorneosPage.jsx`
+- `project/apps/frontend/src/pages/QuienesSomosPage.jsx`
+- `project/apps/frontend/src/pages/ReservasPage.jsx`
+- `project/apps/frontend/src/services/torneoService.js`
 
 ---
 

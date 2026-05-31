@@ -28,6 +28,13 @@ const normBackend = (n) => ({
   // Campos de notificaciones de profesor
   profesorNombre: n.data?.profesorNombre ?? '',
   profesorId: n.data?.profesorId ?? null,
+  // Campos de notificaciones de torneo
+  jugador1: n.data?.jugador1 ?? '',
+  jugador2: n.data?.jugador2 ?? '',
+  torneoNombre: n.data?.torneoNombre ?? '',
+  torneoId: n.data?.torneoId ?? null,
+  categoria: n.data?.categoria ?? '',
+  vaAEspera: n.data?.estado === 'espera',
   leida: n.leida,
   timestamp: n.createdAt,
   _fromBackend: true,

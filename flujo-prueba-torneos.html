@@ -183,9 +183,11 @@
   </div>
   <div class="alerta-nueva">
     ⚠️ Fixes sesión anterior: race condition cupo · auth ownership · validación fechas · confirmación regenerar grupos<br>
-    ✅ Fixes 2026-05-30: widget torneos real en dashboard jugador · lookup DNI compañero + pre-registro · máquina de estados backend · modal confirmación custom · colores club en fixture · validaciones fechas mejoradas
+    ✅ Fixes 2026-05-30 sesión 1: widget torneos real en dashboard jugador · lookup DNI compañero + pre-registro · máquina de estados backend · modal confirmación custom · colores club en fixture<br>
+    ✅ Fixes 2026-05-31 sesión 1: disponibilidad opcional · validación doble inscripción por DNI (frontend + backend 409) · permisos j1/j2 (j2 solo edita disponibilidad) · mejoras visuales MiTorneoCard<br>
+    ✅ Fixes 2026-05-31 sesión 2: DNI lookup en registro (Step1) · lista de espera UX (borde ámbar + tooltip) · promover espera con validación cupo + notificación · auto-promoción notifica j1 y j2 (admin DELETE + player DELETE)
   </div>
-  <p class="version" style="margin-top:16px">PadelOS v1.0 · Backend Bloque 4 conectado · 2026-05-30</p>
+  <p class="version" style="margin-top:16px">PadelOS v1.0 · Backend Bloque 4 conectado · Bloque 3 testing completo · 2026-05-31</p>
 </div>
 
 <!-- ═══════════════════════════════════════════ ÍNDICE -->
@@ -512,8 +514,8 @@
                   <li><strong>Caso B — DNI no encontrado:</strong> aparece bloque ámbar "Alta rápida — sin cuenta". Ingresar nombre y apellido (el campo de arriba se actualiza en vivo). Clic <strong>"Dar de alta"</strong> para confirmar. Aparece badge ámbar <em>"Sin cuenta"</em> con ícono lápiz para editar si hace falta.</li>
                 </ul>
               </li>
-              <li>Marcar disponibilidad (al menos 2 franjas horarias o 1 + "mismo día")</li>
-              <li>Confirmar inscripción</li>
+              <li>Disponibilidad (opcional): seleccionar día + hora y clic "+ Agregar". Si no se carga nada, aparece la nota "Podés agregar tu disponibilidad ahora o editarla más tarde desde la página del torneo."</li>
+              <li>Confirmar inscripción (la inscripción avanza aunque no haya horarios cargados)</li>
             </ol>
           </div>
           <div class="resultado ok">
@@ -651,6 +653,70 @@
             <div class="titulo">✅ Esperado</div>
             La card muestra badge ámbar <strong>"En lista de espera"</strong>.
             Posición numérica en la lista (nice-to-have, puede no estar implementada).
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">3.7</span>
+          <div>
+            <div class="paso-titulo">Doble inscripción por DNI <span class="new-tag">FIX NUEVO</span></div>
+            <div class="paso-ruta">Jugador B intenta inscribirse cuando ya fue cargado como compañero</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Con el usuario admin, crear una inscripción para el torneo donde <strong>Jugador B</strong> figura como compañero (jugador2) de <strong>Jugador A</strong></li>
+              <li>Iniciar sesión como <strong>Jugador B</strong></li>
+              <li>Ir a <code>/dashboardJugadores/torneos</code> → clic en "Inscribirme" en el mismo torneo</li>
+              <li>En el modal, ingresar el DNI del propio Jugador B como compañero (o el DNI de cualquier jugador ya inscripto)</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Backend rechaza con <strong>400</strong>: "Este DNI ya está inscripto en este torneo como jugador 2".
+            El modal muestra el toast de error. <strong>No</strong> se crea una segunda inscripción.
+          </div>
+          <div class="resultado warning" style="margin-top:10px">
+            <div class="titulo">💡 Verificar también</div>
+            Si Jugador B ya tiene una inscripción propia (como j1), el backend debe devolver <strong>409</strong>: "Ya estás inscripto en este torneo".
+            Ambas validaciones son independientes y se ejecutan en orden.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">3.8</span>
+          <div>
+            <div class="paso-titulo">Permisos j1 vs j2 en inscripción <span class="new-tag">FIX NUEVO</span></div>
+            <div class="paso-ruta">j1 edita todo · j2 solo edita disponibilidad</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li><strong>Como Jugador A (j1 / creador de la pareja):</strong> ir a "Mis torneos" → verificar que la card muestra los botones <strong>"Editar inscripción"</strong> y <strong>"Cancelar"</strong></li>
+              <li>Abrir "Editar inscripción" → verificar que el modal muestra <em>todos</em> los campos: compañero, DNI, categoría, disponibilidad, toggles</li>
+              <li><strong>Cerrar sesión como Jugador A · Iniciar sesión como Jugador B (j2 / compañero):</strong></li>
+              <li>Ir a "Mis torneos" → verificar que la card muestra <em>solo</em> el botón <strong>"Mi disponibilidad"</strong> (sin "Editar inscripción" ni "Cancelar")</li>
+              <li>Abrir "Mi disponibilidad" → verificar que el modal muestra <em>solo</em> el selector de disponibilidad y el toggle "prefiero mismo día". Sin compañero, sin DNI, sin categoría</li>
+              <li>Guardar disponibilidad como j2 → verificar toast <strong>"¡Disponibilidad guardada!"</strong></li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            <strong>j1:</strong> ve "Editar inscripción" + "Cancelar". Modal completo.<br>
+            <strong>j2:</strong> ve solo "Mi disponibilidad". Modal reducido solo con disponibilidad.<br>
+            Si j2 intenta hacer PATCH con campos de la pareja vía herramientas externas (curl/Postman) → backend devuelve <strong>403</strong>: "Solo podés editar tu disponibilidad horaria".
+          </div>
+          <div class="resultado warning" style="margin-top:10px">
+            <div class="titulo">💡 Nota de diseño</div>
+            Esta separación evita que j2 pueda reemplazar a j1 o cambiar categoría/DNI. Solo los datos "propios" de j2 (disponibilidad horaria) son editables por él.
           </div>
         </div>
       </div>
@@ -1245,10 +1311,14 @@
         <div class="check-item normal"><input type="checkbox" id="c13"><label for="c13">Canchas bloqueadas en grilla jugador durante in_progress</label></div>
         <div class="check-item normal"><input type="checkbox" id="c15"><label for="c15">Selector de horas en modal agregar pareja respeta horario del club</label></div>
         <div class="check-item normal"><input type="checkbox" id="c16"><label for="c16">Color picker en tab Personalización visual usa color primario del club como default</label></div>
+        <div class="check-item importante"><input type="checkbox" id="c17"><label for="c17">Lista de espera: cupo completo → pareja queda en espera con borde ámbar en MiTorneoCard</label></div>
+        <div class="check-item importante"><input type="checkbox" id="c18"><label for="c18">Promover desde espera: si cupo lleno → botón deshabilitado con tooltip en TorneoDetallePage</label></div>
+        <div class="check-item importante"><input type="checkbox" id="c19"><label for="c19">Auto-promoción: al eliminar pareja inscripta → primera en espera pasa a inscripta y recibe notificación</label></div>
+        <div class="check-item normal"><input type="checkbox" id="c20"><label for="c20">DNI lookup en registro: al ingresar DNI válido → nombre/apellido se pre-llenan con badge verde</label></div>
       </div>
 
       <div class="progress-wrap" style="margin-top:20px">
-        <div class="progress-label" id="progress-label">0 / 16 completado</div>
+        <div class="progress-label" id="progress-label">0 / 20 completado</div>
         <div class="progress-bar-outer">
           <div class="progress-bar-inner" id="progress-bar"></div>
         </div>
@@ -1259,7 +1329,7 @@
 
 </div>
 
-<div class="footer">PadelOS · Guía de prueba Torneos · 2026-05-28 · Backend Bloque 4 · Auditoría QA aplicada</div>
+<div class="footer">PadelOS · Guía de prueba Torneos · 2026-05-31 · Backend Bloque 4 · Bloque 3 testing completo ✅</div>
 
 <script>
   function toggle(header) {

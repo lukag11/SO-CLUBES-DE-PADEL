@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Trophy, Calendar, Flag, X, ChevronDown, ChevronUp,
-  Zap, Clock, Lock, CheckCircle, Archive, Plus, Infinity as InfinityIcon, Pencil,
+  Zap, Clock, Lock, CheckCircle, Archive, Plus, Infinity as InfinityIcon, Pencil, Info,
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
 import usePlayerStore from '../store/playerStore'
@@ -463,18 +463,119 @@ const GrupoReadOnly = ({ grupos, playerName }) => {
   )
 }
 
+// ── Modal cancelar inscripción ────────────────────────────────────────────────
+
+const ModalCancelar = ({ torneo, pareja, onClose, onConfirmar }) => {
+  const [confirmado, setConfirmado] = useState(false)
+
+  const handleCancelar = () => {
+    setConfirmado(true)
+    onConfirmar()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={!confirmado ? onClose : undefined} />
+      <div className="relative bg-[#0d1117] border border-white/12 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden">
+        <style>{`
+          @keyframes scaleInCancel { from { transform: scale(0.6); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+          @keyframes drawCircRed   { from { stroke-dashoffset: 138 } to { stroke-dashoffset: 0 } }
+          @keyframes drawX         { from { stroke-dashoffset: 40  } to { stroke-dashoffset: 0 } }
+          @keyframes fadeUpCancel  { from { transform: translateY(14px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+        `}</style>
+
+        {/* Header */}
+        <div className="px-5 py-3 border-b border-white/8 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-white font-bold text-sm">Cancelar inscripción</h2>
+            <p className="text-white/40 text-[11px] mt-0.5 leading-none">{torneo.nombre}</p>
+          </div>
+          {!confirmado && (
+            <button onClick={onClose} className="text-white/30 hover:text-white hover:bg-white/8 p-1.5 rounded-lg transition-all shrink-0">
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        {confirmado ? (
+          /* Pantalla de éxito — cancelación confirmada */
+          <div className="flex flex-col items-center justify-center px-6 py-10 gap-5">
+            <div style={{ animation: 'scaleInCancel 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
+              <svg width="96" height="96" viewBox="0 0 96 96">
+                <circle cx="48" cy="48" r="44" fill="none"
+                  stroke="#ef4444" strokeWidth="3" strokeLinecap="round"
+                  style={{ strokeDasharray: 276, strokeDashoffset: 276, animation: 'drawCircRed 0.6s ease-out 0.1s forwards' }}
+                />
+                <line x1="32" y1="32" x2="64" y2="64" stroke="#ef4444" strokeWidth="4" strokeLinecap="round"
+                  style={{ strokeDasharray: 50, strokeDashoffset: 50, animation: 'drawX 0.3s ease-out 0.6s forwards' }}
+                />
+                <line x1="64" y1="32" x2="32" y2="64" stroke="#ef4444" strokeWidth="4" strokeLinecap="round"
+                  style={{ strokeDasharray: 50, strokeDashoffset: 50, animation: 'drawX 0.3s ease-out 0.75s forwards' }}
+                />
+              </svg>
+            </div>
+            <div className="text-center" style={{ animation: 'fadeUpCancel 0.4s ease-out 0.85s both' }}>
+              <p className="text-white font-bold text-lg">¡Inscripción cancelada!</p>
+              <p className="text-white/40 text-sm mt-1">{torneo.nombre}</p>
+            </div>
+            <div className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-center" style={{ animation: 'fadeUpCancel 0.4s ease-out 0.95s both' }}>
+              <p className="text-white/70 text-sm font-medium">{pareja.jugador1} / {pareja.jugador2}</p>
+              <p className="text-white/30 text-xs mt-0.5">{pareja.categoria}</p>
+            </div>
+            <button
+              onClick={onClose}
+              style={{ animation: 'fadeUpCancel 0.4s ease-out 1.05s both' }}
+              className="w-full py-3 rounded-xl text-sm font-bold bg-white/8 hover:bg-white/12 text-white/60 hover:text-white border border-white/10 transition-all"
+            >
+              Cerrar
+            </button>
+          </div>
+        ) : (
+          /* Pantalla de confirmación */
+          <div className="px-6 py-6 flex flex-col gap-5">
+            <div className="bg-red-500/8 border border-red-500/20 rounded-xl px-4 py-3">
+              <p className="text-white/70 text-sm font-medium">{pareja.jugador1} / {pareja.jugador2}</p>
+              <p className="text-white/30 text-xs mt-0.5">{pareja.categoria} · {torneo.nombre}</p>
+            </div>
+            <p className="text-white/50 text-sm text-center leading-relaxed">
+              Si cancelás, perdés el cupo. Si el torneo tiene lista de espera, el siguiente en la lista tomará tu lugar.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 transition-all"
+              >
+                Volver
+              </button>
+              <button
+                onClick={handleCancelar}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500/80 hover:bg-red-500 transition-all"
+              >
+                Sí, cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Card torneo inscripto ──────────────────────────────────────────────────────
 
-const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
-  const [open, setOpen]                 = useState(false)
-  const [openGrupos, setOpenGrupos]     = useState(false)
-  const [confirmarBaja, setConfirmarBaja] = useState(false)
-  const [showDisp, setShowDisp]         = useState(false)
+const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) => {
+  const [open, setOpen]             = useState(false)
+  const [openGrupos, setOpenGrupos] = useState(false)
+  const [showDisp, setShowDisp]     = useState(false)
   const miPareja = torneo.inscriptos.find(
     (i) => i.jugador1 === playerName || i.jugador2 === playerName
   )
-  const resultado    = getResultado(torneo, playerName)
-  const editable     = puedeEditar(torneo) && !!miPareja
+  const resultado     = getResultado(torneo, playerName)
+  const esOwner       = (playerId && miPareja?.jugador1Id)
+    ? miPareja.jugador1Id === playerId
+    : miPareja?.jugador1 === playerName
+  const editable      = puedeEditar(torneo) && !!miPareja && esOwner
+  const editableDisp  = puedeEditar(torneo) && !!miPareja && !esOwner
   const tieneGrupos  = torneo.grupos !== null && torneo.formato === 'Fase de grupos + Eliminación'
   const miBracket    = (() => {
     const cat = miPareja?.categoria
@@ -483,8 +584,10 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
     return first ?? null
   })()
 
+  const esEspera = miPareja?.estado === 'espera'
+
   return (
-    <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden hover:border-white/15 transition-colors">
+    <div className={`bg-[#0d1117] border rounded-2xl overflow-hidden transition-colors ${esEspera ? 'border-amber-400/30 hover:border-amber-400/50' : 'border-white/8 hover:border-white/15'}`}>
       <div className="p-5 flex items-start gap-4">
         {/* Icono */}
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg shrink-0 border ${
@@ -503,10 +606,30 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h3 className="text-white font-semibold text-sm leading-tight truncate">{torneo.nombre}</h3>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="text-white/30 text-xs flex items-center gap-1">
-                  <Calendar size={10} /> {fmtFecha(torneo.fechaInicio)} → {fmtFecha(torneo.fechaFin)}
-                </span>
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 bg-white/6 border border-white/10 rounded-lg px-2 py-1 leading-none">
+                    <Calendar size={9} className="text-[#afca0b]/50 shrink-0" />
+                    <span className="text-white/70 text-[11px] font-semibold">
+                      {new Date(torneo.fechaInicio + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                    </span>
+                  </div>
+                  <span className="text-white/20 text-[10px]">→</span>
+                  <div className="flex items-center gap-1.5 bg-white/6 border border-white/10 rounded-lg px-2 py-1 leading-none">
+                    <Flag size={9} className="text-red-400/50 shrink-0" />
+                    <span className="text-white/50 text-[11px] font-semibold">
+                      {new Date(torneo.fechaFin + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                    </span>
+                  </div>
+                </div>
+                {torneo.fechaLimiteInscripcion && puedeEditar(torneo) && (
+                  <div className="flex items-center gap-1.5 bg-amber-400/8 border border-amber-400/20 rounded-lg px-2 py-1 leading-none">
+                    <Lock size={9} className="text-amber-400/60 shrink-0" />
+                    <span className="text-amber-400/80 text-[11px] font-semibold">
+                      Cierre {new Date(torneo.fechaLimiteInscripcion + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <Badge estado={torneo.estado} />
@@ -524,8 +647,12 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
               </span>
             )}
             {miPareja?.sinCompanero && (
-              <span className="text-[10px] font-semibold text-amber-300 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg flex items-center gap-1">
-                ⚠ Sin compañero/a
+              <span className="relative text-[10px] font-semibold text-amber-300 bg-amber-400/10 border border-amber-400/25 px-2 py-0.5 rounded-lg flex items-center gap-1.5">
+                <span className="relative flex h-1.5 w-1.5 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400" />
+                </span>
+                Falta compañero/a
               </span>
             )}
             <span className="text-xs text-white/30">{torneo.categorias.map((c) => catLabelPlayer(torneo, c)).join(', ')}</span>
@@ -590,46 +717,35 @@ const MiTorneoCard = ({ torneo, playerName, onEditar, onCancelar }) => {
       </div>
 
       {/* Footer: editar + cancelar + grupos + bracket */}
-      {(editable || tieneGrupos || miBracket) && (
+      {(editable || editableDisp || tieneGrupos || miBracket) && (
         <div className="border-t border-white/5">
+          {editableDisp && (
+            <button
+              onClick={() => onEditar(torneo, miPareja, true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs text-sky-400/70 hover:text-sky-400 hover:bg-sky-400/5 border-b border-white/5 transition-all"
+            >
+              <Clock size={12} />
+              Mi disponibilidad
+            </button>
+          )}
           {editable && (
-            <>
-              {confirmarBaja ? (
-                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/5">
-                  <p className="text-xs text-red-400 flex-1">¿Cancelar inscripción?</p>
-                  <button
-                    onClick={() => setConfirmarBaja(false)}
-                    className="text-xs text-white/30 hover:text-white/60 px-2.5 py-1 rounded-lg hover:bg-white/5 transition-all"
-                  >
-                    No
-                  </button>
-                  <button
-                    onClick={() => onCancelar(torneo.id, miPareja.id)}
-                    className="text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500 px-3 py-1 rounded-lg transition-all"
-                  >
-                    Sí, cancelar
-                  </button>
-                </div>
-              ) : (
-                <div className="flex border-b border-white/5">
-                  <button
-                    onClick={() => onEditar(torneo, miPareja)}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs text-[#afca0b]/70 hover:text-[#afca0b] hover:bg-[#afca0b]/5 transition-all"
-                  >
-                    <Pencil size={12} />
-                    Editar inscripción
-                  </button>
-                  <div className="w-px bg-white/5" />
-                  <button
-                    onClick={() => setConfirmarBaja(true)}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs text-red-400/60 hover:text-red-400 hover:bg-red-400/5 transition-all"
-                  >
-                    <X size={12} />
-                    Cancelar
-                  </button>
-                </div>
-              )}
-            </>
+            <div className="flex border-b border-white/5">
+              <button
+                onClick={() => onEditar(torneo, miPareja)}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs transition-all ${esEspera ? 'text-amber-400/70 hover:text-amber-400 hover:bg-amber-400/5' : 'text-[#afca0b]/70 hover:text-[#afca0b] hover:bg-[#afca0b]/5'}`}
+              >
+                <Pencil size={12} />
+                {esEspera ? 'Editar en espera' : 'Editar inscripción'}
+              </button>
+              <div className="w-px bg-white/5" />
+              <button
+                onClick={() => onCancelar(torneo, miPareja)}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs text-red-400/60 hover:text-red-400 hover:bg-red-400/5 transition-all"
+              >
+                <X size={12} />
+                Cancelar
+              </button>
+            </div>
           )}
           {tieneGrupos && (
             <>
@@ -758,9 +874,18 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse, playerGenero }) => {
                   />
                 </div>
                 {hayEsperaCat && (
-                  <p className="text-[11px] text-amber-400 mt-1">
-                    Cupo completo · quedan {cupoEspera - enEspera} lugar{cupoEspera - enEspera !== 1 ? 'es' : ''} en espera
-                  </p>
+                  <div className="flex items-center gap-1 mt-1 group relative">
+                    <p className="text-[11px] text-amber-400">
+                      Cupo completo · quedan {cupoEspera - enEspera} lugar{cupoEspera - enEspera !== 1 ? 'es' : ''} en espera
+                    </p>
+                    <Info size={11} className="text-amber-400/60 shrink-0 cursor-help" />
+                    <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#1a1f2e] border border-amber-400/20 rounded-xl p-3 text-xs text-white/70 leading-relaxed shadow-xl z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                      <p className="font-semibold text-amber-300 mb-1">¿Cómo funciona la lista de espera?</p>
+                      <p>El cupo principal está completo, pero podés reservar un lugar en la lista de espera.</p>
+                      <p className="mt-1.5">Si alguna pareja cancela, pasás automáticamente a la lista principal y te notificamos al instante.</p>
+                      <div className="absolute top-full left-4 border-4 border-transparent border-t-amber-400/20" />
+                    </div>
+                  </div>
                 )}
               </div>
             )
@@ -788,7 +913,7 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse, playerGenero }) => {
 
 // ── Modal inscripción ─────────────────────────────────────────────────────────
 
-const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaExistente, onClose, onConfirmar, token }) => {
+const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaExistente, onClose, onConfirmar, token, soloDisponibilidad = false }) => {
   const isEdit = !!parejaExistente
   const catsDisponibles = categoriasParaJugador(torneo, playerGenero)
   const diaCorte  = torneo.diaInicioEliminatoria  ?? null
@@ -892,27 +1017,42 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
 
   const validate = () => {
     const e = {}
+
+    // Verificar que el jugador actual no esté ya inscripto (por DNI)
+    if (!isEdit && jugador1Dni) {
+      const j1Conflict = torneo.inscriptos.some(
+        (i) => i.jugador1Dni === jugador1Dni || i.jugador2Dni === jugador1Dni
+      )
+      if (j1Conflict) e.general = 'Ya estás inscripto en este torneo (o fuiste agregado como compañero por otra pareja).'
+    }
+
     if (!sinCompanero) {
       if (!jugador2Dni.trim())                          e.jugador2Dni = 'Completá el DNI de tu compañero/a'
       else if (!/^\d{7,8}$/.test(jugador2Dni.trim()))  e.jugador2Dni = 'El DNI debe tener entre 7 y 8 números'
+      else {
+        const dniBuscar = jugador2Dni.trim()
+        const j2Conflict = torneo.inscriptos.find(
+          (i) => (i.jugador1Dni === dniBuscar || i.jugador2Dni === dniBuscar) &&
+                 (isEdit ? i.id !== parejaExistente?.id : true)
+        )
+        if (j2Conflict) e.jugador2Dni = 'Este jugador ya está inscripto en otra pareja del torneo.'
+      }
 
       if (dniLookup.status === 'not_found') {
-        // Forzar que confirmen el alta antes de inscribirse
         e.jugador2 = 'Completá el nombre y apellido y hacé clic en "Dar de alta"'
       } else if (!jugador2.trim()) {
         e.jugador2 = 'Completá el nombre de tu compañero/a'
       }
 
-      if (slots.length === 0) {
-        e.slots = 'Agregá al menos un horario disponible'
-      } else if (slots.length === 1 && !prefiereMismoDia) {
-        e.slots = 'Con un solo horario, marcá "Preferimos jugar los 2 partidos el mismo día", o agregá un segundo día para el otro partido.'
-      }
     }
     return e
   }
 
   const handleConfirmar = () => {
+    if (soloDisponibilidad) {
+      setExito({ data: { disponibilidad: slots, prefiereMismoDia }, vaAEspera: false })
+      return
+    }
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
     // Si el compañero no existía, construir nombre completo desde el mini-form
@@ -954,7 +1094,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
         <div className="px-5 py-3 border-b border-white/8 flex items-center justify-between gap-4">
           <div>
             <h2 className="text-white font-bold text-sm">
-              {isEdit ? 'Editar inscripción' : 'Inscripción al torneo'}
+              {soloDisponibilidad ? 'Mi disponibilidad' : isEdit ? 'Editar inscripción' : 'Inscripción al torneo'}
             </h2>
             <p className="text-white/40 text-[11px] mt-0.5 leading-none">{torneo.nombre}</p>
           </div>
@@ -997,7 +1137,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
               {/* Título */}
               <div className="text-center" style={{ animation: 'fadeUp 0.4s ease-out 0.5s both' }}>
                 <h3 className={`font-bold text-xl ${exito.vaAEspera ? 'text-amber-400' : 'text-white'}`}>
-                  {isEdit ? '¡Cambios guardados!' : exito.vaAEspera ? 'En lista de espera' : '¡Inscripción confirmada!'}
+                  {soloDisponibilidad ? '¡Disponibilidad guardada!' : isEdit ? '¡Cambios guardados!' : exito.vaAEspera ? 'En lista de espera' : '¡Inscripción confirmada!'}
                 </h3>
                 <p className="text-white/35 text-sm mt-1">{torneo.nombre}</p>
               </div>
@@ -1028,6 +1168,19 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                       : 'El admin podrá ver tu inscripción en el panel de torneos.'}
               </p>
 
+              {/* Aviso disponibilidad faltante */}
+              {!isEdit && !sinCompanero && !exito.vaAEspera && slots.length === 0 && (
+                <div
+                  className="w-full flex items-start gap-2 bg-amber-400/8 border border-amber-400/25 rounded-xl px-3 py-2.5"
+                  style={{ animation: 'fadeUp 0.4s ease-out 0.8s both' }}
+                >
+                  <span className="text-amber-400 text-sm shrink-0">⏰</span>
+                  <p className="text-amber-300/80 text-[11px] leading-relaxed">
+                    Recordá agregar tu disponibilidad horaria antes del cierre de inscripción para que el admin pueda armarte el fixture.
+                  </p>
+                </div>
+              )}
+
               {/* Botón Listo */}
               <button
                 onClick={() => onConfirmar(exito.data)}
@@ -1047,7 +1200,16 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
         {/* Form */}
         <div className={`flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3 ${exito ? 'hidden' : ''}`}>
 
+          {/* Error general (ej: doble inscripción) */}
+          {errors.general && (
+            <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/25 rounded-xl px-3 py-2.5">
+              <span className="text-red-400 text-sm shrink-0">✕</span>
+              <p className="text-red-300/90 text-[11px] leading-relaxed">{errors.general}</p>
+            </div>
+          )}
+
           {/* Toggle sin compañero */}
+          {!soloDisponibilidad && (
           <button
             type="button"
             onClick={() => setSinCompanero((v) => !v)}
@@ -1070,8 +1232,10 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
               Todavía no sé con quién juego · Reservar cupo igual
             </span>
           </button>
+          )}
 
           {/* Jugadores */}
+          {!soloDisponibilidad && (
           <div className="grid grid-cols-2 gap-x-2 gap-y-2">
             {/* J1 nombre */}
             <div>
@@ -1195,9 +1359,10 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
               {errors.jugador2Dni && <p className="text-red-400 text-[10px] mt-0.5">{errors.jugador2Dni}</p>}
             </div>
           </div>
+          )}
 
           {/* Mini-form alta compañero — visible solo cuando el DNI no está registrado */}
-          {!sinCompanero && dniLookup.status === 'not_found' && (
+          {!soloDisponibilidad && !sinCompanero && dniLookup.status === 'not_found' && (
             <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl p-3 flex flex-col gap-2.5">
               <div className="flex items-start gap-2">
                 <span className="text-amber-400 text-sm shrink-0 mt-0.5">⚠</span>
@@ -1273,6 +1438,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
           )}
 
           {/* Info DNI */}
+          {!soloDisponibilidad && (
           <InfoBlock label="¿Por qué pedimos el DNI del compañero/a?" variant="dark">
             <p>Usamos el DNI para buscar si tu compañero/a ya está en el sistema y vincular su historial de partidos y estadísticas correctamente.</p>
             <p>Al ingresar el DNI vas a ver uno de estos estados:</p>
@@ -1283,9 +1449,10 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
             </ul>
             <p className="mt-1">Si cometiste un error en el DNI podés editarlo antes de que el admin cierre las inscripciones.</p>
           </InfoBlock>
+          )}
 
           {/* Categoría */}
-          {catsDisponibles.length > 0 && (
+          {!soloDisponibilidad && catsDisponibles.length > 0 && (
             <div>
               <label className="text-[10px] font-medium text-white/40 block mb-1">Categoría</label>
               {catsDisponibles.length === 1 ? (
@@ -1411,6 +1578,11 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
             )}
 
             {errors.slots && <p className="text-red-400 text-xs mt-1">{errors.slots}</p>}
+            {slots.length === 0 && (
+              <p className="text-white/25 text-[11px] mt-1 leading-relaxed">
+                Podés agregar tu disponibilidad ahora o editarla más tarde desde la página del torneo.
+              </p>
+            )}
 
             {/* Preferencia mismo día — fila compacta */}
             <button
@@ -1459,7 +1631,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
               onClick={handleConfirmar}
               className="px-5 py-2 text-xs font-bold bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117] rounded-xl transition-all"
             >
-              {isEdit ? 'Guardar cambios' : 'Confirmar inscripción'}
+              {soloDisponibilidad ? 'Guardar disponibilidad' : isEdit ? 'Guardar cambios' : 'Confirmar inscripción'}
             </button>
           </div>
         )}
@@ -1499,6 +1671,8 @@ const mapBackendTorneoPlayer = (t) => ({
   brackets: t.brackets ?? {},
   ganador: t.ganador,
   subcampeon: t.subcampeon,
+  diaInicioEliminatoria:  t.diaInicioEliminatoria  ?? null,
+  horaInicioEliminatoria: t.horaInicioEliminatoria ?? null,
   ...(t.personalizacion ?? {}),
 })
 
@@ -1514,7 +1688,9 @@ const PlayerTournamentsPage = () => {
   const completacionTorneo         = useNotificacionesStore((s) => s.completacionTorneo)
   const [modalTorneo, setModalTorneo]   = useState(null)
   const [modalEdicion, setModalEdicion] = useState(null) // { torneo, pareja }
-  const [toastEspera, setToastEspera]   = useState(null) // nombre del torneo
+  const [toastEspera, setToastEspera]   = useState(null)
+  const [toastError, setToastError]     = useState(null)
+  const [modalCancelar, setModalCancelar] = useState(null) // { torneo, pareja }
 
   const playerName = player
     ? `${player.nombre}${player.apellido ? ' ' + player.apellido : ''}`
@@ -1574,8 +1750,11 @@ const PlayerTournamentsPage = () => {
         const p = await api.post(`/torneos/${modalTorneo.id}/inscribir`, { ...pareja }, authH)
         addParejaFromApi(modalTorneo.id, {
           id: p.id, jugador1: p.jugador1, jugador2: p.jugador2,
+          jugador1Id: p.jugador1Id ?? null,
           jugador1Dni: p.jugador1Dni, jugador2Dni: p.jugador2Dni,
           categoria: p.categoria, fecha: p.fecha,
+          estado: p.estado ?? 'inscripto',
+          sinCompanero: p.sinCompanero ?? false,
           disponibilidad: p.disponibilidad ?? [], prefiereMismoDia: p.prefiereMismoDia ?? false,
         })
         nuevaInscripcionTorneo({
@@ -1589,7 +1768,15 @@ const PlayerTournamentsPage = () => {
         }
         setModalTorneo(null)
         return
-      } catch { /* fallback local */ }
+      } catch (err) {
+        // 409 = conflicto de negocio — NO caer al store local
+        if (err?.status === 409 || err?.message?.includes('ya está inscripto')) {
+          setModalTorneo(null)
+          setToastError(err.message ?? 'Uno de los jugadores ya está inscripto en este torneo.')
+          return
+        }
+        // Red/server error → fallback local (comportamiento offline)
+      }
     }
     addPareja(modalTorneo.id, { ...pareja, estado: vaAEspera ? 'espera' : 'inscripto' })
     nuevaInscripcionTorneo({
@@ -1606,37 +1793,40 @@ const PlayerTournamentsPage = () => {
 
   const handleConfirmarEdicion = async ({ jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia, sinCompanero }) => {
     if (!modalEdicion) return
-    const { torneo: t, pareja } = modalEdicion
-    const changes = { jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia, sinCompanero }
+    const { torneo: t, pareja, soloDisponibilidad } = modalEdicion
+    const changes = soloDisponibilidad
+      ? { disponibilidad, prefiereMismoDia }
+      : { jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia, sinCompanero }
     if (isBackendTorneo(t) && typeof pareja.id === 'string' && playerToken) {
       api.patch(`/torneos/${t.id}/inscribir/${pareja.id}`, changes, authH).catch(() => {})
     }
     updatePareja(t.id, pareja.id, changes)
-    const eraIncompleta = pareja.sinCompanero === true && !sinCompanero
-    if (eraIncompleta) {
-      completacionTorneo({ jugador1: pareja.jugador1, jugador2, categoria, torneoNombre: t.nombre, torneoId: t.id })
-    } else {
-      actualizacionTorneo({ jugador1: pareja.jugador1, jugador2, categoria, torneoNombre: t.nombre, torneoId: t.id })
+    if (!soloDisponibilidad) {
+      const eraIncompleta = pareja.sinCompanero === true && !sinCompanero
+      if (eraIncompleta) {
+        completacionTorneo({ jugador1: pareja.jugador1, jugador2, categoria, torneoNombre: t.nombre, torneoId: t.id })
+      } else {
+        actualizacionTorneo({ jugador1: pareja.jugador1, jugador2, categoria, torneoNombre: t.nombre, torneoId: t.id })
+      }
     }
     setModalEdicion(null)
   }
 
-  const handleCancelarInscripcion = async (torneoId, parejaId) => {
-    const t = torneos.find((x) => String(x.id) === String(torneoId))
-    const pareja = t?.inscriptos.find((i) => String(i.id) === String(parejaId))
-    if (pareja && t) {
-      bajaTorneo({
-        jugador1: pareja.jugador1,
-        jugador2: pareja.jugador2,
-        categoria: pareja.categoria,
-        torneoNombre: t.nombre,
-        torneoId: t.id,
-      })
+  const handleCancelarInscripcion = (torneo, pareja) => {
+    setModalCancelar({ torneo, pareja })
+  }
+
+  const handleConfirmarCancelacion = () => {
+    if (!modalCancelar) return
+    const { torneo: t, pareja } = modalCancelar
+    bajaTorneo({
+      jugador1: pareja.jugador1, jugador2: pareja.jugador2,
+      categoria: pareja.categoria, torneoNombre: t.nombre, torneoId: t.id,
+    })
+    if (isBackendTorneo(t) && typeof pareja.id === 'string' && playerToken) {
+      api.delete(`/torneos/${t.id}/inscribir/${pareja.id}`, authH).catch(() => {})
     }
-    if (isBackendTorneo(t) && typeof parejaId === 'string' && playerToken) {
-      api.delete(`/torneos/${torneoId}/inscribir/${parejaId}`, authH).catch(() => {})
-    }
-    bajaInscripto(torneoId, parejaId)
+    bajaInscripto(t.id, pareja.id)
   }
 
   return (
@@ -1669,10 +1859,24 @@ const PlayerTournamentsPage = () => {
 
       {/* Toast lista de espera */}
       {toastEspera && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-amber-500 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl shadow-amber-500/30 animate-fade-in">
-          <span>⏳ Quedaste en lista de espera en <em className="not-italic font-bold">{toastEspera}</em>. Te avisamos si se libera un lugar.</span>
-          <button onClick={() => setToastEspera(null)} className="ml-2 text-white/70 hover:text-white transition-colors">✕</button>
+        <div className="fixed bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-auto z-50 flex items-start gap-3 bg-amber-500 text-white text-sm font-semibold px-4 py-3 rounded-2xl shadow-xl shadow-amber-500/30 animate-fade-in">
+          <span className="flex-1 leading-snug">⏳ Quedaste en lista de espera en <em className="not-italic font-bold">{toastEspera}</em>. Te avisamos si se libera un lugar.</span>
+          <button onClick={() => setToastEspera(null)} className="text-white/70 hover:text-white transition-colors shrink-0 mt-0.5">✕</button>
         </div>
+      )}
+      {toastError && (
+        <div className="fixed bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-auto z-50 flex items-start gap-3 bg-red-500 text-white text-sm font-semibold px-4 py-3 rounded-2xl shadow-xl shadow-red-500/30 animate-fade-in">
+          <span className="flex-1 leading-snug">✕ {toastError}</span>
+          <button onClick={() => setToastError(null)} className="text-white/70 hover:text-white transition-colors shrink-0 mt-0.5">✕</button>
+        </div>
+      )}
+      {modalCancelar && (
+        <ModalCancelar
+          torneo={modalCancelar.torneo}
+          pareja={modalCancelar.pareja}
+          onClose={() => setModalCancelar(null)}
+          onConfirmar={handleConfirmarCancelacion}
+        />
       )}
 
       {/* Header */}
@@ -1743,7 +1947,8 @@ const PlayerTournamentsPage = () => {
                 key={t.id}
                 torneo={t}
                 playerName={playerName}
-                onEditar={(torneo, pareja) => setModalEdicion({ torneo, pareja })}
+                playerId={player?.id}
+                onEditar={(torneo, pareja, soloDisp = false) => setModalEdicion({ torneo, pareja, soloDisponibilidad: soloDisp })}
                 onCancelar={handleCancelarInscripcion}
               />
             ))}
@@ -1772,6 +1977,7 @@ const PlayerTournamentsPage = () => {
           jugador1Dni={playerDni}
           playerGenero={player?.genero}
           parejaExistente={modalEdicion.pareja}
+          soloDisponibilidad={modalEdicion.soloDisponibilidad ?? false}
           token={playerToken}
           onClose={() => setModalEdicion(null)}
           onConfirmar={handleConfirmarEdicion}

@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-30 (sesión — Mejoras módulo torneos: widget dashboard jugador real, lookup DNI compañero + pre-registro, máquina de estados backend, modal confirmación custom, colores club en TorneoDetallePage, validaciones fechas mejoradas, alertas horarios QuienesSomosPage.)
+**Última actualización:** 2026-05-31 (sesión — Testing flujo torneos jugador, fixes notificaciones admin, ModalCancelar, notificaciones jugador para eventos torneo)
 
 ---
 
@@ -64,7 +64,7 @@
 - [ ] PlayerDashboardPage mobile
 - [ ] PlayerTurnosFijosPage mobile
 - [ ] PlayerStatsPage mobile
-- [ ] PlayerTournamentsPage mobile
+- [x] PlayerTournamentsPage mobile — layout ya era vertical/responsive; fix toasts (left-4 right-4 en mobile)
 
 ### Profesor (`/dashboardProfesor`)
 - [x] Layout base: `min-w-0`, `overflow-x-hidden`
@@ -132,6 +132,146 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-05-31) — Testing flujo torneos completo + fixes espera + DNI lookup registro
+
+### Objetivo
+Prueba end-to-end del flujo de inscripción jugador (pasos 3.1–3.8) completada al 100%. Corrección de bugs detectados durante el testing, mejoras UX lista de espera, DNI lookup en registro y fixes de notificaciones auto-promoción.
+
+### Bugs corregidos
+
+**notificacionesStore.js — `normBackend` faltaban campos torneo:**
+- `normBackend` no mapeaba `jugador1`, `jugador2`, `torneoNombre`, `categoria`, `vaAEspera` desde `n.data`
+- Fix: agregados los 5 campos al mapper
+
+**"Marcar todo leído" en panel admin — volvían tras 30s:**
+- El botón llamaba `eliminarNotificacion(n.id)` sin token → `DELETE` nunca llegaba al backend
+- Fix: cambiado a `marcarTodasLeidas(token)` que hace `PATCH /notificaciones/admin/leidas`
+
+**`esOwner` fallaba para jugadores sinCompañero:**
+- Cuando `jugador1Id` era null, la condición `jugador1Id === playerId` siempre era false
+- Fix: fallback a comparación por nombre si `jugador1Id` es null
+
+**`diaInicioEliminatoria` no filtraba horarios en disponibilidad:**
+- `mapBackendTorneoPlayer` no incluía `diaInicioEliminatoria` / `horaInicioEliminatoria`
+- Resultado: `esSlotDeGrupos` siempre devolvía `true` → no se filtraban los horarios del día de eliminatoria
+- Fix: campos agregados al mapper en `PlayerTournamentsPage.jsx`
+
+**Estado 'espera' no se mostraba en MiTorneoCard tras inscripción:**
+- `addParejaFromApi` no incluía el campo `estado` de la respuesta del backend
+- Fix: `estado: p.estado ?? 'inscripto'` agregado al payload de la llamada
+
+**Notificaciones auto-promoción — incompletas en admin DELETE y player DELETE:**
+- Ambos routes usaban `prisma.notificacion.create` directo, no notificaban a j2, faltaban nombres en data
+- Fix: reemplazados por `notificarJugador` para j1 y j2 con payload completo incluyendo `jugador1`/`jugador2`
+
+### Nuevas funcionalidades
+
+**Badge pulsante "Falta compañero/a" en MiTorneoCard:**
+- Reemplazado el badge estático por uno con `animate-ping` (dot ámbar pulsante + texto)
+
+**Chips de categoría con color en panel admin (TorneosPage):**
+- Badge coloreado por categoría (8 colores rotativos) + badge "Espera" ámbar cuando `vaAEspera: true`
+
+**ModalCancelar — modal animado para cancelar inscripción:**
+- Animación SVG fase 1 (confirmación) + fase 2 (círculo rojo + X trazada con keyframes)
+
+**Notificaciones jugador para eventos torneo:**
+- 5 tipos: `torneo_inscripto_compañero`, `torneo_baja_compañero`, `torneo_baja_admin`, `torneo_alta_admin`, `torneo_promovido_espera`
+- Helper `notificarJugador` en backend: verifica `cuentaActiva`, fire-and-forget
+
+**DNI lookup en Step1Basicos (registro jugador):**
+- Endpoint público `GET /api/jugadores/buscar-por-dni?dni=X&clubId=Y` — solo devuelve nombre/apellido, sin datos sensibles
+- Debounce 450ms al tipear DNI → pre-llena nombre/apellido si el admin lo cargó en torneos
+- Badge verde + icono `Sparkles` "Datos pre-cargados desde el club · podés editarlos"
+- Badge se resetea si el jugador edita manualmente
+
+**Lista de espera — UX mejorada:**
+- `MiTorneoCard`: borde ámbar cuando `esEspera`, botón "Editar en espera" en color ámbar
+- Tooltip `group-hover` que explica cómo funciona la promoción automática
+
+**Promover desde espera — validación de cupo (backend + frontend):**
+- Backend `PATCH /:id/parejas/:pid`: cuenta inscriptos antes de promover, rechaza si cupo lleno con mensaje claro
+- Notificación `torneo_promovido_espera` para j1 y j2 al promover manualmente
+- Botón "Promover" deshabilitado con tooltip cuando cupo está lleno
+
+### Archivos modificados
+- `project/apps/backend/src/routes/torneos.js`
+- `project/apps/backend/src/routes/jugadores.js`
+- `project/apps/frontend/src/store/notificacionesStore.js`
+- `project/apps/frontend/src/store/playerNotificationsStore.js`
+- `project/apps/frontend/src/pages/TorneosPage.jsx`
+- `project/apps/frontend/src/pages/PlayerTournamentsPage.jsx`
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx`
+- `project/apps/frontend/src/features/player-register/Step1Basicos.jsx`
+
+### Tests del flujo torneo ejecutados — BLOQUE 3 COMPLETO ✅
+| Paso | Descripción | Estado |
+|------|-------------|--------|
+| 3.1 | Inscribirse sin disponibilidad | ✅ |
+| 3.2 | Badge "Falta compañero/a" pulsante | ✅ |
+| 3.3 | Inscripción fuera del plazo | ✅ |
+| 3.4 | Editar inscripción (j1) | ✅ |
+| 3.5 | Permisos j1/j2 diferenciados | ✅ |
+| 3.6 | Lista de espera (cupo completo) | ✅ |
+| 3.7 | Doble inscripción por DNI (409) | ✅ |
+| 3.8 | Notificaciones jugador torneo | ✅ |
+
+---
+
+## Último bloque completado (2026-05-30 sesión 2) — Permisos j1/j2, disponibilidad opcional, validación DNI
+
+### Objetivo
+Completar el flujo de inscripción de torneos jugador: disponibilidad opcional, separación de permisos entre j1 y j2, y validación de doble inscripción por DNI.
+
+### Backend — `routes/torneos.js`
+- **`POST /:id/inscribir`** — validación de DNI duplicado antes de la transacción: si alguno de los DNIs ya aparece en jugador1Dni o jugador2Dni de otra pareja del mismo torneo → 409
+- **`PATCH /:id/inscribir/:pid`** — split de permisos j1/j2:
+  - Calcula `esJ1` y `esJ2` desde `jugador1Id` / `jugador2Id`
+  - Si ni j1 ni j2 → 403
+  - Si es j2 e intenta cambiar `jugador2`, `jugador2Dni`, `categoria` o `sinCompanero` → 403 "Solo podés editar tu disponibilidad horaria"
+
+### Frontend — `PlayerTournamentsPage.jsx`
+
+**Disponibilidad opcional:**
+- `validate()` ya no exige slots mínimos
+- Nota informativa debajo del selector si no se cargó ninguno: "Podés agregar tu disponibilidad ahora o editarla más tarde"
+- Pantalla de éxito: aviso ámbar "Recordá agregar tu disponibilidad horaria antes del cierre" si `slots.length === 0`
+
+**Validación doble inscripción por DNI (frontend):**
+- j1: si su propio DNI ya aparece en inscriptos → error general bloqueante
+- j2: si el DNI del compañero ya está en otra pareja → error en campo jugador2Dni (excluye la pareja propia en edición)
+- Backend 409 → toast rojo y cierre del modal (no cae al store local)
+
+**Split de permisos j1/j2 en `MiTorneoCard`:**
+- `esOwner = miPareja?.jugador1Id === playerId` (por ID, no por nombre)
+- `editable = puedeEditar(torneo) && esOwner` → muestra "Editar inscripción" + "Cancelar"
+- `editableDisp = puedeEditar(torneo) && !esOwner` → muestra solo "Mi disponibilidad" (botón azul)
+- `MiTorneoCard` recibe prop `playerId={player?.id}`
+- `onEditar` acepta tercer argumento `soloDisp` → `setModalEdicion({ torneo, pareja, soloDisponibilidad: soloDisp })`
+
+**Modal `ModalInscripcion` con prop `soloDisponibilidad`:**
+- Cuando `true`: oculta toggle sinCompañero, grilla jugadores, mini-form alta, InfoBlock DNI, selector categoría
+- Solo muestra el selector de disponibilidad + prefiereMismoDia
+- `handleConfirmar`: si `soloDisponibilidad` → salta validate, envía solo `{ disponibilidad, prefiereMismoDia }`
+- Título: "Mi disponibilidad" | Botón: "Guardar disponibilidad" | Éxito: "¡Disponibilidad guardada!"
+- `handleConfirmarEdicion`: si `soloDisponibilidad` → solo patchea esos 2 campos, no dispara notificaciones de actualización
+
+**Mejora visual fecha en `MiTorneoCard`:**
+- Reemplazada la línea de texto plana por dos chips con ícono + día + mes abreviado
+- Chip inicio: Calendar icon verde + "04 jun"
+- Chip fin: Flag icon rojo + "07 jun"
+- Badge ámbar "Cierre + fecha" cuando `fechaLimiteInscripcion` existe y el torneo sigue abierto
+
+**Badge "Sin disponibilidad" en `TorneoDetallePage`:**
+- `ParejaCard`: badge ámbar "Sin disponibilidad" cuando `slots.length === 0 && !ins.sinCompanero` (mobile + desktop)
+
+### Archivos modificados
+- `project/apps/backend/src/routes/torneos.js`
+- `project/apps/frontend/src/pages/PlayerTournamentsPage.jsx`
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx`
 
 ---
 

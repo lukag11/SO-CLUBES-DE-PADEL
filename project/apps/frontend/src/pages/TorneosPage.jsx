@@ -1533,7 +1533,7 @@ const TorneosPage = () => {
   const token  = useAuthStore((s) => s.token)
   const clubId = useAuthStore((s) => s.user?.club?.id)
   const club   = useClubStore((s) => s.club)
-  const { notificaciones, eliminarNotificacion } = useNotificacionesStore()
+  const { notificaciones, eliminarNotificacion, marcarTodasLeidas } = useNotificacionesStore()
   const notifTorneosNoLeidas = notificaciones.filter(
     (n) => (n.tipo === 'inscripcion_torneo' || n.tipo === 'baja_torneo' || n.tipo === 'actualizacion_torneo' || n.tipo === 'completacion_torneo') && !n.leida
   )
@@ -1735,7 +1735,7 @@ const TorneosPage = () => {
             </div>
             {sinLeerInscripciones > 0 && (
               <button
-                onClick={() => notifTorneosNoLeidas.forEach((n) => eliminarNotificacion(n.id))}
+                onClick={() => marcarTodasLeidas(token)}
                 className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
               >
                 Marcar todo leído
@@ -1743,7 +1743,25 @@ const TorneosPage = () => {
             )}
           </div>
           <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
-            {notifTorneosNoLeidas.map((n) => {
+            {(() => {
+              const CAT_COLORS = [
+                'bg-violet-100 text-violet-700',
+                'bg-sky-100 text-sky-700',
+                'bg-emerald-100 text-emerald-700',
+                'bg-orange-100 text-orange-700',
+                'bg-pink-100 text-pink-700',
+                'bg-teal-100 text-teal-700',
+                'bg-indigo-100 text-indigo-700',
+                'bg-rose-100 text-rose-700',
+              ]
+              const catMap = {}
+              let catIdx = 0
+              const catColor = (cat) => {
+                if (!cat) return 'bg-slate-100 text-slate-500'
+                if (!catMap[cat]) catMap[cat] = CAT_COLORS[catIdx++ % CAT_COLORS.length]
+                return catMap[cat]
+              }
+              return notifTorneosNoLeidas.map((n) => {
               const ts = new Date(n.timestamp)
               const ahora = new Date()
               const diffMin = Math.floor((ahora - ts) / 60000)
@@ -1769,10 +1787,15 @@ const TorneosPage = () => {
                       {prefijo && <span className={`${prefijoColor} font-semibold text-xs`}>{prefijo} · </span>}
                       {n.jugador1} <span className="text-slate-400">/</span> {n.jugador2}
                     </p>
-                    <p className="text-xs text-slate-400 truncate">
-                      {n.torneoNombre} · {n.categoria}
-                      {n.vaAEspera && <span className="ml-1 text-amber-500 font-medium">· Lista de espera</span>}
-                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className="text-xs text-slate-400 truncate">{n.torneoNombre}</span>
+                      {n.categoria && (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none shrink-0 ${catColor(n.categoria)}`}>
+                          {n.categoria}
+                        </span>
+                      )}
+                      {n.vaAEspera && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-600 leading-none shrink-0">Espera</span>}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[11px] text-slate-300 whitespace-nowrap">{tiempoStr}</span>
@@ -1784,7 +1807,8 @@ const TorneosPage = () => {
                   </div>
                 </div>
               )
-            })}
+            })
+            })()}
           </div>
         </div>
       )}

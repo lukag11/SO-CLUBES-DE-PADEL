@@ -40,6 +40,14 @@ const findJugadorByDni = async (clubId, dni) => {
   return j?.id ?? null
 }
 
+// Crea una notificación para un jugador solo si tiene cuentaActiva (no molesta a pre-registros).
+const notificarJugador = async (jugadorId, clubId, tipo, data) => {
+  if (!jugadorId || !clubId) return
+  const j = await prisma.jugador.findUnique({ where: { id: jugadorId }, select: { cuentaActiva: true } })
+  if (!j?.cuentaActiva) return
+  prisma.notificacion.create({ data: { clubId, jugadorId, tipo, data } }).catch(() => {})
+}
+
 // GET /api/torneos?clubId=   — público, lista torneos del club
 router.get('/', async (req, res) => {
   const { clubId } = req.query
@@ -397,6 +405,11 @@ router.post('/:id/parejas', requireAuth, requireRole('admin'), async (req, res) 
       })
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
+    // Notificar a j1 y j2 si tienen cuenta activa (el admin los inscribió)
+    const notifDataAlta = { torneoId, torneoNombre: torneo.nombre, categoria, jugador1, jugador2, estado: pareja.estado }
+    if (j1Id) notificarJugador(j1Id, torneo.clubId, 'torneo_alta_admin', notifDataAlta)
+    if (j2Id) notificarJugador(j2Id, torneo.clubId, 'torneo_alta_admin', notifDataAlta)
+
     res.status(201).json(pareja)
   } catch (err) {
     if (err.httpStatus) return res.status(err.httpStatus).json({ error: err.message })
@@ -419,6 +432,23 @@ router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req,
 
     const torneo = await prisma.torneo.findUnique({ where: { id: torneoId } })
     if (torneo.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
+
+    // Validar cupo al promover de espera → inscripto
+    if (estado === 'inscripto' && pareja.estado === 'espera') {
+      if (!torneo.cupoLibre) {
+        const cupoCat = (torneo.cuposPorCategoria ?? {})[pareja.categoria] ?? null
+        if (cupoCat !== null) {
+          const confirmados = await prisma.pareja.count({
+            where: { torneoId, categoria: pareja.categoria, estado: 'inscripto' },
+          })
+          if (confirmados >= cupoCat) {
+            return res.status(400).json({
+              error: `El cupo de ${pareja.categoria} está completo (${confirmados}/${cupoCat}). Ampliá el cupo antes de promover.`,
+            })
+          }
+        }
+      }
+    }
 
     // Re-linkear si cambian los DNIs
     const newJ1Id = (jugador1Dni !== undefined && jugador1Dni !== pareja.jugador1Dni)
@@ -444,6 +474,14 @@ router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req,
         ...(prefiereMismoDia !== undefined && { prefiereMismoDia: !!prefiereMismoDia }),
       },
     })
+
+    // Notificar jugadores al promover de espera → inscripto
+    if (estado === 'inscripto' && pareja.estado === 'espera') {
+      const notifData = { torneoId, torneoNombre: torneo.nombre, categoria: updated.categoria, jugador1: updated.jugador1, jugador2: updated.jugador2 }
+      if (updated.jugador1Id) notificarJugador(updated.jugador1Id, torneo.clubId, 'torneo_promovido_espera', notifData)
+      if (updated.jugador2Id) notificarJugador(updated.jugador2Id, torneo.clubId, 'torneo_promovido_espera', notifData)
+    }
+
     res.json(updated)
   } catch (err) {
     console.error(err)
@@ -464,6 +502,11 @@ router.delete('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req
 
     await prisma.pareja.delete({ where: { id: pid } })
 
+    // Notificar a j1 y j2 si tienen cuenta activa (admin los dio de baja)
+    const notifDataBaja = { torneoId, torneoNombre: torneo.nombre, categoria: pareja.categoria, jugador1: pareja.jugador1, jugador2: pareja.jugador2 }
+    if (pareja.jugador1Id) notificarJugador(pareja.jugador1Id, torneo.clubId, 'torneo_baja_admin', notifDataBaja)
+    if (pareja.jugador2Id) notificarJugador(pareja.jugador2Id, torneo.clubId, 'torneo_baja_admin', notifDataBaja)
+
     // Promover primer en espera de esa categoría si había cupo
     if (!torneo.cupoLibre && pareja.estado === 'inscripto') {
       const primerEspera = await prisma.pareja.findFirst({
@@ -472,17 +515,14 @@ router.delete('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req
       })
       if (primerEspera) {
         await prisma.pareja.update({ where: { id: primerEspera.id }, data: { estado: 'inscripto' } })
-        // Notificar al jugador si tiene cuenta
-        if (primerEspera.jugador1Id) {
-          await prisma.notificacion.create({
-            data: {
-              clubId: torneo.clubId,
-              jugadorId: primerEspera.jugador1Id,
-              tipo: 'torneo_promovido_espera',
-              data: { torneoNombre: torneo.nombre, categoria: primerEspera.categoria },
-            },
-          }).catch(() => {})
+        const notifPromocion = {
+          torneoId, torneoNombre: torneo.nombre,
+          categoria: primerEspera.categoria,
+          jugador1: primerEspera.jugador1,
+          jugador2: primerEspera.jugador2,
         }
+        if (primerEspera.jugador1Id) notificarJugador(primerEspera.jugador1Id, torneo.clubId, 'torneo_promovido_espera', notifPromocion)
+        if (primerEspera.jugador2Id) notificarJugador(primerEspera.jugador2Id, torneo.clubId, 'torneo_promovido_espera', notifPromocion)
       }
     }
 
@@ -520,6 +560,17 @@ router.post('/:id/inscribir', requireAuth, requireRole('jugador'), requireActive
       const limite = new Date(torneo.fechaLimiteInscripcion + 'T23:59:59')
       if (new Date() > limite) {
         return res.status(400).json({ error: 'El período de inscripción ya cerró' })
+      }
+    }
+
+    // Verificar que ningún DNI ya esté en una pareja activa del torneo
+    const dnisAVerificar = [jugador1Dni, ...(!sinCompanero && jugador2Dni ? [jugador2Dni] : [])].filter(Boolean)
+    if (dnisAVerificar.length > 0) {
+      const conflicto = await prisma.pareja.findFirst({
+        where: { torneoId, OR: dnisAVerificar.flatMap((d) => [{ jugador1Dni: d }, { jugador2Dni: d }]) },
+      })
+      if (conflicto) {
+        return res.status(409).json({ error: 'Uno de los jugadores ya está inscripto en este torneo.' })
       }
     }
 
@@ -602,6 +653,14 @@ router.post('/:id/inscribir', requireAuth, requireRole('jugador'), requireActive
       },
     }).catch(() => {})
 
+    // Notificar a j2 si tiene cuenta activa (fue inscripto por su compañero)
+    if (!sinCompanero && j2Id) {
+      notificarJugador(j2Id, torneo.clubId, 'torneo_inscripto_compañero', {
+        torneoId, torneoNombre: torneo.nombre, categoria,
+        jugador1, jugador2, estado: pareja.estado,
+      })
+    }
+
     res.status(201).json(pareja)
   } catch (err) {
     if (err.httpStatus) return res.status(err.httpStatus).json({ error: err.message })
@@ -618,7 +677,21 @@ router.patch('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), require
   try {
     const pareja = await prisma.pareja.findUnique({ where: { id: pid } })
     if (!pareja || pareja.torneoId !== torneoId) return res.status(404).json({ error: 'Pareja no encontrada' })
-    if (pareja.jugador1Id !== req.user.id) return res.status(403).json({ error: 'Sin permisos' })
+    const esJ1 = pareja.jugador1Id === req.user.id
+    const esJ2 = pareja.jugador2Id === req.user.id
+    if (!esJ1 && !esJ2) return res.status(403).json({ error: 'Sin permisos' })
+    // j2 solo puede editar disponibilidad y prefiereMismoDia
+    if (!esJ1 && esJ2 && (jugador2 !== undefined || jugador2Dni !== undefined || categoria !== undefined || sinCompanero !== undefined)) {
+      return res.status(403).json({ error: 'Solo podés editar tu disponibilidad horaria' })
+    }
+
+    // Verificar que el nuevo compañero no esté ya en otra pareja del torneo
+    if (jugador2Dni !== undefined && jugador2Dni && !sinCompanero) {
+      const conflicto = await prisma.pareja.findFirst({
+        where: { torneoId, id: { not: pid }, OR: [{ jugador1Dni: jugador2Dni }, { jugador2Dni: jugador2Dni }] },
+      })
+      if (conflicto) return res.status(409).json({ error: 'Este jugador ya está inscripto en otra pareja del torneo.' })
+    }
 
     // Re-linkear jugador2 si cambia el DNI y deja de ser sinCompanero
     let newJ2Id = undefined
@@ -657,6 +730,30 @@ router.delete('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), requir
 
     await prisma.pareja.delete({ where: { id: pid } })
 
+    // Notificar al admin del club sobre la baja
+    const torneoParaBaja = await prisma.torneo.findUnique({ where: { id: torneoId }, select: { clubId: true, nombre: true } })
+    if (torneoParaBaja) {
+      prisma.notificacion.create({
+        data: {
+          clubId: torneoParaBaja.clubId,
+          tipo: 'baja_torneo',
+          data: {
+            torneoId, torneoNombre: torneoParaBaja.nombre,
+            jugador1: pareja.jugador1, jugador2: pareja.jugador2,
+            categoria: pareja.categoria,
+          },
+        },
+      }).catch(() => {})
+    }
+
+    // Notificar a j2 si tiene cuenta activa (su compañero canceló la inscripción)
+    if (torneoParaBaja && pareja.jugador2Id) {
+      notificarJugador(pareja.jugador2Id, torneoParaBaja.clubId, 'torneo_baja_compañero', {
+        torneoId, torneoNombre: torneoParaBaja.nombre,
+        categoria: pareja.categoria, jugador1: pareja.jugador1,
+      })
+    }
+
     // Si era inscripto (no espera), promover al primer en espera de esa categoría
     if (pareja.estado === 'inscripto') {
       const torneo = await prisma.torneo.findUnique({ where: { id: torneoId } })
@@ -667,16 +764,14 @@ router.delete('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), requir
         })
         if (primerEspera) {
           await prisma.pareja.update({ where: { id: primerEspera.id }, data: { estado: 'inscripto' } })
-          if (primerEspera.jugador1Id) {
-            await prisma.notificacion.create({
-              data: {
-                clubId: torneo.clubId,
-                jugadorId: primerEspera.jugador1Id,
-                tipo: 'torneo_promovido_espera',
-                data: { torneoNombre: torneo.nombre, categoria: primerEspera.categoria },
-              },
-            }).catch(() => {})
+          const notifPromocion = {
+            torneoId, torneoNombre: torneo.nombre,
+            categoria: primerEspera.categoria,
+            jugador1: primerEspera.jugador1,
+            jugador2: primerEspera.jugador2,
           }
+          if (primerEspera.jugador1Id) notificarJugador(primerEspera.jugador1Id, torneo.clubId, 'torneo_promovido_espera', notifPromocion)
+          if (primerEspera.jugador2Id) notificarJugador(primerEspera.jugador2Id, torneo.clubId, 'torneo_promovido_espera', notifPromocion)
         }
       }
     }

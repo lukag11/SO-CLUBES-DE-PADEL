@@ -6,6 +6,22 @@ const router = Router()
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
+// GET /api/jugadores/buscar-por-dni?dni=&clubId= — público, pre-llena el formulario de registro
+router.get('/buscar-por-dni', async (req, res) => {
+  const { dni, clubId } = req.query
+  if (!dni || !/^\d{7,8}$/.test(dni.trim()) || !clubId) return res.json({ found: false })
+  try {
+    const jugador = await prisma.jugador.findUnique({
+      where: { clubId_dni: { clubId, dni: dni.trim() } },
+      select: { nombre: true, apellido: true },
+    })
+    if (!jugador) return res.json({ found: false })
+    res.json({ found: true, nombre: jugador.nombre, apellido: jugador.apellido })
+  } catch {
+    res.json({ found: false })
+  }
+})
+
 // GET /api/jugadores/buscar?q= — admin busca jugadores de su club (por nombre, apellido o DNI)
 router.get('/buscar', requireAuth, requireRole('admin'), async (req, res) => {
   const { q } = req.query

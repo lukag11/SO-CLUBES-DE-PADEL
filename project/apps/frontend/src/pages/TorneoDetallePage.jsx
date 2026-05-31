@@ -748,7 +748,11 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
                 </span>
               ))}
             </div>
-          ) : null}
+          ) : (
+            <span className="text-[10px] font-medium text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+              Sin disponibilidad
+            </span>
+          )}
         </div>
         {!confirmando && (
           <div className="flex items-center gap-0.5 shrink-0">
@@ -810,7 +814,9 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
             ))}
           </div>
         ) : (
-          <span className="text-[9px] text-slate-300">Sin horarios</span>
+          <span className="text-[9px] font-medium text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded self-start">
+            Sin disponibilidad
+          </span>
         )}
       </div>
 
@@ -838,7 +844,7 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
 
 // ── Pareja en lista de espera ─────────────────────────────────────────────────
 
-const EsperaCard = ({ ins, estadoTorneo, onPromover, onBaja }) => {
+const EsperaCard = ({ ins, estadoTorneo, cupoLleno, onPromover, onBaja }) => {
   const [confirmando, setConfirmando] = useState(false)
 
   return (
@@ -857,12 +863,20 @@ const EsperaCard = ({ ins, estadoTorneo, onPromover, onBaja }) => {
         </div>
         {estadoTorneo !== 'finished' && !confirmando && (
           <div className="flex items-center gap-0.5 shrink-0">
-            <button
-              onClick={onPromover}
-              className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-colors"
-            >
-              Promover
-            </button>
+            <div className="relative group">
+              <button
+                onClick={cupoLleno ? undefined : onPromover}
+                disabled={cupoLleno}
+                className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-colors ${cupoLleno ? 'text-slate-400 bg-slate-100 border-slate-200 cursor-not-allowed' : 'text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'}`}
+              >
+                Promover
+              </button>
+              {cupoLleno && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 bg-slate-800 text-white text-[10px] rounded-lg px-2.5 py-1.5 leading-snug pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-20 text-center">
+                  Cupo lleno. Ampliá el cupo del torneo antes de promover.
+                </div>
+              )}
+            </div>
             <button onClick={() => setConfirmando(true)} className="w-8 h-8 flex items-center justify-center text-red-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
               <Trash2 size={15} />
             </button>
@@ -877,12 +891,20 @@ const EsperaCard = ({ ins, estadoTorneo, onPromover, onBaja }) => {
             {ins.categoria}
           </span>
           {estadoTorneo !== 'finished' && !confirmando && (
-            <button
-              onClick={onPromover}
-              className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 px-1.5 py-0.5 rounded transition-colors"
-            >
-              Promover
-            </button>
+            <div className="relative group">
+              <button
+                onClick={cupoLleno ? undefined : onPromover}
+                disabled={cupoLleno}
+                className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border transition-colors ${cupoLleno ? 'text-slate-400 bg-slate-100 border-slate-200 cursor-not-allowed' : 'text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'}`}
+              >
+                Promover
+              </button>
+              {cupoLleno && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-44 bg-slate-800 text-white text-[10px] rounded-lg px-2 py-1.5 leading-snug pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-20 text-center">
+                  Cupo lleno. Ampliá el cupo antes de promover.
+                </div>
+              )}
+            </div>
           )}
           {estadoTorneo !== 'finished' && !confirmando && (
             <button onClick={() => setConfirmando(true)} className="text-red-300 hover:text-red-500 p-0.5 rounded transition-colors">
@@ -3005,9 +3027,14 @@ const TorneoDetallePage = () => {
     }
   }
 
-  const handlePromoverEspera = (ins) => {
+  const handlePromoverEspera = async (ins) => {
     if (isBackend && typeof ins.id === 'string') {
-      api.patch(`/torneos/${torneo.id}/parejas/${ins.id}`, { estado: 'inscripto' }, authH).catch(() => {})
+      try {
+        await api.patch(`/torneos/${torneo.id}/parejas/${ins.id}`, { estado: 'inscripto' }, authH)
+      } catch (err) {
+        setConfirmModal({ message: err.message || 'No se pudo promover la pareja.', onConfirm: null })
+        return
+      }
     }
     updatePareja(torneo.id, ins.id, { estado: 'inscripto' })
   }
@@ -3371,15 +3398,21 @@ const TorneoDetallePage = () => {
                         <div className="flex-1 h-px bg-amber-100" />
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-2">
-                        {enEspera.map((ins) => (
+                        {enEspera.map((ins) => {
+                          const cupoCat = torneo.cupoLibre ? null : ((torneo.cuposPorCategoria ?? {})[ins.categoria] ?? null)
+                          const confirmadosCat = confirmados.filter((c) => c.categoria === ins.categoria).length
+                          const cupoLleno = cupoCat !== null && confirmadosCat >= cupoCat
+                          return (
                           <EsperaCard
                             key={ins.id}
                             ins={ins}
                             estadoTorneo={torneo.estado}
+                            cupoLleno={cupoLleno}
                             onPromover={() => handlePromoverEspera(ins)}
                             onBaja={() => handleBajaInscripto(ins.id, ins)}
                           />
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )}

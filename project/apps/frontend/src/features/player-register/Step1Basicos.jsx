@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react'
-import { User, CreditCard, Mail, Phone, MapPin, Calendar, Camera, ChevronDown, Hash, CheckCircle2, Loader2 } from 'lucide-react'
+import { User, CreditCard, Mail, Phone, MapPin, Calendar, Camera, ChevronDown, Hash, CheckCircle2, Loader2, Sparkles } from 'lucide-react'
 import Input from '../../components/ui/Input'
 import { useProvincias, useMunicipios } from '../../hooks/useGeoref'
+import { api } from '../../lib/api'
 
 const useFieldHint = () => {
   const [hint, setHint] = useState('')
@@ -93,6 +94,28 @@ const Step1Basicos = ({ form, errors, handleChange, handleBlur, setValue }) => {
   const [apellidoHint, showApellidoHint] = useFieldHint()
   const [dniHint, showDniHint] = useFieldHint()
   const [telHint, showTelHint] = useFieldHint()
+  const [dniLookup, setDniLookup] = useState('idle') // idle | loading | found | not_found
+  const [prefilled, setPrefilled] = useState(false)
+  const dniDebounceRef = useRef(null)
+
+  const handleDniLookup = useCallback(async (dniValue) => {
+    if (!/^\d{7,8}$/.test(dniValue)) { setDniLookup('idle'); return }
+    setDniLookup('loading')
+    try {
+      const clubId = import.meta.env.VITE_CLUB_ID
+      const data = await api.get(`/jugadores/buscar-por-dni?dni=${dniValue}&clubId=${clubId}`)
+      if (data.found) {
+        setValue('nombre', data.nombre)
+        setValue('apellido', data.apellido)
+        setPrefilled(true)
+        setDniLookup('found')
+      } else {
+        setDniLookup('not_found')
+      }
+    } catch {
+      setDniLookup('idle')
+    }
+  }, [setValue])
 
   const { provincias, loading: loadingProvincias } = useProvincias()
   const { municipios, loading: loadingMunicipios } = useMunicipios(form.provincia)
@@ -139,6 +162,7 @@ const Step1Basicos = ({ form, errors, handleChange, handleBlur, setValue }) => {
             placeholder="Lucas"
             value={form.nombre}
             onChange={(e) => {
+              if (prefilled) setPrefilled(false)
               const raw = e.target.value
               const filtered = raw.replace(/[0-9]/g, '')
               if (raw !== filtered) showNombreHint('El nombre no puede contener números')
@@ -159,6 +183,7 @@ const Step1Basicos = ({ form, errors, handleChange, handleBlur, setValue }) => {
             placeholder="Romero"
             value={form.apellido}
             onChange={(e) => {
+              if (prefilled) setPrefilled(false)
               const raw = e.target.value
               const filtered = raw.replace(/[0-9]/g, '')
               if (raw !== filtered) showApellidoHint('El apellido no puede contener números')
@@ -173,6 +198,12 @@ const Step1Basicos = ({ form, errors, handleChange, handleBlur, setValue }) => {
           {apellidoHint && <p className="text-amber-400 text-xs mt-1 animate-pulse">{apellidoHint}</p>}
         </div>
       </div>
+      {prefilled && (
+        <div className="flex items-center gap-1.5 -mt-3 px-1">
+          <Sparkles size={11} className="text-emerald-400 shrink-0" />
+          <p className="text-emerald-400 text-xs">Datos pre-cargados desde el club · podés editarlos</p>
+        </div>
+      )}
 
       {/* Apodo */}
       <Input
@@ -189,24 +220,36 @@ const Step1Basicos = ({ form, errors, handleChange, handleBlur, setValue }) => {
       {/* DNI + Fecha nacimiento */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Input
-            label="DNI"
-            name="dni"
-            placeholder="12345678"
-            value={form.dni}
-            onChange={(e) => {
-              const raw = e.target.value
-              const filtered = raw.replace(/[^\d]/g, '')
-              if (raw !== filtered) showDniHint('El DNI solo acepta números')
-              e.target.value = filtered
-              handleChange(e)
-              handleBlur('dni')
-            }}
-            onBlur={() => handleBlur('dni')}
-            icon={CreditCard}
-            error={errors.dni}
-            required
-          />
+          <div className="relative">
+            <Input
+              label="DNI"
+              name="dni"
+              placeholder="12345678"
+              value={form.dni}
+              onChange={(e) => {
+                const raw = e.target.value
+                const filtered = raw.replace(/[^\d]/g, '')
+                if (raw !== filtered) showDniHint('El DNI solo acepta números')
+                e.target.value = filtered
+                handleChange(e)
+                handleBlur('dni')
+                setPrefilled(false)
+                setDniLookup('idle')
+                clearTimeout(dniDebounceRef.current)
+                dniDebounceRef.current = setTimeout(() => handleDniLookup(filtered), 450)
+              }}
+              onBlur={() => handleBlur('dni')}
+              icon={CreditCard}
+              error={errors.dni}
+              required
+            />
+            {dniLookup === 'loading' && (
+              <Loader2 size={14} className="absolute right-3 top-9 text-white/30 animate-spin" />
+            )}
+            {dniLookup === 'found' && (
+              <CheckCircle2 size={14} className="absolute right-3 top-9 text-emerald-400" />
+            )}
+          </div>
           {dniHint && <p className="text-amber-400 text-xs mt-1 animate-pulse">{dniHint}</p>}
         </div>
         <Input

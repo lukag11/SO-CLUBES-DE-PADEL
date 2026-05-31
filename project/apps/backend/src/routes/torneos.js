@@ -372,6 +372,17 @@ router.post('/:id/parejas', requireAuth, requireRole('admin'), async (req, res) 
       sinCompanero ? Promise.resolve(null) : findJugadorByDni(torneo.clubId, jugador2Dni),
     ])
 
+    // Verificar que ningún DNI ya esté en una pareja activa del torneo
+    const dnisAVerificarAdmin = [jugador1Dni, ...(!sinCompanero && jugador2Dni ? [jugador2Dni] : [])].filter(Boolean)
+    if (dnisAVerificarAdmin.length > 0) {
+      const conflicto = await prisma.pareja.findFirst({
+        where: { torneoId, OR: dnisAVerificarAdmin.flatMap((d) => [{ jugador1Dni: d }, { jugador2Dni: d }]) },
+      })
+      if (conflicto) {
+        return res.status(409).json({ error: 'Uno de los jugadores ya está inscripto en este torneo.' })
+      }
+    }
+
     // Check de cupo + create en una sola transacción serializable para evitar race conditions
     const pareja = await prisma.$transaction(async (tx) => {
       let estadoPareja = 'inscripto'

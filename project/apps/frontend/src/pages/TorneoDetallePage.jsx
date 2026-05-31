@@ -3032,7 +3032,7 @@ const TorneoDetallePage = () => {
       try {
         await api.patch(`/torneos/${torneo.id}/parejas/${ins.id}`, { estado: 'inscripto' }, authH)
       } catch (err) {
-        setConfirmModal({ message: err.message || 'No se pudo promover la pareja.', onConfirm: null })
+        setConfirmModal({ titulo: 'No se pudo promover la pareja', mensaje: err.message || 'Error desconocido.', onConfirmar: null })
         return
       }
     }
@@ -3052,8 +3052,10 @@ const TorneoDetallePage = () => {
           disponibilidad: p.disponibilidad ?? [], prefiereMismoDia: p.prefiereMismoDia ?? false,
         })
         showToast(`Pareja agregada: ${p.jugador1} / ${p.jugador2}`)
-        return
-      } catch { /* fallback */ }
+      } catch (err) {
+        setConfirmModal({ titulo: 'No se pudo agregar la pareja', mensaje: err.message || 'Error desconocido.', onConfirmar: null })
+      }
+      return
     }
     addPareja(torneo.id, datos)
     showToast(`Pareja agregada: ${datos.jugador1} / ${datos.jugador2}`)
@@ -4282,14 +4284,16 @@ const TorneoDetallePage = () => {
                 onClick={() => setConfirmModal(null)}
                 className="px-4 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
               >
-                Cancelar
+                {confirmModal.onConfirmar ? 'Cancelar' : 'Cerrar'}
               </button>
-              <button
-                onClick={confirmModal.onConfirmar}
-                className="px-4 py-2 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all"
-              >
-                Confirmar
-              </button>
+              {confirmModal.onConfirmar && (
+                <button
+                  onClick={confirmModal.onConfirmar}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all"
+                >
+                  Confirmar
+                </button>
+              )}
             </div>
           </div>
         </div>

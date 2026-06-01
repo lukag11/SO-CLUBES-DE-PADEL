@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Trophy, Calendar, Flag, X, ChevronDown, ChevronUp,
-  Zap, Clock, Lock, CheckCircle, Archive, Plus, Infinity as InfinityIcon, Pencil, Info,
+  Zap, Clock, Lock, CheckCircle, Archive, Plus, Infinity as InfinityIcon, Pencil, Info, Users,
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
 import usePlayerStore from '../store/playerStore'
@@ -567,6 +567,7 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
   const [open, setOpen]             = useState(false)
   const [openGrupos, setOpenGrupos] = useState(false)
   const [showDisp, setShowDisp]     = useState(false)
+  const [showInscriptos, setShowInscriptos] = useState(false)
   const miPareja = torneo.inscriptos.find(
     (i) => i.jugador1 === playerName || i.jugador2 === playerName
   )
@@ -713,6 +714,20 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
               )}
             </div>
           )}
+
+          {/* Ver quiénes están anotados */}
+          {['open', 'closed'].includes(torneo.estado) && torneo.inscriptos.filter((i) => i.estado !== 'espera').length > 1 && (
+            <button
+              onClick={() => setShowInscriptos(true)}
+              className="mt-2.5 flex items-center gap-1.5 text-[11px] font-medium text-white/25 hover:text-white/50 transition-colors"
+            >
+              <Users size={12} />
+              Ver quiénes están anotados ({torneo.inscriptos.filter((i) => i.estado !== 'espera').length})
+            </button>
+          )}
+          {showInscriptos && (
+            <ModalInscriptos torneo={torneo} playerName={playerName} onClose={() => setShowInscriptos(false)} />
+          )}
         </div>
       </div>
 
@@ -785,10 +800,52 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
   )
 }
 
+// ── Modal lista de inscriptos ─────────────────────────────────────────────────
+
+const ModalInscriptos = ({ torneo, playerName, onClose }) => {
+  const titulares = torneo.inscriptos.filter((i) => i.estado !== 'espera')
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div
+        className="relative bg-[#0d1117] border border-white/12 rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
+          <div>
+            <h3 className="text-white font-semibold text-sm">{torneo.nombre}</h3>
+            <p className="text-white/35 text-xs mt-0.5">{titulares.length} pareja{titulares.length !== 1 ? 's' : ''} inscripta{titulares.length !== 1 ? 's' : ''}</p>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center text-white/30 hover:text-white/60 rounded-lg hover:bg-white/8 transition-all">
+            <X size={14} />
+          </button>
+        </div>
+        {/* Lista */}
+        <div className="overflow-y-auto flex-1 px-4 py-3 flex flex-col gap-1">
+          {titulares.map((p, i) => {
+            const esPropio = p.jugador1 === playerName || p.jugador2 === playerName
+            return (
+              <div key={p.id ?? i} className={`flex items-center gap-3 px-3 py-2 rounded-xl ${esPropio ? 'bg-[#afca0b]/8 border border-[#afca0b]/15' : 'hover:bg-white/3'}`}>
+                <span className="text-white/25 text-[11px] w-5 shrink-0 text-right">{i + 1}.</span>
+                <span className={`text-sm truncate flex-1 ${esPropio ? 'text-[#afca0b] font-semibold' : 'text-white/60'}`}>
+                  {p.jugador1}{p.jugador2 && p.jugador2 !== 'Por definir' ? ` / ${p.jugador2}` : ''}
+                </span>
+                {esPropio && <span className="text-[10px] text-[#afca0b]/50 font-medium shrink-0">vos</span>}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Card torneo disponible ────────────────────────────────────────────────────
 
 const TorneoDisponibleCard = ({ torneo, onInscribirse, playerGenero }) => {
   const catsVisibles = categoriasParaJugador(torneo, playerGenero)
+  const [showInscriptosModal, setShowInscriptosModal] = useState(false)
 
   const catStats = catsVisibles.map((cat) => {
     const cupo        = torneo.cupoLibre ? null : (torneo.cuposPorCategoria?.[cat] ?? null)
@@ -892,6 +949,22 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse, playerGenero }) => {
           })
         )}
       </div>
+
+      {/* Lista de inscriptos — abre modal */}
+      {['open', 'closed'].includes(torneo.estado) && torneo.inscriptos.filter((i) => i.estado !== 'espera').length > 0 && (
+        <>
+          <button
+            onClick={() => setShowInscriptosModal(true)}
+            className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/60 transition-colors"
+          >
+            <Users size={12} />
+            Ver quiénes están anotados ({torneo.inscriptos.filter((i) => i.estado !== 'espera').length})
+          </button>
+          {showInscriptosModal && (
+            <ModalInscriptos torneo={torneo} playerName={null} onClose={() => setShowInscriptosModal(false)} />
+          )}
+        </>
+      )}
 
       <button
         onClick={() => onInscribirse(torneo)}

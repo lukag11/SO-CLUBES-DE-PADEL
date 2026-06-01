@@ -330,7 +330,7 @@ const ZonaSetupCard = ({ zona, zonaIdx, swapSource, onSelectPair }) => {
                           ? 'text-amber-600 bg-amber-50 border border-amber-100'
                           : 'text-slate-400 bg-slate-100'
                       }`}>
-                        {s.dia.slice(0, 3)} · {s.horaDesde}
+                        {s.dia} · {s.horaDesde}
                       </span>
                     ))}
                   </div>
@@ -711,7 +711,7 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName }) => 
 const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
   const [confirmando, setConfirmando] = useState(false)
   const slots = ins.disponibilidad ?? []
-  const diaAbrev = (dia) => dia?.slice(0, 2) ?? '?'
+  const diaAbrev = (dia) => dia ?? '?'
 
   return (
     <div className={`bg-white border rounded-xl transition-all ${confirmando ? 'border-red-200 bg-red-50/40' : 'border-slate-100 hover:border-slate-200 hover:shadow-sm'}`}>
@@ -1499,10 +1499,14 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
     }
   }, [slots]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Validación de cupo (no cuenta los que están en lista de espera)
-  const cupoCategoria  = torneo.cupoLibre ? null : (torneo.cuposPorCategoria?.[categoria] ?? null)
-  const inscriptosEnCat = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado !== 'espera').length
-  const cupoLleno      = cupoCategoria !== null && inscriptosEnCat >= cupoCategoria
+  // Validación de cupo
+  const cupoCategoria      = torneo.cupoLibre ? null : (torneo.cuposPorCategoria?.[categoria] ?? null)
+  const cupoEsperaCategoria = torneo.cupoLibre ? null : (torneo.cupoEsperaPorCategoria?.[categoria] ?? 0)
+  const inscriptosEnCat    = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado !== 'espera').length
+  const enEsperaEnCat      = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado === 'espera').length
+  const cupoInscriptosLleno = cupoCategoria !== null && inscriptosEnCat >= cupoCategoria
+  const iraAEspera         = cupoInscriptosLleno && cupoEsperaCategoria > 0 && enEsperaEnCat < cupoEsperaCategoria
+  const cupoTotalLleno     = cupoInscriptosLleno && (!cupoEsperaCategoria || enEsperaEnCat >= cupoEsperaCategoria)
 
   const handleAddSlot = () => {
     if (!diaSelec || !horaSelec) return
@@ -1517,7 +1521,7 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
   const handleRemoveSlot = (idx) => setSlots(slots.filter((_, i) => i !== idx))
 
   const handleConfirmar = () => {
-    if (cupoLleno) return
+    if (cupoTotalLleno) return
     const newNameErrors = { j1: '', j2: '' }
     if (!jugador1.trim()) newNameErrors.j1 = 'Requerido'
     if (!sinCompanero && !jugador2.trim()) newNameErrors.j2 = 'Requerido'
@@ -1541,10 +1545,6 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
       return
     }
     setDniErrors({ j1: '', j2: '' })
-    if (!sinCompanero) {
-      if (slots.length === 0) { setSlotError('Agregá al menos un horario disponible.'); return }
-      if (slots.length === 1 && !prefiereMismoDia) { setSlotError('Con un solo horario, marcá "Mismo día" o agregá un segundo día para el otro partido.'); return }
-    }
     setSlotError('')
     onConfirmar({
       jugador1: jugador1.trim(),
@@ -1609,7 +1609,7 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
           {/* Jugadores — grilla 2x2: nombre | DNI para cada uno */}
           <div className="grid grid-cols-2 gap-x-2 gap-y-2">
             {/* Nombre J1 */}
-            <div>
+            <div className="min-w-0">
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 1</label>
               {lookupJ1.estado === 'encontrado' ? (
                 <div className="flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 rounded-xl px-2.5 py-2 min-h-[42px]">
@@ -1670,7 +1670,7 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
             </div>
 
             {/* Nombre J2 */}
-            <div>
+            <div className="min-w-0">
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 2</label>
               {sinCompanero ? (
                 <div className="border border-amber-200 bg-amber-50 rounded-xl px-2.5 py-2 text-xs text-amber-600 italic min-h-[42px] flex items-center">
@@ -1981,7 +1981,12 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
               )}
             </div>
 
-            {slotError && <p className="text-red-500 text-xs">{slotError}</p>}
+            {slotError
+              ? <p className="text-red-500 text-xs">{slotError}</p>
+              : slots.length === 0 && !sinCompanero && (
+                  <p className="text-xs text-slate-400 -mt-1">Opcional · podés completar la disponibilidad más adelante editando la pareja.</p>
+                )
+            }
 
             {/* Slots agregados */}
             {slots.length > 0 && (
@@ -2030,7 +2035,7 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
         </div>
 
         {/* Aviso jugadores sin registrar */}
-        {!cupoLleno && (lookupJ1.estado === 'no_encontrado' || (!sinCompanero && lookupJ2.estado === 'no_encontrado')) && (
+        {!cupoTotalLleno && (lookupJ1.estado === 'no_encontrado' || (!sinCompanero && lookupJ2.estado === 'no_encontrado')) && (
           <div className="mx-5 mb-1 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
             <AlertTriangle size={12} className="text-amber-500 shrink-0 mt-0.5" />
             <p className="text-amber-700 text-[11px] leading-snug">
@@ -2043,12 +2048,22 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
           </div>
         )}
 
-        {/* Alerta cupo lleno */}
-        {cupoLleno && (
+        {/* Alerta cupo total lleno */}
+        {cupoTotalLleno && (
           <div className="mx-5 mb-2 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
             <AlertTriangle size={13} className="text-red-500 shrink-0" />
             <p className="text-red-600 text-xs font-medium">
-              Cupo de <strong>{categoria}</strong> completo ({inscriptosEnCat}/{cupoCategoria} parejas).
+              Cupo de <strong>{categoria}</strong> completo ({inscriptosEnCat}/{cupoCategoria} inscriptos · {enEsperaEnCat}/{cupoEsperaCategoria} espera).
+            </p>
+          </div>
+        )}
+
+        {/* Aviso irá a lista de espera */}
+        {iraAEspera && (
+          <div className="mx-5 mb-2 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+            <p className="text-amber-700 text-xs font-medium">
+              Cupo inscriptos lleno — esta pareja quedará en <strong>lista de espera</strong> ({enEsperaEnCat}/{cupoEsperaCategoria}).
             </p>
           </div>
         )}
@@ -2063,7 +2078,7 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
           </button>
           <button
             onClick={handleConfirmar}
-            disabled={cupoLleno || lookupJ1.estado === 'buscando' || (!sinCompanero && lookupJ2.estado === 'buscando')}
+            disabled={cupoTotalLleno || lookupJ1.estado === 'buscando' || (!sinCompanero && lookupJ2.estado === 'buscando')}
             className="flex-1 py-2 text-xs font-semibold text-white bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-sm shadow-brand-500/20"
           >
             {(lookupJ1.estado === 'buscando' || (!sinCompanero && lookupJ2.estado === 'buscando')) ? 'Verificando...' : 'Agregar pareja'}
@@ -2898,6 +2913,8 @@ const TorneoDetallePage = () => {
             canchasAsignadas: t.canchasAsignadas ?? [],
             fechaInicio: t.fechaInicio, fechaFin: t.fechaFin,
             fechaLimiteInscripcion: t.fechaLimiteInscripcion,
+            diaInicioEliminatoria: t.diaInicioEliminatoria ?? null,
+            horaInicioEliminatoria: t.horaInicioEliminatoria ?? null,
             descripcion: t.descripcion ?? '',
             inscriptos: (t.parejas ?? []).map((p) => ({
               id: p.id, jugador1: p.jugador1, jugador2: p.jugador2,
@@ -4260,7 +4277,8 @@ const TorneoDetallePage = () => {
             if (isBackend && typeof pid === 'string') {
               api.patch(`/torneos/${torneo.id}/parejas/${pid}`, changes, authH).catch(() => {})
             }
-            // Notificación al jugador se genera en backend vía prisma.notificacion
+            setEditando(null)
+            showToast('Pareja actualizada correctamente.')
           }}
         />
       )}

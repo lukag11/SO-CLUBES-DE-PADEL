@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useClubStore from '../store/clubStore'
 import usePlayerStore from '../store/playerStore'
+import useTorneosStore from '../store/torneosStore'
 import { api } from '../lib/api'
 import Template1 from '../features/landing/Template1'
 import Template2 from '../features/landing/Template2'
@@ -17,6 +18,7 @@ const LandingPage = () => {
   const club = useClubStore((s) => s.club)
   const _loaded = useClubStore((s) => s._loaded)
   const loadFromBackend = useClubStore((s) => s.loadFromBackend)
+  const setTorneos = useTorneosStore((s) => s.setTorneos)
 
   // fetchDone cubre dos casos donde _loaded nunca se activa:
   // 1. Sin VITE_CLUB_SLUG (dev sin .env) → no hay fetch, mostramos defaults
@@ -30,7 +32,45 @@ const LandingPage = () => {
       return
     }
     api.get(`/clubs/${slug}`)
-      .then((data) => { if (data?.id) loadFromBackend(data) })
+      .then((data) => {
+        if (data?.id) {
+          loadFromBackend(data)
+          // Fetchear torneos para que TurnosDisponibles pueda bloquear días de torneo
+          api.get(`/torneos?clubId=${data.id}`)
+            .then((ts) => {
+              if (!Array.isArray(ts)) return
+              setTorneos(ts.map((t) => {
+                const p = t.personalizacion ?? {}
+                return {
+                  id: t.id,
+                  nombre: t.nombre,
+                  estado: t.estado,
+                  fechaInicio: t.fechaInicio,
+                  fechaFin: t.fechaFin,
+                  categorias: t.categorias ?? [],
+                  genero: t.genero ?? null,
+                  canchasAsignadas: t.canchasAsignadas ?? [],
+                  cupoLibre: t.cupoLibre ?? false,
+                  cuposPorCategoria: t.cuposPorCategoria ?? {},
+                  // Campos de personalización — vienen en t.personalizacion (JSON column)
+                  modoLandingFlyer:   p.modoLandingFlyer   ?? 'auto',
+                  premioPrimero:      p.premioPrimero      ?? null,
+                  premioSegundo:      p.premioSegundo      ?? null,
+                  premioSemifinal:    p.premioSemifinal    ?? null,
+                  whatsapp:           p.whatsapp           ?? null,
+                  imagenFondo:        p.imagenFondo        ?? null,
+                  imagenFondoEnCurso: p.imagenFondoEnCurso ?? null,
+                  ctaEnCurso:         p.ctaEnCurso         ?? null,
+                  templateEnCurso:    p.templateEnCurso    ?? 1,
+                  colorAcento:        p.colorAcento        ?? null,
+                  descripcion:        t.descripcion        ?? '',
+                  inscriptos: (t.parejas ?? []).map((par) => ({ id: par.id, jugador1: par.jugador1, jugador2: par.jugador2, estado: par.estado ?? 'inscripto' })),
+                }
+              }))
+            })
+            .catch(() => {})
+        }
+      })
       .catch(() => {})
       .finally(() => setFetchDone(true))
   }, [])

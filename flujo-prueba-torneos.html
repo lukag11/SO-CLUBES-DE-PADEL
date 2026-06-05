@@ -795,20 +795,23 @@
           <span class="paso-num admin">4.3</span>
           <div>
             <div class="paso-titulo">Editar inscripción de jugador (como admin)</div>
+            <div class="paso-ruta">Ícono lápiz en tarjeta de pareja → modal edición</div>
           </div>
           <span class="paso-toggle">▶</span>
         </div>
         <div class="paso-body">
           <div class="instrucciones">
             <ol>
-              <li>Abrir el modal de edición de una pareja inscripta</li>
+              <li>Abrir el modal de edición de una pareja inscripta (ícono lápiz en la tarjeta)</li>
               <li>Modificar el nombre del compañero o la disponibilidad</li>
-              <li>Guardar</li>
+              <li>Guardar — debe aparecer toast <strong>"Pareja actualizada correctamente."</strong></li>
+              <li>Verificar que los campos nombre y DNI están correctamente alineados (sin superposición del botón de búsqueda)</li>
             </ol>
           </div>
           <div class="resultado ok">
             <div class="titulo">✅ Esperado</div>
-            Cambios guardados. Jugador recibe notificación "Tu inscripción fue actualizada por el club".
+            Cambios guardados con toast de confirmación. Sin notificación al jugador (ediciones operativas son consensuadas).
+            Layout del modal sin superposición: el botón de búsqueda de jugador respeta la columna del DNI.
           </div>
         </div>
       </div>
@@ -818,19 +821,55 @@
           <span class="paso-num admin">4.4</span>
           <div>
             <div class="paso-titulo">Cerrar inscripciones: open → closed</div>
+            <div class="paso-ruta">Botón "Cerrar inscripción" → modal de confirmación</div>
           </div>
           <span class="paso-toggle">▶</span>
         </div>
         <div class="paso-body">
           <div class="instrucciones">
             <ol>
-              <li>Cambiar estado del torneo a <strong>closed</strong></li>
-              <li>Desde el lado del jugador: el torneo debe aparecer como "Inscripciones cerradas" sin botón de inscribirse</li>
+              <li>Presionar <strong>"Cerrar inscripción"</strong> en el encabezado del torneo</li>
+              <li>Se abre el <strong>modal de confirmación</strong> — verificar que muestra:
+                <ul style="margin-top:6px; margin-left:16px">
+                  <li>Cantidad de parejas titulares confirmadas</li>
+                  <li>Cuántas en espera pasarán a suplente (si aplica)</li>
+                  <li>⚠️ Advertencias si hay parejas sin disponibilidad horaria o sin compañero</li>
+                </ul>
+              </li>
+              <li>Confirmar el cierre</li>
+              <li>Verificar en la tabla de parejas:
+                <ul style="margin-top:6px; margin-left:16px">
+                  <li>Las parejas en <strong>espera</strong> cambian a <strong>suplente</strong> (sección gris separada)</li>
+                  <li>El badge del torneo cambia a <strong>"Insc. cerrada"</strong></li>
+                  <li>La card de lista muestra <code>12 inscriptos · 1 suplente</code></li>
+                </ul>
+              </li>
+              <li>Desde el dashboard jugador: el torneo debe aparecer sin botón de inscribirse ni editar</li>
             </ol>
           </div>
           <div class="resultado ok">
             <div class="titulo">✅ Esperado</div>
-            Estado <strong>closed</strong>. Jugador ya no puede inscribirse ni editar. El admin puede seguir editando parejas y generando grupos.
+            Estado <strong>closed</strong>. Parejas en espera → suplente (backend + frontend simultáneo).
+            Jugador ya no puede inscribirse ni editar. El admin puede seguir editando parejas y generando grupos.
+            Reabriendo inscripciones (closed → open): suplentes vuelven a espera automáticamente.
+          </div>
+          <div class="validaciones">
+            <div class="val-item">
+              <span class="val-icon">🔒</span>
+              <span>Backend: <code>PATCH /torneos/:id/estado</code> con <code>estado: closed</code> → bulk update espera→suplente en la misma transacción</span>
+            </div>
+            <div class="val-item">
+              <span class="val-icon">🔄</span>
+              <span>Backend: <code>PATCH /torneos/:id/estado</code> con <code>estado: open</code> → bulk update suplente→espera</span>
+            </div>
+            <div class="val-item">
+              <span class="val-icon">⚠️</span>
+              <span>Modal muestra advertencias (no bloqueantes) por parejas sin horarios o sin compañero</span>
+            </div>
+            <div class="val-item">
+              <span class="val-icon">🚫</span>
+              <span>Bloqueo si hay menos de 2 parejas inscriptas (no se puede cerrar para generar grupos)</span>
+            </div>
           </div>
         </div>
       </div>

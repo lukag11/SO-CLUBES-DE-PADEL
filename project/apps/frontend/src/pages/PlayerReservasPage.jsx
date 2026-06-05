@@ -196,7 +196,8 @@ const PlayerReservasPage = () => {
   const { turnosFijos, addTurnoFijoFromApi } = useTurnosFijosStore()
   // Bloqueos ya no vienen del store local — todo desde el backend (reservasDBParaCancha)
   const torneos = useTorneosStore((s) => s.torneos)
-  const token = usePlayerStore((s) => s.token)
+  const token  = usePlayerStore((s) => s.token)
+  const player = usePlayerStore((s) => s.player)
 
   // ── Canchas y reservas desde la API ──────────────────────────────────────
   const [canchasDB, setCanchasDB] = useState([])
@@ -287,6 +288,10 @@ const PlayerReservasPage = () => {
   }, [torneoActivo, canchasActivas])
 
   const todasBloqueadas = canchasBloquedas.length === canchasActivas.length
+  const jugadorInscripto = torneoActivo?.inscriptos?.some(
+    (i) => i.estado === 'inscripto' && (i.jugador1Id === player?.id || i.jugador2Id === player?.id)
+  ) ?? false
+  const fmtFechaTorneo = (iso) => { if (!iso) return ''; const [,m,d] = iso.split('-'); return `${d}/${m}` }
 
   const dayObj = addDays(hoy, fechaOffset)
   const diaNombre = DIAS_LARGOS[dayObj.getDay()]
@@ -755,16 +760,41 @@ const PlayerReservasPage = () => {
             </div>
 
             {canchasBloquedas.includes(canchaId) ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+              <div className="flex flex-col items-center justify-center py-12 gap-4 text-center px-6">
                 <div className="w-14 h-14 rounded-2xl bg-[#afca0b]/10 border border-[#afca0b]/20 flex items-center justify-center">
                   <Trophy size={26} className="text-[#afca0b]" />
                 </div>
-                <div>
-                  <p className="text-white font-semibold text-sm">{torneoActivo.nombre}</p>
-                  <p className="text-white/40 text-xs mt-1">Esta cancha está reservada para el torneo este día.</p>
+                <div className="flex flex-col gap-1">
+                  <p className="text-white font-bold text-base">{torneoActivo.nombre}</p>
+                  <p className="text-white/50 text-xs">
+                    {fmtFechaTorneo(torneoActivo.fechaInicio)} → {fmtFechaTorneo(torneoActivo.fechaFin)}
+                    {torneoActivo.categorias?.length > 0 && <span className="ml-2 text-[#afca0b]/70">{torneoActivo.categorias.join(' · ')}</span>}
+                  </p>
+                  <p className="text-white/30 text-xs">{torneoActivo.formato}</p>
                 </div>
+                {jugadorInscripto ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-xs font-semibold text-[#afca0b] bg-[#afca0b]/10 border border-[#afca0b]/20 px-3 py-1 rounded-full">
+                      Estás participando en este torneo
+                    </span>
+                    <Link to="/dashboardJugadores/torneos" className="text-xs text-white/40 hover:text-white/70 underline transition-colors">
+                      Ver mi zona y resultados →
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <p className="text-white/40 text-xs">Esta cancha está reservada para el torneo.</p>
+                    {torneoActivo.estado === 'open' ? (
+                      <Link to="/dashboardJugadores/torneos" className="text-xs text-[#afca0b] hover:text-[#afca0b]/80 underline transition-colors">
+                        Inscribite al torneo →
+                      </Link>
+                    ) : (
+                      <p className="text-white/25 text-xs">Las inscripciones están cerradas.</p>
+                    )}
+                  </div>
+                )}
                 {!todasBloqueadas && (
-                  <p className="text-[10px] text-[#afca0b]/40">Las demás canchas están disponibles normalmente.</p>
+                  <p className="text-[10px] text-white/20">Las demás canchas están disponibles normalmente.</p>
                 )}
               </div>
             ) : !horarioDia?.activo ? (

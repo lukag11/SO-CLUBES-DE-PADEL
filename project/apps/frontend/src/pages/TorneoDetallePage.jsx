@@ -6,6 +6,7 @@ import {
   AlertTriangle, Shuffle, CheckCheck, GitMerge, UserPlus, Plus, X, Pencil, Swords,
   Palette, ChevronDown, Maximize2, Minimize2, Share2, Upload, Search,
 } from 'lucide-react'
+import Toast from '../components/ui/Toast'
 import useTorneosStore from '../store/torneosStore'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
@@ -20,6 +21,7 @@ import {
   isGroupPhaseFinished,
   getAllClasificados,
   autoScheduleGroups,
+  swapParejas,
   esSlotDeGrupos,
   calcularGanadorDesdeResultado,
   MAX_PAREJAS_POR_CATEGORIA,
@@ -267,8 +269,9 @@ const TieResolutionCard = ({ zona, zonaIdx, onResolve }) => {
 
 // ── Zona en modo setup (antes de confirmar — permite intercambiar parejas) ────
 
-const ZonaSetupCard = ({ zona, zonaIdx, swapSource, onSelectPair }) => {
+const ZonaSetupCard = ({ zona, zonaIdx, swapSource, onSelectPair, canchaName, onAsignarManual }) => {
   const conflicto = hayConflictoEnZona(zona)
+  const [pendingEditId, setPendingEditId] = useState(null)
 
   const conflictingIds = new Set()
   if (conflicto) {
@@ -280,8 +283,11 @@ const ZonaSetupCard = ({ zona, zonaIdx, swapSource, onSelectPair }) => {
         }
   }
 
+  const numPareja = (id) => zona.parejas.findIndex((p) => p.id === id) + 1
+
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100">
         <span className="text-sm font-bold text-slate-700">{zona.nombre}</span>
         <div className="flex items-center gap-2">
@@ -293,67 +299,562 @@ const ZonaSetupCard = ({ zona, zonaIdx, swapSource, onSelectPair }) => {
           )}
         </div>
       </div>
+
+      {/* Parejas — solo nombres, clicables para swap */}
       <div className="divide-y divide-slate-50">
         {zona.parejas.map((pareja, parejaIdx) => {
-          const isSelected   = swapSource?.zonaIdx === zonaIdx && swapSource?.parejaIdx === parejaIdx
-          const isTarget     = swapSource && !isSelected
-          const hasConflict  = conflictingIds.has(pareja.id)
+          const isSelected  = swapSource?.zonaIdx === zonaIdx && swapSource?.parejaIdx === parejaIdx
+          const isTarget    = swapSource && !isSelected
+          const hasConflict = conflictingIds.has(pareja.id)
           return (
             <button
               key={pareja.id}
               onClick={() => onSelectPair(zonaIdx, parejaIdx)}
-              className={`w-full flex items-start gap-3 px-4 py-2.5 text-left transition-all ${
-                isSelected
-                  ? 'bg-brand-50 border-l-4 border-brand-500'
-                  : isTarget
-                    ? 'hover:bg-amber-50'
-                    : 'hover:bg-slate-50'
+              className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-all ${
+                isSelected ? 'bg-brand-50 border-l-4 border-brand-500' : isTarget ? 'hover:bg-amber-50' : 'hover:bg-slate-50'
               }`}
             >
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 ${
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                 isSelected ? 'bg-brand-500 text-white' : 'bg-slate-200 text-slate-500'
               }`}>
                 {parejaIdx + 1}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-sm ${hasConflict ? 'text-amber-600' : 'text-slate-700'}`}>
-                    {pareja.jugador1} / {pareja.jugador2}
-                  </span>
-                  {hasConflict && <AlertTriangle size={10} className="text-amber-400 shrink-0" />}
-                </div>
-                {pareja.disponibilidad?.length > 0 ? (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {pareja.disponibilidad.map((s, i) => (
-                      <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
-                        hasConflict
-                          ? 'text-amber-600 bg-amber-50 border border-amber-100'
-                          : 'text-slate-400 bg-slate-100'
-                      }`}>
-                        {s.dia} · {s.horaDesde}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-[9px] text-slate-300 mt-0.5 block">Sin disponibilidad</span>
-                )}
-              </div>
-              {isSelected && <span className="text-brand-500 text-xs font-semibold shrink-0 mt-0.5">Seleccionada</span>}
-              {isTarget && !isSelected && <Shuffle size={12} className="text-amber-400 shrink-0 mt-1" />}
+              <span className={`text-xs flex-1 ${hasConflict ? 'text-amber-600' : 'text-slate-700'}`}>
+                {pareja.jugador1} / {pareja.jugador2}
+              </span>
+              {hasConflict && <AlertTriangle size={10} className="text-amber-400 shrink-0" />}
+              {isSelected && <span className="text-brand-500 text-[10px] font-semibold shrink-0">Seleccionada</span>}
+              {isTarget && !isSelected && <Shuffle size={11} className="text-amber-400 shrink-0" />}
             </button>
           )
         })}
+      </div>
+
+      {/* Partidos con horario asignado */}
+      {zona.partidos?.length > 0 && (
+        <div className="border-t border-slate-100 px-4 py-2.5 flex flex-col gap-1.5">
+          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Partidos</p>
+          {zona.partidos.map((p) => {
+            const n1 = numPareja(p.pareja1?.id)
+            const n2 = numPareja(p.pareja2?.id)
+            return (
+              <div key={p.id} className="flex items-center gap-2 text-xs">
+                <span className="text-slate-600 font-medium whitespace-nowrap">{n1} vs {n2}</span>
+                {p.slot ? (
+                  <button
+                    onClick={() => conflicto ? onAsignarManual?.(zonaIdx, p.id) : setPendingEditId(p.id)}
+                    className="text-brand-600 font-medium hover:text-brand-700 hover:underline transition-colors text-left">
+                    {p.slot.dia} · {p.slot.hora}
+                    {p.cancha && canchaName && <span className="text-slate-400 font-normal"> · {canchaName(p.cancha)}</span>}
+                  </button>
+                ) : p.sinHorario ? (
+                  <button onClick={() => onAsignarManual?.(zonaIdx, p.id)}
+                    className="text-amber-500 flex items-center gap-1 hover:text-amber-600 hover:underline transition-colors">
+                    <AlertTriangle size={10} /> Sin horario
+                  </button>
+                ) : (
+                  <button onClick={() => onAsignarManual?.(zonaIdx, p.id)}
+                    className="text-slate-300 italic hover:text-slate-400 hover:underline transition-colors">
+                    Sin asignar
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Confirmación antes de editar zona sin problemas */}
+      {pendingEditId && (
+        <div className="mx-4 mb-3 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 flex items-center justify-between gap-3">
+          <p className="text-xs text-emerald-700 font-medium">Esta zona está bien asignada. ¿Querés modificar igualmente?</p>
+          <div className="flex gap-2 shrink-0">
+            <button onClick={() => { onAsignarManual?.(zonaIdx, pendingEditId); setPendingEditId(null) }}
+              className="text-xs font-bold text-emerald-700 hover:text-emerald-900 transition-colors">Sí</button>
+            <button onClick={() => setPendingEditId(null)}
+              className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">No</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Modal asignación manual de horario ────────────────────────────────────────
+
+const getDiasEnRango = (fechaInicio, fechaFin) => {
+  if (!fechaInicio || !fechaFin) return DIAS_SEMANA
+  const DIAS_MAP  = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+  // Parsear en hora local para evitar el desfase UTC que desplaza un día en Argentina
+  const parseLocal = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d) }
+  const dias = new Set()
+  const end  = parseLocal(fechaFin)
+  const cur  = parseLocal(fechaInicio)
+  while (cur <= end) { dias.add(DIAS_MAP[cur.getDay()]); cur.setDate(cur.getDate() + 1) }
+  return DIAS_SEMANA.filter((d) => dias.has(d))
+}
+
+const ModalAsignarManual = ({ partido, grupos, canchas, diaElim, horaElim, fechaInicio, fechaFin, intervaloMin, onConfirm, onClose }) => {
+  const p1      = partido.pareja1
+  const p2      = partido.pareja2
+  const p1Slots = p1?.disponibilidad ?? []
+  const p2Slots = p2?.disponibilidad ?? []
+
+  const toM = (t = '08:00') => { const [h, m = 0] = t.split(':').map(Number); return h * 60 + m }
+  const toT = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+
+  const diasOverlap = [...new Set(
+    p1Slots.filter((s1) => p2Slots.some((s2) => s2.dia === s1.dia)).map((s) => s.dia)
+  )].filter((d) => esSlotDeGrupos(d, '00:00', diaElim, horaElim))
+
+  const diasValidos = getDiasEnRango(fechaInicio, fechaFin)
+    .filter((d) => esSlotDeGrupos(d, '00:00', diaElim, horaElim))
+  const activas = canchas.filter((c) => c.activa)
+
+  // Calcula slots libres para un día: respeta disponibilidad, conflictos de cancha y de pareja
+  const getSlotsParaDia = (d) => {
+    const m1 = toM(p1Slots.find((s) => s.dia === d)?.horaDesde)
+    const m2 = toM(p2Slots.find((s) => s.dia === d)?.horaDesde)
+    const inicioMin = Math.max(m1, m2)
+
+    const canchaOcc = new Map()
+    const parejaOcc = new Map()
+    for (const zona of (grupos ?? [])) {
+      for (const p of zona.partidos) {
+        if (!p.slot || p.id === partido.id || p.slot.dia !== d) continue
+        const sm = toM(p.slot.hora)
+        if (p.cancha) {
+          if (!canchaOcc.has(p.cancha)) canchaOcc.set(p.cancha, [])
+          canchaOcc.get(p.cancha).push(sm)
+        }
+        for (const par of [p.pareja1, p.pareja2]) {
+          if (!par?.id) continue
+          if (!parejaOcc.has(par.id)) parejaOcc.set(par.id, [])
+          parejaOcc.get(par.id).push(sm)
+        }
+      }
+    }
+
+    const result = []
+    for (let m = inicioMin; m <= 22 * 60; m += 15) {
+      if (!esSlotDeGrupos(d, toT(m), diaElim, horaElim)) break
+      const p1Busy = (parejaOcc.get(p1?.id) ?? []).some((sm) => Math.abs(sm - m) < intervaloMin)
+      const p2Busy = (parejaOcc.get(p2?.id) ?? []).some((sm) => Math.abs(sm - m) < intervaloMin)
+      if (p1Busy || p2Busy) continue
+      const libres = activas.filter((c) => !(canchaOcc.get(c.id) ?? []).some((sm) => Math.abs(sm - m) < intervaloMin))
+      if (libres.length > 0) {
+        result.push({ hora: toT(m), canchas: libres })
+        if (result.length >= 8) break
+      }
+    }
+    return result
+  }
+
+  const slotExistente = partido.slot ? partido : null
+  const primerDia = diasOverlap[0] ?? diasValidos[0] ?? ''
+  const primerSlots = primerDia ? getSlotsParaDia(primerDia) : []
+  const sinAlternativas = diasValidos.every((d) => getSlotsParaDia(d).length === 0)
+
+  const [dia,      setDia]      = useState(primerDia)
+  const [horaSelec, setHoraSelec] = useState(primerSlots[0]?.hora ?? '')
+  const [canchaId,  setCanchaId]  = useState(primerSlots[0]?.canchas[0]?.id ?? '')
+
+  const slotsDelDia  = dia ? getSlotsParaDia(dia) : []
+  const slotActual   = slotsDelDia.find((s) => s.hora === horaSelec)
+  const canchasSlot  = slotActual?.canchas ?? []
+
+  const handleDia = (d) => {
+    const slots = getSlotsParaDia(d)
+    setDia(d)
+    setHoraSelec(slots[0]?.hora ?? '')
+    setCanchaId(slots[0]?.canchas[0]?.id ?? '')
+  }
+
+  const handleSlot = (slot) => {
+    setHoraSelec(slot.hora)
+    setCanchaId(slot.canchas[0]?.id ?? '')
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-5">
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-slate-800">Asignar horario</p>
+            {[{ pair: p1, slots: p1Slots }, { pair: p2, slots: p2Slots }].map(({ pair, slots }, idx) => (
+              <div key={idx} className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
+                <span className="text-xs text-slate-500 shrink-0">{pair?.jugador1} / {pair?.jugador2}:</span>
+                <span className="text-xs text-slate-400">
+                  {slots.length > 0 ? slots.map((s) => `${s.dia.slice(0,3)} ${s.horaDesde}`).join(' · ') : 'Sin disponibilidad'}
+                </span>
+              </div>
+            ))}
+            {diasOverlap.length === 0 && p1Slots.length > 0 && p2Slots.length > 0 && (
+              <p className="text-[10px] text-amber-500 font-medium mt-1 flex items-center gap-1">
+                <AlertTriangle size={10} /> Sin días en común — coordiná con los jugadores
+              </p>
+            )}
+          </div>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-500 transition-colors shrink-0"><X size={16} /></button>
+        </div>
+
+        {/* Banner horario actual */}
+        {slotExistente && (
+          <div className="bg-brand-50 border border-brand-100 rounded-xl px-3 py-2 flex items-center gap-2">
+            <span className="text-[11px] text-brand-600 font-medium">Asignado actualmente:</span>
+            <span className="text-[11px] text-brand-700 font-bold">{partido.slot.dia} {partido.slot.hora}</span>
+            {partido.cancha && activas.find((c) => c.id === partido.cancha) && (
+              <span className="text-[11px] text-slate-400">· {activas.find((c) => c.id === partido.cancha)?.nombre}</span>
+            )}
+          </div>
+        )}
+
+        {/* Sin alternativas */}
+        {sinAlternativas && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
+            <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-700">Todos los horarios disponibles ya están ocupados. Para liberar un slot, revisá las otras zonas.</p>
+          </div>
+        )}
+
+        {/* Paso 1 — Día */}
+        <div className="flex flex-col gap-2">
+          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">1. Elegí el día</p>
+          <div className="flex flex-wrap gap-2">
+            {diasValidos.map((d) => {
+              const hasOverlap = diasOverlap.includes(d)
+              const selected   = dia === d
+              return (
+                <button key={d} onClick={() => handleDia(d)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                    selected ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                    : hasOverlap ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                  }`}>
+                  {d.slice(0, 3)}{hasOverlap && !selected && <span className="ml-1">✓</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Paso 2 — Horario disponible */}
+        {dia && (
+          <div className="flex flex-col gap-2">
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">2. Horario disponible</p>
+            {slotsDelDia.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {slotsDelDia.map((slot) => (
+                  <button key={slot.hora} onClick={() => handleSlot(slot)}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                      horaSelec === slot.hora
+                        ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}>
+                    {slot.hora}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-amber-500 flex items-center gap-1">
+                <AlertTriangle size={11} /> Sin horarios libres este día — probá otro
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Paso 3 — Cancha */}
+        {horaSelec && canchasSlot.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">3. Cancha</p>
+            <div className="flex gap-2 flex-wrap">
+              {canchasSlot.map((c) => (
+                <button key={c.id} onClick={() => setCanchaId(c.id)}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                    canchaId === c.id
+                      ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}>
+                  {c.nombre}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={() => dia && horaSelec && canchaId && onConfirm(dia, horaSelec, canchaId)}
+          disabled={!dia || !horaSelec || !canchaId}
+          className="w-full py-3 text-sm font-bold text-white bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-sm shadow-brand-500/20">
+          Confirmar horario
+        </button>
       </div>
     </div>
   )
 }
 
 // ── Tabla de zona — modo juego confirmado ─────────────────────────────────────
+
 const computeWins = (zona) => {
   const w = {}
   zona.parejas.forEach((p) => { w[p.id] = 0 })
   zona.partidos.forEach((p) => { if (p.ganador) w[p.ganador.id] = (w[p.ganador.id] || 0) + 1 })
   return w
+}
+
+// Tabla de posiciones enriquecida (tema claro — admin)
+const StandingsZonaAdmin = ({ zona, puntosPorVictoria = 2 }) => {
+  const [openCrit, setOpenCrit] = useState(null)
+  if (!zona?.parejas?.length || zona.capacidad === 4) return null
+
+  // ── Stats ──────────────────────────────────────────────────────────────────
+  const s = {}
+  zona.parejas.forEach((p) => {
+    s[p.id] = { pts: 0, pj: 0, wins: 0, losses: 0, setsA: 0, setsC: 0, gamesA: 0, gamesC: 0 }
+  })
+  zona.partidos.forEach((m) => {
+    if (m.estado !== 'finalizado' || !m.pareja1 || !m.pareja2) return
+    s[m.pareja1.id].pj++
+    s[m.pareja2.id].pj++
+    if (m.ganador) {
+      s[m.ganador.id].wins++
+      s[m.ganador.id].pts += puntosPorVictoria
+      const loserId = m.ganador.id === m.pareja1.id ? m.pareja2.id : m.pareja1.id
+      if (s[loserId]) s[loserId].losses++
+    }
+    ;(m.resultado ?? []).forEach((set) => {
+      s[m.pareja1.id].setsA  += set.p1 > set.p2 ? 1 : 0
+      s[m.pareja1.id].setsC  += set.p1 < set.p2 ? 1 : 0
+      s[m.pareja2.id].setsA  += set.p2 > set.p1 ? 1 : 0
+      s[m.pareja2.id].setsC  += set.p2 < set.p1 ? 1 : 0
+      s[m.pareja1.id].gamesA += set.p1
+      s[m.pareja1.id].gamesC += set.p2
+      s[m.pareja2.id].gamesA += set.p2
+      s[m.pareja2.id].gamesC += set.p1
+    })
+  })
+
+  const sorted = [...zona.parejas].sort((a, b) => {
+    const sa = s[a.id], sb = s[b.id]
+    if (sb.pts !== sa.pts) return sb.pts - sa.pts
+    const dsA = sa.setsA - sa.setsC, dsB = sb.setsA - sb.setsC
+    if (dsB !== dsA) return dsB - dsA
+    return (sb.gamesA - sb.gamesC) - (sa.gamesA - sa.gamesC)
+  })
+
+  // ── Criterio de clasificación (vs pareja directamente arriba) ────────────
+  const getCriterio = (i) => {
+    if (i === 0 || sorted.length < 2) return null
+    const sa = s[sorted[i].id], sb = s[sorted[i - 1].id]
+    if (sa.pts !== sb.pts) return 'Pts'
+    if ((sa.setsA - sa.setsC) !== (sb.setsA - sb.setsC)) return 'Dif.S'
+    if ((sa.gamesA - sa.gamesC) !== (sb.gamesA - sb.gamesC)) return 'Dif.G'
+    return '='
+  }
+
+  const fmt    = (n) => n > 0 ? `+${n}` : `${n}`
+  const nameOf = (p) => `${p.jugador1.split(' ')[0]} / ${p.jugador2.split(' ')[0]}`
+
+  const getExplicacion = (i) => {
+    if (i === 0) return 'Primera posición de la zona.'
+    const sa = s[sorted[i].id], sb = s[sorted[i - 1].id]
+    const criterio = getCriterio(i)
+    const arriba = nameOf(sorted[i - 1])
+    if (criterio === 'Pts')
+      return `${arriba} tiene ${sb.pts} pts · esta pareja tiene ${sa.pts} pts.`
+    if (criterio === 'Dif.S') {
+      const dsA = sb.setsA - sb.setsC, dsB = sa.setsA - sa.setsC
+      return `Mismos puntos (${sa.pts} pts). ${arriba}: ${fmt(dsA)} dif. sets · esta pareja: ${fmt(dsB)}.`
+    }
+    if (criterio === 'Dif.G') {
+      const dgA = sb.gamesA - sb.gamesC, dgB = sa.gamesA - sa.gamesC
+      return `Mismos pts y dif. de sets. ${arriba}: ${fmt(dgA)} games · esta pareja: ${fmt(dgB)}.`
+    }
+    return `Igualados en todos los criterios con ${arriba}. El admin define el orden de desempate.`
+  }
+
+  const handleCritClick = (e, i) => {
+    if (openCrit?.i === i) { setOpenCrit(null); return }
+    const rect = e.currentTarget.getBoundingClientRect()
+    setOpenCrit({ i, rect })
+  }
+
+  // ── Grilla cruzada ─────────────────────────────────────────────────────────
+  const getCell = (rowId, colId) => {
+    if (rowId === colId) return 'self'
+    const m = zona.partidos.find((p) =>
+      (p.pareja1?.id === rowId && p.pareja2?.id === colId) ||
+      (p.pareja1?.id === colId && p.pareja2?.id === rowId)
+    )
+    if (!m || m.estado !== 'finalizado') return null
+    const rowIsP1 = m.pareja1?.id === rowId
+    const won     = m.ganador?.id === rowId
+    const sets    = (m.resultado ?? []).map((r) => rowIsP1 ? `${r.p1}-${r.p2}` : `${r.p2}-${r.p1}`)
+    return { won, sets }
+  }
+
+  const hayResultados = zona.partidos.some((m) => m.estado === 'finalizado')
+
+  return (
+    <div className="flex flex-col gap-3">
+
+      {/* ── Popover criterio ─────────────────────────────────────────────────── */}
+      {openCrit !== null && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpenCrit(null)} />
+          <div
+            className="fixed z-50 w-56 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 shadow-xl"
+            style={{
+              top: (openCrit.rect.top ?? 0) - 10,
+              transform: 'translateY(-100%)',
+              left: Math.max(8, (openCrit.rect.right ?? 0) - 224),
+            }}
+          >
+            <p className="text-[11px] text-slate-600 leading-relaxed">{getExplicacion(openCrit.i)}</p>
+            <div className="absolute top-full" style={{ right: Math.min(224 - 16, (window.innerWidth - (openCrit.rect.right ?? 0)) + (openCrit.rect.width ?? 0) / 2 - 4) }}>
+              <div className="border-4 border-transparent border-t-slate-200" />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Tabla de posiciones ──────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-slate-100 overflow-hidden">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100">
+              <th className="px-3 py-2 text-left text-slate-400 font-semibold w-10">Pos.</th>
+              <th className="px-3 py-2 text-left text-slate-400 font-semibold">Pareja</th>
+              <th className="px-3 py-2 text-center text-brand-500 font-bold w-10" title="Puntos">Pts</th>
+              <th className="px-3 py-2 text-center text-slate-400 font-semibold w-10">PG</th>
+              <th className="px-3 py-2 text-center text-slate-400 font-semibold w-10">PP</th>
+              <th className="px-3 py-2 text-center text-slate-400 font-semibold w-13" title="Diferencia de sets">Dif.S</th>
+              <th className="px-3 py-2 text-center text-slate-400 font-semibold w-13" title="Diferencia de games">Dif.G</th>
+              <th className="px-3 py-2 text-center text-slate-400 font-semibold w-14" title="Criterio de clasificación">Crit.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((pareja, i) => {
+              const st        = s[pareja.id]
+              const esC1      = zona.clasificados?.[0]?.id === pareja.id
+              const esC2      = zona.clasificados?.[1]?.id === pareja.id
+              const eliminado = zona.clasificados && !esC1 && !esC2
+              const difSets   = st.setsA - st.setsC
+              const difGames  = st.gamesA - st.gamesC
+              const criterio  = getCriterio(i)
+              const critCls   = criterio === 'Pts'   ? 'text-brand-600 bg-brand-50 border-brand-200'
+                              : criterio === 'Dif.S' ? 'text-sky-600 bg-sky-50 border-sky-200'
+                              : criterio === 'Dif.G' ? 'text-violet-600 bg-violet-50 border-violet-200'
+                              : criterio === '='     ? 'text-amber-600 bg-amber-50 border-amber-200'
+                              : ''
+              return (
+                <tr key={pareja.id} className={`border-b border-slate-50 last:border-0 ${esC1 ? 'bg-amber-50/60' : esC2 ? 'bg-slate-50/60' : ''}`}>
+                  <td className="px-3 py-2 font-bold text-slate-300">{i + 1}°</td>
+                  <td className="px-3 py-2 max-w-0">
+                    <div className="flex items-center gap-1.5">
+                      {(esC1 || esC2) && zona.clasificados && (
+                        <span className={`w-1 h-3.5 rounded-full shrink-0 ${esC1 ? 'bg-amber-400' : 'bg-slate-300'}`} />
+                      )}
+                      <span className={`font-medium truncate ${eliminado ? 'text-slate-300 line-through' : 'text-slate-700'}`}>
+                        {pareja.jugador1} / {pareja.jugador2}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center font-bold text-brand-600">{st.pts}</td>
+                  <td className="px-3 py-2 text-center font-semibold text-emerald-600">{st.wins}</td>
+                  <td className="px-3 py-2 text-center text-slate-400">{st.losses}</td>
+                  <td className={`px-3 py-2 text-center font-semibold tabular-nums ${
+                    difSets  > 0 ? 'text-emerald-600' : difSets  < 0 ? 'text-red-400' : 'text-slate-300'
+                  }`}>{difSets  > 0 ? `+${difSets}`  : difSets}</td>
+                  <td className={`px-3 py-2 text-center font-semibold tabular-nums ${
+                    difGames > 0 ? 'text-sky-500'    : difGames < 0 ? 'text-red-400' : 'text-slate-300'
+                  }`}>{difGames > 0 ? `+${difGames}` : difGames}</td>
+                  <td className="px-3 py-2 text-center">
+                    <button
+                      onClick={(e) => handleCritClick(e, i)}
+                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border transition-opacity hover:opacity-70 ${
+                        criterio ? critCls : 'text-slate-200 border-transparent bg-transparent cursor-default'
+                      }`}
+                    >
+                      {criterio ?? '—'}
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Grilla de enfrentamientos ─────────────────────────────────────────── */}
+      {hayResultados && (
+        <div className="rounded-xl border border-slate-100 overflow-hidden">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50">
+            <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">Enfrentamientos</span>
+          </div>
+          <table className="w-full text-[10px]">
+            <thead>
+              <tr className="bg-slate-50/60 border-b border-slate-100">
+                <th className="px-3 py-1.5 text-left text-slate-400 font-semibold" style={{ width: '38%' }}>Pareja</th>
+                {sorted.map((p, i) => (
+                  <th key={p.id} className="py-1.5 text-center text-slate-400 font-bold">P{i + 1}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((rowPar, rowIdx) => (
+                <tr key={rowPar.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500 shrink-0">
+                        {rowIdx + 1}
+                      </span>
+                      <span className="truncate font-medium text-slate-600">
+                        {rowPar.jugador1.split(' ')[0]}
+                      </span>
+                    </div>
+                  </td>
+                  {sorted.map((colPar) => {
+                    const cell = getCell(rowPar.id, colPar.id)
+                    if (cell === 'self') return (
+                      <td key={colPar.id} className="py-2 text-center">
+                        <span className="text-slate-200 font-bold">×</span>
+                      </td>
+                    )
+                    if (!cell) return (
+                      <td key={colPar.id} className="py-2 text-center">
+                        <span className="text-slate-300 text-[12px]">·</span>
+                      </td>
+                    )
+                    return (
+                      <td key={colPar.id} className="py-1.5 text-center">
+                        {cell.sets.length > 0 ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            {cell.sets.map((set, si) => (
+                              <span key={si} className={`font-mono font-semibold leading-none text-[9px] ${
+                                cell.won ? 'text-emerald-600' : 'text-red-400'
+                              }`}>{set}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className={`font-bold text-[11px] ${cell.won ? 'text-emerald-600' : 'text-red-400'}`}>
+                            {cell.won ? 'G' : 'P'}
+                          </span>
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
 }
 
 const ZonaCardCompact = ({ zona, onClick }) => {
@@ -437,7 +938,7 @@ const ZonaCardCompact = ({ zona, onClick }) => {
   )
 }
 
-const ZonaDetailModal = ({ zona, zonaIdx, onClose, onResultado, onResolveTie, canchaName }) => (
+const ZonaDetailModal = ({ zona, zonaIdx, onClose, onResultado, onResolveTie, canchaName, puntosPorVictoria = 2 }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
     <div className="relative bg-slate-50 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
@@ -447,13 +948,13 @@ const ZonaDetailModal = ({ zona, zonaIdx, onClose, onResultado, onResolveTie, ca
         </button>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
-        <ZonaTable zona={zona} zonaIdx={zonaIdx} onResultado={onResultado} onResolveTie={onResolveTie} canchaName={canchaName} />
+        <ZonaTable zona={zona} zonaIdx={zonaIdx} onResultado={onResultado} onResolveTie={onResolveTie} canchaName={canchaName} puntosPorVictoria={puntosPorVictoria} />
       </div>
     </div>
   </div>
 )
 
-const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName }) => {
+const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName, puntosPorVictoria = 2 }) => {
   const [expandedId, setExpandedId] = useState(null)
 
   const eqNum = (pareja) => {
@@ -646,38 +1147,10 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName }) => 
         </div>
       </div>
 
-      {/* Equipos */}
+      {/* Posiciones */}
       <div className="px-5 pt-4 pb-3 border-b border-slate-100">
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Equipos</p>
-        <div className="flex flex-col gap-1">
-          {zona.parejas.map((pareja, idx) => {
-            const esC1      = zona.clasificados?.[0]?.id === pareja.id
-            const esC2      = zona.clasificados?.[1]?.id === pareja.id
-            const eliminado = zona.clasificados && !esC1 && !esC2
-            const w         = zona.capacidad === 3 ? (wins[pareja.id] ?? 0) : null
-            return (
-              <div key={pareja.id} className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl transition-colors ${
-                esC1 ? 'bg-amber-50' : esC2 ? 'bg-slate-50' : ''
-              }`}>
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                  esC1 ? 'bg-amber-400 text-white' : esC2 ? 'bg-slate-400 text-white' : 'bg-slate-100 text-slate-500'
-                }`}>{idx + 1}</span>
-                <span className={`text-sm font-medium flex-1 ${eliminado ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
-                  {pareja.jugador1} / {pareja.jugador2}
-                </span>
-                {w !== null && (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                    esC1 ? 'text-amber-600 bg-amber-100' :
-                    esC2 ? 'text-slate-500 bg-slate-100' :
-                    'text-slate-400 bg-slate-50'
-                  }`}>{w}V</span>
-                )}
-                {esC1 && <span className="text-[10px] font-black text-amber-500 shrink-0">1°</span>}
-                {esC2 && <span className="text-[10px] font-black text-slate-400 shrink-0">2°</span>}
-              </div>
-            )
-          })}
-        </div>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Posiciones</p>
+        <StandingsZonaAdmin zona={zona} puntosPorVictoria={puntosPorVictoria} />
       </div>
 
       {/* Tabla de partidos */}
@@ -761,7 +1234,7 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
                 <Pencil size={15} />
               </button>
             )}
-            {estadoTorneo !== 'finished' && (
+            {(estadoTorneo === 'open' || estadoTorneo === 'closed') && (
               <button onClick={() => setConfirmando(true)} className="w-8 h-8 flex items-center justify-center text-red-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
                 <Trash2 size={15} />
               </button>
@@ -784,7 +1257,7 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
               <Pencil size={11} />
             </button>
           )}
-          {estadoTorneo !== 'finished' && !confirmando && (
+          {(estadoTorneo === 'open' || estadoTorneo === 'closed') && !confirmando && (
             <button onClick={() => setConfirmando(true)} className="text-red-300 hover:text-red-500 p-0.5 rounded transition-colors">
               <Trash2 size={11} />
             </button>
@@ -906,7 +1379,7 @@ const EsperaCard = ({ ins, estadoTorneo, cupoLleno, onPromover, onBaja }) => {
               )}
             </div>
           )}
-          {estadoTorneo !== 'finished' && !confirmando && (
+          {(estadoTorneo === 'open' || estadoTorneo === 'closed') && !confirmando && (
             <button onClick={() => setConfirmando(true)} className="text-red-300 hover:text-red-500 p-0.5 rounded transition-colors">
               <Trash2 size={11} />
             </button>
@@ -1625,7 +2098,7 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
                 </div>
               ) : (
                 <>
-                  <div className="flex gap-1 relative">
+                  <div className="flex gap-1 relative min-w-0">
                     <input
                       type="text"
                       placeholder="Nombre y apellido"
@@ -1636,7 +2109,7 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
                         setNameErrors((p) => ({ ...p, j1: /[0-9]/.test(raw) ? 'Solo letras permitidas' : '' }))
                         setSugerenciasJ1([])
                       }}
-                      className={`flex-1 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameErrors.j1 ? 'border-red-400' : 'border-slate-200'}`}
+                      className={`flex-1 min-w-0 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameErrors.j1 ? 'border-red-400' : 'border-slate-200'}`}
                     />
                     {buscandoNombreJ1 && <div className="absolute right-10 top-2.5 w-3 h-3 border-2 border-slate-200 border-t-brand-400 rounded-full animate-spin" />}
                     <button type="button" onClick={() => setModalBusquedaPara('j1')}
@@ -1690,7 +2163,7 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
                 </div>
               ) : (
                 <>
-                  <div className="flex gap-1 relative">
+                  <div className="flex gap-1 relative min-w-0">
                     <input
                       type="text"
                       placeholder="Nombre y apellido"
@@ -1701,7 +2174,7 @@ const ModalAgregarParejaAdmin = ({ torneo, onClose, onConfirmar, token, horasDis
                         setNameErrors((p) => ({ ...p, j2: /[0-9]/.test(raw) ? 'Solo letras permitidas' : '' }))
                         setSugerenciasJ2([])
                       }}
-                      className={`flex-1 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameErrors.j2 ? 'border-red-400' : 'border-slate-200'}`}
+                      className={`flex-1 min-w-0 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${nameErrors.j2 ? 'border-red-400' : 'border-slate-200'}`}
                     />
                     {buscandoNombreJ2 && <div className="absolute right-10 top-2.5 w-3 h-3 border-2 border-slate-200 border-t-brand-400 rounded-full animate-spin" />}
                     <button type="button" onClick={() => setModalBusquedaPara('j2')}
@@ -2130,9 +2603,17 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar, toke
 
   const LOOKUP_INIT = { estado: 'idle', jugador: null }
   const ALTA_INIT   = { activa: false, nombre: '', apellido: '', errores: {}, guardando: false }
-  const [lookupJ1, setLookupJ1] = useState(LOOKUP_INIT)
+  const [lookupJ1, setLookupJ1] = useState(
+    inscripto.jugador1Dni?.length >= 7 && inscripto.jugador1
+      ? { estado: 'encontrado', jugador: null }
+      : LOOKUP_INIT
+  )
   const [altaJ1,   setAltaJ1]  = useState(ALTA_INIT)
-  const [lookupJ2, setLookupJ2] = useState(LOOKUP_INIT)
+  const [lookupJ2, setLookupJ2] = useState(
+    !inscripto.sinCompanero && inscripto.jugador2Dni?.length >= 7 && inscripto.jugador2
+      ? { estado: 'encontrado', jugador: null }
+      : LOOKUP_INIT
+  )
   const [altaJ2,   setAltaJ2]  = useState(ALTA_INIT)
   const [modalBusquedaPara, setModalBusquedaPara] = useState(null) // null | 'j1' | 'j2'
   const authH = token ? { Authorization: `Bearer ${token}` } : {}
@@ -2259,7 +2740,7 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar, toke
 
           {/* Jugador 1 */}
           <div className="grid grid-cols-2 gap-2">
-            <div>
+            <div className="min-w-0">
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 1</label>
               {lookupJ1.estado === 'encontrado' ? (
                 <div className="flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 rounded-xl px-2.5 py-2 min-h-[42px]">
@@ -2273,11 +2754,11 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar, toke
                 </div>
               ) : (
                 <>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 min-w-0">
                     <input type="text" value={jugador1}
                       onChange={(e) => { setJugador1(e.target.value.replace(/[0-9]/g, '')); setNameErrorJ1('') }}
                       placeholder="Nombre y apellido"
-                      className={`flex-1 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 min-h-[42px] ${nameErrorJ1 ? 'border-red-400' : 'border-slate-200'}`}
+                      className={`flex-1 min-w-0 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 min-h-[42px] ${nameErrorJ1 ? 'border-red-400' : 'border-slate-200'}`}
                     />
                     <button type="button" onClick={() => setModalBusquedaPara('j1')}
                       className="shrink-0 px-2 border border-slate-200 rounded-xl text-slate-400 hover:text-brand-600 hover:border-brand-300 hover:bg-brand-50 transition-all">
@@ -2384,7 +2865,7 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar, toke
             <>
               <div className="grid grid-cols-2 gap-2">
                 {/* Nombre J2 */}
-                <div>
+                <div className="min-w-0">
                   <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Jugador 2</label>
                   {lookupJ2.estado === 'encontrado' ? (
                     <div className="flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 rounded-xl px-2.5 py-2 min-h-[42px]">
@@ -2400,11 +2881,11 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar, toke
                     </div>
                   ) : (
                     <>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 min-w-0">
                         <input type="text" value={jugador2}
                           onChange={(e) => { setJugador2(e.target.value.replace(/[0-9]/g, '')); setNameError('') }}
                           placeholder="Nombre y apellido"
-                          className={`flex-1 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 min-h-[42px] ${nameError ? 'border-red-400' : 'border-slate-200'}`}
+                          className={`flex-1 min-w-0 border rounded-xl px-2.5 py-2 text-xs text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 min-h-[42px] ${nameError ? 'border-red-400' : 'border-slate-200'}`}
                         />
                         <button type="button" onClick={() => setModalBusquedaPara('j2')}
                           className="shrink-0 px-2 border border-slate-200 rounded-xl text-slate-400 hover:text-brand-600 hover:border-brand-300 hover:bg-brand-50 transition-all">
@@ -2758,6 +3239,107 @@ const ModalHorario = ({ partido, canchasActivas, onClose, onGuardar }) => {
   )
 }
 
+// ── Modal confirmar cierre de inscripciones ───────────────────────────────────
+
+const ModalCerrarInscripcion = ({ torneo, onConfirmar, onCancelar }) => {
+  const inscriptos  = torneo.inscriptos.filter((i) => i.estado === 'inscripto')
+  const enEspera    = torneo.inscriptos.filter((i) => i.estado === 'espera')
+  const sinHorarios = inscriptos.filter((i) => !i.disponibilidad || i.disponibilidad.length === 0)
+  const sinCompanero = inscriptos.filter((i) => i.sinCompanero)
+  const hayAlertas  = sinHorarios.length > 0 || sinCompanero.length > 0
+  const bloqueado   = inscriptos.length < 2
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancelar}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+          <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+            <Lock size={16} className="text-amber-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-800 text-sm">Cerrar inscripciones</h3>
+            <p className="text-slate-400 text-xs mt-0.5">{torneo.nombre}</p>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 flex flex-col gap-3">
+
+          {/* Info neutral */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <CheckCircle size={13} className="text-emerald-500 shrink-0" />
+              <span><strong>{inscriptos.length}</strong> pareja{inscriptos.length !== 1 ? 's' : ''} titular{inscriptos.length !== 1 ? 'es' : ''} confirmada{inscriptos.length !== 1 ? 's' : ''}</span>
+            </div>
+            {enEspera.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <Users size={13} className="text-slate-400 shrink-0" />
+                <span><strong>{enEspera.length}</strong> en espera pasará{enEspera.length !== 1 ? 'n' : ''} a suplente</span>
+              </div>
+            )}
+          </div>
+
+          {/* Advertencias */}
+          {hayAlertas && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3 flex flex-col gap-2">
+              <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
+                <AlertTriangle size={12} /> Advertencias
+              </p>
+              {sinHorarios.length > 0 && (
+                <p className="text-xs text-amber-700">
+                  · <strong>{sinHorarios.length}</strong> pareja{sinHorarios.length !== 1 ? 's' : ''} sin disponibilidad horaria — no podrán asignarse automáticamente en grupos
+                </p>
+              )}
+              {sinCompanero.length > 0 && (
+                <p className="text-xs text-amber-700">
+                  · <strong>{sinCompanero.length}</strong> pareja{sinCompanero.length !== 1 ? 's' : ''} sin compañero/a confirmado
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Bloqueo */}
+          {bloqueado && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-3">
+              <p className="text-xs font-semibold text-red-600 flex items-center gap-1.5">
+                <AlertTriangle size={12} /> No se puede cerrar
+              </p>
+              <p className="text-xs text-red-600 mt-1">Se necesitan al menos 2 parejas inscriptas para generar grupos.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3.5 border-t border-slate-100 flex items-center justify-end gap-2">
+          <button
+            onClick={onCancelar}
+            className="text-xs font-medium text-slate-500 hover:text-slate-700 px-3.5 py-2 rounded-xl hover:bg-slate-100 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={bloqueado ? undefined : onConfirmar}
+            disabled={bloqueado}
+            className={`text-xs font-semibold px-4 py-2 rounded-xl border transition-all flex items-center gap-1.5 ${
+              bloqueado
+                ? 'text-slate-400 bg-slate-100 border-slate-200 cursor-not-allowed'
+                : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
+            }`}
+          >
+            <Lock size={12} />
+            {bloqueado ? 'Sin parejas suficientes' : hayAlertas ? 'Cerrar de todas formas' : 'Confirmar cierre'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Página ────────────────────────────────────────────────────────────────────
 
 const TorneoDetallePage = () => {
@@ -2799,13 +3381,27 @@ const TorneoDetallePage = () => {
   const [modalHorario,   setModalHorario]         = useState(null)
   const [bracketFullscreen, setBracketFullscreen] = useState(false)
   const [bracketPublicar,   setBracketPublicar]   = useState(false)
+  const [visualTab, setVisualTab]                 = useState('flyer')
   const [vistaParalela,     setVistaParalela]     = useState(false)
+  const [intervaloPartidoMin, setIntervaloPartidoMin] = useState(75)
+  const [autoScheduleState, setAutoScheduleState] = useState(null) // null | {status:'procesando'} | {status:'done',asignados,sinHorario}
+  const [modalAsignarManual, setModalAsignarManual] = useState(null) // null | { matchId, zonaIdx, partido }
   const [toast, setToast] = useState(null)
+  const [toastEstado, setToastEstado] = useState(null)
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
   const [confirmModal, setConfirmModal] = useState(null) // { titulo, mensaje, onConfirmar }
+  const [modalCerrarInsc, setModalCerrarInsc] = useState(false)
   const [persona, setPersona] = useState(() => {
     const t = torneos.find((x) => String(x.id) === id)
     return {
+      modoLandingFlyer:     t?.modoLandingFlyer     ?? 'auto',
+      premioPrimero:        t?.premioPrimero        ?? '',
+      imagenFondoEnCurso:   t?.imagenFondoEnCurso   ?? '',
+      ctaEnCurso:           t?.ctaEnCurso           ?? '',
+      templateEnCurso:      t?.templateEnCurso      ?? 1,
+      premioSegundo:        t?.premioSegundo        ?? '',
+      premioSemifinal:      t?.premioSemifinal      ?? '',
+      imagenFondo:          t?.imagenFondo          ?? '',
       colorAcento:          t?.colorAcento          ?? '',
       estiloCardFixture:    t?.estiloCardFixture    ?? 'oscura',
       colorCardFixture:     t?.colorCardFixture     ?? '',
@@ -2926,6 +3522,7 @@ const TorneoDetallePage = () => {
             })),
             grupos: t.grupos ?? null, brackets: t.brackets ?? {},
             ganador: t.ganador, subcampeon: t.subcampeon,
+            puntosPorVictoria: t.puntosPorVictoria ?? 2,
           })))
         }
       })
@@ -2947,10 +3544,28 @@ const TorneoDetallePage = () => {
     ['closed', 'in_progress'].includes(torneo.estado) &&
     !esFormatoGrupos
 
+  const ejecutarCambioEstado = (nuevoEstado) => {
+    setEstado(torneo.id, nuevoEstado)
+    if (nuevoEstado === 'closed') {
+      torneo.inscriptos
+        .filter((i) => i.estado === 'espera')
+        .forEach((i) => updatePareja(torneo.id, i.id, { estado: 'suplente' }))
+    } else if (nuevoEstado === 'open') {
+      torneo.inscriptos
+        .filter((i) => i.estado === 'suplente')
+        .forEach((i) => updatePareja(torneo.id, i.id, { estado: 'espera' }))
+    }
+    syncEstado(nuevoEstado)
+    setToastEstado(nuevoEstado)
+  }
+
   const handleToggleEstado = () => {
     const nuevoEstado = toggleEstado(torneo.estado)
-    setEstado(torneo.id, nuevoEstado)
-    syncEstado(nuevoEstado)
+    if (nuevoEstado === 'closed') {
+      setModalCerrarInsc(true)
+    } else {
+      ejecutarCambioEstado(nuevoEstado)
+    }
   }
 
   const handleGenerarFixture = () => {
@@ -3081,9 +3696,10 @@ const TorneoDetallePage = () => {
   // ── Handlers grupos ──────────────────────────────────────────────────────────
 
   const handleGenerarGrupos = () => {
-    const categorias = [...new Set(torneo.inscriptos.map((p) => p.categoria).filter(Boolean))]
-    const conUnaSola = categorias.filter((c) => torneo.inscriptos.filter((p) => p.categoria === c).length === 1)
-    const conExceso  = categorias.filter((c) => torneo.inscriptos.filter((p) => p.categoria === c).length > MAX_PAREJAS_POR_CATEGORIA)
+    const parejasTitulares = torneo.inscriptos.filter((p) => p.estado === 'inscripto')
+    const categorias = [...new Set(parejasTitulares.map((p) => p.categoria).filter(Boolean))]
+    const conUnaSola = categorias.filter((c) => parejasTitulares.filter((p) => p.categoria === c).length === 1)
+    const conExceso  = categorias.filter((c) => parejasTitulares.filter((p) => p.categoria === c).length > MAX_PAREJAS_POR_CATEGORIA)
 
     if (conExceso.length > 0) {
       showToast(`Cupo excedido en: ${conExceso.join(', ')}. Máx. 32 parejas por categoría.`)
@@ -3092,7 +3708,8 @@ const TorneoDetallePage = () => {
 
     const ejecutar = () => {
       try {
-        const grupos = generateGroupPhase(torneo.inscriptos)
+        const shuffled = [...parejasTitulares].sort(() => Math.random() - 0.5)
+        const grupos = generateGroupPhase(shuffled)
         setGrupos(torneo.id, grupos)
         syncGrupos(grupos)
         setTab('grupos')
@@ -3141,29 +3758,79 @@ const TorneoDetallePage = () => {
       setSwapSource(null)
       return
     }
-    // Swap: extraer orden plano, intercambiar, regenerar
-    const allParejas = torneo.grupos.flatMap((z) => z.parejas)
-    const idA = torneo.grupos[swapSource.zonaIdx].parejas[swapSource.parejaIdx].id
-    const idB = torneo.grupos[zonaIdx].parejas[parejaIdx].id
-    const iA  = allParejas.findIndex((p) => p.id === idA)
-    const iB  = allParejas.findIndex((p) => p.id === idB)
-    ;[allParejas[iA], allParejas[iB]] = [allParejas[iB], allParejas[iA]]
-    const newGrupos = generateGroupPhase(allParejas)
+    // Swap: intercambiar solo las dos parejas, preservar slots de otras zonas
+    const newGrupos = swapParejas(torneo.grupos, swapSource.zonaIdx, swapSource.parejaIdx, zonaIdx, parejaIdx)
     updateGrupos(torneo.id, newGrupos)
     syncGrupos(newGrupos)
     setSwapSource(null)
   }
 
   const handleAutoSchedule = () => {
-    const canchasParaTorneo = torneo.canchasAsignadas?.length
-      ? canchas.filter((c) => torneo.canchasAsignadas.includes(c.id))
-      : canchas.filter((c) => c.activa)
-    const newGrupos = autoScheduleGroups(torneo.grupos, canchasParaTorneo)
+    setAutoScheduleState({ status: 'procesando' })
+    setTimeout(() => {
+      const canchasParaTorneo = torneo.canchasAsignadas?.length
+        ? canchas.filter((c) => torneo.canchasAsignadas.includes(c.id))
+        : canchas.filter((c) => c.activa)
+      const parejasTitulares = torneo.inscriptos.filter((p) => p.estado === 'inscripto')
+      const diaElim  = torneo.diaInicioEliminatoria  ?? null
+      const horaElim = torneo.horaInicioEliminatoria ?? null
+      // Días del torneo válidos para fase de grupos (para disponibilidad implícita)
+      const diasTorneo = getDiasEnRango(torneo.fechaInicio, torneo.fechaFin)
+        .filter((d) => esSlotDeGrupos(d, '00:00', diaElim, horaElim))
+
+      // Intento 1: respetar los grupos actuales (preserva ajustes manuales)
+      let mejorGrupos     = autoScheduleGroups(torneo.grupos, canchasParaTorneo, intervaloPartidoMin, diaElim, horaElim, diasTorneo)
+      let mejorSinHorario = mejorGrupos.flatMap((z) => z.partidos).filter((p) => p.sinHorario).length
+
+      // Si quedaron sin horario, buscar mejor combinación probando reagrupaciones aleatorias
+      if (mejorSinHorario > 0) {
+        const MAX_INTENTOS = 25
+        for (let i = 0; i < MAX_INTENTOS && mejorSinHorario > 0; i++) {
+          const shuffled   = [...parejasTitulares].sort(() => Math.random() - 0.5)
+          const grupos     = generateGroupPhase(shuffled)
+          const candidato  = autoScheduleGroups(grupos, canchasParaTorneo, intervaloPartidoMin, diaElim, horaElim, diasTorneo)
+          const sinHorario = candidato.flatMap((z) => z.partidos).filter((p) => p.sinHorario).length
+          if (sinHorario < mejorSinHorario) {
+            mejorGrupos     = candidato
+            mejorSinHorario = sinHorario
+          }
+        }
+      }
+
+      const todosPartidos = mejorGrupos.flatMap((z) => z.partidos)
+      const asignados     = todosPartidos.filter((p) => p.slot).length
+      updateGrupos(torneo.id, mejorGrupos)
+      syncGrupos(mejorGrupos)
+      setAutoScheduleState({ status: 'done', asignados, sinHorario: mejorSinHorario })
+      setTimeout(() => setAutoScheduleState(null), 4000)
+    }, 700)
+  }
+
+  const handleAbrirAsignarManual = (zonaIdx, matchId) => {
+    const partido = torneo.grupos?.[zonaIdx]?.partidos?.find((p) => p.id === matchId)
+    if (!partido) return
+    setModalAsignarManual({ matchId, zonaIdx, partido })
+  }
+
+  const handleConfirmarAsignacionManual = (dia, hora, canchaId) => {
+    if (!modalAsignarManual) return
+    const newGrupos = JSON.parse(JSON.stringify(torneo.grupos))
+    const partido   = newGrupos[modalAsignarManual.zonaIdx]?.partidos?.find((p) => p.id === modalAsignarManual.matchId)
+    if (partido) {
+      partido.slot       = { dia, hora }
+      partido.cancha     = canchaId
+      partido.sinHorario = false
+    }
     updateGrupos(torneo.id, newGrupos)
     syncGrupos(newGrupos)
+    setModalAsignarManual(null)
   }
 
   const handleConfirmarGrupos = () => {
+    const sinHorario = torneo.grupos?.flatMap((z) => z.partidos).filter((p) => p.sinHorario).length ?? 0
+    if (sinHorario > 0) {
+      if (!window.confirm(`Hay ${sinHorario} partido${sinHorario !== 1 ? 's' : ''} sin horario asignado. ¿Confirmás igual?`)) return
+    }
     setEstado(torneo.id, 'in_progress')
     syncEstado('in_progress')
     setSwapSource(null)
@@ -3186,6 +3853,8 @@ const TorneoDetallePage = () => {
 
   const handleResolveTie = (zonaIdx, primero, segundo) => {
     resolveGroupTie(torneo.id, zonaIdx, primero, segundo)
+    const grupos = useTorneosStore.getState().torneos.find((t) => t.id === torneo.id)?.grupos
+    if (grupos) syncGrupos(grupos)
   }
 
   const handleGenerarFaseEliminatoria = () => {
@@ -3215,10 +3884,12 @@ const TorneoDetallePage = () => {
   }
 
   const gruposConfirmados = torneo.grupos !== null && torneo.estado === 'in_progress'
-  const gruposPendientes  = torneo.grupos !== null && torneo.estado !== 'in_progress'
+  const gruposPendientes  = torneo.grupos !== null && torneo.estado === 'closed'
+  const inscriptosActivos = torneo.inscriptos.filter((i) => i.estado === 'inscripto')
+
   const puedeGenerarGrupos =
     torneo.grupos === null &&
-    torneo.inscriptos.length >= 2 &&
+    inscriptosActivos.length >= 2 &&
     ['closed', 'in_progress'].includes(torneo.estado)
 
   const renderCatTabs = () => !multiCat ? null : (
@@ -3332,9 +4003,8 @@ const TorneoDetallePage = () => {
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
         <div className="flex border-b border-slate-100 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
           {[
-            { key: 'inscriptos', label: 'Parejas inscriptas', icon: Users,     count: torneo.inscriptos.length },
+            { key: 'inscriptos', label: 'Parejas inscriptas', icon: Users,     count: torneo.inscriptos.filter((i) => i.estado === 'inscripto').length },
             ...(esFormatoGrupos ? [{ key: 'grupos',   label: 'Grupos',          icon: GitMerge, count: torneo.grupos ? torneo.grupos.length : null }] : []),
-            ...(esFormatoGrupos && torneo.grupos && torneo.estado === 'in_progress' ? [{ key: 'horarios', label: 'Horarios', icon: Clock, count: null }] : []),
             { key: 'fixture',    label: 'Fixture / Bracket',  icon: Zap,       count: activeBracket ? activeBracket.rondas.length : null },
             ...(torneo.estado !== 'finished' ? [{ key: 'visual', label: 'Personalización', icon: Palette, count: null }] : []),
           ].map(({ key, label, icon: Icon, count }) => (
@@ -3382,10 +4052,11 @@ const TorneoDetallePage = () => {
               const lista = multiCat
                 ? torneo.inscriptos.filter((i) => i.categoria === catTab)
                 : torneo.inscriptos
-              const confirmados = lista.filter((i) => i.estado !== 'espera')
+              const confirmados = lista.filter((i) => i.estado === 'inscripto')
               const enEspera    = lista.filter((i) => i.estado === 'espera')
+              const suplentes   = lista.filter((i) => i.estado === 'suplente')
 
-              return confirmados.length === 0 && enEspera.length === 0 ? (
+              return confirmados.length === 0 && enEspera.length === 0 && suplentes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
                   <Users size={40} strokeWidth={1.2} />
                   <p className="text-sm">Todavía no hay parejas inscriptas{multiCat ? ` en ${catLabel(torneo, catTab)}` : ''}</p>
@@ -3435,6 +4106,30 @@ const TorneoDetallePage = () => {
                       </div>
                     </div>
                   )}
+                  {suplentes.length > 0 && (
+                    <div className="mt-5 flex flex-col gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-px bg-slate-100" />
+                        <span className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                          <Users size={11} />
+                          Suplentes ({suplentes.length})
+                        </span>
+                        <div className="flex-1 h-px bg-slate-100" />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-2">
+                        {suplentes.map((ins) => (
+                          <EsperaCard
+                            key={ins.id}
+                            ins={ins}
+                            estadoTorneo={torneo.estado}
+                            cupoLleno={false}
+                            onPromover={() => handlePromoverEspera(ins)}
+                            onBaja={() => handleBajaInscripto(ins.id, ins)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )
             })()}
@@ -3452,7 +4147,7 @@ const TorneoDetallePage = () => {
                 {puedeGenerarGrupos ? (
                   <>
                     <p className="text-sm text-center">
-                      {torneo.inscriptos.length} parejas inscriptas.<br />
+                      {inscriptosActivos.length} parejas inscriptas.<br />
                       El sistema calcula las zonas automáticamente.
                     </p>
                     <button
@@ -3462,7 +4157,7 @@ const TorneoDetallePage = () => {
                       <GitMerge size={15} /> Generar grupos
                     </button>
                   </>
-                ) : torneo.inscriptos.length < 2 ? (
+                ) : inscriptosActivos.length < 2 ? (
                   <p className="text-sm text-center">Necesitás al menos 2 parejas para generar grupos.</p>
                 ) : (
                   <p className="text-sm text-center">Cerrá la inscripción para poder generar los grupos.</p>
@@ -3473,7 +4168,7 @@ const TorneoDetallePage = () => {
             {/* Grupos generados — modo setup (intercambio antes de confirmar) */}
             {gruposPendientes && (
               <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <p className="text-slate-700 text-sm font-semibold">Revisá y ajustá las zonas</p>
                     <p className="text-slate-400 text-xs mt-0.5">
@@ -3481,12 +4176,39 @@ const TorneoDetallePage = () => {
                       {multiCat && ' Solo podés intercambiar dentro de la misma categoría.'}
                     </p>
                   </div>
-                  <button
-                    onClick={handleConfirmarGrupos}
-                    className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all shrink-0 shadow-sm shadow-brand-500/20"
-                  >
-                    <CheckCheck size={15} /> Confirmar grupos
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs text-slate-500 whitespace-nowrap">Duración est.</label>
+                      <select
+                        value={intervaloPartidoMin}
+                        onChange={(e) => setIntervaloPartidoMin(Number(e.target.value))}
+                        className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400"
+                      >
+                        <option value={60}>60 min</option>
+                        <option value={75}>75 min (1:15)</option>
+                        <option value={90}>90 min (1:30)</option>
+                      </select>
+                    </div>
+                    <button
+                      onClick={handleAutoSchedule}
+                      className="flex items-center gap-2 border border-brand-300 text-brand-600 hover:bg-brand-50 text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+                    >
+                      <Zap size={14} /> Auto-asignar
+                    </button>
+                    <button
+                      onClick={handleGenerarGrupos}
+                      className="flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+                      title="Re-sortear grupos si hay incompatibilidades de disponibilidad"
+                    >
+                      <Shuffle size={14} /> Regenerar
+                    </button>
+                    <button
+                      onClick={handleConfirmarGrupos}
+                      className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all shadow-sm shadow-brand-500/20"
+                    >
+                      <CheckCheck size={15} /> Confirmar grupos
+                    </button>
+                  </div>
                 </div>
 
                 {swapSource && (
@@ -3504,7 +4226,7 @@ const TorneoDetallePage = () => {
                     .map((z, i) => ({ z, i }))
                     .filter(({ z }) => !multiCat || z.categoria === catTab)
                     .map(({ z, i }) => (
-                      <ZonaSetupCard key={z.nombre + (z.categoria ?? '')} zona={z} zonaIdx={i} swapSource={swapSource} onSelectPair={handleSelectPair} />
+                      <ZonaSetupCard key={z.nombre + (z.categoria ?? '')} zona={z} zonaIdx={i} swapSource={swapSource} onSelectPair={handleSelectPair} canchaName={canchaName} onAsignarManual={handleAbrirAsignarManual} />
                     ))}
                 </div>
               </div>
@@ -3548,6 +4270,7 @@ const TorneoDetallePage = () => {
                     zonaIdx={zonaDetalleIdx}
                     onClose={() => setZonaDetalleIdx(null)}
                     onResultado={handleResultadoGrupo}
+                    puntosPorVictoria={torneo.puntosPorVictoria ?? 2}
                     onResolveTie={handleResolveTie}
                     canchaName={canchaName}
                   />
@@ -3938,298 +4661,428 @@ const TorneoDetallePage = () => {
 
         {/* ── Tab Personalización visual ── */}
         {tab === 'visual' && (
-          <div className="p-6 flex flex-col gap-8">
+          <div className="flex flex-col">
 
-            {/* Color de acento — global */}
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-2">Color de acento <span className="text-slate-400 font-normal">(global)</span></label>
-              <div className="flex items-center gap-2 max-w-xs">
-                <input type="color" value={persona.colorAcento || club?.colorPrimario || '#10b981'} onChange={(e) => setP('colorAcento', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                <input type="text"  value={persona.colorAcento}              onChange={(e) => setP('colorAcento', e.target.value)} placeholder="vacío = color del club" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
-              </div>
-              <p className="text-slate-400 text-xs mt-1">Se aplica en las tres tabs del torneo público. Vacío = verde por defecto.</p>
+            {/* Sub-tabs */}
+            <div className="flex border-b border-slate-100 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+              {[
+                { key: 'flyer',    label: '📢 Flyer' },
+                { key: 'encurso',  label: '⚡ En curso' },
+                { key: 'fixture',  label: '📋 Fixture' },
+                { key: 'grupos',   label: '🎯 Grupos' },
+                { key: 'draw',     label: '🏆 Draw' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setVisualTab(key)}
+                  className={`px-5 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-all ${
+                    visualTab === key
+                      ? 'border-brand-500 text-brand-600'
+                      : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
-            {/* ── Fixture del día ── */}
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-slate-900 tracking-wide whitespace-nowrap">Fixture del día</span>
-                <div className="flex-1 h-px bg-slate-100" />
-              </div>
+            <div className="p-6 flex flex-col gap-6">
 
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">Imagen header sección</label>
-                <ImagenFileInput
-                  value={persona.imagenFondoFixture}
-                  onChange={(v) => setP('imagenFondoFixture', v)}
-                  hint="Banner único arriba del fixture."
-                />
-              </div>
+              {/* ── SUB-TAB: Flyer (previa al torneo) ── */}
+              {visualTab === 'flyer' && (
+                <>
+                  <p className="text-xs text-slate-400">Se muestra en la landing cuando el torneo tiene inscripción abierta y la fecha de inicio está próxima (≤14 días).</p>
 
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-2">Estilo de cards</label>
-                <div className="flex gap-2 max-w-xs">
-                  {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
-                    <button key={key} type="button" onClick={() => setP('estiloCardFixture', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCardFixture === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo de cards</label>
-                <div className="flex items-center gap-2 max-w-xs">
-                  <input type="color" value={persona.colorCardFixture || '#0d1117'} onChange={(e) => setP('colorCardFixture', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                  <input type="text"  value={persona.colorCardFixture}               onChange={(e) => setP('colorCardFixture', e.target.value)} placeholder="#0d1117 (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
-                </div>
-                <p className="text-slate-400 text-xs mt-1">Vacío = color del estilo seleccionado.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {[{ key: 'bannerLateral1Fixture', label: 'Banner lateral 1 (izquierda)' }, { key: 'bannerLateral2Fixture', label: 'Banner lateral 2 (derecha)' }].map(({ key, label }) => (
-                  <div key={key}>
-                    <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
-                    <ImagenFileInput
-                      value={persona[key]}
-                      onChange={(v) => setP(key, v)}
-                      onImageLoad={(v) => checkBannerRatio(key, v)}
-                    />
-                    {bannerWarnings[key] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1">✓ Imagen vertical correcta</p>}
-                    {bannerWarnings[key] === 'warn' && <p className="text-[11px] text-amber-500 mt-1 flex items-center gap-1">⚠ Imagen horizontal — se recomienda portrait (vertical)</p>}
+                  {/* Toggle modo */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Tipo de visualización</label>
+                    <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+                      {[
+                        { val: 'auto',   label: '✦ Diseño automático' },
+                        { val: 'imagen', label: '🖼 Imagen propia' },
+                      ].map(({ val, label }) => (
+                        <button key={val} type="button" onClick={() => setP('modoLandingFlyer', val)}
+                          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            (persona.modoLandingFlyer ?? 'auto') === val
+                              ? 'bg-white text-slate-900 shadow-sm'
+                              : 'text-slate-500 hover:text-slate-700'
+                          }`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
 
-            {/* ── Grupos ── */}
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-slate-900 tracking-wide whitespace-nowrap">Grupos</span>
-                <div className="flex-1 h-px bg-slate-100" />
-              </div>
+                  {/* Modo automático */}
+                  {(persona.modoLandingFlyer ?? 'auto') === 'auto' && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {[
+                          { key: 'premioPrimero',   label: '🥇 1° Puesto',  placeholder: 'Ej: $50.000' },
+                          { key: 'premioSegundo',   label: '🥈 2° Puesto',  placeholder: 'Ej: $30.000' },
+                          { key: 'premioSemifinal', label: '🥉 Semifinal',  placeholder: 'Ej: $15.000' },
+                        ].map(({ key, label, placeholder }) => (
+                          <div key={key}>
+                            <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
+                            <input type="text" value={persona[key]} onChange={(e) => setP(key, e.target.value)} placeholder={placeholder}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
+                          </div>
+                        ))}
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo <span className="font-normal text-slate-400">(opcional — si no se carga usa diseño geométrico)</span></label>
+                        <ImagenFileInput value={persona.imagenFondo} onChange={(v) => setP('imagenFondo', v)} hint="Se usa como fondo del flyer en la landing. Recomendado: 1200×400px." />
+                      </div>
+                    </>
+                  )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-slate-600 block mb-1">Imagen header sección</label>
-                  <ImagenFileInput
-                    value={persona.imagenHeaderGrupos}
-                    onChange={(v) => setP('imagenHeaderGrupos', v)}
-                    hint="Banner único arriba de todos los grupos."
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo cards</label>
-                  <ImagenFileInput
-                    value={persona.imagenFondoGrupos}
-                    onChange={(v) => setP('imagenFondoGrupos', v)}
-                    hint="Aparece en el header de cada card de zona."
-                  />
-                </div>
-              </div>
+                  {/* Modo imagen propia */}
+                  {(persona.modoLandingFlyer ?? 'auto') === 'imagen' && (
+                    <div>
+                      <label className="text-xs font-medium text-slate-600 block mb-1">Flyer personalizado</label>
+                      <ImagenFileInput value={persona.imagenFondo} onChange={(v) => setP('imagenFondo', v)} hint="Se muestra a ancho completo en la landing. Recomendado: 1200×400px (16:5)." />
+                    </div>
+                  )}
+                </>
+              )}
 
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-2">Color de texto en header de cards</label>
-                <div className="flex items-center gap-2 max-w-xs">
-                  <input type="color" value={persona.colorTextoCardGrupos || '#ffffff'} onChange={(e) => setP('colorTextoCardGrupos', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                  <input type="text"  value={persona.colorTextoCardGrupos}               onChange={(e) => setP('colorTextoCardGrupos', e.target.value)} placeholder="#ffffff (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
-                </div>
-                <p className="text-slate-400 text-xs mt-1">Color del nombre de zona cuando hay imagen de fondo. Vacío = blanco.</p>
-              </div>
+              {/* ── SUB-TAB: En curso ── */}
+              {visualTab === 'encurso' && (
+                <>
+                  <p className="text-xs text-slate-400">Card informativa que se muestra en la landing cuando el torneo está activo (en curso).</p>
 
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-2">Estilo de cards</label>
-                <div className="flex gap-2 max-w-xs">
-                  {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
-                    <button key={key} type="button" onClick={() => setP('estiloCardGrupos', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCardGrupos === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo de cards</label>
-                <div className="flex items-center gap-2 max-w-xs">
-                  <input type="color" value={persona.colorCardGrupos || '#0d1117'} onChange={(e) => setP('colorCardGrupos', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                  <input type="text"  value={persona.colorCardGrupos}               onChange={(e) => setP('colorCardGrupos', e.target.value)} placeholder="#0d1117 (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
-                </div>
-                <p className="text-slate-400 text-xs mt-1">Vacío = color del estilo seleccionado.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {[{ key: 'bannerLateral1Grupos', label: 'Banner lateral 1 (izquierda)' }, { key: 'bannerLateral2Grupos', label: 'Banner lateral 2 (derecha)' }].map(({ key, label }) => (
-                  <div key={key}>
-                    <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
-                    <ImagenFileInput
-                      value={persona[key]}
-                      onChange={(v) => setP(key, v)}
-                      onImageLoad={(v) => checkBannerRatio(key, v)}
-                    />
-                    {bannerWarnings[key] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1">✓ Imagen vertical correcta</p>}
-                    {bannerWarnings[key] === 'warn' && <p className="text-[11px] text-amber-500 mt-1 flex items-center gap-1">⚠ Imagen horizontal — se recomienda portrait (vertical)</p>}
+                  {/* ── Selector de template ── */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Diseño de card</label>
+                    <p className="text-xs text-slate-400 mb-3">Elegí el estilo visual. Podés personalizar el color e imagen de fondo independientemente del template elegido.</p>
+                    <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
+                      {[
+                        { id: 1,  name: 'Sport Hero',    bg: 'linear-gradient(135deg,#080b0f,#0d1117)' },
+                        { id: 2,  name: 'Neon Grid',     bg: '#050508',   neon: true },
+                        { id: 3,  name: 'Split Panel',   bg: '__split__' },
+                        { id: 4,  name: 'Glass',         bg: 'linear-gradient(135deg,#0a0a18,#0d1020)', glass: true },
+                        { id: 5,  name: 'Stadium',       bg: '#080810',   rays: true },
+                        { id: 6,  name: 'Scoreboard',    bg: '#0a0a0c',   board: true },
+                        { id: 7,  name: 'Minimal',       bg: '#f1f5f9',   light: true },
+                        { id: 8,  name: 'Fire',          bg: 'linear-gradient(135deg,#1a0400,#2d0800)' },
+                        { id: 9,  name: 'Ocean Night',   bg: 'linear-gradient(135deg,#020b1a,#03122e)' },
+                        { id: 10, name: 'Gold Luxury',   bg: 'linear-gradient(135deg,#0a0800,#100e00)', gold: true },
+                        { id: 11, name: 'Court Lines',   bg: 'linear-gradient(135deg,#080f0a,#0d1810)' },
+                        { id: 12, name: 'Big Stats',     bg: '#060810' },
+                        { id: 13, name: 'Carbon Strip',  bg: '#0c0c0e',   strip: true },
+                        { id: 14, name: 'Sunset Warm',   bg: 'linear-gradient(135deg,#1a0800,#2d1000)' },
+                        { id: 15, name: 'Ribbon',        bg: '#0a0c10',   ribbon: true },
+                        { id: 16, name: 'Retro Stripes', bg: '#0a0a0c',   stripes: true },
+                        { id: 17, name: 'Ticket',        bg: '#f8fafc',   light: true, ticket: true },
+                        { id: 18, name: 'Badge',         bg: '#060810',   badge: true },
+                        { id: 19, name: 'Editorial',     bg: '#0c0c0e' },
+                        { id: 20, name: 'Cinematic',     bg: '#000',      cinema: true },
+                      ].map(({ id, name, bg, ...flags }) => {
+                        const cp = persona.colorAcento || club?.colorPrimario || '#10b981'
+                        const finalBg = bg === '__split__'
+                          ? `linear-gradient(90deg,#0d1117 55%,${cp} 55%)`
+                          : bg
+                        const sel = (persona.templateEnCurso ?? 1) === id
+                        return (
+                          <button key={id} type="button" onClick={() => setP('templateEnCurso', id)}
+                            className={`relative rounded-xl overflow-hidden cursor-pointer transition-all duration-150 ${sel ? 'ring-2 ring-offset-1 ring-brand-500 scale-[1.04]' : 'hover:scale-[1.02] hover:ring-1 hover:ring-slate-300'}`}>
+                            <div className="h-12 w-full relative" style={{ background: finalBg }}>
+                              {flags.neon    && <div className="absolute inset-0 opacity-80" style={{ backgroundImage:`linear-gradient(${cp}18 1px,transparent 1px),linear-gradient(90deg,${cp}18 1px,transparent 1px)`, backgroundSize:'12px 12px' }}/>}
+                              {flags.glass   && <div className="absolute inset-1 rounded-lg" style={{ background:'rgba(255,255,255,0.07)', border:`1px solid ${cp}30` }}/>}
+                              {flags.rays    && <><div className="absolute top-0 left-1/3 w-0.5 h-full" style={{background:`linear-gradient(180deg,${cp}60,transparent)`,transform:'rotate(-6deg)',transformOrigin:'top'}}/><div className="absolute top-0 left-1/2 w-1 h-full" style={{background:`linear-gradient(180deg,${cp}50,transparent)`,transformOrigin:'top'}}/></>}
+                              {flags.board   && <div className="absolute inset-1.5 rounded flex items-center justify-center" style={{border:`1px solid ${cp}40`}}><span className="font-mono font-black text-[9px]" style={{color:cp,textShadow:`0 0 6px ${cp}`}}>00</span></div>}
+                              {flags.light   && <div className="absolute inset-0 flex items-center justify-center"><div className="w-5 h-0.5 rounded-full" style={{backgroundColor:cp}}/></div>}
+                              {flags.gold    && <div className="absolute inset-0" style={{background:'radial-gradient(ellipse at 70% 40%,rgba(212,175,55,0.3),transparent 60%)'}}/>}
+                              {flags.strip   && <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{backgroundColor:cp}}/>}
+                              {flags.ribbon  && <div className="absolute" style={{top:'-10%',right:'12%',width:'38%',height:'120%',backgroundColor:`${cp}55`,transform:'skewX(-8deg)'}}/>}
+                              {flags.stripes && <><div className="absolute top-0 left-0 right-0 h-2" style={{backgroundColor:cp}}/><div className="absolute top-3 left-0 right-0 h-1" style={{backgroundColor:`${cp}55`}}/></>}
+                              {flags.ticket  && <div className="absolute right-0 top-0 bottom-0 w-7 border-l-2 border-dashed border-slate-300" style={{background:`${cp}10`}}/>}
+                              {flags.badge   && <div className="absolute inset-0 flex items-center justify-center"><div className="w-7 h-7 rounded-full" style={{border:`2px solid ${cp}60`}}/></div>}
+                              {flags.cinema  && <><div className="absolute top-0 left-0 right-0 h-1.5 bg-black z-10"/><div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black z-10"/></>}
+                              <div className="absolute bottom-1 right-1.5 w-1.5 h-1.5 rounded-full opacity-80" style={{backgroundColor:cp}}/>
+                              {sel && <div className="absolute inset-0 rounded-xl" style={{border:`2px solid ${cp}`,boxShadow:`inset 0 0 8px ${cp}30`}}/>}
+                            </div>
+                            <div className={`px-1 py-1 text-center ${sel ? 'bg-brand-50' : 'bg-slate-50'}`}>
+                              <p className={`text-[9px] font-semibold leading-tight truncate ${sel ? 'text-brand-600' : 'text-slate-500'}`}>{name}</p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
 
-            {/* ── Draw ── */}
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-slate-900 tracking-wide whitespace-nowrap">Draw</span>
-                <div className="flex-1 h-px bg-slate-100" />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {[{ key: 'imagenFondoDraw', label: 'Imagen fondo header' }, { key: 'imagenFondoBracket', label: 'Imagen fondo llaves' }].map(({ key, label }) => (
-                  <div key={key}>
-                    <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
-                    <ImagenFileInput
-                      value={persona[key]}
-                      onChange={(v) => setP(key, v)}
-                    />
+                  {/* Color de acento */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Color de acento</label>
+                    <div className="flex items-center gap-2 max-w-xs">
+                      <input type="color" value={persona.colorAcento || club?.colorPrimario || '#10b981'} onChange={(e) => setP('colorAcento', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                      <input type="text" value={persona.colorAcento} onChange={(e) => setP('colorAcento', e.target.value)} placeholder="vacío = color del club"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                    </div>
+                    <p className="text-slate-400 text-xs mt-1">Vacío = usa el color primario del club.</p>
                   </div>
-                ))}
-              </div>
 
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-2">Estilo de cards</label>
-                <div className="flex gap-2 max-w-xs">
-                  {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
-                    <button key={key} type="button" onClick={() => setP('estiloCard', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCard === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
-                  ))}
-                </div>
-              </div>
+                  {/* Imagen de fondo — exclusiva de la card en curso */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo <span className="font-normal text-slate-400">(opcional)</span></label>
+                    <ImagenFileInput value={persona.imagenFondoEnCurso} onChange={(v) => setP('imagenFondoEnCurso', v)} hint="Imagen de fondo de la card en la landing. Si no se carga usa diseño geométrico." />
+                  </div>
 
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo de cards</label>
-                <div className="flex items-center gap-2 max-w-xs">
-                  <input type="color" value={persona.colorCard || '#0d1117'} onChange={(e) => setP('colorCard', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                  <input type="text"  value={persona.colorCard}               onChange={(e) => setP('colorCard', e.target.value)} placeholder="#0d1117 (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
-                </div>
-                <p className="text-slate-400 text-xs mt-1">Vacío = color del estilo seleccionado.</p>
-              </div>
+                  {/* Texto del botón CTA */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Texto del botón</label>
+                    <input type="text" value={persona.ctaEnCurso} onChange={(e) => setP('ctaEnCurso', e.target.value)}
+                      placeholder="Seguir el torneo (default)"
+                      className="w-full max-w-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
+                    <p className="text-slate-400 text-xs mt-1">Ej: "Ver resultados", "Seguir en vivo", "Ver el cuadro".</p>
+                  </div>
+                </>
+              )}
 
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-2">Tamaño de fuentes</label>
-                <div className="flex gap-2 max-w-xs">
-                  {[{ key: 'normal', label: 'Normal' }, { key: 'grande', label: 'Grande' }, { key: 'muy-grande', label: 'Muy grande' }].map(({ key, label }) => (
-                    <button key={key} type="button" onClick={() => setP('fontScale', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.fontScale === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-2">Sponsors</label>
-                {persona.sponsors.length > 0 && (
-                  <div className="flex flex-col gap-1.5 mb-3">
-                    {persona.sponsors.map((s, i) => (
-                      <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {s.logo && <img src={s.logo} alt={s.nombre} className="w-8 h-8 rounded object-contain border border-slate-200 shrink-0" />}
-                          <p className="text-sm font-medium text-slate-700 truncate">{s.nombre}</p>
-                        </div>
-                        <button type="button" onClick={() => setP('sponsors', persona.sponsors.filter((_, j) => j !== i))} className="text-slate-300 hover:text-red-400 transition-colors shrink-0 p-1"><X size={13} /></button>
+              {/* ── SUB-TAB: Fixture ── */}
+              {visualTab === 'fixture' && (
+                <>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Imagen header sección</label>
+                    <ImagenFileInput value={persona.imagenFondoFixture} onChange={(v) => setP('imagenFondoFixture', v)} hint="Banner único arriba del fixture." />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Estilo de cards</label>
+                    <div className="flex gap-2 max-w-xs">
+                      {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
+                        <button key={key} type="button" onClick={() => setP('estiloCardFixture', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCardFixture === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo de cards</label>
+                    <div className="flex items-center gap-2 max-w-xs">
+                      <input type="color" value={persona.colorCardFixture || '#0d1117'} onChange={(e) => setP('colorCardFixture', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                      <input type="text"  value={persona.colorCardFixture} onChange={(e) => setP('colorCardFixture', e.target.value)} placeholder="#0d1117 (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                    </div>
+                    <p className="text-slate-400 text-xs mt-1">Vacío = color del estilo seleccionado.</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {[{ key: 'bannerLateral1Fixture', label: 'Banner lateral izquierda' }, { key: 'bannerLateral2Fixture', label: 'Banner lateral derecha' }].map(({ key, label }) => (
+                      <div key={key}>
+                        <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
+                        <ImagenFileInput value={persona[key]} onChange={(v) => setP(key, v)} onImageLoad={(v) => checkBannerRatio(key, v)} />
+                        {bannerWarnings[key] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1">✓ Imagen vertical correcta</p>}
+                        {bannerWarnings[key] === 'warn' && <p className="text-[11px] text-amber-500 mt-1">⚠ Se recomienda imagen portrait (vertical)</p>}
                       </div>
                     ))}
                   </div>
-                )}
-                <div className="flex flex-col gap-2">
-                  <input type="text" value={newSponsor.nombre} onChange={(e) => setNewSponsor((p) => ({ ...p, nombre: e.target.value }))} placeholder="Nombre del sponsor" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-brand-400 transition-all" />
-                  <ImagenFileInput
-                    value={newSponsor.logo}
-                    onChange={(v) => setNewSponsor((p) => ({ ...p, logo: v }))}
-                    hint="Logo del sponsor (opcional)"
-                  />
-                  <button type="button" onClick={() => { if (!newSponsor.nombre.trim()) return; setP('sponsors', [...persona.sponsors, { nombre: newSponsor.nombre.trim(), logo: newSponsor.logo }]); setNewSponsor({ nombre: '', logo: '' }) }} className="flex items-center gap-1.5 px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold rounded-lg transition-all self-start"><Plus size={13} /> Agregar sponsor</button>
-                </div>
-                <div className="mt-3">
-                  <label className="text-xs font-medium text-slate-600 block mb-2">Tamaño de logos</label>
-                  <div className="flex gap-2 max-w-xs">
-                    {[{ key: 'pequeño', label: 'Pequeño' }, { key: 'normal', label: 'Normal' }, { key: 'grande', label: 'Grande' }].map(({ key, label }) => (
-                      <button key={key} type="button" onClick={() => setP('sponsorScale', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.sponsorScale === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
-                    ))}
-                  </div>
-                </div>
-                <p className="text-slate-400 text-xs mt-2">Los sponsors se muestran a los costados del draw en la página pública.</p>
-              </div>
+                </>
+              )}
 
-              {/* Header del draw */}
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-3">Header del draw</label>
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-1">Título principal</label>
-                    <input type="text" value={persona.drawTitulo} onChange={(e) => setP('drawTitulo', e.target.value)} placeholder="Main Draw (vacío = oculto)" className="w-full max-w-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-1">Color del título</label>
-                    <div className="flex items-center gap-2 max-w-xs">
-                      <input type="color" value={persona.drawColorTitulo || club?.colorPrimario || '#10b981'} onChange={(e) => setP('drawColorTitulo', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                      <input type="text"  value={persona.drawColorTitulo}               onChange={(e) => setP('drawColorTitulo', e.target.value)} placeholder="vacío = color acento" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+              {/* ── SUB-TAB: Grupos ── */}
+              {visualTab === 'grupos' && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-slate-600 block mb-1">Imagen header sección</label>
+                      <ImagenFileInput value={persona.imagenHeaderGrupos} onChange={(v) => setP('imagenHeaderGrupos', v)} hint="Banner único arriba de todos los grupos." />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo cards</label>
+                      <ImagenFileInput value={persona.imagenFondoGrupos} onChange={(v) => setP('imagenFondoGrupos', v)} hint="Aparece en el header de cada card de zona." />
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-medium text-slate-600 block">Elementos visibles</label>
-                    {[
-                      { key: 'drawMostrarClub',       label: 'Nombre del club' },
-                      { key: 'drawMostrarNombre',     label: 'Nombre del torneo' },
-                      { key: 'drawMostrarFechas',     label: 'Fechas' },
-                      { key: 'drawMostrarCategorias', label: 'Categorías / género' },
-                    ].map(({ key, label }) => (
-                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                        <input type="checkbox" checked={persona[key]} onChange={(e) => setP(key, e.target.checked)} className="rounded border-slate-300 text-brand-500 focus:ring-brand-400" />
-                        <span className="text-xs text-slate-600">{label}</span>
-                      </label>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Color de texto en header de cards</label>
+                    <div className="flex items-center gap-2 max-w-xs">
+                      <input type="color" value={persona.colorTextoCardGrupos || '#ffffff'} onChange={(e) => setP('colorTextoCardGrupos', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                      <input type="text"  value={persona.colorTextoCardGrupos} onChange={(e) => setP('colorTextoCardGrupos', e.target.value)} placeholder="#ffffff (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                    </div>
+                    <p className="text-slate-400 text-xs mt-1">Color del nombre de zona cuando hay imagen de fondo. Vacío = blanco.</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Estilo de cards</label>
+                    <div className="flex gap-2 max-w-xs">
+                      {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
+                        <button key={key} type="button" onClick={() => setP('estiloCardGrupos', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCardGrupos === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo de cards</label>
+                    <div className="flex items-center gap-2 max-w-xs">
+                      <input type="color" value={persona.colorCardGrupos || '#0d1117'} onChange={(e) => setP('colorCardGrupos', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                      <input type="text"  value={persona.colorCardGrupos} onChange={(e) => setP('colorCardGrupos', e.target.value)} placeholder="#0d1117 (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                    </div>
+                    <p className="text-slate-400 text-xs mt-1">Vacío = color del estilo seleccionado.</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {[{ key: 'bannerLateral1Grupos', label: 'Banner lateral izquierda' }, { key: 'bannerLateral2Grupos', label: 'Banner lateral derecha' }].map(({ key, label }) => (
+                      <div key={key}>
+                        <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
+                        <ImagenFileInput value={persona[key]} onChange={(v) => setP(key, v)} onImageLoad={(v) => checkBannerRatio(key, v)} />
+                        {bannerWarnings[key] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1">✓ Imagen vertical correcta</p>}
+                        {bannerWarnings[key] === 'warn' && <p className="text-[11px] text-amber-500 mt-1">⚠ Se recomienda imagen portrait (vertical)</p>}
+                      </div>
                     ))}
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Guardar */}
-            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
-              {savedOk && (
-                <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-                  <CheckCircle size={13} /> Guardado
-                </span>
+                </>
               )}
-              <button
-                onClick={() => {
-                  updatePersonalizacion(torneo.id, {
-                    colorAcento:          persona.colorAcento          || null,
-                    estiloCardFixture:    persona.estiloCardFixture,
-                    colorCardFixture:     persona.colorCardFixture      || null,
-                    estiloCardGrupos:     persona.estiloCardGrupos,
-                    colorCardGrupos:      persona.colorCardGrupos       || null,
-                    imagenFondoFixture:   persona.imagenFondoFixture    || null,
-                    imagenFondoGrupos:      persona.imagenFondoGrupos      || null,
-                    imagenHeaderGrupos:     persona.imagenHeaderGrupos     || null,
-                    colorTextoCardGrupos:   persona.colorTextoCardGrupos   || null,
-                    imagenFondoDraw:      persona.imagenFondoDraw       || null,
-                    imagenFondoBracket:   persona.imagenFondoBracket    || null,
-                    estiloCard:           persona.estiloCard,
-                    colorCard:            persona.colorCard             || null,
-                    fontScale:            persona.fontScale,
-                    sponsors:             persona.sponsors,
-                    sponsorScale:         persona.sponsorScale,
-                    bannerLateral1Fixture: persona.bannerLateral1Fixture || null,
-                    bannerLateral2Fixture: persona.bannerLateral2Fixture || null,
-                    bannerLateral1Grupos:  persona.bannerLateral1Grupos  || null,
-                    bannerLateral2Grupos:  persona.bannerLateral2Grupos  || null,
-                    drawMostrarClub:       persona.drawMostrarClub,
-                    drawTitulo:            persona.drawTitulo            || null,
-                    drawMostrarNombre:     persona.drawMostrarNombre,
-                    drawMostrarFechas:     persona.drawMostrarFechas,
-                    drawMostrarCategorias: persona.drawMostrarCategorias,
-                    drawColorTitulo:       persona.drawColorTitulo       || null,
-                    bracketColores:        persona.bracketColores,
-                  })
-                  setSavedOk(true)
-                  setTimeout(() => setSavedOk(false), 2500)
-                }}
-                className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold bg-brand-500 hover:bg-brand-600 text-white rounded-xl transition-all"
-              >
-                Guardar personalización
-              </button>
-            </div>
 
+              {/* ── SUB-TAB: Draw ── */}
+              {visualTab === 'draw' && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {[{ key: 'imagenFondoDraw', label: 'Imagen fondo header' }, { key: 'imagenFondoBracket', label: 'Imagen fondo llaves' }].map(({ key, label }) => (
+                      <div key={key}>
+                        <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
+                        <ImagenFileInput value={persona[key]} onChange={(v) => setP(key, v)} />
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Estilo de cards</label>
+                    <div className="flex gap-2 max-w-xs">
+                      {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
+                        <button key={key} type="button" onClick={() => setP('estiloCard', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCard === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo de cards</label>
+                    <div className="flex items-center gap-2 max-w-xs">
+                      <input type="color" value={persona.colorCard || '#0d1117'} onChange={(e) => setP('colorCard', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                      <input type="text"  value={persona.colorCard} onChange={(e) => setP('colorCard', e.target.value)} placeholder="#0d1117 (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                    </div>
+                    <p className="text-slate-400 text-xs mt-1">Vacío = color del estilo seleccionado.</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Tamaño de fuentes</label>
+                    <div className="flex gap-2 max-w-xs">
+                      {[{ key: 'normal', label: 'Normal' }, { key: 'grande', label: 'Grande' }, { key: 'muy-grande', label: 'Muy grande' }].map(({ key, label }) => (
+                        <button key={key} type="button" onClick={() => setP('fontScale', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.fontScale === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Header del draw</label>
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-slate-600 block mb-1">Título principal</label>
+                        <input type="text" value={persona.drawTitulo} onChange={(e) => setP('drawTitulo', e.target.value)} placeholder="Main Draw (vacío = oculto)" className="w-full max-w-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-600 block mb-1">Color del título</label>
+                        <div className="flex items-center gap-2 max-w-xs">
+                          <input type="color" value={persona.drawColorTitulo || club?.colorPrimario || '#10b981'} onChange={(e) => setP('drawColorTitulo', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                          <input type="text"  value={persona.drawColorTitulo} onChange={(e) => setP('drawColorTitulo', e.target.value)} placeholder="vacío = color acento" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-medium text-slate-600 block">Elementos visibles</label>
+                        {[
+                          { key: 'drawMostrarClub',       label: 'Nombre del club' },
+                          { key: 'drawMostrarNombre',     label: 'Nombre del torneo' },
+                          { key: 'drawMostrarFechas',     label: 'Fechas' },
+                          { key: 'drawMostrarCategorias', label: 'Categorías / género' },
+                        ].map(({ key, label }) => (
+                          <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" checked={persona[key]} onChange={(e) => setP(key, e.target.checked)} className="rounded border-slate-300 text-brand-500 focus:ring-brand-400" />
+                            <span className="text-xs text-slate-600">{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Sponsors</label>
+                    {persona.sponsors.length > 0 && (
+                      <div className="flex flex-col gap-1.5 mb-3">
+                        {persona.sponsors.map((s, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {s.logo && <img src={s.logo} alt={s.nombre} className="w-8 h-8 rounded object-contain border border-slate-200 shrink-0" />}
+                              <p className="text-sm font-medium text-slate-700 truncate">{s.nombre}</p>
+                            </div>
+                            <button type="button" onClick={() => setP('sponsors', persona.sponsors.filter((_, j) => j !== i))} className="text-slate-300 hover:text-red-400 transition-colors shrink-0 p-1"><X size={13} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-2">
+                      <input type="text" value={newSponsor.nombre} onChange={(e) => setNewSponsor((p) => ({ ...p, nombre: e.target.value }))} placeholder="Nombre del sponsor" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-brand-400 transition-all" />
+                      <ImagenFileInput value={newSponsor.logo} onChange={(v) => setNewSponsor((p) => ({ ...p, logo: v }))} hint="Logo del sponsor (opcional)" />
+                      <button type="button" onClick={() => { if (!newSponsor.nombre.trim()) return; setP('sponsors', [...persona.sponsors, { nombre: newSponsor.nombre.trim(), logo: newSponsor.logo }]); setNewSponsor({ nombre: '', logo: '' }) }} className="flex items-center gap-1.5 px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold rounded-lg transition-all self-start"><Plus size={13} /> Agregar sponsor</button>
+                    </div>
+                    <div className="mt-3">
+                      <label className="text-xs font-medium text-slate-600 block mb-2">Tamaño de logos</label>
+                      <div className="flex gap-2 max-w-xs">
+                        {[{ key: 'pequeño', label: 'Pequeño' }, { key: 'normal', label: 'Normal' }, { key: 'grande', label: 'Grande' }].map(({ key, label }) => (
+                          <button key={key} type="button" onClick={() => setP('sponsorScale', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.sponsorScale === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-slate-400 text-xs mt-2">Los sponsors se muestran a los costados del draw en la página pública.</p>
+                  </div>
+                </>
+              )}
+
+              {/* Guardar — siempre visible */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                {savedOk && (
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                    <CheckCircle size={13} /> Guardado
+                  </span>
+                )}
+                <button
+                  onClick={() => {
+                    const campos = {
+                      modoLandingFlyer:     persona.modoLandingFlyer     ?? 'auto',
+                      premioPrimero:        persona.premioPrimero        || null,
+                      premioSegundo:        persona.premioSegundo        || null,
+                      premioSemifinal:      persona.premioSemifinal      || null,
+                      imagenFondo:          persona.imagenFondo          || null,
+                      imagenFondoEnCurso:   persona.imagenFondoEnCurso   || null,
+                      ctaEnCurso:           persona.ctaEnCurso           || null,
+                      templateEnCurso:      persona.templateEnCurso      ?? 1,
+                      colorAcento:          persona.colorAcento          || null,
+                      estiloCardFixture:    persona.estiloCardFixture,
+                      colorCardFixture:     persona.colorCardFixture      || null,
+                      estiloCardGrupos:     persona.estiloCardGrupos,
+                      colorCardGrupos:      persona.colorCardGrupos       || null,
+                      imagenFondoFixture:   persona.imagenFondoFixture    || null,
+                      imagenFondoGrupos:    persona.imagenFondoGrupos     || null,
+                      imagenHeaderGrupos:   persona.imagenHeaderGrupos    || null,
+                      colorTextoCardGrupos: persona.colorTextoCardGrupos  || null,
+                      imagenFondoDraw:      persona.imagenFondoDraw       || null,
+                      imagenFondoBracket:   persona.imagenFondoBracket    || null,
+                      estiloCard:           persona.estiloCard,
+                      colorCard:            persona.colorCard             || null,
+                      fontScale:            persona.fontScale,
+                      sponsors:             persona.sponsors,
+                      sponsorScale:         persona.sponsorScale,
+                      bannerLateral1Fixture: persona.bannerLateral1Fixture || null,
+                      bannerLateral2Fixture: persona.bannerLateral2Fixture || null,
+                      bannerLateral1Grupos:  persona.bannerLateral1Grupos  || null,
+                      bannerLateral2Grupos:  persona.bannerLateral2Grupos  || null,
+                      drawMostrarClub:       persona.drawMostrarClub,
+                      drawTitulo:            persona.drawTitulo            || null,
+                      drawMostrarNombre:     persona.drawMostrarNombre,
+                      drawMostrarFechas:     persona.drawMostrarFechas,
+                      drawMostrarCategorias: persona.drawMostrarCategorias,
+                      drawColorTitulo:       persona.drawColorTitulo       || null,
+                      bracketColores:        persona.bracketColores,
+                    }
+                    updatePersonalizacion(torneo.id, campos)
+                    if (isBackend) {
+                      api.patch(`/torneos/${torneo.id}/personalizacion`, { personalizacion: campos }, authH).catch(() => {})
+                    }
+                    setSavedOk(true)
+                    setTimeout(() => setSavedOk(false), 2500)
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold bg-brand-500 hover:bg-brand-600 text-white rounded-xl transition-all"
+                >
+                  Guardar personalización
+                </button>
+              </div>
+
+            </div>
           </div>
         )}
       </div>
@@ -4283,6 +5136,15 @@ const TorneoDetallePage = () => {
         />
       )}
 
+      {/* Modal confirmar cierre de inscripciones */}
+      {modalCerrarInsc && (
+        <ModalCerrarInscripcion
+          torneo={torneo}
+          onConfirmar={() => { setModalCerrarInsc(false); ejecutarCambioEstado('closed') }}
+          onCancelar={() => setModalCerrarInsc(false)}
+        />
+      )}
+
       {/* Modal de confirmación genérico — reemplaza window.confirm() */}
       {confirmModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
@@ -4317,13 +5179,76 @@ const TorneoDetallePage = () => {
         </div>
       )}
 
-      {/* Toast */}
+      {/* Modal asignación manual de horario */}
+      {modalAsignarManual && (
+        <ModalAsignarManual
+          partido={modalAsignarManual.partido}
+          grupos={torneo.grupos}
+          canchas={canchas}
+          diaElim={torneo.diaInicioEliminatoria ?? null}
+          horaElim={torneo.horaInicioEliminatoria ?? null}
+          fechaInicio={torneo.fechaInicio}
+          fechaFin={torneo.fechaFin}
+          intervaloMin={intervaloPartidoMin}
+          onConfirm={handleConfirmarAsignacionManual}
+          onClose={() => setModalAsignarManual(null)}
+        />
+      )}
+
+      {/* Modal Auto-asignar — procesando / resultado */}
+      {autoScheduleState && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-7 flex flex-col items-center gap-4 text-center">
+            {autoScheduleState.status === 'procesando' ? (
+              <>
+                <div className="w-12 h-12 rounded-full border-4 border-brand-200 border-t-brand-500 animate-spin" />
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Asignando horarios...</p>
+                  <p className="text-xs text-slate-400 mt-1">El sistema está calculando la mejor distribución de partidos.</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${autoScheduleState.sinHorario > 0 ? 'bg-amber-100' : 'bg-emerald-100'}`}>
+                  {autoScheduleState.sinHorario > 0
+                    ? <AlertTriangle size={22} className="text-amber-500" />
+                    : <CheckCircle size={22} className="text-emerald-500" />
+                  }
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Asignación completada</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    <span className="text-emerald-600 font-semibold">{autoScheduleState.asignados} partidos</span> con horario asignado
+                    {autoScheduleState.sinHorario > 0 && (
+                      <> · <span className="text-amber-500 font-semibold">{autoScheduleState.sinHorario} sin horario</span> por falta de disponibilidad común</>
+                    )}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setAutoScheduleState(null)}
+                  className="px-5 py-2 text-xs font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all"
+                >
+                  Entendido
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Toast genérico */}
       <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] transition-all duration-500 ${toast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
         <div className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2.5 rounded-2xl shadow-xl">
           <CheckCircle size={14} className="text-emerald-400 shrink-0" />
           <p className="text-sm font-semibold">{toast}</p>
         </div>
       </div>
+
+      {/* Toasts estado inscripción */}
+      {toastEstado === 'open'   && <Toast icon={ToggleRight} iconBg="bg-emerald-500/15 border border-emerald-500/25" iconColor="text-emerald-400" barColor="bg-emerald-400/50" label="Inscripción abierta"  message="Las inscripciones están abiertas"  duration={3500} onClose={() => setToastEstado(null)} />}
+      {toastEstado === 'closed' && <Toast icon={Lock}        iconBg="bg-amber-500/15 border border-amber-500/25"     iconColor="text-amber-400"   barColor="bg-amber-400/50"   label="Inscripción cerrada"  message="Las inscripciones están cerradas"  duration={3500} onClose={() => setToastEstado(null)} />}
+      {toastEstado === 'draft'  && <Toast icon={ToggleLeft}  iconBg="bg-slate-500/15 border border-slate-500/25"     iconColor="text-slate-400"   barColor="bg-slate-400/50"   label="Volvió a borrador"    message="El torneo volvió a borrador"       duration={3500} onClose={() => setToastEstado(null)} />}
     </div>
   )
 }

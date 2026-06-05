@@ -7,7 +7,7 @@ import {
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   ShowerHead, Car, GraduationCap, Wifi, Coffee,
   Dumbbell, Shield, Wind, Utensils, Music, Wrench,
-  CalendarDays, CheckCircle, Lock, Trophy,
+  CalendarDays, CheckCircle, Lock, Trophy, Zap, Users,
 } from 'lucide-react'
 import usePlayerStore from '../../store/playerStore'
 import useTorneosStore from '../../store/torneosStore'
@@ -82,15 +82,576 @@ export const TorneoBanner = ({ colorPrimario = '#afca0b', dark = true }) => {
 
 // ─── TorneosSection ──────────────────────────────────────────────────────────
 
+const DIAS_FLYER = 14
+
+const diasHasta = (fechaStr) => {
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
+  return Math.ceil((new Date(fechaStr + 'T12:00:00') - hoy) / 86400000)
+}
+
+const fmtDiaDestacado = (fechaStr) => {
+  const d = new Date(fechaStr + 'T12:00:00')
+  const dias = diasHasta(fechaStr)
+  if (dias === 0) return 'Hoy'
+  if (dias === 1) return 'Mañana'
+  if (dias <= 6)  return `Este ${['domingo','lunes','martes','miércoles','jueves','viernes','sábado'][d.getDay()]}`
+  return `${d.getDate()} ${MESES_CORTOS[d.getMonth()]}`
+}
+
+// ─── En Curso Card — 20 templates ────────────────────────────────────────────
+
+const renderEnCursoCard = (tplId, { t, cp, dark, colorPrimario, inscriptos, zonas, bigLabel, ctaLabel, navigate }) => {
+  const cats   = t.categorias ?? []
+  const fmtRng = `${fmtFechaTorneo(t.fechaInicio)} → ${fmtFechaTorneo(t.fechaFin)}`
+
+  const LiveBadge = ({ color = cp }) => (
+    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full font-black uppercase"
+      style={{ backgroundColor:`${color}20`, color, border:`1px solid ${color}35`, fontSize:11, letterSpacing:'0.14em' }}>
+      <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor:color }} />
+      En curso
+    </div>
+  )
+
+  const CatChips = ({ accent = cp }) => cats.length === 0 ? null : (
+    <div className="flex flex-wrap gap-1.5">
+      {cats.map((c) => (
+        <span key={c} className="text-xs font-semibold px-2.5 py-1 rounded-lg"
+          style={{ backgroundColor:`${accent}15`, color:accent, border:`1px solid ${accent}28` }}>{c}</span>
+      ))}
+    </div>
+  )
+
+  const nav = () => navigate(`/torneos/${t.id}`)
+
+  switch (tplId) {
+
+    // ── 1 · Sport Hero ───────────────────────────────────────────
+    case 1: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background: dark ? 'linear-gradient(135deg,#080b0f 0%,#0d1117 60%,#0f1a0c 100%)' : 'linear-gradient(135deg,#f0fdf4 0%,#f8fafc 100%)' }}>
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute inset-y-0 right-0" style={{ width:'55%', background:`linear-gradient(120deg,transparent 20%,${cp}0a 100%)`, clipPath:'polygon(12% 0%,100% 0%,100% 100%,0% 100%)' }} />
+          <div className="absolute top-6 bottom-6 right-[22%] w-px" style={{ backgroundColor:`${cp}18` }} />
+          <div className="absolute top-6 bottom-6 right-[38%] w-px" style={{ backgroundColor:`${cp}10` }} />
+          <div className="absolute left-[55%] right-0 top-1/2 h-px" style={{ backgroundColor:`${cp}12` }} />
+          <div className="absolute right-6 top-1/2 -translate-y-1/2 font-black italic select-none leading-none pointer-events-none" style={{ fontSize:'clamp(80px,14vw,160px)', color:cp, opacity:0.055, letterSpacing:'-0.04em' }}>{bigLabel.replace('° Categoría','°').replace(' Categoría','°')}</div>
+          <div className="absolute right-24 top-1/2 -translate-y-1/2 w-72 h-72 rounded-full blur-[80px]" style={{ backgroundColor:cp, opacity:0.09 }} />
+        </div>
+        <div className="relative z-10 p-8 md:p-12 flex flex-col md:flex-row gap-10 items-start md:items-center">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-5"><LiveBadge /><div className={`h-px flex-1 max-w-[40px] ${dark?'bg-white/8':'bg-slate-200'}`}/><span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${dark?'text-white/20':'text-slate-300'}`}>Torneo</span></div>
+            <h2 className="font-black italic uppercase leading-[0.9] tracking-tighter mb-4 break-words" style={{ fontSize:'clamp(30px,4.5vw,56px)', color:dark?'#ffffff':'#0f172a', textShadow:dark?`0 0 60px ${cp}18`:'none' }}>{t.nombre}</h2>
+            <div className="mb-5"><CatChips /></div>
+            <div className="flex items-center gap-6 mb-8">
+              <div><span className="text-3xl font-black tabular-nums leading-none block" style={{ color:cp }}>{inscriptos}</span><span className={`text-[10px] font-black uppercase tracking-[0.15em] block mt-0.5 ${dark?'text-white/25':'text-slate-400'}`}>Parejas</span></div>
+              {zonas!==null&&<><div className={`w-px h-10 ${dark?'bg-white/8':'bg-slate-200'}`}/><div><span className={`text-3xl font-black tabular-nums leading-none block ${dark?'text-white':'text-slate-900'}`}>{zonas}</span><span className={`text-[10px] font-black uppercase tracking-[0.15em] block mt-0.5 ${dark?'text-white/25':'text-slate-400'}`}>Zonas</span></div></>}
+            </div>
+            <button onClick={nav} className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105 active:scale-95" style={{ backgroundColor:cp, color:'#080b0f', boxShadow:`0 8px 32px ${cp}45` }}><Zap size={15} strokeWidth={2.5}/>{ctaLabel}</button>
+          </div>
+          <div className="hidden md:flex items-center justify-center w-40 shrink-0">
+            <div className="relative w-28 h-40 rounded" style={{ border:`1.5px solid ${cp}30` }}>
+              <div className="absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2" style={{backgroundColor:`${cp}22`}}/>
+              <div className="absolute left-0 right-0 top-[35%] h-px" style={{backgroundColor:`${cp}18`}}/>
+              <div className="absolute left-0 right-0 bottom-[35%] h-px" style={{backgroundColor:`${cp}18`}}/>
+              <div className="absolute inset-0 flex items-center justify-center"><Trophy size={26} style={{color:cp,opacity:0.45}}/></div>
+              {[['-top-1','-left-1'],['-top-1','-right-1'],['-bottom-1','-left-1'],['-bottom-1','-right-1']].map(([tt,ll],i)=>(
+                <span key={i} className={`absolute w-2 h-2 rounded-full ${tt} ${ll}`} style={{backgroundColor:cp,opacity:0.5}}/>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+
+    // ── 2 · Neon Grid ────────────────────────────────────────────
+    case 2: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:'#050508', border:`1px solid ${cp}50`, boxShadow:`0 0 40px ${cp}15,inset 0 0 40px ${cp}05` }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage:`linear-gradient(${cp}08 1px,transparent 1px),linear-gradient(90deg,${cp}08 1px,transparent 1px)`, backgroundSize:'44px 44px' }} />
+        <div className="absolute top-0 left-0 right-0 h-px" style={{ background:`linear-gradient(90deg,transparent,${cp},transparent)` }} />
+        <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background:`linear-gradient(90deg,transparent,${cp}60,transparent)` }} />
+        <div className="relative z-10 p-8 md:p-12 flex flex-col gap-5">
+          <LiveBadge />
+          <h2 style={{ fontSize:'clamp(28px,4vw,54px)', color:'#fff', textShadow:`0 0 40px ${cp},0 0 80px ${cp}60`, fontWeight:900, fontStyle:'italic', letterSpacing:'-0.02em', lineHeight:1 }}>{t.nombre}</h2>
+          <div className="flex items-center gap-6 flex-wrap">
+            <div><p className="text-4xl font-black tabular-nums" style={{color:cp,textShadow:`0 0 20px ${cp}`}}>{inscriptos}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-1">Parejas</p></div>
+            {zonas!==null&&<><div className="w-px h-12 bg-white/5"/><div><p className="text-4xl font-black tabular-nums text-white">{zonas}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-1">Zonas</p></div></>}
+            <div className="ml-auto text-right hidden md:block"><span className="text-[10px] text-white/30 block">{fmtRng}</span>{cats[0]&&<span className="text-[11px] font-bold" style={{color:cp}}>{cats[0]}</span>}</div>
+          </div>
+          <button onClick={nav} className="w-fit inline-flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:`${cp}18`,color:cp,border:`1px solid ${cp}60`,boxShadow:`0 0 20px ${cp}20`}}><Zap size={14}/>{ctaLabel}</button>
+        </div>
+      </div>
+    )
+
+    // ── 3 · Split Panel ──────────────────────────────────────────
+    case 3: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer flex min-h-[200px]" onClick={nav}>
+        <div className="flex-1 p-8 md:p-10 flex flex-col justify-between" style={{ background:dark?'#0d1117':'#ffffff' }}>
+          <div className="flex flex-col gap-3">
+            <LiveBadge />
+            <h2 className="font-black uppercase leading-tight break-words" style={{ fontSize:'clamp(22px,3.5vw,42px)', color:dark?'#fff':'#0f172a', letterSpacing:'-0.02em' }}>{t.nombre}</h2>
+            <span className={`text-xs ${dark?'text-white/30':'text-slate-400'}`}>{fmtRng}</span>
+            <CatChips />
+          </div>
+          <button onClick={nav} className="mt-4 w-fit inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:cp,color:'#080b0f'}}><Zap size={13}/>{ctaLabel}</button>
+        </div>
+        <div className="w-36 md:w-48 flex flex-col items-center justify-center gap-4 p-6 shrink-0" style={{ background:`linear-gradient(135deg,${cp}ee,${cp}bb)` }}>
+          <Trophy size={30} color="#080b0f" opacity={0.6}/>
+          <div className="text-center"><p className="text-4xl font-black leading-none" style={{color:'#080b0f'}}>{inscriptos}</p><p className="text-[10px] font-black uppercase tracking-widest mt-1" style={{color:'rgba(0,0,0,0.5)'}}>Parejas</p></div>
+          {zonas!==null&&<div className="text-center"><p className="text-3xl font-black leading-none" style={{color:'rgba(0,0,0,0.7)'}}>{zonas}</p><p className="text-[9px] font-black uppercase tracking-widest mt-1" style={{color:'rgba(0,0,0,0.4)'}}>Zonas</p></div>}
+        </div>
+      </div>
+    )
+
+    // ── 4 · Glassmorphism ────────────────────────────────────────
+    case 4: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer p-px" onClick={nav}
+        style={{ background:`linear-gradient(135deg,${cp}50,${cp}15,transparent)` }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ background:`radial-gradient(ellipse at 70% 30%,${cp}22 0%,transparent 60%)` }} />
+        <div className="relative rounded-[22px] p-8 md:p-10" style={{ background:'rgba(12,12,20,0.75)', backdropFilter:'blur(20px)', border:`1px solid ${cp}20` }}>
+          <div className="flex flex-col md:flex-row gap-8 items-start md:items-center">
+            <div className="flex-1">
+              <LiveBadge />
+              <h2 className="font-black italic mt-4 mb-4 leading-none" style={{ fontSize:'clamp(26px,4vw,50px)', color:'#fff', letterSpacing:'-0.03em' }}>{t.nombre}</h2>
+              <CatChips />
+              <div className="flex items-center gap-6 mt-5">
+                <div><p className="text-3xl font-black" style={{color:cp}}>{inscriptos}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-0.5">Parejas</p></div>
+                {zonas!==null&&<><div className="w-px h-10 bg-white/10"/><div><p className="text-3xl font-black text-white">{zonas}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-0.5">Zonas</p></div></>}
+              </div>
+            </div>
+            <div className="flex flex-col items-start md:items-end gap-3">
+              <span className="text-xs text-white/30">{fmtRng}</span>
+              <button onClick={nav} className="inline-flex items-center gap-2 px-7 py-3 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{background:`linear-gradient(135deg,${cp},${cp}cc)`,color:'#080b0f',boxShadow:`0 8px 24px ${cp}40`}}><Zap size={14}/>{ctaLabel}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+
+    // ── 5 · Stadium Lights ───────────────────────────────────────
+    case 5: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:'#080810', minHeight:240 }}>
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 left-1/4 w-1 h-full" style={{background:`linear-gradient(180deg,${cp}30,transparent 70%)`,transform:'rotate(-8deg)',transformOrigin:'top center'}}/>
+          <div className="absolute top-0 left-1/2 w-2 h-full" style={{background:`linear-gradient(180deg,${cp}45,transparent 65%)`,transform:'rotate(-1deg)',transformOrigin:'top center'}}/>
+          <div className="absolute top-0 left-2/3 w-1 h-full" style={{background:`linear-gradient(180deg,${cp}25,transparent 60%)`,transform:'rotate(7deg)',transformOrigin:'top center'}}/>
+          <div className="absolute top-0 left-0 right-0 h-px" style={{background:`linear-gradient(90deg,transparent,${cp}80,transparent)`}}/>
+        </div>
+        <div className="relative z-10 p-8 md:p-12 text-center flex flex-col items-center gap-5">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{background:`radial-gradient(circle,${cp}35,${cp}08)`,border:`1px solid ${cp}55`}}><Trophy size={26} style={{color:cp}}/></div>
+          <LiveBadge />
+          <h2 className="font-black uppercase text-center leading-tight" style={{fontSize:'clamp(26px,4vw,52px)',color:'#fff',textShadow:`0 2px 40px ${cp}30`,letterSpacing:'-0.02em'}}>{t.nombre}</h2>
+          <div className="flex items-center gap-10">
+            <div className="text-center"><p className="text-4xl font-black" style={{color:cp}}>{inscriptos}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-1">Parejas</p></div>
+            {zonas!==null&&<><div className="w-px h-10 bg-white/8"/><div className="text-center"><p className="text-4xl font-black text-white">{zonas}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-1">Zonas</p></div></>}
+          </div>
+          <button onClick={nav} className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:cp,color:'#080810',boxShadow:`0 0 40px ${cp}50`}}><Zap size={14}/>{ctaLabel}</button>
+          <p className="text-xs text-white/25">{fmtRng}</p>
+        </div>
+      </div>
+    )
+
+    // ── 6 · Scoreboard ───────────────────────────────────────────
+    case 6: return (
+      <div key={t.id} className="relative rounded-2xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:'#0a0a0c', border:`2px solid ${cp}30` }}>
+        <div className="flex items-center justify-between px-6 py-3 border-b" style={{borderColor:`${cp}20`,background:`${cp}08`}}>
+          <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor:cp}}/><span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{color:cp}}>En curso · Live</span></div>
+          <span className="text-[10px] text-white/30 font-mono">{fmtRng}</span>
+        </div>
+        <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start md:items-center">
+          <div className="flex-1">
+            <h2 className="font-black uppercase mb-3 leading-none" style={{fontSize:'clamp(22px,3.5vw,44px)',color:'#fff',letterSpacing:'-0.02em'}}>{t.nombre}</h2>
+            <CatChips />
+          </div>
+          <div className="flex items-stretch gap-4 shrink-0">
+            <div className="flex flex-col items-center justify-center px-5 py-4 rounded-xl" style={{background:`${cp}12`,border:`1px solid ${cp}30`}}>
+              <span className="text-5xl font-black font-mono tabular-nums leading-none" style={{color:cp}}>{String(inscriptos).padStart(2,'0')}</span>
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 mt-2">Parejas</span>
+            </div>
+            {zonas!==null&&<div className="flex flex-col items-center justify-center px-5 py-4 rounded-xl bg-white/4 border border-white/8">
+              <span className="text-5xl font-black font-mono tabular-nums leading-none text-white">{String(zonas).padStart(2,'0')}</span>
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 mt-2">Zonas</span>
+            </div>}
+          </div>
+        </div>
+        <div className="px-6 pb-5"><button onClick={nav} className="inline-flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:cp,color:'#0a0a0c'}}><Zap size={14}/>{ctaLabel}</button></div>
+      </div>
+    )
+
+    // ── 7 · Minimal Clean ────────────────────────────────────────
+    case 7: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer bg-white" onClick={nav}
+        style={{border:`1px solid ${cp}30`,boxShadow:`0 2px 30px ${cp}12`}}>
+        <div className="absolute top-0 left-0 right-0 h-1" style={{backgroundColor:cp}}/>
+        <div className="p-8 md:p-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-4"><span className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor:cp}}/><span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Torneo en curso</span></div>
+            <h2 className="font-black mb-3 leading-tight" style={{fontSize:'clamp(22px,3.5vw,42px)',color:'#0f172a',letterSpacing:'-0.02em'}}>{t.nombre}</h2>
+            <CatChips />
+            <p className="text-sm text-slate-400 mt-2">{fmtRng}</p>
+          </div>
+          <div className="flex flex-col items-start md:items-end gap-5">
+            <div className="flex items-center gap-8">
+              <div className="text-center"><p className="text-4xl font-black" style={{color:cp}}>{inscriptos}</p><p className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-1">Parejas</p></div>
+              {zonas!==null&&<div className="text-center"><p className="text-4xl font-black text-slate-800">{zonas}</p><p className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-1">Zonas</p></div>}
+            </div>
+            <button onClick={nav} className="inline-flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-bold transition-all hover:scale-105" style={{backgroundColor:cp,color:'white'}}><Zap size={13}/>{ctaLabel}</button>
+          </div>
+        </div>
+      </div>
+    )
+
+    // ── 8 · Fire ─────────────────────────────────────────────────
+    case 8: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:'linear-gradient(135deg,#1a0400 0%,#2d0800 40%,#1a0a00 100%)' }}>
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0" style={{background:'radial-gradient(ellipse at 70% 50%,rgba(255,69,0,0.18),transparent 60%)'}}/>
+          <div className="absolute inset-0" style={{background:'radial-gradient(ellipse at 30% 80%,rgba(255,140,0,0.12),transparent 50%)'}}/>
+        </div>
+        <div className="relative z-10 p-8 md:p-12 flex flex-col gap-5">
+          <LiveBadge color="#ff6b35" />
+          <h2 className="font-black italic uppercase leading-none tracking-tighter" style={{fontSize:'clamp(28px,4.5vw,54px)',color:'#fff',textShadow:'0 0 60px rgba(255,100,0,0.5)',letterSpacing:'-0.03em'}}>{t.nombre}</h2>
+          <div className="flex items-center gap-6 flex-wrap">
+            <div><p className="text-4xl font-black" style={{color:'#ff6b35'}}>{inscriptos}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-1">Parejas</p></div>
+            {zonas!==null&&<><div className="w-px h-12" style={{background:'rgba(255,100,50,0.2)'}}/><div><p className="text-4xl font-black text-white">{zonas}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-1">Zonas</p></div></>}
+            <div className="ml-auto"><CatChips accent="#ff6b35" /></div>
+          </div>
+          <button onClick={nav} className="w-fit inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{background:'linear-gradient(135deg,#ff4500,#ff8c00)',color:'#1a0400',boxShadow:'0 8px 30px rgba(255,80,0,0.45)'}}><Zap size={14}/>{ctaLabel}</button>
+        </div>
+      </div>
+    )
+
+    // ── 9 · Ocean Night ──────────────────────────────────────────
+    case 9: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:'linear-gradient(135deg,#020b1a 0%,#03122e 50%,#020d20 100%)' }}>
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0" style={{background:'radial-gradient(ellipse at 80% 20%,rgba(0,150,255,0.12),transparent 60%)'}}/>
+          {[20,40,60,80].map((p,i)=><div key={i} className="absolute left-0 right-0 h-px" style={{top:`${p}%`,background:'rgba(0,100,200,0.06)'}}/>)}
+        </div>
+        <div className="relative z-10 p-8 md:p-12 flex flex-col md:flex-row gap-10 items-start md:items-center">
+          <div className="flex-1">
+            <LiveBadge color="#00b4ff" />
+            <h2 className="font-black italic mt-4 mb-4 leading-none" style={{fontSize:'clamp(26px,4vw,50px)',color:'#fff',letterSpacing:'-0.03em',textShadow:'0 0 60px rgba(0,180,255,0.25)'}}>{t.nombre}</h2>
+            <CatChips accent="#00b4ff" />
+            <div className="flex items-center gap-6 mt-5">
+              <div><p className="text-3xl font-black" style={{color:'#00b4ff'}}>{inscriptos}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/25 mt-1">Parejas</p></div>
+              {zonas!==null&&<><div className="w-px h-10 bg-white/5"/><div><p className="text-3xl font-black text-white">{zonas}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/25 mt-1">Zonas</p></div></>}
+            </div>
+          </div>
+          <div className="flex flex-col items-start md:items-end gap-4">
+            <p className="text-xs text-white/25">{fmtRng}</p>
+            <button onClick={nav} className="inline-flex items-center gap-2 px-7 py-3 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{background:'linear-gradient(135deg,#006eff,#00b4ff)',color:'#020b1a',boxShadow:'0 8px 28px rgba(0,120,255,0.4)'}}><Zap size={14}/>{ctaLabel}</button>
+          </div>
+        </div>
+      </div>
+    )
+
+    // ── 10 · Gold Luxury ─────────────────────────────────────────
+    case 10: return (
+      <div key={t.id} className="relative rounded-2xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:'linear-gradient(135deg,#0a0800,#100e00)' }}>
+        <div className="absolute inset-0 pointer-events-none">
+          {[0,33,66,100].map((p,i)=><div key={i} className="absolute left-0 right-0 h-px" style={{top:`${p}%`,background:'rgba(212,175,55,0.06)'}}/>)}
+          <div className="absolute inset-0" style={{background:'radial-gradient(ellipse at 80% 40%,rgba(212,175,55,0.09),transparent 50%)'}}/>
+        </div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 px-6 py-3 border-b" style={{borderColor:'rgba(212,175,55,0.15)'}}>
+            <Trophy size={13} color="#d4af37" opacity={0.8}/><span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{color:'#d4af37'}}>Torneo en curso</span><span className="w-1.5 h-1.5 rounded-full animate-pulse ml-1" style={{backgroundColor:'#d4af37'}}/><span className="ml-auto text-[10px]" style={{color:'rgba(212,175,55,0.4)'}}>{fmtRng}</span>
+          </div>
+          <div className="p-8 md:p-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
+            <div className="flex-1">
+              <h2 className="font-black uppercase mb-3 leading-tight" style={{fontSize:'clamp(24px,4vw,48px)',color:'#fff',letterSpacing:'-0.01em'}}>{t.nombre}</h2>
+              <div style={{height:1,background:'linear-gradient(90deg,rgba(212,175,55,0.5),transparent)',marginBottom:12}}/>
+              <CatChips accent="#d4af37" />
+            </div>
+            <div className="flex flex-col gap-4 items-start md:items-end">
+              <div className="flex gap-6">
+                <div className="text-center"><p className="text-4xl font-black" style={{color:'#d4af37'}}>{inscriptos}</p><p className="text-[9px] font-black uppercase tracking-[0.2em] mt-1" style={{color:'rgba(212,175,55,0.4)'}}>Parejas</p></div>
+                {zonas!==null&&<div className="text-center"><p className="text-4xl font-black text-white">{zonas}</p><p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20 mt-1">Zonas</p></div>}
+              </div>
+              <button onClick={nav} className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{background:'linear-gradient(135deg,#d4af37,#b8960c)',color:'#0a0800',boxShadow:'0 6px 24px rgba(212,175,55,0.35)'}}><Zap size={13}/>{ctaLabel}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+
+    // ── 11 · Court Lines ─────────────────────────────────────────
+    case 11: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:dark?'#080f0a':'#f0fdf4', minHeight:220 }}>
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-end pr-8">
+          <div className="relative opacity-[0.11]" style={{width:130,height:190}}>
+            <div className="absolute inset-0 border-2 rounded" style={{borderColor:cp}}/>
+            <div className="absolute left-0 right-0 top-1/2 border-t-2 -translate-y-1/2" style={{borderColor:cp}}/>
+            <div className="absolute left-1/2 top-0 bottom-0 border-l-2 -translate-x-1/2" style={{borderColor:cp}}/>
+            <div className="absolute left-0 right-0 top-[28%] border-t" style={{borderColor:cp}}/>
+            <div className="absolute left-0 right-0 bottom-[28%] border-t" style={{borderColor:cp}}/>
+            <div className="absolute left-[18%] right-[18%] top-0 bottom-0 border-x" style={{borderColor:cp}}/>
+          </div>
+        </div>
+        <div className="relative z-10 p-8 md:p-10 flex flex-col gap-5">
+          <LiveBadge />
+          <h2 className="font-black uppercase leading-none tracking-tight" style={{fontSize:'clamp(26px,4vw,50px)',color:dark?'#fff':'#0f172a',letterSpacing:'-0.02em'}}>{t.nombre}</h2>
+          <CatChips />
+          <div className="flex items-center gap-6">
+            <div><p className="text-3xl font-black" style={{color:cp}}>{inscriptos}</p><p className={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${dark?'text-white/25':'text-slate-400'}`}>Parejas</p></div>
+            {zonas!==null&&<><div className={`w-px h-10 ${dark?'bg-white/8':'bg-slate-200'}`}/><div><p className={`text-3xl font-black ${dark?'text-white':'text-slate-800'}`}>{zonas}</p><p className={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${dark?'text-white/25':'text-slate-400'}`}>Zonas</p></div></>}
+          </div>
+          <button onClick={nav} className="w-fit inline-flex items-center gap-2 px-7 py-3 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:cp,color:'#080f0a',boxShadow:`0 6px 24px ${cp}45`}}><Zap size={14}/>{ctaLabel}</button>
+        </div>
+      </div>
+    )
+
+    // ── 12 · Big Stats ───────────────────────────────────────────
+    case 12: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:dark?'#060810':'#fafafa' }}>
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-end pr-8 md:pr-16">
+          <span className="font-black tabular-nums leading-none select-none" style={{fontSize:'clamp(100px,18vw,220px)',color:cp,opacity:0.04}}>{inscriptos}</span>
+        </div>
+        <div className="relative z-10 p-8 md:p-12 flex flex-col md:flex-row gap-8 items-start md:items-center">
+          <div className="flex-1">
+            <LiveBadge />
+            <h2 className="font-black italic mt-3 mb-2 leading-none" style={{fontSize:'clamp(22px,3.5vw,42px)',color:dark?'#fff':'#0f172a',letterSpacing:'-0.03em'}}>{t.nombre}</h2>
+            <p className={`text-xs ${dark?'text-white/30':'text-slate-400'} mb-3`}>{fmtRng}</p>
+            <CatChips />
+            <button onClick={nav} className="mt-5 inline-flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:cp,color:'#060810'}}><Zap size={14}/>{ctaLabel}</button>
+          </div>
+          <div className="shrink-0 flex flex-row md:flex-col gap-8 md:gap-3">
+            <div className="text-center"><p className="font-black tabular-nums leading-none" style={{fontSize:'clamp(52px,8vw,88px)',color:cp}}>{inscriptos}</p><p className={`text-[10px] font-black uppercase tracking-[0.2em] ${dark?'text-white/25':'text-slate-400'} mt-2`}>Parejas</p></div>
+            {zonas!==null&&<div className="text-center"><p className={`font-black tabular-nums leading-none ${dark?'text-white':'text-slate-800'}`} style={{fontSize:'clamp(38px,5vw,64px)'}}>{zonas}</p><p className={`text-[10px] font-black uppercase tracking-[0.2em] ${dark?'text-white/25':'text-slate-400'} mt-2`}>Zonas</p></div>}
+          </div>
+        </div>
+      </div>
+    )
+
+    // ── 13 · Carbon Strip ────────────────────────────────────────
+    case 13: return (
+      <div key={t.id} className="relative rounded-2xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:'#0c0c0e' }}>
+        <div className="absolute inset-0 pointer-events-none" style={{backgroundImage:'repeating-linear-gradient(90deg,rgba(255,255,255,0.014) 0px,rgba(255,255,255,0.014) 1px,transparent 1px,transparent 30px)'}}/>
+        <div className="absolute left-0 top-0 bottom-0 w-1" style={{backgroundColor:cp}}/>
+        <div className="p-6 md:p-10 pl-7 md:pl-12 flex flex-col md:flex-row gap-8 items-start md:items-center">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-3"><span className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor:cp}}/><span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{color:cp}}>En curso</span></div>
+            <h2 className="font-black uppercase mb-2 leading-tight" style={{fontSize:'clamp(24px,3.8vw,48px)',color:'#fff',letterSpacing:'-0.02em'}}>{t.nombre}</h2>
+            <CatChips />
+            <p className="text-xs text-white/25 mt-2">{fmtRng}</p>
+          </div>
+          <div className="flex flex-col gap-4 items-start md:items-end">
+            <div className="flex gap-4">
+              <div className="px-5 py-4 rounded-xl border" style={{borderColor:`${cp}25`,background:`${cp}08`}}><p className="text-4xl font-black font-mono leading-none" style={{color:cp}}>{inscriptos}</p><p className="text-[9px] font-black uppercase tracking-widest text-white/30 mt-2">Parejas</p></div>
+              {zonas!==null&&<div className="px-5 py-4 rounded-xl border border-white/8 bg-white/3"><p className="text-4xl font-black font-mono leading-none text-white">{zonas}</p><p className="text-[9px] font-black uppercase tracking-widest text-white/30 mt-2">Zonas</p></div>}
+            </div>
+            <button onClick={nav} className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all hover:brightness-110" style={{backgroundColor:cp,color:'#0c0c0e'}}><Zap size={13}/>{ctaLabel}</button>
+          </div>
+        </div>
+      </div>
+    )
+
+    // ── 14 · Sunset Warm ─────────────────────────────────────────
+    case 14: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:'linear-gradient(135deg,#1a0800 0%,#2d1200 40%,#1a1000 100%)' }}>
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0" style={{background:'radial-gradient(ellipse at 65% 20%,rgba(255,140,0,0.16),transparent 55%)'}}/>
+          <div className="absolute inset-0" style={{background:'radial-gradient(ellipse at 85% 85%,rgba(220,60,20,0.1),transparent 40%)'}}/>
+        </div>
+        <div className="relative z-10 p-8 md:p-12 flex flex-col md:flex-row gap-8 items-start md:items-center">
+          <div className="flex-1">
+            <LiveBadge color="#ff8c00" />
+            <h2 className="font-black italic mt-4 mb-3 leading-none" style={{fontSize:'clamp(26px,4.5vw,52px)',color:'#fff',textShadow:'0 0 40px rgba(255,140,0,0.3)',letterSpacing:'-0.03em'}}>{t.nombre}</h2>
+            <CatChips accent="#ff8c00" />
+            <div className="flex items-center gap-6 mt-5">
+              <div><p className="text-3xl font-black" style={{color:'#ff8c00'}}>{inscriptos}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-1">Parejas</p></div>
+              {zonas!==null&&<><div className="w-px h-10" style={{background:'rgba(255,140,0,0.2)'}}/><div><p className="text-3xl font-black text-white">{zonas}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-1">Zonas</p></div></>}
+            </div>
+          </div>
+          <div className="flex flex-col items-start md:items-end gap-4">
+            <p className="text-xs text-white/25">{fmtRng}</p>
+            <button onClick={nav} className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{background:'linear-gradient(135deg,#ff8c00,#ff4500)',color:'#1a0800',boxShadow:'0 8px 28px rgba(255,120,0,0.4)'}}><Zap size={14}/>{ctaLabel}</button>
+          </div>
+        </div>
+      </div>
+    )
+
+    // ── 15 · Ribbon Accent ───────────────────────────────────────
+    case 15: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:dark?'#0a0c10':'#f8fafc' }}>
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute" style={{top:'-10%',right:'-5%',width:'42%',height:'120%',background:`linear-gradient(135deg,${cp}20,${cp}06)`,transform:'skewX(-8deg)'}}/>
+          <div className="absolute" style={{top:'-10%',right:'8%',width:'3px',height:'120%',backgroundColor:`${cp}55`,transform:'skewX(-8deg)'}}/>
+        </div>
+        <div className="relative z-10 p-8 md:p-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
+          <div className="flex-1">
+            <LiveBadge />
+            <h2 className="font-black uppercase mt-3 mb-3 leading-tight" style={{fontSize:'clamp(24px,4vw,48px)',color:dark?'#fff':'#0f172a',letterSpacing:'-0.02em'}}>{t.nombre}</h2>
+            <CatChips />
+            <p className={`text-xs mt-2 ${dark?'text-white/30':'text-slate-400'}`}>{fmtRng}</p>
+            <div className="flex items-center gap-6 mt-4">
+              <div><p className="text-3xl font-black" style={{color:cp}}>{inscriptos}</p><p className={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${dark?'text-white/25':'text-slate-400'}`}>Parejas</p></div>
+              {zonas!==null&&<><div className={`w-px h-10 ${dark?'bg-white/8':'bg-slate-200'}`}/><div><p className={`text-3xl font-black ${dark?'text-white':'text-slate-800'}`}>{zonas}</p><p className={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${dark?'text-white/25':'text-slate-400'}`}>Zonas</p></div></>}
+            </div>
+          </div>
+          <button onClick={nav} className="mt-2 md:mt-0 shrink-0 inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:cp,color:'#0a0c10',boxShadow:`0 6px 24px ${cp}40`}}><Zap size={14}/>{ctaLabel}</button>
+        </div>
+      </div>
+    )
+
+    // ── 16 · Retro Stripes ───────────────────────────────────────
+    case 16: return (
+      <div key={t.id} className="relative rounded-2xl overflow-hidden cursor-pointer" onClick={nav}>
+        <div className="flex">
+          <div className="h-2.5 flex-1" style={{backgroundColor:cp}}/>
+          <div className="h-2.5 w-10 bg-black"/>
+          <div className="h-2.5 flex-1" style={{backgroundColor:cp,opacity:0.55}}/>
+          <div className="h-2.5 w-6 bg-black"/>
+          <div className="h-2.5 flex-1" style={{backgroundColor:cp,opacity:0.28}}/>
+        </div>
+        <div className="bg-[#0a0a0c] p-6 md:p-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-3"><span className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor:cp}}/><span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{color:cp}}>En curso</span></div>
+            <h2 className="font-black uppercase leading-none tracking-tighter" style={{fontSize:'clamp(26px,5vw,56px)',color:'#fff',letterSpacing:'-0.04em'}}>{t.nombre}</h2>
+            <div className="mt-3"><CatChips /></div>
+          </div>
+          <div className="flex flex-col gap-4">
+            <div className="flex gap-4">
+              <div className="border-l-4 pl-4" style={{borderColor:cp}}><p className="text-4xl font-black font-mono leading-none" style={{color:cp}}>{inscriptos}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-1">Parejas</p></div>
+              {zonas!==null&&<div className="border-l-4 pl-4 border-white/15"><p className="text-4xl font-black font-mono leading-none text-white">{zonas}</p><p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-1">Zonas</p></div>}
+            </div>
+            <button onClick={nav} className="inline-flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:cp,color:'#0a0a0c'}}><Zap size={14}/>{ctaLabel}</button>
+          </div>
+        </div>
+        <div className="flex">
+          <div className="h-1.5 flex-1" style={{backgroundColor:cp,opacity:0.28}}/>
+          <div className="h-1.5 w-8 bg-black"/>
+          <div className="h-1.5 flex-1" style={{backgroundColor:cp,opacity:0.55}}/>
+          <div className="h-1.5 w-12 bg-black"/>
+          <div className="h-1.5 flex-1" style={{backgroundColor:cp}}/>
+        </div>
+      </div>
+    )
+
+    // ── 17 · Ticket ──────────────────────────────────────────────
+    case 17: return (
+      <div key={t.id} className="relative rounded-2xl overflow-hidden cursor-pointer bg-white shadow-lg" onClick={nav}>
+        <div className="h-1.5" style={{backgroundColor:cp}}/>
+        <div className="flex min-h-[160px]">
+          <div className="flex-1 p-5 md:p-7">
+            <div className="flex items-center gap-2 mb-2"><span className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor:cp}}/><span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Torneo en curso</span></div>
+            <h2 className="font-black mb-1.5 leading-tight" style={{fontSize:'clamp(20px,3.2vw,38px)',color:'#0f172a',letterSpacing:'-0.02em'}}>{t.nombre}</h2>
+            <p className="text-xs text-slate-400 mb-2.5">{fmtRng}</p>
+            <CatChips />
+          </div>
+          <div className="w-px my-4 relative shrink-0" style={{borderRight:'2px dashed #e2e8f0'}}>
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-slate-100"/>
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-slate-100"/>
+          </div>
+          <div className="w-28 md:w-36 flex flex-col items-center justify-center gap-2.5 p-4" style={{background:`${cp}08`}}>
+            <Trophy size={22} style={{color:cp}}/>
+            <div className="text-center"><p className="text-3xl font-black leading-none" style={{color:cp}}>{inscriptos}</p><p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Parejas</p></div>
+            {zonas!==null&&<div className="text-center"><p className="text-2xl font-black text-slate-700">{zonas}</p><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Zonas</p></div>}
+          </div>
+        </div>
+        <div className="px-5 pb-4 pt-1 border-t border-slate-100 flex items-center justify-between">
+          <button onClick={nav} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:cp,color:'white'}}><Zap size={12}/>{ctaLabel}</button>
+          <span className="text-xs text-slate-200 font-mono tracking-wider">#{String(t.id ?? '').slice(-6).padStart(6,'0')}</span>
+        </div>
+      </div>
+    )
+
+    // ── 18 · Badge Emblem ────────────────────────────────────────
+    case 18: return (
+      <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:dark?'linear-gradient(135deg,#060810,#0a0d14)':'#f8fafc', minHeight:240 }}>
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-[0.035]">
+          <div className="w-64 h-64 rounded-full" style={{border:`24px solid ${cp}`}}/>
+        </div>
+        <div className="relative z-10 p-8 md:p-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
+          <div className="shrink-0 flex items-center justify-center w-24 h-24 rounded-full" style={{background:`radial-gradient(circle,${cp}22,${cp}06)`,border:`2px solid ${cp}45`,boxShadow:`0 0 40px ${cp}20`}}>
+            <Trophy size={26} style={{color:cp}}/>
+          </div>
+          <div className="flex-1">
+            <LiveBadge />
+            <h2 className="font-black mt-3 mb-3 leading-tight" style={{fontSize:'clamp(24px,4vw,48px)',color:dark?'#fff':'#0f172a',letterSpacing:'-0.02em'}}>{t.nombre}</h2>
+            <CatChips />
+            <div className="flex items-center gap-6 mt-4">
+              <div><p className="text-3xl font-black" style={{color:cp}}>{inscriptos}</p><p className={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${dark?'text-white/25':'text-slate-400'}`}>Parejas</p></div>
+              {zonas!==null&&<><div className={`w-px h-10 ${dark?'bg-white/8':'bg-slate-200'}`}/><div><p className={`text-3xl font-black ${dark?'text-white':'text-slate-800'}`}>{zonas}</p><p className={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${dark?'text-white/25':'text-slate-400'}`}>Zonas</p></div></>}
+            </div>
+          </div>
+          <button onClick={nav} className="shrink-0 inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:cp,color:'#060810',boxShadow:`0 6px 24px ${cp}40`}}><Zap size={14}/>{ctaLabel}</button>
+        </div>
+      </div>
+    )
+
+    // ── 19 · Editorial ───────────────────────────────────────────
+    case 19: return (
+      <div key={t.id} className="relative rounded-2xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:dark?'#0c0c0e':'#ffffff', border:`1px solid ${dark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)'}` }}>
+        <div className="flex items-center justify-between px-6 py-3 border-b" style={{borderColor:dark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)'}}>
+          <span className="text-[9px] font-black uppercase tracking-[0.25em]" style={{color:cp}}>Torneo en curso</span>
+          <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{backgroundColor:cp}}/><span className={`text-[9px] font-bold ${dark?'text-white/30':'text-slate-400'}`}>{fmtRng}</span></div>
+        </div>
+        <div className="p-6 md:p-8 grid md:grid-cols-[1fr_auto] gap-6 items-start">
+          <div>
+            <h2 className="font-black leading-none mb-4" style={{fontSize:'clamp(24px,5vw,56px)',color:dark?'#fff':'#0f172a',letterSpacing:'-0.04em'}}>{t.nombre}</h2>
+            <div className="flex items-center gap-3 mb-4"><div className="h-px flex-1" style={{backgroundColor:`${cp}40`}}/><span className="text-[9px] font-black uppercase tracking-[0.2em]" style={{color:cp}}>Datos</span><div className="h-px flex-1" style={{backgroundColor:`${cp}40`}}/></div>
+            <div className="flex flex-wrap gap-5">
+              <div><span className="text-3xl font-black" style={{color:cp}}>{inscriptos}</span><span className={`text-[10px] font-black uppercase tracking-widest ml-2 ${dark?'text-white/25':'text-slate-400'}`}>Parejas</span></div>
+              {zonas!==null&&<div><span className={`text-3xl font-black ${dark?'text-white':'text-slate-800'}`}>{zonas}</span><span className={`text-[10px] font-black uppercase tracking-widest ml-2 ${dark?'text-white/25':'text-slate-400'}`}>Zonas</span></div>}
+            </div>
+            {cats.length>0&&<div className="mt-3"><CatChips /></div>}
+          </div>
+          <button onClick={nav} className="mt-1 inline-flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:cp,color:'#0c0c0e'}}><Zap size={13}/>{ctaLabel}</button>
+        </div>
+      </div>
+    )
+
+    // ── 20 · Cinematic ───────────────────────────────────────────
+    case 20: return (
+      <div key={t.id} className="relative rounded-2xl overflow-hidden cursor-pointer" onClick={nav}
+        style={{ background:'#000', minHeight:190 }}>
+        <div className="absolute top-0 left-0 right-0 h-3 bg-black z-20"/>
+        <div className="absolute bottom-0 left-0 right-0 h-3 bg-black z-20"/>
+        <div className="absolute inset-0" style={{background:`linear-gradient(135deg,#000 0%,rgba(0,0,0,0.55) 50%,${cp}12 100%)`}}/>
+        <div className="absolute inset-0" style={{background:`radial-gradient(ellipse at 80% 50%,${cp}14,transparent 55%)`}}/>
+        <div className="relative z-10 h-full flex flex-col justify-center px-8 md:px-14 py-8">
+          <div className="flex items-center gap-4 mb-3">
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{backgroundColor:cp}}/>
+            <span className="text-[9px] font-black uppercase tracking-[0.25em] text-white/40">En curso ahora</span>
+            <div className="h-px flex-1 max-w-20" style={{backgroundColor:`${cp}30`}}/>
+            <span className="text-[9px] text-white/25">{fmtRng}</span>
+          </div>
+          <h2 className="font-black italic uppercase leading-none mb-4" style={{fontSize:'clamp(22px,4vw,52px)',color:'#fff',letterSpacing:'-0.04em',textShadow:`0 0 80px ${cp}20`}}>{t.nombre}</h2>
+          <div className="flex items-center gap-5 flex-wrap">
+            {cats.map((c)=><span key={c} className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{backgroundColor:`${cp}15`,color:cp,border:`1px solid ${cp}25`}}>{c}</span>)}
+            <span className="text-xs text-white/30">{inscriptos} parejas{zonas!==null?` · ${zonas} zonas`:''}</span>
+            <button onClick={nav} className="ml-auto inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all hover:scale-105" style={{backgroundColor:cp,color:'#000'}}><Zap size={12}/>{ctaLabel}</button>
+          </div>
+        </div>
+      </div>
+    )
+
+    default: return renderEnCursoCard(1, { t, cp, dark, colorPrimario, inscriptos, zonas, bigLabel, ctaLabel, navigate })
+  }
+}
+
 export const TorneosSection = ({ colorPrimario = '#afca0b', dark = true, onCta }) => {
-  const navigate = useNavigate()
-  const torneos  = useTorneosStore((s) => s.torneos)
+  const navigate  = useNavigate()
+  const torneos   = useTorneosStore((s) => s.torneos)
 
   const visibles = useMemo(() => {
     return [...torneos]
       .filter((t) => t.estado === 'open' || t.estado === 'in_progress')
       .sort((a, b) => a.fechaInicio < b.fechaInicio ? -1 : 1)
-      .slice(0, 3)
+      .slice(0, 4)
   }, [torneos])
 
   if (visibles.length === 0) return null
@@ -98,166 +659,289 @@ export const TorneosSection = ({ colorPrimario = '#afca0b', dark = true, onCta }
   const totalCupo = (t) =>
     t.cupoLibre ? null : Object.values(t.cuposPorCategoria).reduce((a, b) => a + b, 0)
 
+  const enCursoList = visibles.filter((t) => t.estado === 'in_progress')
+  const proximoList = visibles.filter((t) => t.estado === 'open' && diasHasta(t.fechaInicio) <= DIAS_FLYER)
+  const openList    = visibles.filter((t) => t.estado === 'open' && diasHasta(t.fechaInicio) > DIAS_FLYER)
+
   return (
-    <section className="py-20 px-6">
-      <div className="max-w-5xl mx-auto">
+    <section id="torneos" className="py-20 px-6">
+      <div className="max-w-5xl mx-auto flex flex-col gap-5">
 
-        {/* Título */}
-        <div className="text-center mb-12">
-          <div
-            className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full border"
-            style={{ borderColor: `${colorPrimario}30`, backgroundColor: `${colorPrimario}10` }}
-          >
-            <Trophy size={12} style={{ color: colorPrimario }} />
-            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: colorPrimario }}>Torneos</span>
-          </div>
-          <h2 className={`text-3xl font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>
-            Competí con nosotros
-          </h2>
-          <p className={`mt-3 text-sm ${dark ? 'text-white/40' : 'text-slate-500'}`}>
-            Inscribite y seguí el cuadro en tiempo real.
-          </p>
-        </div>
+        {/* ── HERO — torneo en curso ─────────────────────────────────── */}
+        {enCursoList.map((t) => {
+          const inscriptos = t.inscriptos.filter((p) => p.estado === 'inscripto').length
+          const zonas      = Array.isArray(t.grupos) ? t.grupos.length : null
+          const bigLabel   = t.categorias?.[0] ?? ''
+          const cp         = t.colorAcento || colorPrimario
+          const ctaLabel   = t.ctaEnCurso || 'Seguir el torneo'
+          const tplId      = t.templateEnCurso ?? 1
+          const imgEnCurso = t.imagenFondoEnCurso || null
 
-        {/* Cards */}
-        <div className={`grid gap-4 ${
-          visibles.length === 1 ? 'max-w-md mx-auto' :
-          visibles.length === 2 ? 'md:grid-cols-2' :
-          'md:grid-cols-3'
-        }`}>
-          {visibles.map((t) => {
-            const cupo      = totalCupo(t)
-            const inscriptos = t.inscriptos.length
-            const pct       = cupo ? Math.round((inscriptos / cupo) * 100) : 0
-            const lleno     = cupo !== null && inscriptos >= cupo
-            const enCurso   = t.estado === 'in_progress'
+          // Imagen propia → override de template
+          if (imgEnCurso) return (
+            <div key={t.id}
+              className="relative rounded-3xl overflow-hidden cursor-pointer group"
+              onClick={() => navigate(`/torneos/${t.id}`)}>
+              <img src={imgEnCurso} alt={t.nombre} className="w-full object-cover max-h-80 transition-transform duration-500 group-hover:scale-[1.02]" />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-all duration-300 flex items-end">
+                <div className="w-full p-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                  <button className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-black uppercase tracking-wider"
+                    style={{ backgroundColor: cp, color: '#080b0f' }}>
+                    <Zap size={14} /> {ctaLabel}
+                  </button>
+                </div>
+              </div>
+              <div className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.14em]"
+                style={{ backgroundColor: `${cp}22`, color: cp, border: `1px solid ${cp}35`, backdropFilter: 'blur(8px)' }}>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: cp }} />
+                En curso
+              </div>
+            </div>
+          )
 
-            return (
-              <div
-                key={t.id}
-                className={`relative rounded-2xl border overflow-hidden flex flex-col transition-all ${
-                  dark
-                    ? 'bg-white/3 border-white/8 hover:border-white/18'
-                    : 'bg-white border-slate-200 shadow-sm hover:shadow-md'
-                }`}
-              >
-                {/* Badge estado */}
-                <div className="absolute top-3 right-3">
-                  {enCurso ? (
-                    <span
-                      className="flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: `${colorPrimario}20`, color: colorPrimario }}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full animate-pulse inline-block" style={{ backgroundColor: colorPrimario }} />
-                      En curso
-                    </span>
-                  ) : (
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      dark ? 'text-emerald-400 bg-emerald-400/15' : 'text-emerald-700 bg-emerald-100'
-                    }`}>
-                      Inscripción abierta
-                    </span>
-                  )}
+          return renderEnCursoCard(tplId, { t, cp, dark, colorPrimario, inscriptos, zonas, bigLabel, ctaLabel, navigate })
+        })}
+
+        {/* ── FLYER "Próximamente" ──────────────────────────────────── */}
+        {proximoList.map((t) => {
+          const cp        = t.colorAcento || colorPrimario
+          const cupo      = totalCupo(t)
+          const inscriptos = t.inscriptos.filter((p) => p.estado === 'inscripto').length
+          const pct       = cupo ? Math.round((inscriptos / cupo) * 100) : 0
+          const restantes = cupo !== null ? Math.max(0, cupo - inscriptos) : null
+          const dias      = diasHasta(t.fechaInicio)
+          const bigLabel  = t.categorias?.[0]?.replace('° Categoría','°').replace(' Categoría','°') ?? ''
+          const tieneImg  = !!t.imagenFondo
+          const modoImagen = t.modoLandingFlyer === 'imagen' && tieneImg
+
+          // Modo imagen propia: muestra el flyer directamente
+          if (modoImagen) return (
+            <div key={t.id}
+              className="relative rounded-3xl overflow-hidden cursor-pointer group"
+              onClick={onCta}>
+              <img src={t.imagenFondo} alt={t.nombre} className="w-full object-cover max-h-80 transition-transform duration-500 group-hover:scale-[1.02]" />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-end">
+                <div className="w-full p-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                  <button className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-black uppercase tracking-wider"
+                    style={{ backgroundColor: cp, color: '#080b0f' }}>
+                    <Users size={14} /> Inscribirme
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+
+          return (
+            <div key={t.id} className="relative rounded-3xl overflow-hidden"
+              style={{
+                minHeight: 300,
+                background: tieneImg
+                  ? `url(${t.imagenFondo}) center/cover no-repeat`
+                  : `linear-gradient(135deg, #080b0f 0%, #0c160a 100%)`,
+              }}>
+
+              {/* Overlay cuando hay imagen */}
+              {tieneImg && <div className="absolute inset-0 bg-black/60" />}
+
+              {/* Fondos decorativos (sin imagen) */}
+              {!tieneImg && (
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                  <div className="absolute inset-y-0 right-0 w-[55%]"
+                    style={{ background: `linear-gradient(120deg,transparent 25%,${cp}10 100%)`, clipPath:'polygon(15% 0%,100% 0%,100% 100%,0% 100%)' }} />
+                  <div className="absolute right-8 top-1/2 -translate-y-1/2 font-black italic select-none leading-none"
+                    style={{ fontSize:'clamp(90px,15vw,180px)', color: cp, opacity: 0.05, letterSpacing:'-0.04em' }}>
+                    {bigLabel}
+                  </div>
+                  <div className="absolute right-24 top-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[90px]"
+                    style={{ backgroundColor: cp, opacity: 0.1 }} />
+                  {/* Líneas decorativas */}
+                  <div className="absolute top-8 bottom-8 right-[20%] w-px" style={{ backgroundColor:`${cp}15` }} />
+                  <div className="absolute top-8 bottom-8 right-[36%] w-px" style={{ backgroundColor:`${cp}08` }} />
+                </div>
+              )}
+
+              {/* Contenido */}
+              <div className="relative z-10 p-8 md:p-12">
+
+                {/* Label + countdown */}
+                <div className="flex items-center gap-3 mb-5">
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
+                    Próximo torneo
+                  </span>
+                  <div className="h-px w-8" style={{ backgroundColor:`${cp}40` }} />
+                  <span className="text-[11px] font-black uppercase tracking-[0.12em] px-2.5 py-1 rounded-lg"
+                    style={{ backgroundColor:`${cp}22`, color: cp, border:`1px solid ${cp}35` }}>
+                    {dias === 0 ? '¡Hoy empieza!' : dias === 1 ? 'Mañana' : `En ${dias} días`}
+                  </span>
                 </div>
 
-                <div className="p-5 flex flex-col gap-3 flex-1">
-                  {/* Ícono + nombre */}
-                  <div className="flex items-start gap-3 pr-24">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: `${colorPrimario}18`, border: `1px solid ${colorPrimario}30` }}
-                    >
-                      <Trophy size={18} style={{ color: colorPrimario }} />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className={`font-bold text-sm leading-tight ${dark ? 'text-white' : 'text-slate-900'}`}>
-                        {t.nombre}
-                      </h3>
-                      <p className={`text-xs mt-0.5 ${dark ? 'text-white/35' : 'text-slate-500'}`}>
-                        {t.categorias?.join(' · ')}
-                        {t.genero && t.genero !== 'Masculino' && ` · ${t.genero}`}
-                      </p>
-                    </div>
-                  </div>
+                {/* Nombre billboard */}
+                <h2 className="font-black italic uppercase leading-[0.88] tracking-tighter mb-6 text-white"
+                  style={{ fontSize:'clamp(28px,4.5vw,58px)', textShadow: tieneImg ? '0 2px 20px rgba(0,0,0,0.6)' : 'none' }}>
+                  {t.nombre}
+                </h2>
 
-                  {/* Fechas */}
-                  <div className={`flex items-center gap-1.5 text-xs ${dark ? 'text-white/35' : 'text-slate-500'}`}>
-                    <CalendarDays size={11} className="shrink-0" />
-                    {fmtFechaTorneo(t.fechaInicio)} → {fmtFechaTorneo(t.fechaFin)}
-                  </div>
+                <div className="flex flex-col md:flex-row gap-6 md:gap-10 items-start md:items-end">
+                  <div className="flex-1 flex flex-col gap-4">
 
-                  {/* Cupo (solo torneos open) */}
-                  {!enCurso && (
-                    <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className={`text-xs ${dark ? 'text-white/30' : 'text-slate-400'}`}>Parejas inscriptas</span>
-                        {t.cupoLibre ? (
-                          <span className={`text-xs font-semibold ${dark ? 'text-white/40' : 'text-slate-600'}`}>Sin límite</span>
-                        ) : (
-                          <span className={`text-xs font-semibold ${lleno ? 'text-red-400' : dark ? 'text-white/50' : 'text-slate-600'}`}>
-                            {inscriptos} / {cupo}
-                          </span>
-                        )}
-                      </div>
-                      {!t.cupoLibre && (
-                        <div className={`h-1 rounded-full overflow-hidden ${dark ? 'bg-white/8' : 'bg-slate-100'}`}>
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${Math.min(pct, 100)}%`,
-                              backgroundColor: lleno ? '#ef4444' : colorPrimario,
-                            }}
-                          />
-                        </div>
+                    {/* Fecha + categorías */}
+                    <div className="flex flex-wrap gap-2">
+                      <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl text-white/75"
+                        style={{ backgroundColor:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)' }}>
+                        <CalendarDays size={11} />
+                        {fmtDiaDestacado(t.fechaInicio)} · {fmtFechaTorneo(t.fechaInicio)} → {fmtFechaTorneo(t.fechaFin)}
+                      </span>
+                      {t.categorias?.map((c) => (
+                        <span key={c} className="text-xs font-semibold px-3 py-1.5 rounded-xl"
+                          style={{ backgroundColor:`${cp}18`, color: cp, border:`1px solid ${cp}28` }}>
+                          {c}
+                        </span>
+                      ))}
+                      {t.genero && t.genero !== 'Masculino' && (
+                        <span className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white/50"
+                          style={{ backgroundColor:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.10)' }}>
+                          {t.genero}
+                        </span>
                       )}
                     </div>
-                  )}
 
-                  {enCurso && (
-                    <p className={`text-xs ${dark ? 'text-white/30' : 'text-slate-500'}`}>
-                      {inscriptos} pareja{inscriptos !== 1 ? 's' : ''} compitiendo
-                    </p>
-                  )}
+                    {/* Premios */}
+                    {(t.premioPrimero || t.premioSegundo || t.premioSemifinal) && (
+                      <div className="flex flex-wrap gap-2">
+                        {t.premioPrimero && (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+                            style={{ backgroundColor:'rgba(234,179,8,0.12)', border:'1px solid rgba(234,179,8,0.28)', color:'#eab308' }}>
+                            🥇 {t.premioPrimero}
+                          </div>
+                        )}
+                        {t.premioSegundo && (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+                            style={{ backgroundColor:'rgba(148,163,184,0.1)', border:'1px solid rgba(148,163,184,0.22)', color:'#94a3b8' }}>
+                            🥈 {t.premioSegundo}
+                          </div>
+                        )}
+                        {t.premioSemifinal && (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+                            style={{ backgroundColor:'rgba(180,83,9,0.12)', border:'1px solid rgba(180,83,9,0.22)', color:'#fb923c' }}>
+                            🥉 {t.premioSemifinal}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Cupo restante */}
+                    {restantes !== null && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl font-black tabular-nums leading-none"
+                          style={{ color: restantes <= 3 ? '#ef4444' : cp }}>
+                          {restantes}
+                        </span>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/30">
+                            {restantes === 1 ? 'Lugar disponible' : 'Lugares disponibles'}
+                          </p>
+                          <div className="h-1 w-24 rounded-full overflow-hidden mt-1" style={{ backgroundColor:'rgba(255,255,255,0.07)' }}>
+                            <div className="h-full rounded-full transition-all"
+                              style={{ width:`${Math.min(pct,100)}%`, backgroundColor: pct >= 80 ? '#ef4444' : cp }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Descripción corta */}
+                    {t.descripcion && (
+                      <p className="text-xs text-white/40 leading-relaxed max-w-sm line-clamp-2">{t.descripcion}</p>
+                    )}
+                  </div>
+
+                  {/* CTA */}
+                  <button onClick={onCta}
+                    className="shrink-0 inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105 active:scale-95"
+                    style={{ backgroundColor: cp, color:'#080b0f', boxShadow:`0 8px 32px ${cp}45` }}>
+                    <Users size={15} strokeWidth={2.5} />
+                    Inscribirme
+                  </button>
                 </div>
+              </div>
+            </div>
+          )
+        })}
 
-                {/* CTA */}
-                <div className="px-5 pb-5">
-                  {enCurso ? (
-                    <button
-                      onClick={() => navigate(`/torneos/${t.id}`)}
-                      className={`w-full py-2.5 text-sm font-semibold rounded-xl border transition-all ${
-                        dark
-                          ? 'border-white/10 text-white/55 hover:border-white/25 hover:text-white hover:bg-white/5'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      Seguir el torneo →
-                    </button>
-                  ) : (
+        {/* ── Torneos open ─────────────────────────────────────────── */}
+        {openList.length > 0 && (
+          <div className={`grid gap-4 ${
+            openList.length === 1 ? 'max-w-sm' :
+            openList.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'
+          }`}>
+            {openList.map((t) => {
+              const cupo       = totalCupo(t)
+              const inscriptos = t.inscriptos.filter((p) => p.estado === 'inscripto').length
+              const pct        = cupo ? Math.round((inscriptos / cupo) * 100) : 0
+              const lleno      = cupo !== null && inscriptos >= cupo
+
+              return (
+                <div key={t.id} className={`relative rounded-2xl overflow-hidden flex flex-col transition-all group ${
+                  dark ? 'bg-white/3 border border-white/8 hover:border-white/18 hover:bg-white/5' : 'bg-white border border-slate-200 shadow-sm hover:shadow-lg'
+                }`}>
+                  {/* Accent bar top */}
+                  <div className="h-[3px] w-full" style={{ backgroundColor: colorPrimario }} />
+
+                  <div className="p-5 flex flex-col gap-3 flex-1">
+                    <div>
+                      <span className={`text-[10px] font-black uppercase tracking-[0.16em] ${dark ? 'text-white/25' : 'text-slate-400'}`}>
+                        Inscripción abierta
+                      </span>
+                      <h3 className={`font-black text-base leading-tight mt-1 ${dark ? 'text-white' : 'text-slate-900'}`}>
+                        {t.nombre}
+                      </h3>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {t.categorias?.map((c) => (
+                        <span key={c} className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+                          style={{ backgroundColor: `${colorPrimario}12`, color: colorPrimario }}>
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                    <div className={`flex items-center gap-1.5 text-xs ${dark ? 'text-white/30' : 'text-slate-400'}`}>
+                      <CalendarDays size={10} />
+                      {fmtFechaTorneo(t.fechaInicio)} → {fmtFechaTorneo(t.fechaFin)}
+                    </div>
+                    {!t.cupoLibre && cupo && (
+                      <div>
+                        <div className="flex justify-between mb-1.5">
+                          <span className={`flex items-center gap-1 text-[11px] ${dark ? 'text-white/30' : 'text-slate-400'}`}>
+                            <Users size={10} />{inscriptos} inscriptos
+                          </span>
+                          <span className={`text-[11px] font-bold ${lleno ? 'text-red-400' : dark ? 'text-white/45' : 'text-slate-500'}`}>
+                            {inscriptos}/{cupo}
+                          </span>
+                        </div>
+                        <div className={`h-1.5 rounded-full overflow-hidden ${dark ? 'bg-white/6' : 'bg-slate-100'}`}>
+                          <div className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: lleno ? '#ef4444' : colorPrimario }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="px-5 pb-5">
                     <button
                       onClick={onCta}
                       disabled={lleno}
-                      className={`w-full py-2.5 text-sm font-bold rounded-xl transition-all ${
-                        lleno
-                          ? dark
-                            ? 'bg-white/5 text-white/20 cursor-not-allowed'
-                            : 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                          : ''
+                      className={`w-full py-2.5 text-sm font-black uppercase tracking-wider rounded-xl transition-all ${
+                        lleno ? (dark ? 'bg-white/5 text-white/20 cursor-not-allowed' : 'bg-slate-100 text-slate-300 cursor-not-allowed') : 'hover:scale-[1.02] active:scale-[0.98]'
                       }`}
-                      style={!lleno ? {
-                        backgroundColor: colorPrimario,
-                        color: '#0d1117',
-                        boxShadow: `0 4px 16px ${colorPrimario}30`,
-                      } : undefined}
+                      style={!lleno ? { backgroundColor: colorPrimario, color: '#080b0f', boxShadow: `0 4px 16px ${colorPrimario}30` } : undefined}
                     >
-                      {lleno ? 'Cupo completo' : 'Inscribirme'}
+                      {lleno ? 'Cupo completo' : 'Inscribirme →'}
                     </button>
-                  )}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
 
       </div>
     </section>

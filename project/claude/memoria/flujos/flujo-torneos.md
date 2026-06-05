@@ -1,50 +1,91 @@
 # Flujo: Torneos
 
-Gestión de torneos desde el admin y visualización/inscripción del jugador.  
-Reglas aplicadas: RN-35, RN-36.
-
-> **Estado actual**: Estructura base implementada con mock data. La integración entre el panel admin y el dashboard jugador está pendiente.
+Gestión de torneos desde el admin y visualización/inscripción del jugador.
+Última actualización: 2026-06-03
 
 ---
 
 ## Admin — Crear torneo (`/dashboardAdmin/torneos`)
 
-1. Admin va a la sección Torneos
-2. Ve lista de torneos existentes (activos, próximos, finalizados)
-3. Admin crea un nuevo torneo:
-   - Nombre, categorías habilitadas (8va–1ra) (RN-35)
-   - Cupo por categoría
-   - Formato (grupos + eliminación, eliminación directa, etc.)
-   - Fecha de inicio y fin
-   - Descripción
-4. Torneo queda en estado `próximo`
-5. Admin puede activar inscripción → toggle en cada torneo
-6. Admin puede ver inscriptos por categoría
+1. Admin crea torneo: nombre, categorías, cupo, formato, fechaInicio, fechaFin, diaInicioEliminatoria/horaInicioEliminatoria (opcional), canchas asignadas
+2. Estado inicial: `draft`
+3. Admin abre inscripción → `open`
 
 ---
 
-## Admin — Gestionar resultados (pendiente)
+## Admin — Gestionar inscriptos (`/dashboardAdmin/torneos/:id` → tab Parejas inscriptas)
 
-- Registrar resultados de partidos
-- El ranking se actualiza automáticamente según resultados (RN-36)
-- Avanzar equipos en el cuadro
-
----
-
-## Jugador — Ver torneos (`/dashboardJugadores/torneos`)
-
-1. Jugador va a la sección Torneos
-2. Ve torneos disponibles (activos y próximos)
-3. Puede inscribirse en la categoría que le corresponde (RN-30 — categoría del jugador)
-4. Ve historial de torneos jugados y resultados
+- **Alta manual**: agregar pareja con DNI lookup, compañero, disponibilidad (días + horaDesde), prefiereMismoDia
+- **Estados de inscripto**: `inscripto` | `espera` | `suplente`
+- Cupo lleno → nuevas inscripciones van a `espera`
+- Al cerrar inscripción: parejas `espera` → `suplente` (no se eliminan)
+- Al reabrir: `suplente` → `espera`
+- Admin puede promover manualmente espera → inscripto
+- Admin puede editar disponibilidad de cada pareja (modal ModalEditarDisponibilidad)
 
 ---
 
-## Pendiente de implementar
+## Admin — Fase de grupos (`/dashboardAdmin/torneos/:id` → tab Grupos)
 
-- Conexión real entre `TorneosPage` (admin) y `PlayerTournamentsPage` (jugador)
-- Store compartido para torneos
-- Lógica de inscripción validada por categoría del jugador
-- Cuadros de eliminación / grupos
-- Carga de resultados
-- Actualización automática del ranking
+### Estado `closed` — grupos pendientes
+
+1. **Generar grupos**: `generateGroupPhase(parejas titulares)` con shuffle aleatorio
+   - Algoritmo constraint-first: parejas con menos días disponibles siembran su zona
+   - Score: overlap + diversity + onexdia×2
+   - Zonas de 3 (resto 0), de 4 (resto 1) o de 2 (resto 2) según distribución APA
+2. **Auto-asignar**: asigna horarios automáticamente
+   - Respeta disponibilidad, intervalo entre partidos, corte de eliminatoria
+   - 3 fallbacks: overlap confirmado → días ya usados → disponibilidad implícita
+   - Multi-iteración: hasta 25 reagrupaciones si quedan sinHorario
+   - Modal de progreso con resultado
+3. **Regenerar**: re-sortea grupos con nueva semilla aleatoria
+4. **Swap manual**: click en pareja → click en otra → intercambia (solo dentro de la misma categoría)
+   - Las dos zonas afectadas se resetean; el resto conserva sus horarios
+   - Después del swap: Auto-asignar completa solo los sin asignar
+5. **Asignar manual** (click en "Sin horario"/"Sin asignar"):
+   - Modal con disponibilidad visible de ambas parejas
+   - Chips de horarios pre-calculados (libres en cancha Y en ambas parejas)
+   - Canchas filtradas por slot
+   - Días filtrados por rango del torneo y corte de eliminatoria
+6. **Confirmar grupos** → torneo pasa a `in_progress`
+
+### Estado `in_progress` — grupos confirmados
+
+- ZonaCardCompact con resumen de partidos y standings
+- Click en zona → ZonaDetailModal para cargar resultados (sets: mejor de 3)
+- Al completar todos los partidos de una zona → clasificados auto-calculados
+- Si hay empate 2°-3° → admin resuelve manualmente
+- Al completar TODAS las zonas → banner "Generar fase eliminatoria"
+
+---
+
+## Admin — Fase eliminatoria (`/dashboardAdmin/torneos/:id` → tab Fixture / Bracket)
+
+1. `generateAPAEliminationBracket(grupos)` → bracket según draws APA (2-10 zonas)
+2. Visualización por rondas (Previa → Cuartos → Semifinal → Final)
+3. BYEs auto-resueltos en ronda 1
+4. Cargar resultado por partido → ganador avanza automáticamente
+5. Al terminar la final → banner con ganador + subcampeón
+6. Admin puede registrar ganador/subcampeón en el torneo
+7. Torneo pasa a `finished`
+
+---
+
+## Jugador — Torneos (`/dashboardJugadores/torneos`)
+
+- Ve torneos disponibles (open) con flyer y datos
+- Inscripción: DNI compañero (lookup en backend), disponibilidad por días/franja, sinCompañero toggle
+- Pre-relleno si el admin cargó sus datos previamente (matching por DNI)
+- Estados visibles: inscripto / en espera / suplente
+- Vista del bracket cuando el torneo está in_progress o finished
+
+---
+
+## Reglas de negocio aplicadas
+
+- Solo parejas con estado `inscripto` entran a la fase de grupos (suplentes NO)
+- El admin ve suplentes en Parejas inscriptas como referencia
+- Scheduler nunca asigna dos partidos al mismo tiempo para la misma pareja
+- Scheduler respeta el corte horario de fase eliminatoria
+- Días implícitos (fallback): solo para parejas que cargaron al menos 1 día
+- Auto-sorteo futuro: al pasar a `closed`, backend corre generateGroupPhase + autoScheduleGroups automáticamente (pendiente Bloque 5 backend)

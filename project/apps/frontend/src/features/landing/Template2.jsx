@@ -10,6 +10,12 @@ const FEATURES = [
   { icon: Users,        title: 'Tu perfil',         desc: 'Historial de partidos, estadísticas y nivel actualizado.' },
 ]
 
+const scrollToTorneos = (fallback) => {
+  const el = document.getElementById('torneos')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  else fallback()
+}
+
 const Template2 = ({ club, onCta }) => {
   const { colorPrimario, colorSecundario, nombre, canchas, horarios,
     heroTitulo, heroTituloDestacado, heroSubtitulo, heroBadge,
@@ -55,7 +61,7 @@ const Template2 = ({ club, onCta }) => {
             <button onClick={onCta} className="inline-flex items-center gap-2 font-black text-base px-8 py-4 rounded-2xl transition-all duration-200" style={{ backgroundColor: colorPrimario, color: '#0a0a0a', boxShadow: `0 12px 40px ${colorPrimario}40` }}>
               {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={18} />
             </button>
-            <button onClick={onCta} className="inline-flex items-center gap-2 text-base font-medium text-white/70 hover:text-white transition-colors px-4 py-4">
+            <button onClick={() => scrollToTorneos(onCta)} className="inline-flex items-center gap-2 text-base font-medium text-white/70 hover:text-white transition-colors px-4 py-4">
               {heroCtaSecundarioTexto || 'Ver torneos'}
             </button>
           </div>
@@ -102,7 +108,7 @@ const Template2 = ({ club, onCta }) => {
           </div>
           <div className="grid md:grid-cols-3 gap-px bg-white/5 rounded-2xl overflow-hidden">
             {FEATURES.map(({ icon: Icon, title, desc }, i) => (
-              <div key={title} onClick={onCta} className="bg-[#0a0a0a] p-8 hover:bg-white/3 transition-colors cursor-pointer group">
+              <div key={title} onClick={() => title === 'Torneos' ? scrollToTorneos(onCta) : onCta()} className="bg-[#0a0a0a] p-8 hover:bg-white/3 transition-colors cursor-pointer group">
                 <div className="text-5xl font-black mb-6 opacity-20" style={{ color: colorPrimario }}>0{i+1}</div>
                 <Icon size={24} className="mb-4" style={{ color: colorPrimario }} />
                 <h3 className="text-white font-bold text-lg mb-2">{title}</h3>
@@ -118,7 +124,7 @@ const Template2 = ({ club, onCta }) => {
 
       {/* TURNOS DISPONIBLES */}
       {(seccionesVisibles?.reservas ?? true) && (
-        <section className="py-24 px-6 bg-black/20">
+        <section id="reservas" className="py-24 px-6 bg-black/20">
           <div className="max-w-5xl mx-auto">
             <TurnosDisponibles canchas={canchas} horarios={horarios} colorPrimario={colorPrimario} onCta={onCta} dark={true} />
           </div>
@@ -127,7 +133,7 @@ const Template2 = ({ club, onCta }) => {
 
       {/* HISTORIA */}
       {parrafos.length > 0 && (seccionesVisibles?.historia ?? true) && (
-        <section className="py-24 px-6" style={{ background: `linear-gradient(135deg, #0a0a0a 60%, ${colorPrimario}08 100%)` }}>
+        <section id="nosotros" className="py-24 px-6" style={{ background: `linear-gradient(135deg, #0a0a0a 60%, ${colorPrimario}08 100%)` }}>
           <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-16 items-center">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] mb-4" style={{ color: colorPrimario }}>{anoFundacion ? `Desde ${anoFundacion}` : 'Nuestra historia'}</p>
@@ -144,7 +150,7 @@ const Template2 = ({ club, onCta }) => {
 
       {/* GALERÍA */}
       {galeria?.length > 0 && (seccionesVisibles?.galeria ?? true) && (
-        <section className="py-24 px-6">
+        <section id="galeria" className="py-24 px-6">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-end justify-between mb-12">
               <h2 className="text-4xl font-black text-white">Instalaciones</h2>
@@ -156,7 +162,7 @@ const Template2 = ({ club, onCta }) => {
 
       {/* SERVICIOS */}
       {servicios?.some((s) => s.activo) && (seccionesVisibles?.servicios ?? true) && (
-        <section className="py-24 px-6 bg-black/20">
+        <section id="servicios" className="py-24 px-6 bg-black/20">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-end justify-between mb-12">
               <h2 className="text-4xl font-black text-white">Servicios</h2>
@@ -168,7 +174,7 @@ const Template2 = ({ club, onCta }) => {
 
       {/* STAFF */}
       {staff?.length > 0 && (seccionesVisibles?.staff ?? true) && (
-        <section className="py-24 px-6">
+        <section id="equipo" className="py-24 px-6">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-end justify-between mb-12">
               <h2 className="text-4xl font-black text-white">Nuestro equipo</h2>
@@ -180,7 +186,7 @@ const Template2 = ({ club, onCta }) => {
 
       {/* FAQ */}
       {faq?.length > 0 && (seccionesVisibles?.faq ?? true) && (
-        <section className="py-24 px-6 bg-black/20">
+        <section id="faq" className="py-24 px-6 bg-black/20">
           <div className="max-w-3xl mx-auto">
             <h2 className="text-4xl font-black text-white mb-12">Preguntas frecuentes</h2>
             <FaqList faq={faq} colorPrimario={colorPrimario} dark={true} />

@@ -305,6 +305,7 @@ const EMPTY_FORM = {
   fechaLimiteInscripcion: '',
   diaInicioEliminatoria: '',
   horaInicioEliminatoria: '',
+  puntosPorVictoria: 2,
   descripcion: '',
   // flyer
   premioPrimero: '',
@@ -379,11 +380,80 @@ const catColor = (torneo, cat) => {
   return                      { chip: 'text-sky-600 bg-sky-50 border border-sky-200',          bar: 'bg-sky-400',    label: 'text-sky-500' }
 }
 
+const ModalCerrarInscripcion = ({ torneo, onConfirmar, onCancelar }) => {
+  const inscriptos   = torneo.inscriptos.filter((i) => i.estado === 'inscripto')
+  const enEspera     = torneo.inscriptos.filter((i) => i.estado === 'espera')
+  const sinHorarios  = inscriptos.filter((i) => !i.disponibilidad || i.disponibilidad.length === 0)
+  const sinCompanero = inscriptos.filter((i) => i.sinCompanero)
+  const hayAlertas   = sinHorarios.length > 0 || sinCompanero.length > 0
+  const bloqueado    = inscriptos.length < 2
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancelar}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+          <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+            <Lock size={16} className="text-amber-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-800 text-sm">Cerrar inscripciones</h3>
+            <p className="text-slate-400 text-xs mt-0.5">{torneo.nombre}</p>
+          </div>
+        </div>
+        <div className="px-5 py-4 flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <CheckCircle size={13} className="text-emerald-500 shrink-0" />
+              <span><strong>{inscriptos.length}</strong> pareja{inscriptos.length !== 1 ? 's' : ''} titular{inscriptos.length !== 1 ? 'es' : ''} confirmada{inscriptos.length !== 1 ? 's' : ''}</span>
+            </div>
+            {enEspera.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <Users size={13} className="text-slate-400 shrink-0" />
+                <span><strong>{enEspera.length}</strong> en espera pasará{enEspera.length !== 1 ? 'n' : ''} a suplente</span>
+              </div>
+            )}
+          </div>
+          {hayAlertas && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3 flex flex-col gap-2">
+              <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5"><AlertTriangle size={12} /> Advertencias</p>
+              {sinHorarios.length > 0 && (
+                <p className="text-xs text-amber-700">· <strong>{sinHorarios.length}</strong> pareja{sinHorarios.length !== 1 ? 's' : ''} sin disponibilidad horaria</p>
+              )}
+              {sinCompanero.length > 0 && (
+                <p className="text-xs text-amber-700">· <strong>{sinCompanero.length}</strong> pareja{sinCompanero.length !== 1 ? 's' : ''} sin compañero/a confirmado</p>
+              )}
+            </div>
+          )}
+          {bloqueado && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-3">
+              <p className="text-xs font-semibold text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> No se puede cerrar</p>
+              <p className="text-xs text-red-600 mt-1">Se necesitan al menos 2 parejas inscriptas para generar grupos.</p>
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-3.5 border-t border-slate-100 flex items-center justify-end gap-2">
+          <button onClick={onCancelar} className="text-xs font-medium text-slate-500 hover:text-slate-700 px-3.5 py-2 rounded-xl hover:bg-slate-100 transition-colors">Cancelar</button>
+          <button
+            onClick={bloqueado ? undefined : onConfirmar}
+            disabled={bloqueado}
+            className={`text-xs font-semibold px-4 py-2 rounded-xl border transition-all flex items-center gap-1.5 ${bloqueado ? 'text-slate-400 bg-slate-100 border-slate-200 cursor-not-allowed' : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'}`}
+          >
+            <Lock size={12} />
+            {bloqueado ? 'Sin parejas suficientes' : hayAlertas ? 'Cerrar de todas formas' : 'Confirmar cierre'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar, onFlyer }) => {
   const [confirmarEliminar, setConfirmarEliminar] = useState(false)
   const [catsExpanded, setCatsExpanded] = useState(false)
-  const confirmados  = torneo.inscriptos.filter((i) => i.estado !== 'espera')
+  const confirmados  = torneo.inscriptos.filter((i) => i.estado === 'inscripto')
   const enEspera     = torneo.inscriptos.filter((i) => i.estado === 'espera')
+  const suplentes    = torneo.inscriptos.filter((i) => i.estado === 'suplente')
   const puedeToggle          = ['draft', 'open', 'closed'].includes(torneo.estado)
   const puedeEditarEliminar  = ['draft', 'open', 'closed'].includes(torneo.estado)
   const catsToShow   = catsExpanded ? torneo.categorias : torneo.categorias.slice(0, MAX_CATS)
@@ -486,8 +556,9 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
         <div className="flex flex-col gap-1.5">
           <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Inscriptos</span>
           {catsToShow.map((cat) => {
-            const conf      = torneo.inscriptos.filter((i) => i.categoria === cat && i.estado !== 'espera').length
+            const conf      = torneo.inscriptos.filter((i) => i.categoria === cat && i.estado === 'inscripto').length
             const espCat    = torneo.inscriptos.filter((i) => i.categoria === cat && i.estado === 'espera').length
+            const supCat    = torneo.inscriptos.filter((i) => i.categoria === cat && i.estado === 'suplente').length
             const cupoCat   = torneo.cupoLibre ? null : (torneo.cuposPorCategoria?.[cat] ?? 0)
             const esperaCat = (torneo.cupoEsperaPorCategoria ?? {})[cat] ?? 0
             const pctCat    = cupoCat ? Math.round((conf / cupoCat) * 100) : 0
@@ -519,6 +590,9 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
                 {espCat > 0 && esperaCat > 0 && (
                   <p className="text-[10px] text-amber-500">{espCat}/{esperaCat} en espera</p>
                 )}
+                {supCat > 0 && (
+                  <p className="text-[10px] text-slate-400">{supCat} suplente{supCat !== 1 ? 's' : ''}</p>
+                )}
               </div>
             )
           })}
@@ -540,7 +614,7 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
           {torneo.inscriptos.length > 0 && (
             <div className="flex items-center gap-1.5 text-red-500 text-xs">
               <AlertTriangle size={11} />
-              {torneo.inscriptos.length} pareja{torneo.inscriptos.length !== 1 ? 's' : ''} inscripta{torneo.inscriptos.length !== 1 ? 's' : ''}. Se perderán los datos.
+              {confirmados.length} pareja{confirmados.length !== 1 ? 's' : ''} inscripta{confirmados.length !== 1 ? 's' : ''}{enEspera.length + suplentes.length > 0 ? ` + ${enEspera.length + suplentes.length} en espera/suplentes` : ''}. Se perderán los datos.
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -562,6 +636,9 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
           {confirmados.length} inscripto{confirmados.length !== 1 ? 's' : ''}
           {enEspera.length > 0 && (
             <span className="text-amber-500 ml-1">· {enEspera.length} en espera</span>
+          )}
+          {suplentes.length > 0 && (
+            <span className="text-slate-400 ml-1">· {suplentes.length} suplente{suplentes.length !== 1 ? 's' : ''}</span>
           )}
         </span>
 
@@ -644,6 +721,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
     fechaLimiteInscripcion: torneoEditar.fechaLimiteInscripcion ?? '',
     diaInicioEliminatoria: torneoEditar.diaInicioEliminatoria ?? '',
     horaInicioEliminatoria: torneoEditar.horaInicioEliminatoria ?? '',
+    puntosPorVictoria: torneoEditar.puntosPorVictoria ?? 2,
     descripcion: torneoEditar.descripcion ?? '',
     premioPrimero: torneoEditar.premioPrimero ?? '',
     premioSegundo: torneoEditar.premioSegundo ?? '',
@@ -1001,6 +1079,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
                     <p>Cuando el cupo de una categoría se completa, las parejas siguientes quedan en lista de espera en lugar de ser rechazadas.</p>
                     <p><span className="font-semibold text-slate-700">Promoción automática:</span>{' '}si una pareja confirmada se baja, la primera en espera pasa automáticamente a confirmada y recibe una notificación.</p>
                     <p><span className="font-semibold text-slate-700">Por categoría:</span>{' '}cada categoría tiene su propio cupo de espera. Podés poner 0 si no querés lista de espera para esa categoría.</p>
+                    <p><span className="font-semibold text-slate-700">Al cerrar inscripciones:</span>{' '}las parejas en espera pasan automáticamente a estado <span className="font-semibold">suplente</span>. No se eliminan — quedan como referencia para el admin en caso de necesitar reemplazos de último momento. La promoción post-cierre es manual.</p>
                   </InfoBlock>
                 </div>
               )}
@@ -1128,6 +1207,26 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
               </div>
               <p className="text-slate-400 text-xs">
                 Los jugadores solo podrán elegir disponibilidad de grupos antes de este corte. El día elegido (desde la hora) y los días posteriores quedan reservados para eliminatoria.
+              </p>
+            </div>
+          )}
+
+          {/* Puntos por victoria */}
+          {form.formato === 'Fase de grupos + Eliminación' && (
+            <div>
+              <label className="text-xs font-medium text-slate-600 block mb-1">
+                Puntos por victoria
+              </label>
+              <select
+                value={form.puntosPorVictoria}
+                onChange={(e) => set('puntosPorVictoria', Number(e.target.value))}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+              >
+                <option value={2}>2 pts (estándar)</option>
+                <option value={3}>3 pts (con bonificación)</option>
+              </select>
+              <p className="text-slate-400 text-xs mt-1">
+                Puntos que se otorgan al ganador de cada partido de grupos.
               </p>
             </div>
           )}
@@ -1483,7 +1582,7 @@ const TorneoAlertRow = ({ torneo, onVerDetalle }) => {
     return diff
   })()
 
-  const confirmados = (torneo.inscriptos ?? []).filter((i) => i.estado !== 'espera')
+  const confirmados = (torneo.inscriptos ?? []).filter((i) => i.estado === 'inscripto')
   const enEspera   = (torneo.inscriptos ?? []).filter((i) => i.estado === 'espera')
 
   return (
@@ -1529,7 +1628,7 @@ const TorneoAlertRow = ({ torneo, onVerDetalle }) => {
 // ── Página principal ──────────────────────────────────────────────────────────
 
 const TorneosPage = () => {
-  const { torneos, setTorneos, addTorneoFromApi, addTorneo, updateTorneoFromApi, setEstado, deleteTorneo, updateTorneo } = useTorneosStore()
+  const { torneos, setTorneos, addTorneoFromApi, addTorneo, updateTorneoFromApi, setEstado, deleteTorneo, updateTorneo, updatePareja } = useTorneosStore()
   const token  = useAuthStore((s) => s.token)
   const clubId = useAuthStore((s) => s.user?.club?.id)
   const club   = useClubStore((s) => s.club)
@@ -1564,6 +1663,7 @@ const TorneosPage = () => {
   const [toastEliminado, setToastEliminado]     = useState(false)
   const [toastEstado, setToastEstado]           = useState(null)   // { estado: 'open'|'closed'|... }
   const [flyerTorneo, setFlyerTorneo]           = useState(null)
+  const [modalCerrarTorneo, setModalCerrarTorneo] = useState(null) // torneo a cerrar
 
   useEffect(() => {
     if (!toastNuevoTorneo) return
@@ -1627,15 +1727,32 @@ const TorneosPage = () => {
   const authHeader = token ? { Authorization: `Bearer ${token}` } : {}
   const isBackend  = (id) => typeof id === 'string'
 
-  const handleToggleEstado = async (id) => {
+  const ejecutarCambioEstado = async (torneo, nuevoEstado) => {
+    if (isBackend(torneo.id)) {
+      try { await api.patch(`/torneos/${torneo.id}/estado`, { estado: nuevoEstado }, authHeader) } catch { /* fallback local */ }
+    }
+    setEstado(torneo.id, nuevoEstado)
+    if (nuevoEstado === 'closed') {
+      torneo.inscriptos
+        .filter((i) => i.estado === 'espera')
+        .forEach((i) => updatePareja(torneo.id, i.id, { estado: 'suplente' }))
+    } else if (nuevoEstado === 'open') {
+      torneo.inscriptos
+        .filter((i) => i.estado === 'suplente')
+        .forEach((i) => updatePareja(torneo.id, i.id, { estado: 'espera' }))
+    }
+    setToastEstado(nuevoEstado)
+  }
+
+  const handleToggleEstado = (id) => {
     const torneo = torneos.find((t) => t.id === id)
     if (!torneo) return
     const nuevoEstado = toggleEstado(torneo.estado)
-    if (isBackend(id)) {
-      try { await api.patch(`/torneos/${id}/estado`, { estado: nuevoEstado }, authHeader) } catch { /* fallback local */ }
+    if (nuevoEstado === 'closed') {
+      setModalCerrarTorneo(torneo)
+    } else {
+      ejecutarCambioEstado(torneo, nuevoEstado)
     }
-    setEstado(id, nuevoEstado)
-    setToastEstado(nuevoEstado)
   }
 
   const handleVerDetalle = (torneo) => {
@@ -2006,6 +2123,14 @@ const TorneosPage = () => {
           club={club}
           onClose={() => setFlyerTorneo(null)}
           onDescargado={() => setToastFlyer(true)}
+        />
+      )}
+
+      {modalCerrarTorneo && (
+        <ModalCerrarInscripcion
+          torneo={modalCerrarTorneo}
+          onConfirmar={() => { ejecutarCambioEstado(modalCerrarTorneo, 'closed'); setModalCerrarTorneo(null) }}
+          onCancelar={() => setModalCerrarTorneo(null)}
         />
       )}
 

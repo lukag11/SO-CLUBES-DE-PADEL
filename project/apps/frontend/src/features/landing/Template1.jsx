@@ -21,6 +21,12 @@ const FEATURES = [
   { icon: Users,        title: 'Tu perfil',        desc: 'Historial de partidos, estadísticas y nivel actualizado.' },
 ]
 
+const scrollToTorneos = (fallback) => {
+  const el = document.getElementById('torneos')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  else fallback()
+}
+
 const Template1 = ({ club, onCta }) => {
   const { colorPrimario, nombre, canchas, horarios, heroTitulo, heroTituloDestacado,
     heroSubtitulo, heroBadge, heroCtaPrimarioTexto, heroCtaSecundarioTexto,
@@ -36,7 +42,7 @@ const Template1 = ({ club, onCta }) => {
     <div className="bg-[#0d1117] min-h-screen">
 
       {/* HERO */}
-      <section className="relative overflow-hidden min-h-screen flex items-center px-6">
+      <section id="inicio" className="relative overflow-hidden min-h-screen flex items-center px-6">
         {heroImagen ? (
           <>
             <img src={heroImagen} alt="Hero" className="absolute inset-0 w-full h-full object-cover" />
@@ -68,7 +74,7 @@ const Template1 = ({ club, onCta }) => {
               <button onClick={onCta} className="inline-flex items-center gap-2 font-bold text-sm px-6 py-3.5 rounded-xl transition-all duration-200" style={{ backgroundColor: colorPrimario, color: '#0d1117', boxShadow: `0 8px 24px ${colorPrimario}30` }}>
                 {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={16} />
               </button>
-              <button onClick={onCta} className="inline-flex items-center gap-2 text-sm font-medium text-white/60 hover:text-white border border-white/10 hover:border-white/20 px-5 py-3.5 rounded-xl transition-all duration-200">
+              <button onClick={() => scrollToTorneos(onCta)} className="inline-flex items-center gap-2 text-sm font-medium text-white/60 hover:text-white border border-white/10 hover:border-white/20 px-5 py-3.5 rounded-xl transition-all duration-200">
                 {heroCtaSecundarioTexto || 'Ver torneos'}
               </button>
             </div>
@@ -125,7 +131,7 @@ const Template1 = ({ club, onCta }) => {
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {FEATURES.map(({ icon: Icon, title, desc }) => (
-              <div key={title} onClick={onCta} className="bg-white/5 border border-white/8 rounded-2xl p-6 hover:border-white/15 hover:bg-white/8 transition-all duration-200 cursor-pointer">
+              <div key={title} onClick={() => title === 'Torneos' ? scrollToTorneos(onCta) : onCta()} className="bg-white/5 border border-white/8 rounded-2xl p-6 hover:border-white/15 hover:bg-white/8 transition-all duration-200 cursor-pointer">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ backgroundColor: `${colorPrimario}20` }}>
                   <Icon size={20} style={{ color: colorPrimario }} />
                 </div>
@@ -142,7 +148,7 @@ const Template1 = ({ club, onCta }) => {
 
       {/* TURNOS DISPONIBLES */}
       {(seccionesVisibles?.reservas ?? true) && (
-        <section className="py-20 px-6 bg-black/20">
+        <section id="reservas" className="py-20 px-6 bg-black/20">
           <div className="max-w-5xl mx-auto">
             <TurnosDisponibles canchas={canchas} horarios={horarios} colorPrimario={colorPrimario} onCta={onCta} dark={true} />
           </div>
@@ -151,7 +157,7 @@ const Template1 = ({ club, onCta }) => {
 
       {/* HISTORIA */}
       {parrafos.length > 0 && (seccionesVisibles?.historia ?? true) && (
-        <section className="py-20 px-6">
+        <section id="nosotros" className="py-20 px-6">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-14">
               <h2 className="text-3xl font-bold text-white">{tituloBio}</h2>
@@ -170,7 +176,7 @@ const Template1 = ({ club, onCta }) => {
 
       {/* GALERÍA */}
       {galeria?.length > 0 && (seccionesVisibles?.galeria ?? true) && (
-        <section className="py-20 px-6 bg-black/20">
+        <section id="galeria" className="py-20 px-6 bg-black/20">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-white">Instalaciones</h2>
@@ -183,7 +189,7 @@ const Template1 = ({ club, onCta }) => {
 
       {/* SERVICIOS */}
       {servicios?.some((s) => s.activo) && (seccionesVisibles?.servicios ?? true) && (
-        <section className="py-20 px-6">
+        <section id="servicios" className="py-20 px-6">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-white">Servicios</h2>
@@ -196,7 +202,7 @@ const Template1 = ({ club, onCta }) => {
 
       {/* STAFF */}
       {staff?.length > 0 && (seccionesVisibles?.staff ?? true) && (
-        <section className="py-20 px-6 bg-black/20">
+        <section id="equipo" className="py-20 px-6 bg-black/20">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-white">Nuestro equipo</h2>
@@ -209,7 +215,7 @@ const Template1 = ({ club, onCta }) => {
 
       {/* FAQ */}
       {faq?.length > 0 && (seccionesVisibles?.faq ?? true) && (
-        <section className="py-20 px-6">
+        <section id="faq" className="py-20 px-6">
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-white">Preguntas frecuentes</h2>

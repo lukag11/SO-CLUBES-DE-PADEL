@@ -1,6 +1,81 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-05-31 (sesión — Testing flujo torneos jugador, fixes notificaciones admin, ModalCancelar, notificaciones jugador para eventos torneo)
+**Última actualización:** 2026-06-04 (sesión — Landing torneos: 20 templates "En curso", scroll-to-section, 2 estados visuales flyer/en curso, fix personalizacion JSON column, upload imagen base64)
+
+---
+
+## Último bloque completado (2026-06-04 sesión 2) — Landing torneos: templates, scroll, personalización
+
+### Nuevas funcionalidades
+
+**20 templates visuales para card "En curso":**
+- `renderEnCursoCard(tplId, props)` en `LandingSections.jsx` — función con 20 cases
+- Templates: Sport Hero, Neon Grid, Split Panel, Glass, Stadium, Scoreboard, Minimal, Fire, Ocean Night, Gold Luxury, Court Lines, Big Stats, Carbon Strip, Sunset Warm, Ribbon, Retro Stripes, Ticket, Badge, Editorial, Cinematic
+- Selector visual grid 4×5 en admin (TorneoDetallePage → Personalización → En curso)
+- Campo `templateEnCurso` guardado en `personalizacion` JSON column (sin migración Prisma)
+- Si `imagenFondoEnCurso` está cargada → override siempre (muestra imagen propia)
+
+**2 estados visuales en sección Torneos de la landing:**
+- "Próximamente" (flyer): torneo `open` + fechaInicio ≤ 14 días — diseño tipo publicidad
+- "En curso" (card): torneo `in_progress` — card informativa con template seleccionable
+- "Disponible" (list): torneo `open` fuera del rango de 14 días
+- Helper `diasHasta(fechaStr)` + `DIAS_FLYER = 14`
+
+**Scroll-to-section en todos los templates (1-5):**
+- `scrollToTorneos(fallback)` en cada template — scroll suave a `#torneos`
+- Botón "Ver torneos" en hero y feature card de Torneos usan el scroll
+- IDs de sección: `torneos`, `reservas`, `nosotros`, `galeria`, `servicios`, `equipo`, `faq`
+
+**Sub-tabs en Personalización del torneo admin:**
+- `[ 📢 Flyer ] [ ⚡ En curso ] [ 📋 Fixture ] [ 🎯 Grupos ] [ 🏆 Draw ]`
+- Flyer: toggle auto/imagen, premios, imagenFondo
+- En curso: templateEnCurso (selector 20 tiles), colorAcento, imagenFondoEnCurso, ctaEnCurso
+
+**Upload de imagen (base64) para Flyer y En curso:**
+- Reemplazados inputs `type="url"` por `ImagenFileInput` (ya existente)
+- Admin sube archivo → preview inline → guardado como base64 en personalizacion JSON
+
+**Fixes críticos:**
+- `LandingPage.jsx`: personalizacion fields leídos de `t.personalizacion.*` (JSON column) — antes se leían del top-level `t.*` y siempre eran undefined
+- `TorneoDetallePage.jsx`: botón "Guardar personalización" ahora llama `api.patch('/torneos/:id/personalizacion', { personalizacion: campos })` — antes solo actualizaba el store local sin persistir al backend
+
+### Archivos modificados
+- `project/apps/frontend/src/features/landing/LandingSections.jsx` — renderEnCursoCard 20 templates, enCursoList.map refactorizado
+- `project/apps/frontend/src/features/landing/Template1.jsx` ... `Template5.jsx` — scrollToTorneos + IDs de sección
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx` — sub-tabs Personalización, selector templates, templateEnCurso, API save, ImagenFileInput
+- `project/apps/frontend/src/pages/LandingPage.jsx` — fetch torneos lee de `t.personalizacion`, templateEnCurso incluido
+
+---
+
+## Último bloque completado (2026-06-04) — Torneos jugador: tabla posiciones enriquecida + tabs zonas
+
+### Nuevas funcionalidades
+
+**Tabs "Mi zona" / "Todas las zonas" en `MiTorneoCard`:**
+- Tab bar con pills: `Mi zona [Zona B]` | `Todas las zonas [4]`. Toggle: presionar activo colapsa.
+- "Todas las zonas" usa `ZonaPanel` (colapsable), orden alfabético, todas cerradas al abrir.
+- "Mi zona" muestra `GrupoReadOnly` con tabla enriquecida.
+
+**`StandingsZona` (dark) y `StandingsZonaAdmin` (light):**
+- Tabla: `Pos. | Pareja | Pts | PG | PP | Dif.S | Dif.G`
+- Sort: Pts → Dif.Sets → Dif.Games. Colores diferenciados por positivo/negativo.
+- Grilla cruzada debajo: aparece cuando hay resultados. Filas vs columnas de parejas. Sets en verde/rojo.
+
+**`puntosPorVictoria` — sin hardcoding:**
+- Campo `Int @default(2)` en Prisma schema. `db push` aplicado a Supabase.
+- Backend POST/PUT persiste el campo. Form admin: selector 2/3 pts solo en formato grupos.
+- Prop propagada: `torneo.puntosPorVictoria` → `ZonaDetailModal` → `ZonaTable` → `StandingsZonaAdmin`.
+
+**Re-fetch al montar `PlayerTournamentsPage`:**
+- Eliminado guard `if (hayBackend) return` — siempre GET fresco al entrar a "Mis torneos".
+
+**Fixes:**
+- Link "Ver mi zona" en bloque torneo activo: ruta `/dashboardJugadores/torneos` (era `/jugadores/torneos`).
+- `puntosPorVictoria is not defined` en `ZonaTable`: prop agregada al componente y call site.
+
+### Archivos modificados
+- `PlayerTournamentsPage.jsx`, `TorneoDetallePage.jsx`, `TorneosPage.jsx`, `PlayerReservasPage.jsx`
+- `backend/routes/torneos.js`, `backend/prisma/schema.prisma`
 
 ---
 
@@ -132,6 +207,90 @@
 - `/dashboardProfesor` → login
 - `/dashboardProfesor/agenda` → agenda de clases
 - `/dashboardProfesor/disponibilidad` → horarios disponibles
+
+---
+
+## Último bloque completado (2026-06-03) — Testing scheduler grupos + algoritmo de agrupación
+
+### Objetivo
+Afinar el motor de scheduling de grupos hasta que sea robusto para un torneo real con disponibilidad heterogénea.
+
+### Algoritmo de agrupación (`_distribuirPorAfinidad`)
+- **Constraint-first**: las parejas con menos días disponibles siembran su zona (antes el seed era aleatorio)
+- **Score combinado**: `overlap + diversity + onexdia * 2` — maximiza días en común, variedad de días en la zona y distribución 1-partido-por-día
+- **Tiebreak aleatorio** dentro del mismo nivel de restricción → variedad entre regeneraciones
+- `Regenerar` ahora produce resultados distintos (shuffle antes de `generateGroupPhase`)
+
+### Algoritmo de scheduling (`autoScheduleGroups`)
+- **3 niveles de prioridad**: días con overlap confirmado → fallback días ya usados → disponibilidad implícita (días del torneo donde al menos una pareja tiene algo confirmado)
+- **Granularidad 15 min**: loop avanza de 15 en 15 (antes era intervaloMin) → no se pierden slots entre intervalos
+- **Conflicto de pareja**: `parejaSchedule` map — una pareja no puede jugar en dos canchas a la misma hora
+- **Pre-poblar mapas**: al completar parcialmente (después de swap), carga slots ya asignados para no pisar conflictos
+- **Corte de eliminatoria**: `esSlotDeGrupos(d, hora, diaInicioElim, horaInicioElim)` aplicado a cada slot candidato
+- **Días del torneo válidos**: `getDiasEnRango(fechaInicio, fechaFin)` con parse local (evita bug UTC-3 que devolvía día anterior)
+
+### Multi-iteración en Auto-asignar
+- Auto-asignar corre scheduling en grupos actuales primero
+- Si hay `sinHorario` → prueba hasta 25 reagrupaciones aleatorias
+- Se queda con la combinación que tenga menos conflictos
+- Modal de progreso: spinner "Asignando..." → resultado "X asignados · Y sin horario"
+
+### Modal asignación manual (click en "Sin horario")
+- Muestra disponibilidad real de ambas parejas (días confirmados)
+- **Días válidos**: filtrado por rango del torneo (`fechaInicio`→`fechaFin`) Y por corte de eliminatoria
+- **Slots pre-calculados**: para cada día muestra horarios libres en formato chips (no input manual)
+- Slots calculados en base a: hora mínima de las parejas + conflictos de cancha + conflictos de pareja ya asignados
+- Canchas filtradas por slot: solo muestra las libres para ese horario específico
+- Si no hay overlap: avisa "Sin días en común — coordiná con los jugadores"
+
+### Archivos modificados
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx`
+- `project/apps/frontend/src/services/torneoService.js`
+
+---
+
+## Último bloque completado (2026-06-03) — Testing Bloque 4: cierre inscripciones + fixes grupos
+
+### Objetivo
+Completar el testing end-to-end del Bloque 4 torneos (pasos 4.3–4.4) y arrancar Bloque 5 (generación de grupos).
+
+### Funcionalidades implementadas / corregidas
+
+**Cierre de inscripciones — modal de confirmación (`ModalCerrarInscripcion`)**
+- Ya estaba implementado. Verificado desde TorneoDetallePage Y TorneosPage (card list).
+- Al cerrar: parejas `espera` → `suplente` (atómico en backend + store).
+- Al reabrir: parejas `suplente` → `espera`.
+
+**Toast al abrir/cerrar inscripción desde TorneoDetallePage**
+- Importado componente `Toast`. Nuevo estado `toastEstado`.
+- `ejecutarCambioEstado` dispara `setToastEstado(nuevoEstado)`.
+- Tres toasts: `open` (verde), `closed` (ámbar), `draft` (slate) — idénticos a TorneosPage.
+
+**Fix overflow botón lupa en ModalEditarDisponibilidad**
+- Causa raíz: contenedores flex sin `min-w-0` → lupa desbordaba sobre columna DNI adyacente.
+- Fix aplicado en J1 y J2: `min-w-0` en outer div, flex container e input (`flex-1 min-w-0`).
+- Fix adicional: inicializar `lookupJ1`/`lookupJ2` directo en `encontrado` si ya hay DNI + nombre cargado → elimina flash visual al abrir el modal.
+
+**Generación de grupos — excluir suplentes**
+- `handleGenerarGrupos`: usa `parejasTitulares = torneo.inscriptos.filter(p.estado === 'inscripto')`.
+- `inscriptosActivos` definido cerca de `puedeGenerarGrupos` para reusar en contadores y condiciones.
+- El texto "N parejas inscriptas" en tab Grupos ahora cuenta solo titulares.
+
+**Botón "Regenerar" en header de grupos pendientes**
+- Nuevo botón junto a "Confirmar grupos" que llama `handleGenerarGrupos`.
+- Permite re-sortear en caso de haber generado con datos incorrectos.
+
+**Duración estimada por partido (`intervaloPartidoMin`)**
+- `autoScheduleGroups(grupos, canchas, intervaloMin = 75)` — nuevo parámetro.
+- Iteración cambiada de hora en hora a `m += intervaloMin` (en minutos). Soporta 60, 75, 90 min.
+- Helper `timeToMin` / `minToTime` para precisión en minutos (ej: horario 11:15 en vez de solo 11:00).
+- Selector "Duración est." (60/75/90 min) en header de grupos pendientes. Default 75.
+- Estado local `intervaloPartidoMin` en TorneoDetallePage. Pasado a `handleAutoSchedule`.
+
+### Archivos modificados
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx`
+- `project/apps/frontend/src/pages/TorneosPage.jsx`
+- `project/apps/frontend/src/services/torneoService.js`
 
 ---
 

@@ -194,6 +194,7 @@ model Torneo {
   fechaLimiteInscripcion String?
   diaInicioEliminatoria  String?
   horaInicioEliminatoria String?
+  puntosPorVictoria      Int      @default(2)
   descripcion            String?
   grupos                 Json?
   brackets               Json?

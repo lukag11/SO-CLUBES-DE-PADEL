@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Trophy, Calendar, Flag, X, ChevronDown, ChevronUp,
-  Zap, Clock, Lock, CheckCircle, Archive, Plus, Infinity as InfinityIcon, Pencil, Info, Users,
+  Zap, Clock, Lock, CheckCircle, Archive, Plus, Infinity as InfinityIcon, Pencil, Info, Users, LayoutGrid,
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
 import usePlayerStore from '../store/playerStore'
@@ -255,7 +255,268 @@ const PartidoZonaReadOnly = ({ partido, miParejaId, parejas = [] }) => {
   )
 }
 
-const GrupoReadOnly = ({ grupos, playerName }) => {
+// ── Tabla de posiciones enriquecida (round-robin) ────────────────────────────
+// Pts / G / P / Dif.Sets / Dif.Games + grilla cruzada de enfrentamientos
+
+const StandingsZona = ({ zona, miParejaId, puntosPorVictoria = 2 }) => {
+  const [openCrit, setOpenCrit] = useState(null) // { i, rect } | null
+  if (!zona?.parejas?.length || zona.capacidad === 4) return null
+
+  // ── Cálculo de estadísticas ───────────────────────────────────────────────
+  const s = {}
+  zona.parejas.forEach((p) => {
+    s[p.id] = { pts: 0, pj: 0, wins: 0, losses: 0, setsA: 0, setsC: 0, gamesA: 0, gamesC: 0 }
+  })
+  zona.partidos.forEach((m) => {
+    if (m.estado !== 'finalizado' || !m.pareja1 || !m.pareja2) return
+    s[m.pareja1.id].pj++
+    s[m.pareja2.id].pj++
+    if (m.ganador) {
+      s[m.ganador.id].wins++
+      s[m.ganador.id].pts += puntosPorVictoria
+      const loserId = m.ganador.id === m.pareja1.id ? m.pareja2.id : m.pareja1.id
+      if (s[loserId]) s[loserId].losses++
+    }
+    ;(m.resultado ?? []).forEach((set) => {
+      s[m.pareja1.id].setsA  += set.p1 > set.p2 ? 1 : 0
+      s[m.pareja1.id].setsC  += set.p1 < set.p2 ? 1 : 0
+      s[m.pareja2.id].setsA  += set.p2 > set.p1 ? 1 : 0
+      s[m.pareja2.id].setsC  += set.p2 < set.p1 ? 1 : 0
+      s[m.pareja1.id].gamesA += set.p1
+      s[m.pareja1.id].gamesC += set.p2
+      s[m.pareja2.id].gamesA += set.p2
+      s[m.pareja2.id].gamesC += set.p1
+    })
+  })
+
+  // Orden: Pts → Dif.Sets → Dif.Games
+  const sorted = [...zona.parejas].sort((a, b) => {
+    const sa = s[a.id], sb = s[b.id]
+    if (sb.pts !== sa.pts) return sb.pts - sa.pts
+    const dsA = sa.setsA - sa.setsC, dsB = sb.setsA - sb.setsC
+    if (dsB !== dsA) return dsB - dsA
+    return (sb.gamesA - sb.gamesC) - (sa.gamesA - sa.gamesC)
+  })
+
+  // ── Criterio de clasificación (vs pareja directamente arriba) ───────────
+  const getCriterio = (i) => {
+    if (i === 0 || sorted.length < 2) return null
+    const sa = s[sorted[i].id], sb = s[sorted[i - 1].id]
+    if (sa.pts !== sb.pts) return 'Pts'
+    if ((sa.setsA - sa.setsC) !== (sb.setsA - sb.setsC)) return 'Dif.S'
+    if ((sa.gamesA - sa.gamesC) !== (sb.gamesA - sb.gamesC)) return 'Dif.G'
+    return '='
+  }
+
+  // ── Explicación del criterio ─────────────────────────────────────────────
+  const fmt    = (n) => n > 0 ? `+${n}` : `${n}`
+  const nameOf = (p) => `${p.jugador1.split(' ')[0]} / ${p.jugador2.split(' ')[0]}`
+
+  const getExplicacion = (i) => {
+    if (i === 0) return 'Primera posición de la zona.'
+    const sa = s[sorted[i].id], sb = s[sorted[i - 1].id]
+    const criterio = getCriterio(i)
+    const arriba = nameOf(sorted[i - 1])
+    if (criterio === 'Pts')
+      return `${arriba} tiene ${sb.pts} pts · esta pareja tiene ${sa.pts} pts.`
+    if (criterio === 'Dif.S') {
+      const dsA = sb.setsA - sb.setsC, dsB = sa.setsA - sa.setsC
+      return `Mismos puntos (${sa.pts} pts). ${arriba}: ${fmt(dsA)} dif. sets · esta pareja: ${fmt(dsB)}.`
+    }
+    if (criterio === 'Dif.G') {
+      const dgA = sb.gamesA - sb.gamesC, dgB = sa.gamesA - sa.gamesC
+      return `Mismos pts y dif. de sets. ${arriba}: ${fmt(dgA)} games · esta pareja: ${fmt(dgB)}.`
+    }
+    return `Igualados en todos los criterios con ${arriba}. El admin define el orden de desempate.`
+  }
+
+  const handleCritClick = (e, i) => {
+    if (openCrit?.i === i) { setOpenCrit(null); return }
+    const rect = e.currentTarget.getBoundingClientRect()
+    setOpenCrit({ i, rect })
+  }
+
+  // ── Grilla cruzada ───────────────────────────────────────────────────────
+  const getCell = (rowId, colId) => {
+    if (rowId === colId) return 'self'
+    const m = zona.partidos.find((p) =>
+      (p.pareja1?.id === rowId && p.pareja2?.id === colId) ||
+      (p.pareja1?.id === colId && p.pareja2?.id === rowId)
+    )
+    if (!m || m.estado !== 'finalizado') return null
+    const rowIsP1 = m.pareja1?.id === rowId
+    const won     = m.ganador?.id === rowId
+    const sets    = (m.resultado ?? []).map((r) => rowIsP1 ? `${r.p1}-${r.p2}` : `${r.p2}-${r.p1}`)
+    return { won, sets }
+  }
+
+  const hayResultados = zona.partidos.some((m) => m.estado === 'finalizado')
+
+  return (
+    <div className="flex flex-col gap-2 mb-3">
+
+      {/* ── Popover criterio ─────────────────────────────────────────────────── */}
+      {openCrit !== null && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpenCrit(null)} />
+          <div
+            className="fixed z-50 w-56 bg-[#111827] border border-white/15 rounded-xl px-3.5 py-2.5 shadow-2xl"
+            style={{
+              top: (openCrit.rect.top ?? 0) - 10,
+              transform: 'translateY(-100%)',
+              left: Math.max(8, (openCrit.rect.right ?? 0) - 224),
+            }}
+          >
+            <p className="text-[11px] text-white/75 leading-relaxed">{getExplicacion(openCrit.i)}</p>
+            <div className="absolute top-full" style={{ right: Math.min(224 - 16, (window.innerWidth - (openCrit.rect.right ?? 0)) + (openCrit.rect.width ?? 0) / 2 - 4) }}>
+              <div className="border-4 border-transparent border-t-white/15" />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Tabla de posiciones ─────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-white/8 overflow-hidden">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="border-b border-white/8 bg-white/3">
+              <th className="px-2.5 py-1.5 text-left text-white/20 font-semibold w-10">Pos.</th>
+              <th className="px-2.5 py-1.5 text-left text-white/20 font-semibold">Pareja</th>
+              <th className="px-2 py-1.5 text-center text-[#afca0b]/40 font-bold w-9" title="Puntos">Pts</th>
+              <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-8">PG</th>
+              <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-8">PP</th>
+              <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-12" title="Diferencia de sets">Dif.S</th>
+              <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-12" title="Diferencia de games">Dif.G</th>
+              <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-14" title="Criterio de clasificación">Crit.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((pareja, i) => {
+              const st       = s[pareja.id]
+              const esMia    = pareja.id === miParejaId
+              const esClasif = zona.clasificados?.some((c) => c.id === pareja.id)
+              const difSets  = st.setsA - st.setsC
+              const difGames = st.gamesA - st.gamesC
+              const criterio = getCriterio(i)
+              const critCls  = criterio === 'Pts'   ? 'text-[#afca0b]/80 bg-[#afca0b]/10 border-[#afca0b]/20'
+                             : criterio === 'Dif.S' ? 'text-sky-400/80 bg-sky-400/10 border-sky-400/20'
+                             : criterio === 'Dif.G' ? 'text-violet-400/80 bg-violet-400/10 border-violet-400/20'
+                             : criterio === '='     ? 'text-amber-400/80 bg-amber-400/10 border-amber-400/20'
+                             : ''
+              return (
+                <tr key={pareja.id} className={`border-b border-white/5 last:border-0 ${esMia ? 'bg-[#afca0b]/5' : ''}`}>
+                  <td className="px-2.5 py-2 font-bold text-white/20">{i + 1}°</td>
+                  <td className="px-2.5 py-2 max-w-0">
+                    <div className="flex items-center gap-1.5">
+                      {esClasif && zona.clasificados && (
+                        <span className="w-1 h-3.5 rounded-full bg-emerald-400/50 shrink-0" />
+                      )}
+                      <span className={`font-medium truncate ${esMia ? 'text-[#afca0b]' : esClasif ? 'text-white/65' : 'text-white/30'}`}>
+                        {pareja.jugador1.split(' ')[0]} / {pareja.jugador2.split(' ')[0]}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-2 py-2 text-center font-bold text-[#afca0b]">{st.pts}</td>
+                  <td className="px-2 py-2 text-center font-semibold text-emerald-400">{st.wins}</td>
+                  <td className="px-2 py-2 text-center text-white/25">{st.losses}</td>
+                  <td className={`px-2 py-2 text-center font-semibold tabular-nums ${
+                    difSets  > 0 ? 'text-emerald-400'   : difSets  < 0 ? 'text-red-400/65' : 'text-white/20'
+                  }`}>{difSets  > 0 ? `+${difSets}`  : difSets}</td>
+                  <td className={`px-2 py-2 text-center font-semibold tabular-nums ${
+                    difGames > 0 ? 'text-sky-400/80'    : difGames < 0 ? 'text-red-400/55' : 'text-white/20'
+                  }`}>{difGames > 0 ? `+${difGames}` : difGames}</td>
+                  <td className="px-2 py-2 text-center">
+                    <button
+                      onClick={(e) => handleCritClick(e, i)}
+                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border transition-opacity hover:opacity-75 ${
+                        criterio ? critCls : 'text-white/15 border-transparent bg-transparent cursor-default'
+                      }`}
+                    >
+                      {criterio ?? '—'}
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Grilla de enfrentamientos (solo si hay al menos un resultado) ────── */}
+      {hayResultados && (
+        <div className="rounded-xl border border-white/8 overflow-hidden">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-white/6 bg-white/3">
+            <LayoutGrid size={10} className="text-white/20" />
+            <span className="text-[10px] text-white/20 font-semibold uppercase tracking-widest">Enfrentamientos</span>
+          </div>
+          <table className="w-full text-[10px]">
+            <thead>
+              <tr className="border-b border-white/5 bg-white/[0.02]">
+                <th className="px-3 py-1.5 text-left text-white/15 font-semibold" style={{ width: '38%' }}>Pareja</th>
+                {sorted.map((p, i) => (
+                  <th key={p.id} className="py-1.5 text-center font-bold text-white/20">
+                    P{i + 1}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((rowPar, rowIdx) => {
+                const esMia = rowPar.id === miParejaId
+                return (
+                  <tr key={rowPar.id} className={`border-b border-white/4 last:border-0 ${esMia ? 'bg-[#afca0b]/4' : ''}`}>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                          esMia ? 'bg-[#afca0b]/20 text-[#afca0b]' : 'bg-white/8 text-white/25'
+                        }`}>{rowIdx + 1}</span>
+                        <span className={`truncate font-medium text-[10px] ${esMia ? 'text-[#afca0b]' : 'text-white/30'}`}>
+                          {rowPar.jugador1.split(' ')[0]}
+                        </span>
+                      </div>
+                    </td>
+                    {sorted.map((colPar) => {
+                      const cell = getCell(rowPar.id, colPar.id)
+                      if (cell === 'self') return (
+                        <td key={colPar.id} className="py-2 text-center">
+                          <span className="text-white/10 font-bold text-[11px]">×</span>
+                        </td>
+                      )
+                      if (!cell) return (
+                        <td key={colPar.id} className="py-2 text-center">
+                          <span className="text-white/15 text-[12px]">·</span>
+                        </td>
+                      )
+                      return (
+                        <td key={colPar.id} className="py-1.5 text-center">
+                          {cell.sets.length > 0 ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              {cell.sets.map((set, si) => (
+                                <span key={si} className={`font-mono font-semibold leading-none text-[9px] ${
+                                  cell.won ? 'text-emerald-400' : 'text-red-400/55'
+                                }`}>{set}</span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className={`font-bold text-[11px] ${cell.won ? 'text-emerald-400' : 'text-red-400/55'}`}>
+                              {cell.won ? 'G' : 'P'}
+                            </span>
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const GrupoReadOnly = ({ grupos, playerName, puntosPorVictoria = 2 }) => {
   const miZona = grupos?.find((z) =>
     z.parejas.some((p) => p.jugador1 === playerName || p.jugador2 === playerName)
   )
@@ -270,22 +531,6 @@ const GrupoReadOnly = ({ grupos, playerName }) => {
     const idx = miZona.parejas.findIndex((p) => p.id === pareja.id)
     return idx >= 0 ? idx + 1 : null
   }
-
-  // Standings para zonas round-robin (2 o 3 parejas)
-  const standings = (miZona.capacidad <= 3) ? (() => {
-    const wins = {}, pj = {}
-    miZona.parejas.forEach((p) => { wins[p.id] = 0; pj[p.id] = 0 })
-    miZona.partidos.forEach((m) => {
-      if (m.estado === 'finalizado') {
-        if (m.pareja1) pj[m.pareja1.id] = (pj[m.pareja1.id] || 0) + 1
-        if (m.pareja2) pj[m.pareja2.id] = (pj[m.pareja2.id] || 0) + 1
-        if (m.ganador) wins[m.ganador.id] = (wins[m.ganador.id] || 0) + 1
-      }
-    })
-    return [...miZona.parejas]
-      .sort((a, b) => (wins[b.id] || 0) - (wins[a.id] || 0))
-      .map((p) => ({ pareja: p, wins: wins[p.id] || 0, pj: pj[p.id] || 0, losses: (pj[p.id] || 0) - (wins[p.id] || 0) }))
-  })() : null
 
   const renderPartidos = () => {
     if (miZona.capacidad === 4) {
@@ -417,44 +662,8 @@ const GrupoReadOnly = ({ grupos, playerName }) => {
         )}
       </div>
 
-      {/* Tabla de posiciones */}
-      {standings && (
-        <div className="mb-3 rounded-xl border border-white/8 overflow-hidden">
-          <table className="w-full text-[11px]">
-            <thead>
-              <tr className="border-b border-white/8 bg-white/3">
-                <th className="px-3 py-2 text-left text-white/25 font-semibold w-6">#</th>
-                <th className="px-3 py-2 text-left text-white/25 font-semibold">Pareja</th>
-                <th className="px-3 py-2 text-center text-white/25 font-semibold w-8" title="Partidos jugados">PJ</th>
-                <th className="px-3 py-2 text-center text-white/25 font-semibold w-8">G</th>
-                <th className="px-3 py-2 text-center text-white/25 font-semibold w-8">P</th>
-              </tr>
-            </thead>
-            <tbody>
-              {standings.map(({ pareja, wins, pj, losses }, i) => {
-                const esMia       = pareja.id === miPareja?.id
-                const esClasificada = miZona.clasificados?.some((c) => c.id === pareja.id)
-                return (
-                  <tr key={pareja.id} className={`border-b border-white/5 last:border-0 ${esMia ? 'bg-[#afca0b]/5' : ''}`}>
-                    <td className="px-3 py-2 font-bold text-white/25">{i + 1}°</td>
-                    <td className="px-3 py-2">
-                      <span className={`font-medium ${esMia ? 'text-[#afca0b]' : esClasificada ? 'text-white/70' : 'text-white/35'}`}>
-                        {pareja.jugador1} / {pareja.jugador2}
-                      </span>
-                      {esClasificada && zonaCompleta && (
-                        <span className="ml-1.5 text-[9px] text-emerald-400">✓</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-center text-white/30">{pj}</td>
-                    <td className="px-3 py-2 text-center font-semibold text-emerald-400">{wins}</td>
-                    <td className="px-3 py-2 text-center text-white/30">{losses}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* Tabla de posiciones + grilla cruzada */}
+      <StandingsZona zona={miZona} miParejaId={miPareja?.id} puntosPorVictoria={puntosPorVictoria} />
 
       {/* Partidos */}
       <p className="text-[10px] text-white/25 uppercase tracking-widest font-semibold mb-2">Partidos</p>
@@ -564,10 +773,10 @@ const ModalCancelar = ({ torneo, pareja, onClose, onConfirmar }) => {
 // ── Card torneo inscripto ──────────────────────────────────────────────────────
 
 const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) => {
-  const [open, setOpen]             = useState(false)
-  const [openGrupos, setOpenGrupos] = useState(false)
-  const [showDisp, setShowDisp]     = useState(false)
-  const [showInscriptos, setShowInscriptos] = useState(false)
+  const [open, setOpen]                         = useState(false)
+  const [activeTab, setActiveTab]               = useState(null) // null | 'miZona' | 'todasZonas'
+  const [showDisp, setShowDisp]                 = useState(false)
+  const [showInscriptos, setShowInscriptos]     = useState(false)
   const miPareja = torneo.inscriptos.find(
     (i) => i.jugador1 === playerName || i.jugador2 === playerName
   )
@@ -764,16 +973,73 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
           )}
           {tieneGrupos && (
             <>
-              <button
-                onClick={() => setOpenGrupos((v) => !v)}
-                className={`w-full flex items-center justify-between px-5 py-2.5 text-xs text-white/30 hover:text-white/60 hover:bg-white/3 transition-all ${editable ? 'border-t border-white/5' : ''}`}
-              >
-                <span>{openGrupos ? 'Ocultar mi zona' : 'Ver mi zona'}</span>
-                {openGrupos ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              </button>
-              {openGrupos && (
+              {/* Tab bar */}
+              <div className={`flex items-center gap-1 px-4 py-2.5 ${editable || editableDisp ? 'border-t border-white/5' : ''}`}>
+                {/* Tab Mi zona */}
+                <button
+                  onClick={() => setActiveTab((v) => v === 'miZona' ? null : 'miZona')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === 'miZona'
+                      ? 'bg-[#afca0b]/15 text-[#afca0b] border border-[#afca0b]/25'
+                      : 'text-white/35 hover:text-white/60 hover:bg-white/5 border border-transparent'
+                  }`}
+                >
+                  <span>Mi zona</span>
+                  {(() => {
+                    const z = torneo.grupos?.find((z) => z.parejas.some((p) => p.jugador1 === playerName || p.jugador2 === playerName))
+                    return z ? (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md border ${
+                        activeTab === 'miZona'
+                          ? 'bg-[#afca0b]/10 border-[#afca0b]/20 text-[#afca0b]/70'
+                          : 'bg-white/5 border-white/8 text-white/25'
+                      }`}>{z.nombre}</span>
+                    ) : null
+                  })()}
+                </button>
+
+                {/* Tab Todas las zonas (solo si hay más de 1) */}
+                {(torneo.grupos?.length ?? 0) > 1 && (
+                  <button
+                    onClick={() => setActiveTab((v) => v === 'todasZonas' ? null : 'todasZonas')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                      activeTab === 'todasZonas'
+                        ? 'bg-white/10 text-white/80 border border-white/15'
+                        : 'text-white/35 hover:text-white/60 hover:bg-white/5 border border-transparent'
+                    }`}
+                  >
+                    <LayoutGrid size={11} />
+                    <span>Todas las zonas</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md border ${
+                      activeTab === 'todasZonas'
+                        ? 'bg-white/8 border-white/12 text-white/40'
+                        : 'bg-white/5 border-white/8 text-white/20'
+                    }`}>{torneo.grupos.length}</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Contenido del tab activo */}
+              {activeTab === 'miZona' && (
                 <div className="px-5 pb-4 border-t border-white/5">
-                  <GrupoReadOnly grupos={torneo.grupos} playerName={playerName} />
+                  <GrupoReadOnly grupos={torneo.grupos} playerName={playerName} puntosPorVictoria={torneo.puntosPorVictoria ?? 2} />
+                </div>
+              )}
+              {activeTab === 'todasZonas' && (
+                <div className="px-4 pb-4 border-t border-white/5 pt-3 flex flex-col gap-3">
+                  {(() => {
+                    const grupos = [...(torneo.grupos ?? [])].sort((a, b) =>
+                      (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es')
+                    )
+                    return grupos.map((zona, renderIdx) => (
+                      <ZonaPanel
+                        key={zona.nombre ?? renderIdx}
+                        zona={zona}
+                        playerName={playerName}
+                        defaultOpen={false}
+                        puntosPorVictoria={torneo.puntosPorVictoria ?? 2}
+                      />
+                    ))
+                  })()}
                 </div>
               )}
             </>
@@ -835,6 +1101,178 @@ const ModalInscriptos = ({ torneo, playerName, onClose }) => {
               </div>
             )
           })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Modal todas las zonas ─────────────────────────────────────────────────────
+
+const ZonaPanel = ({ zona, playerName, defaultOpen, puntosPorVictoria = 2 }) => {
+  const [expanded, setExpanded] = useState(defaultOpen)
+
+  const miPareja    = zona.parejas.find((p) => p.jugador1 === playerName || p.jugador2 === playerName)
+  const zonaCompleta = !!zona.clasificados
+  const clasificado  = miPareja && zona.clasificados?.some((c) => c.id === miPareja.id)
+
+  const renderPartidos = () => {
+    if (zona.capacidad === 4) {
+      const r1 = zona.partidos.filter((p) => p.tipo === 'r1')
+      const wf = zona.partidos.find((p) => p.tipo === 'wf')
+      const lf = zona.partidos.find((p) => p.tipo === 'lf')
+      return (
+        <div className="flex flex-col gap-2">
+          <p className="text-[10px] text-white/20 uppercase tracking-widest font-semibold">Ronda 1</p>
+          {r1.map((p) => <PartidoZonaReadOnly key={p.id} partido={p} miParejaId={miPareja?.id} parejas={zona.parejas} />)}
+          {wf && <>
+            <p className="text-[10px] text-white/20 uppercase tracking-widest font-semibold mt-1">Final → 1°</p>
+            <PartidoZonaReadOnly partido={wf} miParejaId={miPareja?.id} parejas={zona.parejas} />
+          </>}
+          {lf && <>
+            <p className="text-[10px] text-white/20 uppercase tracking-widest font-semibold mt-1">Final → 2°</p>
+            <PartidoZonaReadOnly partido={lf} miParejaId={miPareja?.id} parejas={zona.parejas} />
+          </>}
+        </div>
+      )
+    }
+    return (
+      <div className="flex flex-col gap-2">
+        {zona.partidos.map((p) => (
+          <PartidoZonaReadOnly key={p.id} partido={p} miParejaId={miPareja?.id} parejas={zona.parejas} />
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className={`rounded-2xl border overflow-hidden transition-colors ${
+      miPareja
+        ? 'border-[#afca0b]/20 bg-[#afca0b]/3'
+        : 'border-white/8 bg-white/[0.015]'
+    }`}>
+      {/* Header de zona — siempre visible */}
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 transition-colors hover:bg-white/3"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* Bullet de color */}
+          <span className={`w-2 h-2 rounded-full shrink-0 ${miPareja ? 'bg-[#afca0b]' : 'bg-white/15'}`} />
+          <span className={`text-sm font-bold truncate ${miPareja ? 'text-[#afca0b]' : 'text-white/50'}`}>
+            {zona.nombre}
+          </span>
+          <span className="text-[10px] text-white/25 shrink-0">{zona.capacidad} parejas</span>
+          {miPareja && (
+            <span className="text-[10px] font-semibold text-[#afca0b]/70 bg-[#afca0b]/10 border border-[#afca0b]/20 px-1.5 py-0.5 rounded-lg shrink-0">
+              Tu zona
+            </span>
+          )}
+          {zonaCompleta && miPareja && (
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg border shrink-0 ${
+              clasificado
+                ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+                : 'text-white/25 bg-white/5 border-white/10'
+            }`}>
+              {clasificado ? '✓ Clasif.' : 'Elim.'}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0 ml-2">
+          {/* Mini pill con parejas clasificadas */}
+          {zonaCompleta && (
+            <span className="text-[10px] text-emerald-400/60 hidden sm:block">
+              {zona.clasificados?.length ?? 0} clasifican
+            </span>
+          )}
+          {expanded ? (
+            <ChevronUp size={13} className="text-white/25" />
+          ) : (
+            <ChevronDown size={13} className="text-white/25" />
+          )}
+        </div>
+      </button>
+
+      {/* Contenido expandible */}
+      {expanded && (
+        <div className="px-4 pb-4 border-t border-white/6 pt-3 flex flex-col gap-3">
+
+          {/* Tabla de posiciones + grilla cruzada */}
+          <StandingsZona zona={zona} miParejaId={miPareja?.id} puntosPorVictoria={puntosPorVictoria} />
+
+          {/* Partidos */}
+          <div>
+            <p className="text-[10px] text-white/20 uppercase tracking-widest font-semibold mb-2">Partidos</p>
+            {renderPartidos()}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const ModalTodasLasZonas = ({ torneo, playerName, onClose }) => {
+  const grupos = torneo.grupos ?? []
+  const miZonaIdx = grupos.findIndex((z) =>
+    z.parejas.some((p) => p.jugador1 === playerName || p.jugador2 === playerName)
+  )
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div
+        className="relative bg-[#0d1117] border border-white/12 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[88vh] sm:max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
+        style={{ animation: 'slideUpModal 0.28s cubic-bezier(0.34,1.2,0.64,1) forwards' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <style>{`
+          @keyframes slideUpModal {
+            from { transform: translateY(32px); opacity: 0 }
+            to   { transform: translateY(0);    opacity: 1 }
+          }
+        `}</style>
+
+        {/* Handle móvil */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
+          <div className="w-10 h-1 rounded-full bg-white/15" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/8 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-[#afca0b]/10 border border-[#afca0b]/20 flex items-center justify-center shrink-0">
+              <LayoutGrid size={14} className="text-[#afca0b]" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-white font-bold text-sm leading-tight truncate">{torneo.nombre}</h3>
+              <p className="text-white/35 text-[11px] mt-0.5">
+                Fase de grupos · {grupos.length} zona{grupos.length !== 1 ? 's' : ''}
+                {miZonaIdx >= 0 && (
+                  <span className="ml-1.5 text-[#afca0b]/50">· tu zona: {grupos[miZonaIdx]?.nombre}</span>
+                )}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center text-white/30 hover:text-white/70 rounded-xl hover:bg-white/8 transition-all shrink-0 ml-2"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Lista de zonas */}
+        <div className="overflow-y-auto flex-1 px-4 py-4 flex flex-col gap-3">
+          {[...grupos]
+            .sort((a, b) => (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es'))
+            .map((zona, renderIdx) => (
+              <ZonaPanel
+                key={zona.nombre ?? renderIdx}
+                zona={zona}
+                playerName={playerName}
+                defaultOpen={false}
+              />
+            ))}
         </div>
       </div>
     </div>
@@ -1744,6 +2182,7 @@ const mapBackendTorneoPlayer = (t) => ({
   brackets: t.brackets ?? {},
   ganador: t.ganador,
   subcampeon: t.subcampeon,
+  puntosPorVictoria: t.puntosPorVictoria ?? 2,
   diaInicioEliminatoria:  t.diaInicioEliminatoria  ?? null,
   horaInicioEliminatoria: t.horaInicioEliminatoria ?? null,
   ...(t.personalizacion ?? {}),
@@ -1772,13 +2211,11 @@ const PlayerTournamentsPage = () => {
   const playerClubId = player?.club?.id ?? player?.clubId ?? null
   const authH      = playerToken ? { Authorization: `Bearer ${playerToken}` } : {}
 
-  // Cargar torneos desde backend si el store no tiene datos del backend
+  // Siempre re-fetchar al montar para tener resultados actualizados
   useEffect(() => {
     if (!playerClubId) return
-    const hayBackend = torneos.some((t) => typeof t.id === 'string')
-    if (hayBackend) return // ya cargados por otra página
     api.get(`/torneos?clubId=${playerClubId}`)
-      .then((data) => { if (Array.isArray(data) && data.length > 0) setTorneos(data.map(mapBackendTorneoPlayer)) })
+      .then((data) => { if (Array.isArray(data)) setTorneos(data.map(mapBackendTorneoPlayer)) })
       .catch(() => {})
   }, [playerClubId])
 

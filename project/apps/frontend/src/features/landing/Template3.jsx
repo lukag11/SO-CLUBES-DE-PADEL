@@ -10,6 +10,12 @@ const FEATURES = [
   { icon: Users,        title: 'Tu perfil',         desc: 'Historial de partidos, estadísticas y nivel actualizado.' },
 ]
 
+const scrollToTorneos = (fallback) => {
+  const el = document.getElementById('torneos')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  else fallback()
+}
+
 const Template3 = ({ club, onCta }) => {
   const { colorPrimario, nombre, canchas, horarios,
     heroTitulo, heroTituloDestacado, heroSubtitulo, heroBadge,
@@ -49,7 +55,7 @@ const Template3 = ({ club, onCta }) => {
               <button onClick={onCta} className="inline-flex items-center gap-2 font-bold text-sm px-6 py-3.5 rounded-xl transition-all duration-200 text-white" style={{ backgroundColor: colorPrimario }}>
                 {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={16} />
               </button>
-              <button onClick={onCta} className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors px-2">
+              <button onClick={() => scrollToTorneos(onCta)} className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors px-2">
                 {heroCtaSecundarioTexto || 'Ver torneos'} →
               </button>
             </div>
@@ -104,7 +110,7 @@ const Template3 = ({ club, onCta }) => {
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {FEATURES.map(({ icon: Icon, title, desc }) => (
-              <div key={title} onClick={onCta} className="group cursor-pointer flex flex-col gap-4">
+              <div key={title} onClick={() => title === 'Torneos' ? scrollToTorneos(onCta) : onCta()} className="group cursor-pointer flex flex-col gap-4">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200" style={{ backgroundColor: `${colorPrimario}15` }}>
                   <Icon size={22} style={{ color: colorPrimario }} />
                 </div>
@@ -123,7 +129,7 @@ const Template3 = ({ club, onCta }) => {
 
       {/* TURNOS DISPONIBLES */}
       {(seccionesVisibles?.reservas ?? true) && (
-        <section className="py-24 px-6 bg-white border-y border-slate-100">
+        <section id="reservas" className="py-24 px-6 bg-white border-y border-slate-100">
           <div className="max-w-5xl mx-auto">
             <TurnosDisponibles canchas={canchas} horarios={horarios} colorPrimario={colorPrimario} onCta={onCta} dark={false} />
           </div>
@@ -132,7 +138,7 @@ const Template3 = ({ club, onCta }) => {
 
       {/* HISTORIA */}
       {parrafos.length > 0 && (seccionesVisibles?.historia ?? true) && (
-        <section className="py-24 px-6">
+        <section id="nosotros" className="py-24 px-6">
           <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-16 items-center">
             {fotoPrincipal
               ? <div className="rounded-3xl overflow-hidden shadow-xl shadow-slate-100 border border-slate-100"><img src={fotoPrincipal} alt={tituloBio} className="w-full h-72 object-cover" /></div>
@@ -149,7 +155,7 @@ const Template3 = ({ club, onCta }) => {
 
       {/* GALERÍA */}
       {galeria?.length > 0 && (seccionesVisibles?.galeria ?? true) && (
-        <section className="py-24 px-6 bg-white border-y border-slate-100">
+        <section id="galeria" className="py-24 px-6 bg-white border-y border-slate-100">
           <div className="max-w-5xl mx-auto">
             <h2 className="text-3xl font-black text-slate-900 mb-4">Instalaciones</h2>
             <p className="text-slate-400 mb-10">Conocé nuestras canchas y espacios.</p>
@@ -160,7 +166,7 @@ const Template3 = ({ club, onCta }) => {
 
       {/* SERVICIOS */}
       {servicios?.some((s) => s.activo) && (seccionesVisibles?.servicios ?? true) && (
-        <section className="py-24 px-6">
+        <section id="servicios" className="py-24 px-6">
           <div className="max-w-5xl mx-auto">
             <h2 className="text-3xl font-black text-slate-900 mb-4">Servicios</h2>
             <p className="text-slate-400 mb-10">Todo lo que encontrás en el club.</p>
@@ -171,7 +177,7 @@ const Template3 = ({ club, onCta }) => {
 
       {/* STAFF */}
       {staff?.length > 0 && (seccionesVisibles?.staff ?? true) && (
-        <section className="py-24 px-6 bg-white border-y border-slate-100">
+        <section id="equipo" className="py-24 px-6 bg-white border-y border-slate-100">
           <div className="max-w-5xl mx-auto">
             <h2 className="text-3xl font-black text-slate-900 mb-4">Nuestro equipo</h2>
             <p className="text-slate-400 mb-10">Las personas detrás del club.</p>
@@ -182,7 +188,7 @@ const Template3 = ({ club, onCta }) => {
 
       {/* FAQ */}
       {faq?.length > 0 && (seccionesVisibles?.faq ?? true) && (
-        <section className="py-24 px-6">
+        <section id="faq" className="py-24 px-6">
           <div className="max-w-3xl mx-auto">
             <h2 className="text-3xl font-black text-slate-900 mb-4">Preguntas frecuentes</h2>
             <p className="text-slate-400 mb-10">Todo lo que necesitás saber antes de reservar.</p>

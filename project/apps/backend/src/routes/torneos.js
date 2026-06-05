@@ -87,7 +87,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
     nombre, categorias, formato, genero, cupoLibre, cuposPorCategoria, cupoEspera,
     cupoEsperaPorCategoria, generoPorCategoria,
     canchasAsignadas, fechaInicio, fechaFin, fechaLimiteInscripcion,
-    diaInicioEliminatoria, horaInicioEliminatoria, descripcion,
+    diaInicioEliminatoria, horaInicioEliminatoria, puntosPorVictoria, descripcion,
   } = req.body
   const clubId = req.user.clubId
 
@@ -123,6 +123,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         fechaLimiteInscripcion: fechaLimiteInscripcion ?? null,
         diaInicioEliminatoria: diaInicioEliminatoria ?? null,
         horaInicioEliminatoria: horaInicioEliminatoria ?? null,
+        puntosPorVictoria: puntosPorVictoria ?? 2,
         descripcion: descripcion ?? '',
         ...(flyer && { personalizacion: flyer }),
       },
@@ -142,7 +143,7 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
     nombre, categorias, formato, genero, cupoLibre, cuposPorCategoria, cupoEspera,
     cupoEsperaPorCategoria, generoPorCategoria,
     canchasAsignadas, fechaInicio, fechaFin, fechaLimiteInscripcion,
-    diaInicioEliminatoria, horaInicioEliminatoria, descripcion,
+    diaInicioEliminatoria, horaInicioEliminatoria, puntosPorVictoria, descripcion,
   } = req.body
 
   try {
@@ -187,6 +188,7 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
         ...(fechaLimiteInscripcion !== undefined && { fechaLimiteInscripcion }),
         ...(diaInicioEliminatoria  !== undefined && { diaInicioEliminatoria }),
         ...(horaInicioEliminatoria !== undefined && { horaInicioEliminatoria }),
+        ...(puntosPorVictoria      !== undefined && { puntosPorVictoria: Number(puntosPorVictoria) }),
         ...(descripcion            !== undefined && { descripcion }),
         ...(personalizacionUpdate  !== undefined && { personalizacion: personalizacionUpdate }),
       },
@@ -218,11 +220,22 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
       return res.status(422).json({ error: `Transición inválida: ${torneo.estado} → ${estado}` })
     }
 
-    const updated = await prisma.torneo.update({
-      where: { id },
-      data: { estado },
-      include: { parejas: { orderBy: { createdAt: 'asc' } } },
-    })
+    const bulkParejas =
+      estado === 'closed'
+        ? prisma.pareja.updateMany({ where: { torneoId: id, estado: 'espera' },    data: { estado: 'suplente' } })
+        : estado === 'open'
+          ? prisma.pareja.updateMany({ where: { torneoId: id, estado: 'suplente' }, data: { estado: 'espera' } })
+          : null
+
+    const ops = [
+      prisma.torneo.update({
+        where: { id },
+        data: { estado },
+        include: { parejas: { orderBy: { createdAt: 'asc' } } },
+      }),
+      ...(bulkParejas ? [bulkParejas] : []),
+    ]
+    const [updated] = await prisma.$transaction(ops)
     res.json(updated)
   } catch (err) {
     console.error(err)
@@ -444,8 +457,8 @@ router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req,
     const torneo = await prisma.torneo.findUnique({ where: { id: torneoId } })
     if (torneo.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
 
-    // Validar cupo al promover de espera → inscripto
-    if (estado === 'inscripto' && pareja.estado === 'espera') {
+    // Validar cupo al promover de espera/suplente → inscripto
+    if (estado === 'inscripto' && ['espera', 'suplente'].includes(pareja.estado)) {
       if (!torneo.cupoLibre) {
         const cupoCat = (torneo.cuposPorCategoria ?? {})[pareja.categoria] ?? null
         if (cupoCat !== null) {
@@ -486,8 +499,8 @@ router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req,
       },
     })
 
-    // Notificar jugadores al promover de espera → inscripto
-    if (estado === 'inscripto' && pareja.estado === 'espera') {
+    // Notificar jugadores al promover de espera/suplente → inscripto
+    if (estado === 'inscripto' && ['espera', 'suplente'].includes(pareja.estado)) {
       const notifData = { torneoId, torneoNombre: torneo.nombre, categoria: updated.categoria, jugador1: updated.jugador1, jugador2: updated.jugador2 }
       if (updated.jugador1Id) notificarJugador(updated.jugador1Id, torneo.clubId, 'torneo_promovido_espera', notifData)
       if (updated.jugador2Id) notificarJugador(updated.jugador2Id, torneo.clubId, 'torneo_promovido_espera', notifData)

@@ -10,6 +10,12 @@ const FEATURES = [
   { icon: Users,        title: 'Tu perfil',         desc: 'Historial de partidos, estadísticas y nivel actualizado.' },
 ]
 
+const scrollToTorneos = (fallback) => {
+  const el = document.getElementById('torneos')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  else fallback()
+}
+
 const Template5 = ({ club, onCta }) => {
   const { colorPrimario, colorSecundario, nombre, canchas, horarios,
     heroTitulo, heroTituloDestacado, heroSubtitulo, heroBadge,
@@ -76,7 +82,7 @@ const Template5 = ({ club, onCta }) => {
                 </span>
                 <span>{heroCtaPrimarioTexto || 'Reservar cancha'}</span>
               </button>
-              <button onClick={onCta} className="inline-flex items-center gap-2 text-sm text-white/30 hover:text-white/60 transition-colors w-fit">
+              <button onClick={() => scrollToTorneos(onCta)} className="inline-flex items-center gap-2 text-sm text-white/30 hover:text-white/60 transition-colors w-fit">
                 <ArrowUpRight size={14} />
                 {heroCtaSecundarioTexto || 'Ver torneos'}
               </button>
@@ -124,7 +130,7 @@ const Template5 = ({ club, onCta }) => {
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {FEATURES.map(({ icon: Icon, title, desc }, i) => (
-              <div key={title} onClick={onCta} className="group cursor-pointer border-t pt-6 transition-all duration-300 hover:border-opacity-100" style={{ borderColor: `${colorPrimario}30` }}>
+              <div key={title} onClick={() => title === 'Torneos' ? scrollToTorneos(onCta) : onCta()} className="group cursor-pointer border-t pt-6 transition-all duration-300 hover:border-opacity-100" style={{ borderColor: `${colorPrimario}30` }}>
                 <div className="flex items-start justify-between mb-6">
                   <Icon size={20} className="text-white/20 group-hover:text-white/60 transition-colors" style={{ color: i === 0 ? colorPrimario : undefined }} />
                   <ArrowUpRight size={14} className="text-white/10 group-hover:text-white/40 transition-colors" />
@@ -142,7 +148,7 @@ const Template5 = ({ club, onCta }) => {
 
       {/* TURNOS DISPONIBLES */}
       {(seccionesVisibles?.reservas ?? true) && (
-        <section className="py-24 px-6 border-t border-white/5">
+        <section id="reservas" className="py-24 px-6 border-t border-white/5">
           <div className="max-w-5xl mx-auto">
             <TurnosDisponibles canchas={canchas} horarios={horarios} colorPrimario={colorPrimario} onCta={onCta} dark={true} />
           </div>
@@ -151,7 +157,7 @@ const Template5 = ({ club, onCta }) => {
 
       {/* HISTORIA */}
       {parrafos.length > 0 && (seccionesVisibles?.historia ?? true) && (
-        <section className="py-24 px-6 border-t border-white/5">
+        <section id="nosotros" className="py-24 px-6 border-t border-white/5">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center gap-4 mb-16">
               <div className="w-8 h-px" style={{ backgroundColor: colorPrimario }} />
@@ -171,7 +177,7 @@ const Template5 = ({ club, onCta }) => {
 
       {/* GALERÍA */}
       {galeria?.length > 0 && (seccionesVisibles?.galeria ?? true) && (
-        <section className="py-24 px-6 border-t border-white/5">
+        <section id="galeria" className="py-24 px-6 border-t border-white/5">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center gap-4 mb-12">
               <div className="w-8 h-px" style={{ backgroundColor: colorPrimario }} />
@@ -184,7 +190,7 @@ const Template5 = ({ club, onCta }) => {
 
       {/* SERVICIOS */}
       {servicios?.some((s) => s.activo) && (seccionesVisibles?.servicios ?? true) && (
-        <section className="py-24 px-6 border-t border-white/5">
+        <section id="servicios" className="py-24 px-6 border-t border-white/5">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center gap-4 mb-12">
               <div className="w-8 h-px" style={{ backgroundColor: colorPrimario }} />
@@ -197,7 +203,7 @@ const Template5 = ({ club, onCta }) => {
 
       {/* STAFF */}
       {staff?.length > 0 && (seccionesVisibles?.staff ?? true) && (
-        <section className="py-24 px-6 border-t border-white/5">
+        <section id="equipo" className="py-24 px-6 border-t border-white/5">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center gap-4 mb-12">
               <div className="w-8 h-px" style={{ backgroundColor: colorPrimario }} />
@@ -210,7 +216,7 @@ const Template5 = ({ club, onCta }) => {
 
       {/* FAQ */}
       {faq?.length > 0 && (seccionesVisibles?.faq ?? true) && (
-        <section className="py-24 px-6 border-t border-white/5">
+        <section id="faq" className="py-24 px-6 border-t border-white/5">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center gap-4 mb-12">
               <div className="w-8 h-px" style={{ backgroundColor: colorPrimario }} />

@@ -348,20 +348,141 @@ const _recalcularClasificadosRR = (zona) => {
   }
 }
 
+// ── Swap de parejas entre zonas (preserva slots de zonas no afectadas) ────────
+
+const _regenerarPartidosZona = (zona, px) => {
+  const cap = zona.capacidad
+  if (cap === 2) return _partidosZona2(zona.parejas, px)
+  if (cap === 3) return _partidosZona3(zona.parejas, px)
+  return _partidosZona4(zona.parejas, px)
+}
+
+export const swapParejas = (grupos, zonaIdxA, parejaIdxA, zonaIdxB, parejaIdxB) => {
+  const newGrupos = JSON.parse(JSON.stringify(grupos))
+
+  // Intercambiar las dos parejas
+  const pA = newGrupos[zonaIdxA].parejas[parejaIdxA]
+  const pB = newGrupos[zonaIdxB].parejas[parejaIdxB]
+  newGrupos[zonaIdxA].parejas[parejaIdxA] = pB
+  newGrupos[zonaIdxB].parejas[parejaIdxB] = pA
+
+  // Regenerar partidos SOLO en las dos zonas afectadas — el resto queda intacto
+  const pxA = newGrupos[zonaIdxA].partidos[0]?.id?.split('_')[0] ?? `z${zonaIdxA}`
+  const pxB = newGrupos[zonaIdxB].partidos[0]?.id?.split('_')[0] ?? `z${zonaIdxB}`
+  newGrupos[zonaIdxA].partidos        = _regenerarPartidosZona(newGrupos[zonaIdxA], pxA)
+  newGrupos[zonaIdxA].clasificados    = null
+  newGrupos[zonaIdxA].necesitaDesempate = false
+  newGrupos[zonaIdxB].partidos        = _regenerarPartidosZona(newGrupos[zonaIdxB], pxB)
+  newGrupos[zonaIdxB].clasificados    = null
+  newGrupos[zonaIdxB].necesitaDesempate = false
+
+  return newGrupos
+}
+
+// ── Distribución por afinidad de disponibilidad ───────────────────────────────
+
+// Cuenta días en común entre dos parejas
+const _diasEnComun = (p1, p2) => {
+  const dias1 = new Set((p1.disponibilidad ?? []).map((s) => s.dia))
+  const dias2 = new Set((p2.disponibilidad ?? []).map((s) => s.dia))
+  let count = 0
+  for (const d of dias1) if (dias2.has(d)) count++
+  return count
+}
+
+// Cuenta cuántos días distintos existen en los solapamientos de todos los pares de una zona.
+const _dayDiversity = (parejas) => {
+  const allDays = new Set()
+  for (let i = 0; i < parejas.length; i++) {
+    const dias1 = new Set((parejas[i].disponibilidad ?? []).map((s) => s.dia))
+    for (let j = i + 1; j < parejas.length; j++) {
+      const dias2 = new Set((parejas[j].disponibilidad ?? []).map((s) => s.dia))
+      for (const d of dias1) if (dias2.has(d)) allDays.add(d)
+    }
+  }
+  return allDays.size
+}
+
+// Simula cuántos partidos de la zona se pueden asignar a días distintos por pareja (constraint 1/día).
+// Greedy: cada partido va al primer día libre para ambas parejas.
+// Resultado más alto = zona más compatible con jugar 1 partido por día.
+const _estimarDistribucion1xDia = (parejas) => {
+  const matches = []
+  for (let i = 0; i < parejas.length; i++) {
+    for (let j = i + 1; j < parejas.length; j++) {
+      const dias = (parejas[i].disponibilidad ?? [])
+        .filter((s) => (parejas[j].disponibilidad ?? []).some((s2) => s2.dia === s.dia))
+        .map((s) => s.dia)
+      matches.push({ p1: i, p2: j, dias })
+    }
+  }
+  const usados = parejas.map(() => new Set())
+  let ok = 0
+  for (const { p1, p2, dias } of matches) {
+    const diaLibre = dias.find((d) => !usados[p1].has(d) && !usados[p2].has(d))
+    if (diaLibre) {
+      usados[p1].add(diaLibre)
+      usados[p2].add(diaLibre)
+      ok++
+    }
+  }
+  return ok
+}
+
+// Constraint-first: las parejas con menos días disponibles siembran su zona.
+// Así las más restringidas atraen a quienes comparten esos días,
+// maximizando la probabilidad de overlap en cada zona.
+// Dentro del mismo nivel de restricción, orden aleatorio para variedad entre Regenerar.
+const _distribuirPorAfinidad = (parejas, distribucion) => {
+  const numZonas = distribucion.length
+
+  // Ordenar por cantidad de días disponibles ASC; tiebreak aleatorio para variedad
+  const sorted = [...parejas].sort((a, b) => {
+    const dA = a.disponibilidad?.length ?? 0
+    const dB = b.disponibilidad?.length ?? 0
+    return dA !== dB ? dA - dB : Math.random() - 0.5
+  })
+
+  // Una semilla por zona (las más restringidas primero)
+  const seeds     = sorted.slice(0, numZonas)
+  const unassigned = sorted.slice(numZonas)
+
+  return distribucion.map((tamano, idx) => {
+    if (idx >= seeds.length) return []
+    const zona = [seeds[idx]]
+
+    while (zona.length < tamano && unassigned.length > 0) {
+      let bestIdx = 0
+      let bestScore = -1
+      for (let i = 0; i < unassigned.length; i++) {
+        const candidate  = [...zona, unassigned[i]]
+        const overlap    = zona.reduce((sum, z) => sum + _diasEnComun(unassigned[i], z), 0)
+        const diversity  = _dayDiversity(candidate)
+        const onexdia    = _estimarDistribucion1xDia(candidate)
+        // Score combinado: overlap = base, diversity = variedad, onexdia = 1-partido-por-día
+        const score = overlap + diversity + onexdia * 2
+        if (score > bestScore) { bestScore = score; bestIdx = i }
+      }
+      zona.push(unassigned.splice(bestIdx, 1)[0])
+    }
+
+    return zona
+  })
+}
+
 // ── API pública ────────────────────────────────────────────────────────────────
 
 // Genera zonas para un grupo de parejas de la misma categoría.
 // catIdx se usa para hacer únicos los IDs de partidos entre categorías.
 const _generateZonasParaCategoria = (parejas, categoria, catIdx) => {
   const distribucion = calcularDistribucionZonas(parejas.length)
+  const zonasDistribuidas = _distribuirPorAfinidad(parejas, distribucion)
   const zonas = []
-  let cursor = 0
 
   distribucion.forEach((capacidad, idx) => {
     const letra = String.fromCharCode(65 + idx)          // A, B, C…
     const px    = `c${catIdx}z${letra.toLowerCase()}`    // c0zA, c1zA… — evita colisiones entre categorías
-    const slice = parejas.slice(cursor, cursor + capacidad)
-    cursor += capacidad
+    const slice = zonasDistribuidas[idx] ?? []
 
     const partidos =
       capacidad === 2 ? _partidosZona2(slice, px) :
@@ -523,71 +644,147 @@ export const getAllClasificados = (grupos) => {
  *
  * Inmutable — retorna nuevos grupos sin modificar el original.
  */
-export const autoScheduleGroups = (grupos, canchas) => {
+export const autoScheduleGroups = (grupos, canchas, intervaloMin = 75, diaInicioElim = null, horaInicioElim = null, diasTorneo = []) => {
   const newGrupos = JSON.parse(JSON.stringify(grupos))
   const activas   = canchas.filter((c) => c.activa)
 
-  const slotCanchas    = new Map()
-  const parejaFirstDay = new Map() // id → dia del primer partido asignado (para prefiereMismoDia)
-  const slotKey        = (dia, hora) => `${dia}||${hora}`
+  // canchaSchedule: canchaId → [{dia, startMin}] — rastrea rangos ocupados por cancha
+  // parejaSchedule: parejaId → [{dia, startMin}] — rastrea cuándo está jugando cada pareja
+  const canchaSchedule  = new Map()
+  const parejaSchedule  = new Map()
+  const parejaFirstDay  = new Map()
+  const parejaDias      = new Map()
+  const timeToMin       = (t) => { const [h, m = 0] = (t ?? '08:00').split(':').map(Number); return h * 60 + m }
+  const minToTime       = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+
+  // Pre-poblar con partidos que ya tienen slot asignado — evita colisiones al completar parcialmente
+  for (const zona of newGrupos) {
+    for (const p of zona.partidos) {
+      if (!p.slot || !p.cancha) continue
+      const startMin = timeToMin(p.slot.hora)
+      const { dia }  = p.slot
+      if (!canchaSchedule.has(p.cancha)) canchaSchedule.set(p.cancha, [])
+      canchaSchedule.get(p.cancha).push({ dia, startMin })
+      for (const pareja of [p.pareja1, p.pareja2]) {
+        if (!pareja?.id) continue
+        if (!parejaSchedule.has(pareja.id)) parejaSchedule.set(pareja.id, [])
+        parejaSchedule.get(pareja.id).push({ dia, startMin })
+        if (!parejaDias.has(pareja.id)) parejaDias.set(pareja.id, new Set())
+        parejaDias.get(pareja.id).add(dia)
+      }
+    }
+  }
+
+  const canchaLibre = (canchaId, dia, startMin) => {
+    const ocupaciones = canchaSchedule.get(canchaId) ?? []
+    return !ocupaciones.some((o) => o.dia === dia && Math.abs(o.startMin - startMin) < intervaloMin)
+  }
+
+  // Una pareja está ocupada si ya tiene partido en ese día dentro del intervalo
+  const parejaLibre = (parejaId, dia, startMin) => {
+    const ocupaciones = parejaSchedule.get(parejaId) ?? []
+    return !ocupaciones.some((o) => o.dia === dia && Math.abs(o.startMin - startMin) < intervaloMin)
+  }
+
+  const reservarCancha = (canchaId, dia, startMin) => {
+    if (!canchaSchedule.has(canchaId)) canchaSchedule.set(canchaId, [])
+    canchaSchedule.get(canchaId).push({ dia, startMin })
+  }
+
+  const reservarPareja = (parejaId, dia, startMin) => {
+    if (!parejaSchedule.has(parejaId)) parejaSchedule.set(parejaId, [])
+    parejaSchedule.get(parejaId).push({ dia, startMin })
+  }
+
+  const SLOT_STEP = 15  // granularidad de búsqueda en minutos
+
+  const tryAssign = (partido, diasCandidatos, p1, p2, p1Slots, p2Slots) => {
+    for (const dia of diasCandidatos) {
+      const m1 = timeToMin(p1Slots.find((s) => s.dia === dia)?.horaDesde)
+      const m2 = timeToMin(p2Slots.find((s) => s.dia === dia)?.horaDesde)
+      const inicioMin = Math.max(m1, m2)
+      for (let m = inicioMin; m <= 23 * 60 - intervaloMin; m += SLOT_STEP) {
+        // Respetar corte de fase eliminatoria: no asignar slots reservados para eliminatoria
+        if (!esSlotDeGrupos(dia, minToTime(m), diaInicioElim, horaInicioElim)) continue
+        // Cancha libre Y ambas parejas libres a esa hora — evita que una pareja juegue dos partidos al mismo tiempo
+        const libre = activas.find((c) =>
+          canchaLibre(c.id, dia, m) && parejaLibre(p1.id, dia, m) && parejaLibre(p2.id, dia, m)
+        )
+        if (libre) {
+          partido.slot       = { dia, hora: minToTime(m) }
+          partido.cancha     = libre.id
+          partido.sinHorario = false
+          reservarCancha(libre.id, dia, m)
+          reservarPareja(p1.id, dia, m)
+          reservarPareja(p2.id, dia, m)
+          if (!parejaDias.has(p1.id)) parejaDias.set(p1.id, new Set())
+          if (!parejaDias.has(p2.id)) parejaDias.set(p2.id, new Set())
+          parejaDias.get(p1.id).add(dia)
+          parejaDias.get(p2.id).add(dia)
+          if (p1?.prefiereMismoDia && !parejaFirstDay.has(p1.id)) parejaFirstDay.set(p1.id, dia)
+          if (p2?.prefiereMismoDia && !parejaFirstDay.has(p2.id)) parejaFirstDay.set(p2.id, dia)
+          return true
+        }
+      }
+    }
+    return false
+  }
 
   for (const zona of newGrupos) {
     for (const partido of zona.partidos) {
       if (partido.slot) continue
 
-      const p1       = partido.pareja1
-      const p2       = partido.pareja2
-      const p1Slots  = p1?.disponibilidad ?? []
-      const p2Slots  = p2?.disponibilidad ?? []
+      const p1      = partido.pareja1
+      const p2      = partido.pareja2
+      const p1Slots = p1?.disponibilidad ?? []
+      const p2Slots = p2?.disponibilidad ?? []
 
-      // Días donde ambas parejas tienen disponibilidad
       const diasEnComun = [...new Set(
-        p1Slots
-          .filter((s1) => p2Slots.some((s2) => s2.dia === s1.dia))
-          .map((s1) => s1.dia)
+        p1Slots.filter((s1) => p2Slots.some((s2) => s2.dia === s1.dia)).map((s1) => s1.dia)
       )]
 
-      // Si alguna pareja prefiere mismo día y ya tiene un partido asignado,
-      // ese día va primero en la lista (best-effort: puede que no haya cancha libre)
+      // prefiereMismoDia: ese día va primero
       const prefDias = new Set(
         [p1, p2]
           .filter((p) => p?.prefiereMismoDia && parejaFirstDay.has(p.id))
           .map((p) => parejaFirstDay.get(p.id))
           .filter((d) => diasEnComun.includes(d))
       )
+
+      // Días donde ninguna pareja ya tiene partido (constraint 1-por-día)
+      const diasLibres = diasEnComun.filter((d) => {
+        const p1YaJuega = !p1?.prefiereMismoDia && parejaDias.get(p1?.id)?.has(d)
+        const p2YaJuega = !p2?.prefiereMismoDia && parejaDias.get(p2?.id)?.has(d)
+        return !p1YaJuega && !p2YaJuega
+      })
+
+      // Orden: prefDias primero, luego días libres, fallback al resto si no hay opción
       const diasOrdenados = [
         ...diasEnComun.filter((d) => prefDias.has(d)),
-        ...diasEnComun.filter((d) => !prefDias.has(d)),
+        ...diasLibres.filter((d) => !prefDias.has(d)),
       ]
+      const diasFallback = diasEnComun.filter((d) => !diasOrdenados.includes(d))
 
-      let assigned = false
-      for (const dia of diasOrdenados) {
-        const h1 = parseInt(p1Slots.find((s) => s.dia === dia)?.horaDesde?.split(':')[0] ?? '8')
-        const h2 = parseInt(p2Slots.find((s) => s.dia === dia)?.horaDesde?.split(':')[0] ?? '8')
-        const horaInicio = Math.max(h1, h2)
+      // Disponibilidad implícita: días del torneo donde al menos una pareja tiene confirmado
+      // pero la otra no — se usa solo si ambas parejas cargaron al menos 1 día (no son "sin datos")
+      // La pareja sin slot ese día recibe horaDesde='08:00' por defecto
+      const diasImplicitos = diasTorneo.length > 0 && p1Slots.length > 0 && p2Slots.length > 0
+        ? diasTorneo
+            .filter((d) =>
+              !diasEnComun.includes(d) &&
+              esSlotDeGrupos(d, '00:00', diaInicioElim, horaInicioElim) &&
+              (p1Slots.some((s) => s.dia === d) || p2Slots.some((s) => s.dia === d))
+            )
+            .sort((a, b) => {
+              const aYaViene = parejaDias.get(p1?.id)?.has(a) || parejaDias.get(p2?.id)?.has(a) ? 0 : 1
+              const bYaViene = parejaDias.get(p1?.id)?.has(b) || parejaDias.get(p2?.id)?.has(b) ? 0 : 1
+              return aYaViene - bYaViene
+            })
+        : []
 
-        for (let h = horaInicio; h <= 23; h++) {
-          const hora = `${String(h).padStart(2, '0')}:00`
-          const key  = slotKey(dia, hora)
-          if (!slotCanchas.has(key)) slotCanchas.set(key, new Set())
-          const ocupadas = slotCanchas.get(key)
-          const libre = activas.find((c) => !ocupadas.has(c.id))
-          if (libre) {
-            partido.slot       = { dia, hora }
-            partido.cancha     = libre.id
-            partido.sinHorario = false
-            ocupadas.add(libre.id)
-            assigned = true
-
-            // Registrar el día del primer partido para cada pareja con preferencia
-            if (p1?.prefiereMismoDia && !parejaFirstDay.has(p1.id)) parejaFirstDay.set(p1.id, dia)
-            if (p2?.prefiereMismoDia && !parejaFirstDay.has(p2.id)) parejaFirstDay.set(p2.id, dia)
-
-            break
-          }
-        }
-        if (assigned) break
-      }
+      const assigned = tryAssign(partido, diasOrdenados,  p1, p2, p1Slots, p2Slots)
+                    || tryAssign(partido, diasFallback,   p1, p2, p1Slots, p2Slots)
+                    || tryAssign(partido, diasImplicitos, p1, p2, p1Slots, p2Slots)
 
       if (!assigned) partido.sinHorario = true
     }

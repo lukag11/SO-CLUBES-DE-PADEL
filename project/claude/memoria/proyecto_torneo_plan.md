@@ -87,69 +87,48 @@
 ## Bloques de implementación
 
 ### ✅ Bloque 0 — Relevamiento
+Completado.
 
-Completado. Ver este documento.
+### ✅ Bloque 1 — Base de datos + Servicio
+- `torneoService.js` completo: bracket eliminación, bracket APA, fase de grupos (RR + zona 4), autoScheduleGroups, advanceGroupMatch, resolveGroupTie, swapParejas, calcularGanadorDesdeResultado
 
----
+### ✅ Bloque 2 — torneosStore
+- `torneosStore.js` con Zustand. Métodos: setEstado, setBracket, setGrupos, updateGrupos, addPareja, updatePareja, resolveGroupTie, deleteTorneo, updateTorneo.
 
-### 🔲 Bloque 1 — Base de datos + Servicio
+### ✅ Bloque 3 — Vista de detalle + Fixture + Grupos
+- TorneoDetallePage completo: tabs Parejas inscriptas / Grupos / Fixture / Personalización
+- Fase de grupos: generación, confirmación, carga de resultados, desempate, bracket APA eliminación
+- Horarios tab (en construcción, integrado en Grupos)
 
-**Estado: PENDIENTE — plan aprobado por usuario**
+### ✅ Bloque 4 — Backend torneos + Conexión jugador
+- Backend: 14 endpoints. Torneo + Pareja en Prisma/Supabase.
+- PlayerTournamentsPage conectado al backend.
+- Inscripción desde frontend jugador: DNI lookup compañero, disponibilidad, sinCompañero, estados espera/suplente.
 
-**1. CREAR `src/services/torneoService.js`**
+### 🔄 Bloque 5 (en progreso) — Testing scheduler + refinamiento grupos
 
-- `generateEliminationBracket(parejas)` — BYEs para no-potencia-de-2, `nextMatchId` entre partidos
-- `advanceWinner(bracket, matchId, ganador)` — inmutable, retorna bracket actualizado
-- `isBracketFinished(bracket)` — boolean
-- `getBracketWinner(bracket)` — retorna pareja ganadora del último partido
+**Estado: EN TESTING**
 
-**2. MODIFICAR `src/features/admin/torneosMockData.js`**
+**Algoritmo de scheduling (`autoScheduleGroups`):**
+- Constraint-first grouping: las parejas más restringidas siembran su zona
+- Score combinado: overlap + diversity + onexdia×2
+- Granularidad 15 min (evita perder slots entre intervalos)
+- Conflicto de pareja: parejaSchedule map → no juega 2 partidos mismo horario
+- Pre-poblar mapas al completar parcial (post-swap)
+- 3 niveles de fallback: overlap confirmado → días usados → disponibilidad implícita
+- Multi-iteración: hasta 25 reagrupaciones automáticas si hay sinHorario
+- Respeta corte de fase eliminatoria (diaInicioElim / horaInicioElim)
+- Días válidos del torneo: getDiasEnRango con parse local (fix UTC-3)
 
-- Inscriptos → formato pareja `{ jugador1, jugador2 }`
-- Estados → ciclo formal
-- Agregar campo `bracket: null` a cada torneo
+**Modal asignación manual:**
+- Chips de horarios pre-calculados (no input manual)
+- Validación de conflictos de cancha y pareja incluida
+- Filtrado por rango del torneo y corte de eliminatoria
 
-**3. MODIFICAR `src/pages/TorneosPage.jsx`** (mínimo)
-
-- `ESTADO_CONFIG` con nuevas claves de estado
-- Tabs actualizadas (En curso = `in_progress`, Próximos = `draft|open|closed`, Finalizados = `finished`)
-- Nuevo torneo arranca en `draft`
-- Toggle inscripción = transición de estado (`draft↔open`, `open↔closed`)
-
----
-
-### 🔲 Bloque 2 — torneosStore
-
-**Estado: PENDIENTE — por planificar**
-
-- CREAR `src/store/torneosStore.js`
-- Migrar `TorneosPage` de `useState` → store Zustand
-- Persistir en localStorage (`torneos_v1`)
-- Métodos: `addTorneo`, `updateTorneo`, `setEstado`, `setBracket`, `bajaInscripto`, `addPareja`
-- Resuelve INC-08 (torneos desconectados)
-
----
-
-### 🔲 Bloque 3 — Vista de detalle + Fixture
-
-**Estado: PENDIENTE — falta confirmar drawer vs nueva ruta**
-
-- Vista de detalle del torneo
-- Lista de parejas inscriptas
-- Botón "Generar Fixture" → llama `generateEliminationBracket`
-- Visualización del bracket (tabla por rondas)
-- Botón "Registrar ganador" por partido → llama `advanceWinner`
-- Avance automático al siguiente partido
-
----
-
-### 🔲 Bloque 4 — Conexión jugador
-
-**Estado: PENDIENTE**
-
-- `PlayerTournamentsPage` lee de `torneosStore`
-- Torneos disponibles para inscribirse (filtrados por categoría del jugador)
-- Estado del bracket visible para el jugador
+**Pendiente de probar:**
+- Confirmar grupos → carga de resultados → clasificados → bracket
+- Multi-categoría en scheduling
+- Flujo completo hasta `finished`
 
 ---
 

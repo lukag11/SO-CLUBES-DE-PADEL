@@ -252,6 +252,17 @@ const useTorneosStore = create((set, get) => ({
     }))
   },
 
+  // Upsert atómico: evita duplicados cuando el closure del componente tiene estado stale
+  upsertTorneoFromApi: (torneo) => {
+    set((state) => {
+      const exists = state.torneos.some((t) => String(t.id) === String(torneo.id))
+      if (exists) {
+        return { torneos: state.torneos.map((t) => String(t.id) === String(torneo.id) ? { ...t, ...torneo } : t) }
+      }
+      return { torneos: [torneo, ...state.torneos] }
+    })
+  },
+
   setGanadores: (id, { ganador, subcampeon }) => {
     set((state) => ({
       torneos: state.torneos.map((t) =>

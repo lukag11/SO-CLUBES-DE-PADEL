@@ -1,6 +1,115 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-05 (sesión — TorneoPublicoPage: grupos diseño independiente + herencia colores fixture, pill "Hereda: template" en admin)
+**Última actualización:** 2026-06-06 (sesión 2 — sponsors auth fix, LogoPicker dual upload, SponsorStrip FIP, loading profesional, flash template fix, z-index sticky header)
+
+---
+
+## Último bloque completado (2026-06-06 sesión 2) — Página pública torneo: UX, sponsors, loading, fixes visuales
+
+### Objetivo
+Mejorar la experiencia visual de la página pública de torneo: pantalla de carga profesional, fix de flash de template, sponsors con eliminación de fondo IA, rediseño SponsorStrip, y corrección de z-index del header sticky.
+
+### Fixes y features implementados
+
+**Fix 401 en endpoints de sponsors:**
+- `AdminSponsorsPage`: `api.js` no inyecta tokens automáticamente. Fix: leer `useAuthStore` y pasar `Authorization: Bearer` en todas las llamadas (`GET /sponsors`, `POST /sponsors`, `DELETE /sponsors/:id`).
+- `TorneoDetallePage`: modal de sponsors también hacía `GET /sponsors` sin token. Fix: mismo patrón.
+
+**Fix cold-start persona (templateFixture se reseteaba a 1):**
+- Causa raíz: `useState` inicializa desde el store vacío en navegación directa a la URL → `templateFixture: 1` overrideaba el valor guardado en DB.
+- Fix: `_personaSyncedRef = useRef(!!torneos.find(...))` + `useEffect` que sincroniza `persona` desde el torneo cuando aparece en el store por primera vez (una sola vez vía ref).
+
+**LogoPicker — dos modos de carga:**
+- Botón "Quitar fondo" (`Sparkles`) → `@imgly/background-removal` WASM, elimina el fondo con IA, convierte a base64.
+- Botón "Tal cual" (`Upload`) → FileReader directo, sube sin modificar.
+- Dos `<input type="file">` separados con refs (`refBg`, `refRaw`).
+- Tooltips con `relative group` + `group-hover:block` sobre cada botón.
+- Badge verde "Fondo eliminado automáticamente" cuando IA procesó exitosamente.
+
+**SponsorStrip rediseñado — estilo FIP World Cup:**
+- Sin título, sin card oscura. Banda horizontal con `bg: #f0f0ee` (beige claro) y `borderTop: 3px accentColor`.
+- Logos `h-12` (más grandes), `max-w-[140px]`, `hover:opacity-70`.
+- Visible sobre cualquier fondo oscuro o claro del template.
+
+**Eliminación de watermark de fondo en Fixture:**
+- Admin: removido el bloque "Watermark de fondo" de la sección Fixture en `TorneoDetallePage`.
+- Público: eliminado el `<img>` de watermark en `TabFixture` (campo `imagenWatermarkFixture` sigue en DB, solo se ocultó de UI).
+
+**Fix z-index sticky header:**
+- El header sticky tenía `z-10` que cedía ante cards con `z-10` más abajo en el DOM al hacer scroll.
+- Fix: `z-10` → `z-30` en el sticky header de `TorneoPublicoPage`.
+
+**Pantalla de carga profesional (estética broadcast deportivo):**
+- Reemplaza el spinner simple. Animaciones CSS inline con `<style>` en el return:
+  - `scanLine`: línea de escaneo vertical que recorre la pantalla
+  - `cornerPulse`: 4 esquinas con brackets que pulsan
+  - `tplGlitch`: texto con efecto glitch intermitente
+  - `tplFillBar`: barra de progreso que se llena
+  - `tplSlideUp`: nombre del torneo aparece desde abajo
+- Fondo `bg-[#0d1117]` con grid de puntos. Muestra el nombre del torneo (desde cache del store si disponible).
+- `pageFadeIn` en el contenedor principal (fade-in + slide-up 0.3s al mostrar la página).
+
+**Fix flash de template (primera carga y botón atrás del navegador):**
+- Fix 1: `useState(true)` → loading screen desde el primer render (evita render con store vacío).
+- Fix 2: doble `requestAnimationFrame` antes de `setLoading(false)` → espera que Zustand propague el store y React pinte un frame con datos correctos ANTES de ocultar el loading. Resuelve el race condition entre Zustand y React useState en contextos async.
+
+### Archivos modificados
+- `project/apps/frontend/src/pages/AdminSponsorsPage.jsx` — auth headers, LogoPicker dual upload + tooltips
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx` — auth sponsor modal, cold-start persona sync, sin watermark fixture UI
+- `project/apps/frontend/src/pages/TorneoPublicoPage.jsx` — SponsorStrip FIP, sin watermark fixture, z-30 header, loading profesional, pageFadeIn, useState(true), double rAF fix
+- `project/apps/backend/src/routes/sponsors.js` — `logoUrl` opcional (sin 400 si no viene)
+
+---
+
+## Último bloque completado (2026-06-06) — TabGrupos: rediseño de tabla + watermark + mejoras visuales
+
+### Objetivo
+Mejorar la sección Grupos de la página pública de torneo: tabla informativa completa, watermark configurable por torneo, popover de criterio, header siempre visible.
+
+### Cambios en `TorneoPublicoPage.jsx`
+
+**Tabla de posiciones completa (igual que admin):**
+- Columnas: `Pos. | Pareja | Pts | PG | PP | Dif.S | Dif.G | Crit.`
+- Cálculo completo: `pts, pj, wins, losses, setsA, setsC, gamesA, gamesC`
+- Ordenamiento: pts → dif. sets → dif. games
+- Prop `puntosPorVictoria` (default 2) pasada desde el torneo
+- Fix alineación: `thCls` sin `text-left`, solo Pos. y Pareja lo tienen explícito
+
+**Popover de criterio al hacer click en badge Crit.:**
+- Estado `openCrit = { key, text, rect }` — atomic, evita stale closure
+- `getExplicacion(i)` — mismo texto que el admin ("X tiene N pts · esta pareja tiene M pts.")
+- Popover adapta colores a modo claro/oscuro del template
+- Click fuera cierra el popover
+
+**Header "GRUPOS" siempre visible (con o sin imagen):**
+- Con imagen: foto + overlay negro (igual que antes)
+- Sin imagen: fondo sutil con color de acento del template + línea vertical decorativa
+- Mismo patrón aplicado a "Fixture del día" en TabFixture
+
+**Watermark configurable por torneo:**
+- Nuevo campo `imagenWatermarkGrupos` en torneo
+- Renderizado como `absolute inset-0 object-cover` dentro de la zona card
+- `opacity: 0.08` + `brightness(2)` en modo oscuro para mantener colores
+- `pointer-events: none` — no interfiere con clicks
+- Zona card ahora tiene `relative` para que el absolute tome el contenedor correcto (fix puntas que salían afuera del border-radius)
+
+**Tamaño scores en partidos:** de `text-[10px]` a `text-[12px]` para mejor legibilidad
+
+**Fix duplicados en landing (sesión anterior):**
+- `upsertTorneoFromApi` en torneosStore — atomic add-or-update dentro de `set()` para evitar stale closure
+- Reemplazó el check `existe ? updateTorneoFromApi : addTorneoFromApi` que usaba closure stale
+
+### Cambios en `TorneoDetallePage.jsx`
+
+**Admin — campo watermark:**
+- `imagenWatermarkGrupos` + `imagenWatermarkFixture` en `persona` inicial y en save `campos`
+- UI: input en sección "Imágenes — Grupos" y "Imágenes — Fixture" con `ImageZonePreview` + `ImagenFileInput`
+- Hint: "Logo o imagen vectorizada al fondo de las cards de zona. Recomendado: PNG transparente."
+
+### Archivos modificados
+- `project/apps/frontend/src/pages/TorneoPublicoPage.jsx`
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx`
+- `project/apps/frontend/src/store/torneosStore.js`
 
 ---
 

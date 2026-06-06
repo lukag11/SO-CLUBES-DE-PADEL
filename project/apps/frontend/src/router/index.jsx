@@ -30,6 +30,7 @@ import ProfesorDisponibilidadPage from '../pages/ProfesorDisponibilidadPage'
 import TorneoPublicoPage from '../pages/TorneoPublicoPage'
 import JugadoresAdminPage from '../pages/JugadoresAdminPage'
 import ClasesProfesorAdminPage from '../pages/ClasesProfesorAdminPage'
+import AdminSponsorsPage from '../pages/AdminSponsorsPage'
 import AdminReservasLayout from '../layouts/AdminReservasLayout'
 import AdminReservasEstadisticasPage from '../pages/AdminReservasEstadisticasPage'
 import NotFoundPage from '../pages/NotFoundPage'
@@ -94,6 +95,7 @@ const router = createBrowserRouter([
       { path: 'pagos', element: <PagosPage /> },
       { path: 'jugadores', element: <JugadoresAdminPage /> },
       { path: 'clases', element: <ClasesProfesorAdminPage /> },
+      { path: 'sponsors', element: <AdminSponsorsPage /> },
     ],
   },
   {

@@ -3425,8 +3425,10 @@ const TorneoDetallePage = () => {
       imagenFondoDraw:    t?.imagenFondoDraw    ?? '',
       imagenFondoBracket: t?.imagenFondoBracket ?? '',
       imagenFondoFixture: t?.imagenFondoFixture ?? '',
-      imagenFondoGrupos:      t?.imagenFondoGrupos      ?? '',
-      imagenHeaderGrupos:     t?.imagenHeaderGrupos     ?? '',
+      imagenFondoGrupos:       t?.imagenFondoGrupos       ?? '',
+      imagenHeaderGrupos:      t?.imagenHeaderGrupos      ?? '',
+      imagenWatermarkGrupos:   t?.imagenWatermarkGrupos   ?? '',
+      imagenWatermarkFixture:  t?.imagenWatermarkFixture  ?? '',
       colorTextoCardGrupos:   t?.colorTextoCardGrupos   ?? '',
       colorCardBgEnCurso:     t?.colorCardBgEnCurso     ?? '',
       colorTituloEnCurso:     t?.colorTituloEnCurso     ?? '',
@@ -3441,11 +3443,9 @@ const TorneoDetallePage = () => {
       estiloCard:         t?.estiloCard         ?? 'oscura',
       fontScale:          t?.fontScale          ?? 'normal',
       sponsors:           t?.sponsors           ?? [],
+      sponsorsFixture:    t?.sponsorsFixture    ?? [],
+      sponsorsGrupos:     t?.sponsorsGrupos     ?? [],
       sponsorScale:       t?.sponsorScale       ?? 'normal',
-      bannerLateral1Fixture: t?.bannerLateral1Fixture ?? '',
-      bannerLateral2Fixture: t?.bannerLateral2Fixture ?? '',
-      bannerLateral1Grupos:  t?.bannerLateral1Grupos  ?? '',
-      bannerLateral2Grupos:  t?.bannerLateral2Grupos  ?? '',
       drawMostrarClub:       t?.drawMostrarClub       ?? true,
       drawTitulo:            t?.drawTitulo            ?? 'Main Draw',
       drawMostrarNombre:     t?.drawMostrarNombre     ?? true,
@@ -3464,7 +3464,29 @@ const TorneoDetallePage = () => {
     }
     return t?.categorias?.[0] ?? null
   })
-  const [newSponsor, setNewSponsor] = useState({ nombre: '', logo: '' })
+  const [sponsorModalTarget, setSponsorModalTarget] = useState(null) // null | 'fixture' | 'grupos' | 'draw'
+  const [clubSponsors, setClubSponsors]             = useState(null)
+  const sponsorModalOpen = sponsorModalTarget !== null
+  const openSponsorModal = async (target) => {
+    setSponsorModalTarget(target)
+    if (clubSponsors !== null) return
+    try {
+      const data = await api.get('/sponsors', { Authorization: `Bearer ${token}` })
+      setClubSponsors(Array.isArray(data) ? data : [])
+    } catch {
+      setClubSponsors([])
+    }
+  }
+  const getCurrentSponsorKey = () =>
+    sponsorModalTarget === 'fixture' ? 'sponsorsFixture'
+    : sponsorModalTarget === 'grupos' ? 'sponsorsGrupos'
+    : 'sponsors'
+  const toggleSponsor = (s) => {
+    const key    = getCurrentSponsorKey()
+    const list   = persona[key] ?? []
+    const already = list.some((x) => x.nombre === s.nombre)
+    setP(key, already ? list.filter((x) => x.nombre !== s.nombre) : [...list, { nombre: s.nombre, logo: s.logoUrl }])
+  }
   const [bannerWarnings, setBannerWarnings] = useState({})
   const checkBannerRatio = (key, url) => {
     if (!url) { setBannerWarnings((w) => ({ ...w, [key]: null })); return }
@@ -3487,6 +3509,11 @@ const TorneoDetallePage = () => {
     COLOR_OVERRIDE_KEYS_ENCURSO.some((k) => !!(torneos.find((x) => String(x.id) === id)?.[k]))
   )
   const setP = (k, v) => setPersona((p) => ({ ...p, [k]: v }))
+
+  // Si el store estaba vacío al montar (navegación directa / refresh), persona queda con
+  // defaults. Cuando el fetch async puebla el store, sincronizamos persona con los valores
+  // reales del torneo para no sobreescribir templateFixture y otros campos al guardar.
+  const _personaSyncedRef = useRef(!!torneos.find((x) => String(x.id) === id))
 
   const torneo   = torneos.find((t) => String(t.id) === id)
   const isBackend = torneo ? typeof torneo.id === 'string' : false
@@ -3564,6 +3591,21 @@ const TorneoDetallePage = () => {
       })
       .catch(() => {})
   }, [adminClubId, torneos.length])
+
+  // Sync persona cuando el torneo aparece en el store tras el fetch async (cold start).
+  // Itera sobre las claves actuales de persona y reemplaza con valores del torneo si existen.
+  useEffect(() => {
+    if (_personaSyncedRef.current || !torneo) return
+    _personaSyncedRef.current = true
+    setPersona((prev) => {
+      const synced = { ...prev }
+      for (const k of Object.keys(prev)) {
+        if (torneo[k] !== undefined && torneo[k] !== null) synced[k] = torneo[k]
+      }
+      return synced
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [torneo?.id])
 
   // Navegar de vuelta si el torneo fue eliminado
   useEffect(() => {
@@ -5175,7 +5217,7 @@ const TorneoDetallePage = () => {
                           className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-slate-600">Personalizar colores</span>
+                            <span className="text-xs font-semibold text-slate-600">Personalizar colores — Fixture</span>
                             {hayOverrides && (
                               <span className="flex items-center gap-1 text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded-full">
                                 {COLOR_OVERRIDE_KEYS.filter((k) => !!persona[k]).length} activo{COLOR_OVERRIDE_KEYS.filter((k) => !!persona[k]).length !== 1 ? 's' : ''}
@@ -5259,7 +5301,7 @@ const TorneoDetallePage = () => {
 
                   {/* ── Imágenes ── */}
                   <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-3">Imágenes</label>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest block mb-3">Imágenes — Fixture</label>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {/* Header sección */}
                       <div>
@@ -5283,45 +5325,28 @@ const TorneoDetallePage = () => {
                         )}
                         <ImagenFileInput value={persona.imagenFondoFixture} onChange={(v) => setP('imagenFondoFixture', v)} hint="Banner horizontal arriba del fixture." />
                       </div>
-                      {/* Banner lateral izquierda */}
-                      <div>
-                        <label className="text-[11px] text-slate-500 block mb-1.5">Banner lateral izquierda</label>
-                        {persona.bannerLateral1Fixture ? (
-                          <div className="relative w-full max-w-[160px] h-16 rounded-lg overflow-hidden mb-2 border border-slate-200">
-                            <img src={persona.bannerLateral1Fixture} alt="" className="w-full h-full object-cover" />
-                          </div>
-                        ) : (
-                          <div className="w-full max-w-[160px] h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50 overflow-hidden mb-2 flex gap-1 p-1.5">
-                            <div className="w-4 rounded bg-brand-400/50" />
-                            <div className="flex-1 grid grid-cols-2 gap-1">
-                              {[1,2,3,4].map((i) => <div key={i} className="rounded bg-slate-200" />)}
-                            </div>
-                          </div>
-                        )}
-                        <ImagenFileInput value={persona.bannerLateral1Fixture} onChange={(v) => setP('bannerLateral1Fixture', v)} onImageLoad={(v) => checkBannerRatio('bannerLateral1Fixture', v)} />
-                        {bannerWarnings['bannerLateral1Fixture'] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1">✓ Imagen vertical correcta</p>}
-                        {bannerWarnings['bannerLateral1Fixture'] === 'warn' && <p className="text-[11px] text-amber-500 mt-1">⚠ Se recomienda imagen portrait</p>}
-                      </div>
-                      {/* Banner lateral derecha */}
-                      <div>
-                        <label className="text-[11px] text-slate-500 block mb-1.5">Banner lateral derecha</label>
-                        {persona.bannerLateral2Fixture ? (
-                          <div className="relative w-full max-w-[160px] h-16 rounded-lg overflow-hidden mb-2 border border-slate-200">
-                            <img src={persona.bannerLateral2Fixture} alt="" className="w-full h-full object-cover" />
-                          </div>
-                        ) : (
-                          <div className="w-full max-w-[160px] h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50 overflow-hidden mb-2 flex gap-1 p-1.5">
-                            <div className="flex-1 grid grid-cols-2 gap-1">
-                              {[1,2,3,4].map((i) => <div key={i} className="rounded bg-slate-200" />)}
-                            </div>
-                            <div className="w-4 rounded bg-brand-400/50" />
-                          </div>
-                        )}
-                        <ImagenFileInput value={persona.bannerLateral2Fixture} onChange={(v) => setP('bannerLateral2Fixture', v)} onImageLoad={(v) => checkBannerRatio('bannerLateral2Fixture', v)} />
-                        {bannerWarnings['bannerLateral2Fixture'] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1">✓ Imagen vertical correcta</p>}
-                        {bannerWarnings['bannerLateral2Fixture'] === 'warn' && <p className="text-[11px] text-amber-500 mt-1">⚠ Se recomienda imagen portrait</p>}
-                      </div>
                     </div>
+                  </div>
+
+                  {/* Sponsors Fixture */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-2">Sponsors — Fixture</label>
+                    {persona.sponsorsFixture.length > 0 && (
+                      <div className="flex flex-col gap-1.5 mb-3">
+                        {persona.sponsorsFixture.map((s, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {s.logo && <img src={s.logo} alt={s.nombre} className="w-8 h-8 rounded object-contain border border-slate-200 shrink-0" />}
+                              <p className="text-sm font-medium text-slate-700 truncate">{s.nombre}</p>
+                            </div>
+                            <button type="button" onClick={() => setP('sponsorsFixture', persona.sponsorsFixture.filter((_, j) => j !== i))} className="text-slate-300 hover:text-red-400 transition-colors shrink-0 p-1"><X size={13} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button type="button" onClick={() => openSponsorModal('fixture')} className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg transition-all self-start">
+                      <Plus size={13} /> Seleccionar de biblioteca
+                    </button>
                   </div>
 
                   {/* ── Sección Grupos ── */}
@@ -5347,7 +5372,41 @@ const TorneoDetallePage = () => {
                         </ImageZonePreview>
                         <ImagenFileInput value={persona.imagenFondoGrupos} onChange={(v) => setP('imagenFondoGrupos', v)} hint="Aparece en el header de cada card de zona." />
                       </div>
+                      {/* Watermark grupos */}
+                      <div>
+                        <label className="text-[11px] text-slate-500 block mb-1">Watermark de fondo</label>
+                        <ImageZonePreview src={persona.imagenWatermarkGrupos}>
+                          <div className="w-full h-full flex items-center justify-center p-2">
+                            <div className="w-8 h-8 rounded-full bg-brand-200/50 flex items-center justify-center">
+                              <div className="w-4 h-4 rounded bg-brand-300/60" />
+                            </div>
+                          </div>
+                        </ImageZonePreview>
+                        <ImagenFileInput value={persona.imagenWatermarkGrupos} onChange={(v) => setP('imagenWatermarkGrupos', v)} hint="Logo o imagen vectorizada al fondo de las cards de zona. Recomendado: PNG transparente." />
+                      </div>
                     </div>
+
+                    {/* Sponsors Grupos */}
+                    <div className="mb-4">
+                      <label className="text-xs font-medium text-slate-600 block mb-2">Sponsors — Grupos</label>
+                      {persona.sponsorsGrupos.length > 0 && (
+                        <div className="flex flex-col gap-1.5 mb-3">
+                          {persona.sponsorsGrupos.map((s, i) => (
+                            <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                {s.logo && <img src={s.logo} alt={s.nombre} className="w-8 h-8 rounded object-contain border border-slate-200 shrink-0" />}
+                                <p className="text-sm font-medium text-slate-700 truncate">{s.nombre}</p>
+                              </div>
+                              <button type="button" onClick={() => setP('sponsorsGrupos', persona.sponsorsGrupos.filter((_, j) => j !== i))} className="text-slate-300 hover:text-red-400 transition-colors shrink-0 p-1"><X size={13} /></button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <button type="button" onClick={() => openSponsorModal('grupos')} className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg transition-all self-start">
+                        <Plus size={13} /> Seleccionar de biblioteca
+                      </button>
+                    </div>
+
                     {/* Toggle personalización Grupos */}
                     {(() => {
                       const hayOverrides = COLOR_OVERRIDE_KEYS_GRUPOS.some((k) => !!persona[k])
@@ -5404,22 +5463,6 @@ const TorneoDetallePage = () => {
                         </div>
                       )
                     })()}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {[{ key: 'bannerLateral1Grupos', label: 'Banner lateral izquierda', left: true }, { key: 'bannerLateral2Grupos', label: 'Banner lateral derecha', left: false }].map(({ key, label, left }) => (
-                        <div key={key}>
-                          <label className="text-[11px] text-slate-500 block mb-1">{label}</label>
-                          <ImageZonePreview src={persona[key]}>
-                            <div className={`w-full h-full flex gap-1 p-1.5 ${!left ? 'flex-row-reverse' : ''}`}>
-                              <div className="w-4 rounded bg-brand-400/50" />
-                              <div className="flex-1 grid grid-cols-2 gap-1">{[1,2,3,4].map((i) => <div key={i} className="rounded bg-slate-200" />)}</div>
-                            </div>
-                          </ImageZonePreview>
-                          <ImagenFileInput value={persona[key]} onChange={(v) => setP(key, v)} onImageLoad={(v) => checkBannerRatio(key, v)} />
-                          {bannerWarnings[key] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1">✓ Imagen vertical correcta</p>}
-                          {bannerWarnings[key] === 'warn' && <p className="text-[11px] text-amber-500 mt-1">⚠ Se recomienda imagen portrait</p>}
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 </>
               )}
@@ -5531,11 +5574,13 @@ const TorneoDetallePage = () => {
                         ))}
                       </div>
                     )}
-                    <div className="flex flex-col gap-2">
-                      <input type="text" value={newSponsor.nombre} onChange={(e) => setNewSponsor((p) => ({ ...p, nombre: e.target.value }))} placeholder="Nombre del sponsor" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-brand-400 transition-all" />
-                      <ImagenFileInput value={newSponsor.logo} onChange={(v) => setNewSponsor((p) => ({ ...p, logo: v }))} hint="Logo del sponsor (opcional)" />
-                      <button type="button" onClick={() => { if (!newSponsor.nombre.trim()) return; setP('sponsors', [...persona.sponsors, { nombre: newSponsor.nombre.trim(), logo: newSponsor.logo }]); setNewSponsor({ nombre: '', logo: '' }) }} className="flex items-center gap-1.5 px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold rounded-lg transition-all self-start"><Plus size={13} /> Agregar sponsor</button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openSponsorModal('draw')}
+                      className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg transition-all self-start"
+                    >
+                      <Plus size={13} /> Seleccionar de biblioteca
+                    </button>
                     <div className="mt-3">
                       <label className="text-xs font-medium text-slate-600 block mb-2">Tamaño de logos</label>
                       <div className="flex gap-2 max-w-xs">
@@ -5544,7 +5589,7 @@ const TorneoDetallePage = () => {
                         ))}
                       </div>
                     </div>
-                    <p className="text-slate-400 text-xs mt-2">Los sponsors se muestran a los costados del draw en la página pública.</p>
+                    <p className="text-slate-400 text-xs mt-2">Los sponsors se muestran al pie de Fixture y Grupos en la página pública.</p>
                   </div>
                 </>
               )}
@@ -5575,8 +5620,10 @@ const TorneoDetallePage = () => {
                       estiloCardGrupos:     persona.estiloCardGrupos,
                       colorCardGrupos:      persona.colorCardGrupos       || null,
                       imagenFondoFixture:   persona.imagenFondoFixture    || null,
-                      imagenFondoGrupos:    persona.imagenFondoGrupos     || null,
-                      imagenHeaderGrupos:   persona.imagenHeaderGrupos    || null,
+                      imagenFondoGrupos:       persona.imagenFondoGrupos       || null,
+                      imagenHeaderGrupos:      persona.imagenHeaderGrupos      || null,
+                      imagenWatermarkGrupos:   persona.imagenWatermarkGrupos   || null,
+                      imagenWatermarkFixture:  persona.imagenWatermarkFixture  || null,
                       colorTextoCardGrupos: persona.colorTextoCardGrupos  || null,
                       colorCardBgEnCurso:   persona.colorCardBgEnCurso    || null,
                       colorTituloEnCurso:   persona.colorTituloEnCurso    || null,
@@ -5594,11 +5641,9 @@ const TorneoDetallePage = () => {
                       colorCard:            persona.colorCard             || null,
                       fontScale:            persona.fontScale,
                       sponsors:             persona.sponsors,
+                      sponsorsFixture:      persona.sponsorsFixture,
+                      sponsorsGrupos:       persona.sponsorsGrupos,
                       sponsorScale:         persona.sponsorScale,
-                      bannerLateral1Fixture: persona.bannerLateral1Fixture || null,
-                      bannerLateral2Fixture: persona.bannerLateral2Fixture || null,
-                      bannerLateral1Grupos:  persona.bannerLateral1Grupos  || null,
-                      bannerLateral2Grupos:  persona.bannerLateral2Grupos  || null,
                       drawMostrarClub:       persona.drawMostrarClub,
                       drawTitulo:            persona.drawTitulo            || null,
                       drawMostrarNombre:     persona.drawMostrarNombre,
@@ -5787,6 +5832,64 @@ const TorneoDetallePage = () => {
       {toastEstado === 'open'   && <Toast icon={ToggleRight} iconBg="bg-emerald-500/15 border border-emerald-500/25" iconColor="text-emerald-400" barColor="bg-emerald-400/50" label="Inscripción abierta"  message="Las inscripciones están abiertas"  duration={3500} onClose={() => setToastEstado(null)} />}
       {toastEstado === 'closed' && <Toast icon={Lock}        iconBg="bg-amber-500/15 border border-amber-500/25"     iconColor="text-amber-400"   barColor="bg-amber-400/50"   label="Inscripción cerrada"  message="Las inscripciones están cerradas"  duration={3500} onClose={() => setToastEstado(null)} />}
       {toastEstado === 'draft'  && <Toast icon={ToggleLeft}  iconBg="bg-slate-500/15 border border-slate-500/25"     iconColor="text-slate-400"   barColor="bg-slate-400/50"   label="Volvió a borrador"    message="El torneo volvió a borrador"       duration={3500} onClose={() => setToastEstado(null)} />}
+
+      {/* Modal picker sponsors — nivel raíz para funcionar desde cualquier sección */}
+      {sponsorModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={() => setSponsorModalTarget(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div>
+                <p className="text-sm font-bold text-slate-800">Biblioteca de sponsors</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Sección: {sponsorModalTarget === 'fixture' ? 'Fixture' : sponsorModalTarget === 'grupos' ? 'Grupos' : 'Draw'}
+                </p>
+              </div>
+              <button type="button" onClick={() => setSponsorModalTarget(null)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {clubSponsors === null ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-5 h-5 border-2 border-slate-200 border-t-brand-500 rounded-full animate-spin" />
+                </div>
+              ) : clubSponsors.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-2 text-center px-6">
+                  <p className="text-slate-400 text-sm">No hay sponsors en la biblioteca.</p>
+                  <p className="text-slate-300 text-xs">Agregá sponsors en la sección Sponsors del dashboard.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {clubSponsors.map((s) => {
+                    const selected = (persona[getCurrentSponsorKey()] ?? []).some((x) => x.nombre === s.nombre)
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => toggleSponsor(s)}
+                        className={`w-full flex items-center gap-3 px-5 py-3.5 text-left transition-all ${selected ? 'bg-brand-500/5' : 'hover:bg-slate-50'}`}
+                      >
+                        <div className="w-12 h-8 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+                          <img src={s.logoUrl} alt={s.nombre} className="max-h-6 max-w-[44px] object-contain" onError={(e) => { e.target.style.display = 'none' }} />
+                        </div>
+                        <span className="flex-1 text-sm font-medium text-slate-700">{s.nombre}</span>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${selected ? 'border-brand-500 bg-brand-500' : 'border-slate-300'}`}>
+                          {selected && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-slate-100 flex justify-end">
+              <button type="button" onClick={() => setSponsorModalTarget(null)} className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold rounded-xl transition-all">
+                Listo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

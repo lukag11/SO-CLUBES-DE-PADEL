@@ -27,6 +27,7 @@ model Club {
   notificaciones Notificacion[]
   cargos         Cargo[]
   profesores     Profesor[]
+  sponsors       Sponsor[]
 
   @@map("clubs")
 }
@@ -241,6 +242,18 @@ model Notificacion {
   profesor Profesor? @relation(fields: [profesorId], references: [id], onDelete: Cascade)
 
   @@map("notificaciones")
+}
+
+model Sponsor {
+  id        String   @id @default(cuid())
+  clubId    String
+  nombre    String
+  logoUrl   String
+  createdAt DateTime @default(now())
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@map("sponsors")
 }
 
 model Pareja {

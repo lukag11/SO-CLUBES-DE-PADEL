@@ -759,9 +759,30 @@ const makePartidoCard = (p, {
   )
 }
 
+// ── Sponsor Strip ─────────────────────────────────────────────────────────────
+
+const SponsorStrip = ({ sponsors = [], accentColor = '#afca0b' }) => (
+  <div className="mt-4 overflow-hidden rounded-xl" style={{ borderTop: `3px solid ${accentColor}` }}>
+    <div
+      className="flex flex-wrap items-center justify-center gap-8 px-8 py-4"
+      style={{ backgroundColor: '#f0f0ee' }}
+    >
+      {sponsors.map((s, i) => (
+        <div key={i} className="flex items-center justify-center transition-opacity hover:opacity-70" style={{ minWidth: 60 }}>
+          {s.logo ? (
+            <img src={s.logo} alt={s.nombre} className="h-12 w-auto max-w-[140px] object-contain" />
+          ) : (
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{s.nombre}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+)
+
 // ── Tab Fixture del día ───────────────────────────────────────────────────────
 
-const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, cardStyle = 'oscura', colorCard = null, templateFixture = 1,
+const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, watermark = null, sponsorLogo = null, sponsors = [], cardStyle = 'oscura', colorCard = null, templateFixture = 1,
   colorTextoNombres = null, colorTextoZona = null, colorTextoCategoria = null, colorTextoScore = null, colorTextoInfo = null,
 }) => {
   const effectiveStyle = colorCard ? (isColorDark(colorCard) ? 'oscura' : 'clara') : cardStyle
@@ -1618,20 +1639,31 @@ const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, cardS
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      {imagenFondo && (
-        <div className="relative h-20 rounded-2xl overflow-hidden shrink-0">
-          <img src={imagenFondo} alt="" className="absolute inset-0 w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-black/55" />
-          <div className="relative z-10 h-full flex items-center justify-center">
-            <p className="text-white font-bold text-sm uppercase tracking-widest opacity-80">Fixture del día</p>
+    <div className="relative flex flex-col gap-5">
+      <div className="relative z-10 h-16 rounded-2xl overflow-hidden shrink-0" style={!imagenFondo ? { background: `${clrScoreW}18`, border: isClara ? '1px solid #E5E7EB' : '1px solid rgba(255,255,255,0.06)' } : undefined}>
+        {imagenFondo && (
+          <>
+            <img src={imagenFondo} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/55" />
+          </>
+        )}
+        <div className="relative z-10 h-full flex items-center justify-between px-4 gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-4 rounded-full" style={{ background: imagenFondo ? 'rgba(255,255,255,0.7)' : clrScoreW }} />
+            <p className={`font-bold text-xs uppercase tracking-widest ${imagenFondo ? 'text-white opacity-80' : ''}`}
+              style={!imagenFondo ? { color: clrScoreW, opacity: 0.8 } : undefined}>
+              Fixture del día
+            </p>
           </div>
+          {sponsorLogo && (
+            <img src={sponsorLogo} alt="Sponsor" className="h-8 w-auto object-contain opacity-80" />
+          )}
         </div>
-      )}
+      </div>
 
       {/* Fase de grupos */}
       {dias.length > 0 && (
-        <>
+        <div className="relative z-10 flex flex-col gap-5">
           <div className="flex gap-2 flex-wrap">
             {dias.map((dia) => (
               <button
@@ -1652,7 +1684,7 @@ const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, cardS
           <div className="flex flex-col gap-2.5">
             {partidosDelDia.map((p) => renderPartidoCard(p))}
           </div>
-        </>
+        </div>
       )}
 
       {/* Fase eliminatoria */}
@@ -1715,14 +1747,18 @@ const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, cardS
           ))}
         </div>
       )}
+
+      {sponsors.length > 0 && (
+        <SponsorStrip sponsors={sponsors} accentColor={clrScoreW} />
+      )}
     </div>
   )
 }
 
 // ── Tab Grupos ────────────────────────────────────────────────────────────────
 
-const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = null, colorTexto = null, bannerLeft = null, bannerRight = null, cardStyle = 'oscura', colorCard = null,
-  templateFixture = 1, colorTextoNombres = null, colorTextoScore = null, canchaName = () => '',
+const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = null, watermark = null, colorTexto = null, cardStyle = 'oscura', colorCard = null,
+  templateFixture = 1, colorTextoNombres = null, colorTextoScore = null, canchaName = () => '', puntosPorVictoria = 2, sponsors = [],
 }) => {
   // El template define el fondo base — colorCard de grupos sobreescribe si está seteado
   const TPL_BG     = { 2:'#0A1628', 3:'#ffffff', 6:'#ffffff', 7:'#111111', 8:'#0D0B08', 9:'#ffffff', 10:'#18181B', 12:'#1A1A1A', 13:'#ffffff', 14:'#0F172A' }
@@ -1745,8 +1781,8 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
   const st = {
     // Cuando hay template, eliminamos bg/border Tailwind del contenedor para que el inline style tome control
     zona:       tplBg
-      ? 'rounded-2xl overflow-hidden'
-      : (isClara ? 'rounded-2xl border border-gray-200 overflow-hidden bg-white' : 'rounded-2xl border border-white/8 overflow-hidden'),
+      ? 'relative rounded-2xl overflow-hidden'
+      : (isClara ? 'relative rounded-2xl border border-gray-200 overflow-hidden bg-white' : 'relative rounded-2xl border border-white/8 overflow-hidden'),
     zonaHdr:    tplBg
       ? `flex items-center justify-between px-5 py-3 border-b ${isClara ? 'border-gray-200' : 'border-white/8'}`
       : (isClara ? 'flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200' : 'flex items-center justify-between px-5 py-3 bg-white/3 border-b border-white/8'),
@@ -1754,7 +1790,7 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
     catBadge:   isClara ? 'text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md'    : 'text-xs text-white/35 bg-white/5 px-2 py-0.5 rounded-md',
     secBorder:  isClara ? 'border-b border-gray-100'  : 'border-b border-white/5',
     secLabel:   isClara ? 'text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2.5' : 'text-[10px] font-bold text-white/20 uppercase tracking-widest mb-2.5',
-    thCls:      isClara ? 'pb-1.5 text-left text-gray-400 font-semibold' : 'pb-1.5 text-left text-white/20 font-semibold',
+    thCls:      isClara ? 'pb-1.5 text-gray-400 font-semibold' : 'pb-1.5 text-white/20 font-semibold',
     trBorder:   isClara ? 'border-b border-gray-100'  : 'border-b border-white/8',
     trRowBorder:isClara ? 'border-b border-gray-50 last:border-0' : 'border-b border-white/5 last:border-0',
     rankNum:    isClara ? 'py-2 font-bold text-gray-300' : 'py-2 font-bold text-white/20',
@@ -1781,6 +1817,10 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
   // cardBg aplica el bg del template (o del override manual de grupos)
   const cardBg = tplBg ? { backgroundColor: tplBg, border: tplBorder || undefined } : undefined
 
+  const [openCrit, setOpenCrit] = useState(null)
+  const fmt    = (n) => n > 0 ? `+${n}` : `${n}`
+  const nameOf = (p) => `${p.jugador1.split(' ')[0]} / ${p.jugador2.split(' ')[0]}`
+
   const zonaCats    = useMemo(() => [...new Set((torneo.grupos ?? []).map((z) => z.categoria).filter(Boolean))], [torneo.grupos])
   const multiCatG   = zonaCats.length > 1
   const catColorMapG = useMemo(() => buildCatColorMap(zonaCats), [zonaCats])
@@ -1798,15 +1838,40 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
 
   return (
     <div className="flex flex-col gap-6">
-      {imagenHeader && (
-        <div className="relative h-20 rounded-2xl overflow-hidden shrink-0">
-          <img src={imagenHeader} alt="" className="absolute inset-0 w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-black/55" />
-          <div className="relative z-10 h-full flex items-center justify-center">
-            <p className="text-white font-bold text-sm uppercase tracking-widest opacity-80">Grupos</p>
+      {/* Popover criterio clasificación */}
+      {openCrit && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpenCrit(null)} />
+          <div
+            className={`fixed z-50 w-56 rounded-xl px-3.5 py-2.5 shadow-xl border ${isClara ? 'bg-white border-gray-200' : 'bg-gray-900 border-white/10'}`}
+            style={{
+              top: (openCrit.rect.top ?? 0) - 10,
+              transform: 'translateY(-100%)',
+              left: Math.max(8, (openCrit.rect.right ?? 0) - 224),
+            }}
+          >
+            <p className={`text-[11px] leading-relaxed ${isClara ? 'text-gray-600' : 'text-white/70'}`}>{openCrit.text}</p>
+            <div className="absolute top-full" style={{ right: Math.min(224 - 16, (window.innerWidth - (openCrit.rect.right ?? 0)) + (openCrit.rect.width ?? 0) / 2 - 4) }}>
+              <div className={`border-4 border-transparent ${isClara ? 'border-t-gray-200' : 'border-t-white/10'}`} />
+            </div>
           </div>
-        </div>
+        </>
       )}
+      <div className="relative h-16 rounded-2xl overflow-hidden shrink-0" style={!imagenHeader ? { background: tplBg ? `${tClrScoreW}18` : 'rgba(255,255,255,0.04)', border: tplBorder ?? (isClara ? '1px solid #E5E7EB' : '1px solid rgba(255,255,255,0.06)') } : undefined}>
+        {imagenHeader && (
+          <>
+            <img src={imagenHeader} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/55" />
+          </>
+        )}
+        <div className="relative z-10 h-full flex items-center justify-center gap-2">
+          <div className="w-1 h-4 rounded-full" style={{ background: tClrScoreW }} />
+          <p className={`font-bold text-xs uppercase tracking-widest ${imagenHeader ? 'text-white opacity-80' : ''}`}
+            style={!imagenHeader ? { color: tClrScoreW, opacity: 0.8 } : undefined}>
+            Grupos
+          </p>
+        </div>
+      </div>
       {multiCatG && (
         <div className="flex gap-2 flex-wrap">
           {zonaCats.map((cat) => (
@@ -1826,19 +1891,70 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
         </div>
       )}
       {zonasFiltradas.map((zona) => {
-        const wins = {}
-        const pj   = {}
-        zona.parejas.forEach((p) => { wins[p.id] = 0; pj[p.id] = 0 })
-        zona.partidos.forEach((m) => {
-          if (m.estado === 'finalizado') {
-            if (m.pareja1) pj[m.pareja1.id]  = (pj[m.pareja1.id]  || 0) + 1
-            if (m.pareja2) pj[m.pareja2.id]  = (pj[m.pareja2.id]  || 0) + 1
-            if (m.ganador) wins[m.ganador.id] = (wins[m.ganador.id] || 0) + 1
-          }
+        const s = {}
+        zona.parejas.forEach((p) => {
+          s[p.id] = { pts: 0, pj: 0, wins: 0, losses: 0, setsA: 0, setsC: 0, gamesA: 0, gamesC: 0 }
         })
-        const standings = [...zona.parejas]
-          .sort((a, b) => (wins[b.id] || 0) - (wins[a.id] || 0))
-          .map((p) => ({ pareja: p, w: wins[p.id] || 0, played: pj[p.id] || 0 }))
+        zona.partidos.forEach((m) => {
+          if (m.estado !== 'finalizado' || !m.pareja1 || !m.pareja2) return
+          if (s[m.pareja1.id]) s[m.pareja1.id].pj++
+          if (s[m.pareja2.id]) s[m.pareja2.id].pj++
+          if (m.ganador) {
+            if (s[m.ganador.id]) { s[m.ganador.id].wins++; s[m.ganador.id].pts += puntosPorVictoria }
+            const loserId = m.ganador.id === m.pareja1.id ? m.pareja2.id : m.pareja1.id
+            if (s[loserId]) s[loserId].losses++
+          }
+          ;(m.resultado ?? []).forEach((set) => {
+            if (s[m.pareja1.id]) {
+              s[m.pareja1.id].setsA  += set.p1 > set.p2 ? 1 : 0
+              s[m.pareja1.id].setsC  += set.p1 < set.p2 ? 1 : 0
+              s[m.pareja1.id].gamesA += set.p1
+              s[m.pareja1.id].gamesC += set.p2
+            }
+            if (s[m.pareja2.id]) {
+              s[m.pareja2.id].setsA  += set.p2 > set.p1 ? 1 : 0
+              s[m.pareja2.id].setsC  += set.p2 < set.p1 ? 1 : 0
+              s[m.pareja2.id].gamesA += set.p2
+              s[m.pareja2.id].gamesC += set.p1
+            }
+          })
+        })
+        const standings = [...zona.parejas].sort((a, b) => {
+          const sa = s[a.id], sb = s[b.id]
+          if (sb.pts !== sa.pts) return sb.pts - sa.pts
+          const dsA = sa.setsA - sa.setsC, dsB = sb.setsA - sb.setsC
+          if (dsB !== dsA) return dsB - dsA
+          return (sb.gamesA - sb.gamesC) - (sa.gamesA - sa.gamesC)
+        })
+        const getCriterio = (i) => {
+          if (i === 0 || standings.length < 2) return null
+          const sa = s[standings[i].id], sb = s[standings[i - 1].id]
+          if (sa.pts !== sb.pts) return 'Pts'
+          if ((sa.setsA - sa.setsC) !== (sb.setsA - sb.setsC)) return 'Dif.S'
+          if ((sa.gamesA - sa.gamesC) !== (sb.gamesA - sb.gamesC)) return 'Dif.G'
+          return '='
+        }
+        const getExplicacion = (i) => {
+          if (i === 0) return 'Primera posición de la zona.'
+          const sa = s[standings[i].id], sb = s[standings[i - 1].id]
+          const criterio = getCriterio(i)
+          const arriba = nameOf(standings[i - 1])
+          if (criterio === 'Pts') return `${arriba} tiene ${sb.pts} pts · esta pareja tiene ${sa.pts} pts.`
+          if (criterio === 'Dif.S') {
+            const dsA = sb.setsA - sb.setsC, dsB = sa.setsA - sa.setsC
+            return `Mismos puntos (${sa.pts} pts). ${arriba}: ${fmt(dsA)} dif. sets · esta pareja: ${fmt(dsB)}.`
+          }
+          if (criterio === 'Dif.G') {
+            const dgA = sb.gamesA - sb.gamesC, dgB = sa.gamesA - sa.gamesC
+            return `Mismos pts y dif. de sets. ${arriba}: ${fmt(dgA)} games · esta pareja: ${fmt(dgB)}.`
+          }
+          return `Igualados en todos los criterios con ${arriba}. El admin define el orden de desempate.`
+        }
+        const handleCritClick = (e, i, key) => {
+          if (openCrit?.key === key) { setOpenCrit(null); return }
+          const rect = e.currentTarget.getBoundingClientRect()
+          setOpenCrit({ key, text: getExplicacion(i), rect })
+        }
 
         const eqNum = (pareja) => {
           if (!pareja) return null
@@ -1848,17 +1964,24 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
 
         return (
           <div key={zona.nombre + (zona.categoria ?? '')} className="relative">
-            {bannerLeft  && <img src={bannerLeft}  alt="" className="absolute rounded-2xl shadow-lg hidden xl:block" style={{ width: 120, right: 'calc(100% + 20px)', top: '50%', transform: 'translateY(-50%)' }} />}
           <div className={st.zona} style={cardBg}>
+            {/* Watermark logo/imagen de fondo */}
+            {watermark && (
+              <img
+                src={watermark} alt="" aria-hidden
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                style={{ opacity: 0.08, filter: isClara ? 'none' : 'brightness(2)' }}
+              />
+            )}
             {/* Header zona */}
-            <div className="relative overflow-hidden">
+            <div className={`relative overflow-hidden ${imagenFondo ? 'min-h-[72px]' : ''}`}>
               {imagenFondo && (
                 <>
-                  <img src={imagenFondo} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/60" />
+                  <img src={imagenFondo} alt="" className="absolute inset-0 w-full h-full object-cover object-center" />
+                  <div className="absolute inset-0 bg-black/50" />
                 </>
               )}
-              <div className={`relative z-10 ${imagenFondo ? 'flex items-center justify-between px-5 py-3 border-b border-white/10' : st.zonaHdr}`}>
+              <div className={`relative z-10 ${imagenFondo ? 'flex items-center justify-between px-5 py-4 border-b border-white/10' : st.zonaHdr}`}>
                 <div className="flex items-center gap-3">
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: imagenFondo ? 'rgba(255,255,255,0.12)' : accentColor + '22' }}>
                     <span className="text-xs font-black" style={{ color: imagenFondo ? (colorTexto ?? '#fff') : accentColor }}>{zona.nombre.replace('Zona ','')}</span>
@@ -1880,28 +2003,51 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className={st.trBorder}>
-                    <th className={`${st.thCls} w-6`}>#</th>
-                    <th className={st.thCls}>Pareja</th>
-                    <th className={`${st.thCls} text-center w-8`}>PJ</th>
-                    <th className={`${st.thCls} text-center w-8`}>G</th>
-                    <th className={`${st.thCls} text-center w-8`}>P</th>
+                    <th className={`${st.thCls} text-left w-7`}>Pos.</th>
+                    <th className={`${st.thCls} text-left`}>Pareja</th>
+                    <th className={`${st.thCls} text-center w-8`} style={{ color: tClrScoreW }}>Pts</th>
+                    <th className={`${st.thCls} text-center w-8`}>PG</th>
+                    <th className={`${st.thCls} text-center w-8`}>PP</th>
+                    <th className={`${st.thCls} text-center w-10`}>Dif.S</th>
+                    <th className={`${st.thCls} text-center w-10`}>Dif.G</th>
+                    <th className={`${st.thCls} text-center w-12`}>Crit.</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {standings.map(({ pareja, w, played }, i) => {
+                  {standings.map((pareja, i) => {
+                    const st2 = s[pareja.id]
                     const esClasificado = zona.clasificados?.some((c) => c.id === pareja.id)
+                    const eliminado = zona.clasificados && !esClasificado
+                    const difSets  = st2.setsA - st2.setsC
+                    const difGames = st2.gamesA - st2.gamesC
+                    const criterio = getCriterio(i)
+                    const critCls  = criterio === 'Pts'   ? (isClara ? 'text-blue-600 bg-blue-50 border-blue-200'     : 'text-blue-400 bg-blue-400/10 border-blue-400/20')
+                                   : criterio === 'Dif.S' ? (isClara ? 'text-sky-600 bg-sky-50 border-sky-200'         : 'text-sky-400 bg-sky-400/10 border-sky-400/20')
+                                   : criterio === 'Dif.G' ? (isClara ? 'text-violet-600 bg-violet-50 border-violet-200': 'text-violet-400 bg-violet-400/10 border-violet-400/20')
+                                   : criterio === '='     ? (isClara ? 'text-amber-600 bg-amber-50 border-amber-200'   : 'text-amber-400 bg-amber-400/10 border-amber-400/20')
+                                   : ''
                     return (
                       <tr key={pareja.id} className={st.trRowBorder}>
                         <td className={st.rankNum}>{i+1}°</td>
                         <td className="py-2">
-                          <span className={esClasificado ? st.nameClasif : zona.clasificados ? st.nameOut : st.nameNeutro}>
+                          <span className={esClasificado ? st.nameClasif : eliminado ? st.nameOut : st.nameNeutro}>
                             {pareja.jugador1} / {pareja.jugador2}
                           </span>
                           {esClasificado && zona.clasificados && <span className="ml-1.5 text-[9px] text-emerald-400">✓</span>}
                         </td>
-                        <td className={`${st.statCell} text-center`}>{played}</td>
-                        <td className="py-2 text-center font-semibold text-emerald-400">{w}</td>
-                        <td className={`${st.statCell} text-center`}>{played - w}</td>
+                        <td className="py-2 text-center font-bold tabular-nums" style={{ color: tClrScoreW }}>{st2.pts}</td>
+                        <td className="py-2 text-center font-semibold text-emerald-400">{st2.wins}</td>
+                        <td className={`${st.statCell} text-center`}>{st2.losses}</td>
+                        <td className={`py-2 text-center font-semibold tabular-nums ${difSets  > 0 ? 'text-emerald-400' : difSets  < 0 ? 'text-red-400' : st.statCell}`}>{difSets  > 0 ? `+${difSets}`  : difSets}</td>
+                        <td className={`py-2 text-center font-semibold tabular-nums ${difGames > 0 ? 'text-sky-400'     : difGames < 0 ? 'text-red-400' : st.statCell}`}>{difGames > 0 ? `+${difGames}` : difGames}</td>
+                        <td className="py-2 text-center">
+                          <button
+                            onClick={(e) => handleCritClick(e, i, `${zona.nombre}-${i}`)}
+                            className={`text-[9px] font-bold border rounded px-1 py-0.5 transition-opacity hover:opacity-70 ${criterio ? critCls : 'opacity-0 cursor-default'}`}
+                          >
+                            {criterio ?? '—'}
+                          </button>
+                        </td>
                       </tr>
                     )
                   })}
@@ -1935,7 +2081,7 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
                       <div className="flex items-center gap-0.5 shrink-0">
                         {finalizado && m.resultado?.length > 0 ? (
                           m.resultado.map((s, i) => (
-                            <span key={i} className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border"
+                            <span key={i} className="text-[12px] font-mono font-semibold px-1.5 py-0.5 rounded border"
                               style={{ color: s.p1 > s.p2 ? tClrScoreW : tClrScoreL, background: s.p1 > s.p2 ? `${tClrScoreW}18` : 'transparent', borderColor: s.p1 > s.p2 ? `${tClrScoreW}30` : 'transparent' }}>
                               {s.p1}-{s.p2}
                             </span>
@@ -1969,27 +2115,19 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
               })}
             </div>
           </div>
-            {bannerRight && <img src={bannerRight} alt="" className="absolute rounded-2xl shadow-lg hidden xl:block" style={{ width: 120, left: 'calc(100% + 20px)', top: '50%', transform: 'translateY(-50%)' }} />}
           </div>
         )
       })}
+
+      {sponsors.length > 0 && (
+        <SponsorStrip sponsors={sponsors} accentColor={accentColor} />
+      )}
     </div>
   )
 }
 
 // ── Tab Draw ──────────────────────────────────────────────────────────────────
 
-const BannerLateral = ({ src, zones = 4 }) => (
-  <div className="shrink-0 self-stretch px-3 py-5" style={{ width: 186 }}>
-    <div className="h-full flex flex-col">
-      {Array.from({ length: zones }).map((_, g) => (
-        <div key={g} className="flex-1 flex items-center py-2">
-          <img src={src} alt="" className="w-full rounded-2xl shadow-lg" style={{ height: 'auto', display: 'block' }} />
-        </div>
-      ))}
-    </div>
-  </div>
-)
 
 const TabDraw = ({ torneo, club }) => {
   const catBrackets   = Object.keys(torneo.brackets ?? {})
@@ -2116,15 +2254,15 @@ const mapBackendTorneoPublico = (data) => {
 const TorneoPublicoPage = () => {
   const { id }             = useParams()
   const navigate           = useNavigate()
-  const torneos            = useTorneosStore((s) => s.torneos)
-  const addTorneoFromApi   = useTorneosStore((s) => s.addTorneoFromApi)
-  const updateTorneoFromApi = useTorneosStore((s) => s.updateTorneoFromApi)
+
+  const torneos             = useTorneosStore((s) => s.torneos)
+  const upsertTorneoFromApi = useTorneosStore((s) => s.upsertTorneoFromApi)
   const club               = useClubStore((s) => s.club)
   const _loaded            = useClubStore((s) => s._loaded)
   const loadFromBackend    = useClubStore((s) => s.loadFromBackend)
   const canchas            = club.canchas
   const [tab, setTab]      = useState('fixture')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const pollRef            = useRef(null)
 
@@ -2147,15 +2285,14 @@ const TorneoPublicoPage = () => {
       if (initial) setLoading(true)
       try {
         const data = await api.get(`/torneos/${id}`)
-        if (!data?.id) { setNotFound(true); return }
+        if (!data?.id) { if (initial) setNotFound(true); return }
         const mapped = mapBackendTorneoPublico(data)
-        const existe = torneos.find((t) => String(t.id) === String(id))
-        if (existe) updateTorneoFromApi(mapped)
-        else        addTorneoFromApi(mapped)
+        upsertTorneoFromApi(mapped)
+        // Esperar dos frames: uno para que Zustand propague el store,
+        // otro para que React renderice con los datos correctos ANTES de ocultar el loading.
+        if (initial) requestAnimationFrame(() => requestAnimationFrame(() => setLoading(false)))
       } catch {
-        if (initial) setNotFound(true)
-      } finally {
-        if (initial) setLoading(false)
+        if (initial) { setNotFound(true); setLoading(false) }
       }
     }
 
@@ -2170,21 +2307,90 @@ const TorneoPublicoPage = () => {
   const canchaName = (canchaId) =>
     canchas.find((c) => String(c.id) === String(canchaId))?.nombre ?? `Cancha ${canchaId}`
 
-  const bannerLeft  = tab === 'fixture'
-    ? (torneo?.bannerLateral1Fixture ?? null)
-    : (torneo?.bannerLateral1Grupos  ?? null)
-  const bannerRight = tab === 'fixture'
-    ? (torneo?.bannerLateral2Fixture ?? null)
-    : (torneo?.bannerLateral2Grupos  ?? null)
-
-  const bannerZones = tab === 'fixture' ? 1 : (torneo?.grupos?.length ?? 4)
 
   if (loading) {
+    const cachedName = torneos.find((t) => String(t.id) === id)?.nombre
     return (
-      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-white/20 border-t-[#afca0b] rounded-full animate-spin" />
-          <p className="text-white/30 text-sm">Cargando torneo…</p>
+      <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center relative overflow-hidden">
+        <style>{`
+          @keyframes scanLine {
+            0%   { top: -4px; opacity: 0; }
+            5%   { opacity: 1; }
+            95%  { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+          }
+          @keyframes tplSlideUp {
+            0%   { transform: translateY(24px); opacity: 0; }
+            100% { transform: translateY(0);    opacity: 1; }
+          }
+          @keyframes tplFillBar {
+            0%   { width: 0%; }
+            100% { width: 100%; }
+          }
+          @keyframes tplGlitch {
+            0%,88%,100% { transform: translate(0,0); clip-path: none; }
+            90% { transform: translate(-3px, 1px); }
+            92% { transform: translate(3px,-1px); clip-path: inset(30% 0 40% 0); }
+            94% { transform: translate(-2px, 2px); clip-path: none; }
+          }
+          @keyframes cornerPulse {
+            0%,100% { opacity: 0.3; }
+            50%      { opacity: 0.8; }
+          }
+        `}</style>
+
+        {/* Grid de fondo */}
+        <div className="absolute inset-0 pointer-events-none" style={{
+          backgroundImage: 'linear-gradient(rgba(175,202,11,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(175,202,11,0.04) 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+        }} />
+
+        {/* Línea de escaneo */}
+        <div className="absolute left-0 right-0 h-[2px] pointer-events-none" style={{
+          background: 'linear-gradient(90deg, transparent 0%, #afca0b 40%, #e8ff40 50%, #afca0b 60%, transparent 100%)',
+          animation: 'scanLine 1.8s ease-in-out infinite',
+          boxShadow: '0 0 12px 2px rgba(175,202,11,0.5)',
+        }} />
+
+        {/* Corner brackets */}
+        {[['top-6 left-6','border-t-2 border-l-2'],['top-6 right-6','border-t-2 border-r-2'],['bottom-6 left-6','border-b-2 border-l-2'],['bottom-6 right-6','border-b-2 border-r-2']].map(([pos, cls], i) => (
+          <div key={i} className={`absolute w-6 h-6 border-[#afca0b] ${pos} ${cls}`}
+            style={{ animation: `cornerPulse 2s ease-in-out ${i * 0.3}s infinite` }} />
+        ))}
+
+        {/* Contenido central */}
+        <div className="relative flex flex-col items-center gap-5 px-8">
+          {/* Badge EN CURSO */}
+          <div className="flex items-center gap-2" style={{ animation: 'tplSlideUp 0.5s ease-out 0.1s both' }}>
+            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#afca0b' }} />
+            <span className="text-[10px] font-black uppercase tracking-[0.35em] text-white/40">En curso</span>
+            <span className="text-white/15 mx-1">·</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/25">Torneo</span>
+          </div>
+
+          {/* Nombre del torneo */}
+          <h1
+            className="text-4xl sm:text-5xl font-black uppercase text-white text-center leading-none"
+            style={{
+              fontStyle: 'italic',
+              letterSpacing: '-0.02em',
+              animation: 'tplSlideUp 0.5s ease-out 0.2s both, tplGlitch 3.5s ease-in-out 1s infinite',
+              textShadow: '0 0 40px rgba(175,202,11,0.15)',
+            }}
+          >
+            {cachedName ?? 'TORNEO'}
+          </h1>
+
+          {/* Barra de progreso */}
+          <div style={{ animation: 'tplSlideUp 0.5s ease-out 0.35s both', width: '100%', maxWidth: 280 }}>
+            <div className="h-[2px] bg-white/6 rounded-full overflow-hidden">
+              <div className="h-full rounded-full" style={{
+                backgroundColor: '#afca0b',
+                animation: 'tplFillBar 2.2s cubic-bezier(0.4,0,0.2,1) 0.4s both',
+                boxShadow: '0 0 8px rgba(175,202,11,0.6)',
+              }} />
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -2211,10 +2417,11 @@ const TorneoPublicoPage = () => {
   if (!torneo) return null
 
   return (
-    <div className="min-h-screen bg-[#0d1117]">
+    <div className="min-h-screen bg-[#0d1117]" style={{ animation: 'pageFadeIn 0.3s ease-out both' }}>
+      <style>{`@keyframes pageFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }`}</style>
 
       {/* Header sticky */}
-      <div className="border-b border-white/8 bg-[#0d1117]/95 backdrop-blur-sm sticky top-0 z-10">
+      <div className="border-b border-white/8 bg-[#0d1117]/95 backdrop-blur-sm sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
           <button
             onClick={() => navigate('/')}
@@ -2261,13 +2468,9 @@ const TorneoPublicoPage = () => {
 
       {/* Contenido fixture / grupos — ancho normal */}
       {tab !== 'draw' && (
-        <div className="flex">
-          {tab === 'fixture' && bannerLeft  && <BannerLateral src={bannerLeft}  zones={bannerZones} />}
-          <div className="flex-1 min-w-0 max-w-4xl mx-auto px-4 py-6">
-            {tab === 'fixture' && <TabFixture torneo={torneo} canchaName={canchaName} accentColor={accentColor} imagenFondo={torneo.imagenFondoFixture ?? null} cardStyle={torneo.estiloCardFixture ?? 'oscura'} colorCard={torneo.colorCardFixture ?? null} templateFixture={torneo.templateFixture ?? 1} colorTextoNombres={torneo.colorTextoNombres ?? null} colorTextoZona={torneo.colorTextoZona ?? null} colorTextoCategoria={torneo.colorTextoCategoria ?? null} colorTextoScore={torneo.colorTextoScore ?? null} colorTextoInfo={torneo.colorTextoInfo ?? null} />}
-            {tab === 'grupos'  && <TabGrupos  torneo={torneo} accentColor={accentColor} imagenFondo={torneo.imagenFondoGrupos ?? null} imagenHeader={torneo.imagenHeaderGrupos ?? null} colorTexto={torneo.colorTextoCardGrupos ?? null} bannerLeft={bannerLeft} bannerRight={bannerRight} cardStyle={torneo.estiloCardGrupos ?? 'oscura'} colorCard={torneo.colorCardGrupos ?? null} templateFixture={torneo.templateFixture ?? 1} colorTextoNombres={torneo.colorTextoNombres ?? null} colorTextoScore={torneo.colorTextoScore ?? null} canchaName={canchaName} />}
-          </div>
-          {tab === 'fixture' && bannerRight && <BannerLateral src={bannerRight} zones={bannerZones} />}
+        <div className="max-w-4xl mx-auto w-full px-4 py-6">
+          {tab === 'fixture' && <TabFixture torneo={torneo} canchaName={canchaName} accentColor={accentColor} imagenFondo={torneo.imagenFondoFixture ?? null} sponsorLogo={torneo.sponsorLogoFixture ?? null} sponsors={torneo.sponsorsFixture ?? []} cardStyle={torneo.estiloCardFixture ?? 'oscura'} colorCard={torneo.colorCardFixture ?? null} templateFixture={torneo.templateFixture ?? 1} colorTextoNombres={torneo.colorTextoNombres ?? null} colorTextoZona={torneo.colorTextoZona ?? null} colorTextoCategoria={torneo.colorTextoCategoria ?? null} colorTextoScore={torneo.colorTextoScore ?? null} colorTextoInfo={torneo.colorTextoInfo ?? null} />}
+          {tab === 'grupos'  && <TabGrupos  torneo={torneo} accentColor={accentColor} imagenFondo={torneo.imagenFondoGrupos ?? null} imagenHeader={torneo.imagenHeaderGrupos ?? null} watermark={torneo.imagenWatermarkGrupos ?? null} colorTexto={torneo.colorTextoCardGrupos ?? null} cardStyle={torneo.estiloCardGrupos ?? 'oscura'} colorCard={torneo.colorCardGrupos ?? null} templateFixture={torneo.templateFixture ?? 1} colorTextoNombres={torneo.colorTextoNombres ?? null} colorTextoScore={torneo.colorTextoScore ?? null} canchaName={canchaName} puntosPorVictoria={torneo.puntosPorVictoria ?? 2} sponsors={torneo.sponsorsGrupos ?? []} />}
         </div>
       )}
 

@@ -62,8 +62,13 @@ const LandingPage = () => {
                   imagenFondoEnCurso: p.imagenFondoEnCurso ?? null,
                   ctaEnCurso:         p.ctaEnCurso         ?? null,
                   templateEnCurso:    p.templateEnCurso    ?? 1,
-                  colorAcento:        p.colorAcento        ?? null,
+                  colorAcento:          p.colorAcento          ?? null,
+                  colorCardBgEnCurso:   p.colorCardBgEnCurso   ?? null,
+                  colorTituloEnCurso:   p.colorTituloEnCurso   ?? null,
+                  colorTextoSecEnCurso: p.colorTextoSecEnCurso ?? null,
+                  colorBtnTextEnCurso:  p.colorBtnTextEnCurso  ?? null,
                   descripcion:        t.descripcion        ?? '',
+                  grupos:     t.grupos   ?? null,
                   inscriptos: (t.parejas ?? []).map((par) => ({ id: par.id, jugador1: par.jugador1, jugador2: par.jugador2, estado: par.estado ?? 'inscripto' })),
                 }
               }))

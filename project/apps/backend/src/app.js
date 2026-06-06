@@ -26,7 +26,7 @@ const corsOrigin = (origin, callback) => {
 
 app.use(cors({ origin: corsOrigin, credentials: true }))
 
-app.use(express.json())
+app.use(express.json({ limit: '10mb' }))
 
 app.use('/api', healthRouter)
 app.use('/api/auth', authRouter)

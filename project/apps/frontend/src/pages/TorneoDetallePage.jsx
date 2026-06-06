@@ -4,7 +4,7 @@ import {
   ArrowLeft, Trophy, Medal, Users, Calendar, Zap, Trash2,
   ToggleLeft, ToggleRight, Lock, CheckCircle, Clock, Archive,
   AlertTriangle, Shuffle, CheckCheck, GitMerge, UserPlus, Plus, X, Pencil, Swords,
-  Palette, ChevronDown, Maximize2, Minimize2, Share2, Upload, Search,
+  Palette, ChevronDown, Maximize2, Minimize2, Share2, Upload, Search, Info,
 } from 'lucide-react'
 import Toast from '../components/ui/Toast'
 import useTorneosStore from '../store/torneosStore'
@@ -1413,6 +1413,18 @@ const EsperaCard = ({ ins, estadoTorneo, cupoLleno, onPromover, onBaja }) => {
 }
 
 // ── Input imagen desde archivo ────────────────────────────────────────────────
+
+// Mini preview: thumbnail si hay imagen, diagrama si no
+const ImageZonePreview = ({ src, children }) =>
+  src ? (
+    <div className="relative w-full max-w-[160px] h-16 rounded-lg overflow-hidden mb-2 border border-slate-200">
+      <img src={src} alt="" className="w-full h-full object-cover" />
+    </div>
+  ) : (
+    <div className="w-full max-w-[160px] h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50 overflow-hidden mb-2">
+      {children}
+    </div>
+  )
 
 const ImagenFileInput = ({ value, onChange, onImageLoad, hint, className = '' }) => {
   const ref = useRef(null)
@@ -3403,6 +3415,8 @@ const TorneoDetallePage = () => {
       premioSemifinal:      t?.premioSemifinal      ?? '',
       imagenFondo:          t?.imagenFondo          ?? '',
       colorAcento:          t?.colorAcento          ?? '',
+      templateFixture:      t?.templateFixture      ?? 1,
+      colorAcentoFixture:   t?.colorAcentoFixture   ?? '',
       estiloCardFixture:    t?.estiloCardFixture    ?? 'oscura',
       colorCardFixture:     t?.colorCardFixture     ?? '',
       estiloCardGrupos:     t?.estiloCardGrupos     ?? 'oscura',
@@ -3414,6 +3428,16 @@ const TorneoDetallePage = () => {
       imagenFondoGrupos:      t?.imagenFondoGrupos      ?? '',
       imagenHeaderGrupos:     t?.imagenHeaderGrupos     ?? '',
       colorTextoCardGrupos:   t?.colorTextoCardGrupos   ?? '',
+      colorCardBgEnCurso:     t?.colorCardBgEnCurso     ?? '',
+      colorTituloEnCurso:     t?.colorTituloEnCurso     ?? '',
+      colorTextoSecEnCurso:   t?.colorTextoSecEnCurso   ?? '',
+      colorBtnTextEnCurso:    t?.colorBtnTextEnCurso    ?? '',
+      sponsorLogoFixture:     t?.sponsorLogoFixture     ?? '',
+      colorTextoNombres:      t?.colorTextoNombres      ?? '',
+      colorTextoZona:         t?.colorTextoZona         ?? '',
+      colorTextoCategoria:    t?.colorTextoCategoria    ?? '',
+      colorTextoScore:        t?.colorTextoScore        ?? '',
+      colorTextoInfo:         t?.colorTextoInfo         ?? '',
       estiloCard:         t?.estiloCard         ?? 'oscura',
       fontScale:          t?.fontScale          ?? 'normal',
       sponsors:           t?.sponsors           ?? [],
@@ -3450,6 +3474,18 @@ const TorneoDetallePage = () => {
     img.src = url
   }
   const [savedOk, setSavedOk]       = useState(false)
+  const COLOR_OVERRIDE_KEYS = ['colorAcentoFixture','colorCardFixture','colorTextoNombres','colorTextoZona','colorTextoCategoria','colorTextoScore','colorTextoInfo']
+  const COLOR_OVERRIDE_KEYS_GRUPOS = ['colorCardGrupos','colorTextoCardGrupos']
+  const COLOR_OVERRIDE_KEYS_ENCURSO = ['colorAcento','colorCardBgEnCurso','colorTituloEnCurso','colorTextoSecEnCurso','colorBtnTextEnCurso']
+  const [showPersonalizar, setShowPersonalizar] = useState(() =>
+    COLOR_OVERRIDE_KEYS.some((k) => !!(torneos.find((x) => String(x.id) === id)?.[k]))
+  )
+  const [showPersonalizarGrupos, setShowPersonalizarGrupos] = useState(() =>
+    COLOR_OVERRIDE_KEYS_GRUPOS.some((k) => !!(torneos.find((x) => String(x.id) === id)?.[k]))
+  )
+  const [showPersonalizarEnCurso, setShowPersonalizarEnCurso] = useState(() =>
+    COLOR_OVERRIDE_KEYS_ENCURSO.some((k) => !!(torneos.find((x) => String(x.id) === id)?.[k]))
+  )
   const setP = (k, v) => setPersona((p) => ({ ...p, [k]: v }))
 
   const torneo   = torneos.find((t) => String(t.id) === id)
@@ -4668,8 +4704,7 @@ const TorneoDetallePage = () => {
               {[
                 { key: 'flyer',    label: '📢 Flyer' },
                 { key: 'encurso',  label: '⚡ En curso' },
-                { key: 'fixture',  label: '📋 Fixture' },
-                { key: 'grupos',   label: '🎯 Grupos' },
+                { key: 'fixture',  label: '📋 Fixture / Grupos' },
                 { key: 'draw',     label: '🏆 Draw' },
               ].map(({ key, label }) => (
                 <button
@@ -4731,6 +4766,14 @@ const TorneoDetallePage = () => {
                       </div>
                       <div>
                         <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo <span className="font-normal text-slate-400">(opcional — si no se carga usa diseño geométrico)</span></label>
+                        <ImageZonePreview src={persona.imagenFondo}>
+                          <div className="w-full h-full flex flex-col gap-0.5 p-1.5">
+                            <div className="flex-1 rounded bg-brand-400/30 flex items-center justify-center">
+                              <span className="text-[8px] font-black text-brand-600 uppercase tracking-widest">Flyer</span>
+                            </div>
+                            <div className="h-2 rounded bg-slate-200" />
+                          </div>
+                        </ImageZonePreview>
                         <ImagenFileInput value={persona.imagenFondo} onChange={(v) => setP('imagenFondo', v)} hint="Se usa como fondo del flyer en la landing. Recomendado: 1200×400px." />
                       </div>
                     </>
@@ -4740,6 +4783,13 @@ const TorneoDetallePage = () => {
                   {(persona.modoLandingFlyer ?? 'auto') === 'imagen' && (
                     <div>
                       <label className="text-xs font-medium text-slate-600 block mb-1">Flyer personalizado</label>
+                      <ImageZonePreview src={persona.imagenFondo}>
+                        <div className="w-full h-full flex items-center justify-center p-1.5">
+                          <div className="w-full h-full rounded bg-brand-400/30 flex items-center justify-center">
+                            <span className="text-[8px] font-black text-brand-600 uppercase tracking-widest">Flyer</span>
+                          </div>
+                        </div>
+                      </ImageZonePreview>
                       <ImagenFileInput value={persona.imagenFondo} onChange={(v) => setP('imagenFondo', v)} hint="Se muestra a ancho completo en la landing. Recomendado: 1200×400px (16:5)." />
                     </div>
                   )}
@@ -4811,23 +4861,6 @@ const TorneoDetallePage = () => {
                     </div>
                   </div>
 
-                  {/* Color de acento */}
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-1">Color de acento</label>
-                    <div className="flex items-center gap-2 max-w-xs">
-                      <input type="color" value={persona.colorAcento || club?.colorPrimario || '#10b981'} onChange={(e) => setP('colorAcento', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                      <input type="text" value={persona.colorAcento} onChange={(e) => setP('colorAcento', e.target.value)} placeholder="vacío = color del club"
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
-                    </div>
-                    <p className="text-slate-400 text-xs mt-1">Vacío = usa el color primario del club.</p>
-                  </div>
-
-                  {/* Imagen de fondo — exclusiva de la card en curso */}
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo <span className="font-normal text-slate-400">(opcional)</span></label>
-                    <ImagenFileInput value={persona.imagenFondoEnCurso} onChange={(v) => setP('imagenFondoEnCurso', v)} hint="Imagen de fondo de la card en la landing. Si no se carga usa diseño geométrico." />
-                  </div>
-
                   {/* Texto del botón CTA */}
                   <div>
                     <label className="text-xs font-medium text-slate-600 block mb-1">Texto del botón</label>
@@ -4836,91 +4869,557 @@ const TorneoDetallePage = () => {
                       className="w-full max-w-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
                     <p className="text-slate-400 text-xs mt-1">Ej: "Ver resultados", "Seguir en vivo", "Ver el cuadro".</p>
                   </div>
+
+                  {/* Toggle personalización En curso */}
+                  {(() => {
+                    const hayOverrides = COLOR_OVERRIDE_KEYS_ENCURSO.some((k) => !!persona[k])
+                    return (
+                      <div className="rounded-xl border border-slate-200 overflow-hidden">
+                        <button type="button" onClick={() => setShowPersonalizarEnCurso((v) => !v)}
+                          className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-600">Personalizar colores</span>
+                            {hayOverrides
+                              ? <span className="text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded-full">{COLOR_OVERRIDE_KEYS_ENCURSO.filter((k) => !!persona[k]).length} activo{COLOR_OVERRIDE_KEYS_ENCURSO.filter((k) => !!persona[k]).length !== 1 ? 's' : ''}</span>
+                              : <span className="text-[10px] text-slate-400">Opcional · el template ya viene diseñado</span>}
+                          </div>
+                          <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${showPersonalizarEnCurso ? 'rotate-180' : ''}`} />
+                        </button>
+                        {showPersonalizarEnCurso && (
+                          <div className="p-4 border-t border-slate-100 flex flex-col gap-4">
+                            <p className="text-xs text-slate-400">Vacío = contraste automático según el template.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {[
+                                { key: 'colorAcento',          label: 'Acento (badge, chips, número, botón)', placeholder: 'color del club' },
+                                { key: 'colorCardBgEnCurso',   label: 'Fondo de la card',                    placeholder: 'default del template' },
+                                { key: 'colorTituloEnCurso',   label: 'Título del torneo',                   placeholder: 'automático' },
+                                { key: 'colorTextoSecEnCurso', label: 'Textos secundarios (TORNEO, PAREJAS)', placeholder: 'automático' },
+                                { key: 'colorBtnTextEnCurso',  label: 'Texto del botón CTA',                 placeholder: 'automático' },
+                              ].map(({ key, label, placeholder }) => (
+                                <div key={key}>
+                                  <label className="text-[11px] text-slate-500 block mb-1">{label}</label>
+                                  <div className="flex items-center gap-2">
+                                    <input type="color" value={persona[key] || '#ffffff'} onChange={(e) => setP(key, e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                                    <input type="text" value={persona[key]} onChange={(e) => setP(key, e.target.value)} placeholder={placeholder} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                                    {persona[key] && <button type="button" onClick={() => setP(key, '')} className="text-slate-400 hover:text-red-400 text-base leading-none px-1">×</button>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+
+                  {/* Imagen de fondo — exclusiva de la card en curso */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo <span className="font-normal text-slate-400">(opcional)</span></label>
+                    <ImageZonePreview src={persona.imagenFondoEnCurso}>
+                      <div className="w-full h-full flex flex-col gap-0.5 p-1.5">
+                        <div className="flex-1 rounded bg-brand-400/40 flex items-center justify-center">
+                          <span className="text-[8px] font-bold text-brand-700 uppercase tracking-wider">En curso</span>
+                        </div>
+                        <div className="h-1.5 rounded bg-slate-200" />
+                        <div className="h-1.5 w-2/3 rounded bg-slate-200" />
+                      </div>
+                    </ImageZonePreview>
+                    <ImagenFileInput value={persona.imagenFondoEnCurso} onChange={(v) => setP('imagenFondoEnCurso', v)} hint="Imagen de fondo de la card en la landing. Si no se carga usa diseño geométrico." />
+                  </div>
+
                 </>
               )}
 
               {/* ── SUB-TAB: Fixture ── */}
               {visualTab === 'fixture' && (
                 <>
+                  {/* ── Selector de template ── */}
                   <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-1">Imagen header sección</label>
-                    <ImagenFileInput value={persona.imagenFondoFixture} onChange={(v) => setP('imagenFondoFixture', v)} hint="Banner único arriba del fixture." />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-2">Estilo de cards</label>
-                    <div className="flex gap-2 max-w-xs">
-                      {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
-                        <button key={key} type="button" onClick={() => setP('estiloCardFixture', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCardFixture === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
-                      ))}
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Diseño de cards</label>
+                    <p className="text-xs text-slate-400 mb-3">Elegí el estilo visual de los partidos. Más templates próximamente.</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {[
+                        {
+                          id: 1, name: 'Estándar',
+                          preview: (cp) => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden bg-[#0d1117] flex flex-col">
+                              <div className="h-1.5 w-full" style={{ backgroundColor: cp, opacity: 0.5 }} />
+                              <div className="flex-1 flex items-center justify-between px-2.5 gap-1">
+                                <div className="flex items-center gap-1"><div className="w-3.5 h-3.5 rounded-full bg-white/10"/><div className="w-8 h-1.5 rounded bg-white/20"/></div>
+                                <div className="flex gap-0.5"><div className="w-4 h-4 rounded text-[8px] font-bold flex items-center justify-center" style={{ backgroundColor: `${cp}20`, color: cp }}>6</div><div className="w-4 h-4 rounded text-[8px] font-bold flex items-center justify-center bg-white/5 text-white/20">4</div></div>
+                                <div className="flex items-center gap-1 justify-end"><div className="w-8 h-1.5 rounded bg-white/20"/><div className="w-3.5 h-3.5 rounded-full bg-white/10"/></div>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: 2, name: 'Premier Padel',
+                          preview: (cp) => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden bg-black flex flex-col relative">
+                              <div className="absolute inset-0" style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px)`, backgroundSize: '100% 16px' }} />
+                              <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ backgroundColor: cp }} />
+                              <div className="relative flex-1 grid grid-cols-3 items-center px-2 gap-1">
+                                <div className="flex flex-col gap-0.5"><div className="text-[8px] font-black uppercase text-white tracking-tight leading-none">GARCIA</div><div className="text-[6px] text-white/30">Juan</div><div className="text-[7px] font-bold uppercase text-white/50 leading-none">LOPEZ</div></div>
+                                <div className="flex justify-center gap-1">
+                                  <div className="flex flex-col items-center gap-0.5"><span className="text-[9px] font-black font-mono leading-none" style={{ color: cp }}>6</span><span className="text-[9px] font-black font-mono leading-none text-white/20">4</span></div>
+                                  <div className="flex flex-col items-center gap-0.5"><span className="text-[9px] font-black font-mono leading-none text-white/20">4</span><span className="text-[9px] font-black font-mono leading-none" style={{ color: cp }}>6</span></div>
+                                </div>
+                                <div className="flex flex-col items-end gap-0.5"><div className="text-[8px] font-black uppercase text-white tracking-tight leading-none text-right">MARTINEZ</div><div className="text-[6px] text-white/30 text-right">Pedro</div><div className="text-[7px] font-bold uppercase text-white/50 leading-none text-right">FERNANDEZ</div></div>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: 3, name: 'Pro Tournament',
+                          preview: (cp) => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden bg-white flex flex-col">
+                              <div className="h-5 w-full flex items-center px-2 gap-1.5" style={{ backgroundColor: '#1A1A2E' }}>
+                                <div className="text-[7px] font-bold text-white uppercase tracking-wide">ZONA A</div>
+                                <div className="text-[6px] text-white/50">10:30</div>
+                              </div>
+                              <div className="flex-1 flex items-center justify-between px-2 gap-1" style={{ borderLeft: `3px solid ${cp}` }}>
+                                <div className="w-10 h-1.5 rounded bg-slate-200"/>
+                                <div className="flex gap-0.5"><div className="text-[8px] font-bold px-1 rounded bg-slate-100" style={{ color: cp }}>6</div><div className="text-[8px] font-bold px-1 rounded bg-slate-100 text-slate-300">3</div></div>
+                                <div className="w-10 h-1.5 rounded bg-slate-200"/>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: 7, name: 'Dark Premium',
+                          preview: (cp) => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex flex-col" style={{ background: '#111111' }}>
+                              <div className="flex items-center justify-between px-2 py-1" style={{ borderBottom: `1px solid ${cp}` }}>
+                                <div className="text-[7px] font-bold uppercase tracking-widest" style={{ color: cp }}>ZONA A</div>
+                                <div className="text-[6px]" style={{ color: '#888' }}>10:30</div>
+                              </div>
+                              <div className="flex-1 flex items-center justify-between px-2 gap-1" style={{ background: '#181818' }}>
+                                <div className="w-8 h-1.5 rounded" style={{ background: '#333' }}/>
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <div className="text-[9px] font-black" style={{ color: cp }}>6</div>
+                                  <div className="text-[9px] font-black" style={{ color: '#333' }}>3</div>
+                                </div>
+                                <div className="w-8 h-1.5 rounded" style={{ background: '#333' }}/>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: 8, name: 'Luxury Gold',
+                          preview: (cp) => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden relative flex flex-col" style={{ background: '#0D0B08', border: '1px solid #8B6914' }}>
+                              <div className="flex items-center justify-between px-2 py-1.5" style={{ borderTop: '1px solid #C9A84C', borderBottom: '1px solid #C9A84C', margin: '3px 0' }}>
+                                <div className="text-[7px] font-semibold uppercase tracking-[3px]" style={{ color: '#C9A84C' }}>ZONA A</div>
+                              </div>
+                              <div className="flex-1 flex items-center justify-between px-3">
+                                <div className="text-[8px]" style={{ color: '#F5ECD7', fontFamily: 'Georgia' }}>Garcia/Lopez</div>
+                                <div className="text-[8px] tracking-widest" style={{ color: '#C9A84C' }}>6-3</div>
+                                <div className="text-[8px]" style={{ color: '#A8956A', fontFamily: 'Georgia' }}>Gomez/Fdez</div>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: 9, name: 'Modern Gradient',
+                          preview: (cp) => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden bg-white flex flex-col">
+                              <div className="h-6 relative flex items-center px-2" style={{ background: `linear-gradient(135deg, #667eea, #764ba2)` }}>
+                                <div className="text-[7px] font-semibold text-white/80 uppercase tracking-wide">ZONA A</div>
+                                <div className="absolute bottom-0 left-0 right-0 h-2 bg-white" style={{ borderRadius: '50% 50% 0 0 / 100% 100% 0 0' }}/>
+                              </div>
+                              <div className="flex-1 flex items-center justify-between px-2">
+                                <div className="w-8 h-1.5 rounded bg-slate-200"/>
+                                <div className="text-[8px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}>6-3</div>
+                                <div className="w-8 h-1.5 rounded bg-slate-200"/>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: 10, name: 'Mobile First',
+                          preview: (cp) => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex flex-col" style={{ background: '#18181B', border: '1px solid #3F3F46' }}>
+                              <div className="h-0.5 w-full" style={{ background: cp }}/>
+                              <div className="flex items-center justify-between px-2 py-0.5">
+                                <div className="text-[7px] uppercase tracking-wider" style={{ color: '#71717A' }}>ZONA A · 4TA</div>
+                                <div className="text-[7px]" style={{ color: '#71717A' }}>10:30</div>
+                              </div>
+                              <div className="flex items-center justify-between px-2 py-0.5" style={{ borderBottom: '1px solid #3F3F46' }}>
+                                <div className="flex items-center gap-1"><div className="text-[7px]" style={{ color: cp }}>●</div><div className="text-[8px] font-bold text-white">GARCIA/LOPEZ</div></div>
+                                <div className="text-[8px] font-bold font-mono" style={{ color: cp }}>6  4</div>
+                              </div>
+                              <div className="flex items-center justify-between px-2 py-0.5">
+                                <div className="text-[8px] font-bold" style={{ color: '#52525B' }}>GOMEZ/FDEZ</div>
+                                <div className="text-[8px] font-bold font-mono" style={{ color: '#52525B' }}>3  6</div>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: 11, name: 'Club Branding',
+                          preview: (cp) => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex flex-col bg-white">
+                              <div className="h-5 flex items-center px-2 gap-1.5" style={{ backgroundColor: cp }}>
+                                <div className="text-[7px] font-bold text-white uppercase tracking-wide">ZONA A</div>
+                                <div className="text-[6px] text-white/60 ml-auto">10:30</div>
+                              </div>
+                              <div className="flex-1 flex items-center justify-between px-2">
+                                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full" style={{ background: cp }}/><div className="w-8 h-1.5 rounded bg-slate-200"/></div>
+                                <div className="text-[8px] font-bold px-1 rounded" style={{ background: `${cp}20`, color: cp }}>6-3</div>
+                                <div className="flex items-center gap-1"><div className="w-8 h-1.5 rounded bg-slate-200"/><div className="w-3 h-3 rounded-full bg-slate-200"/></div>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: 12, name: 'Broadcast TV',
+                          preview: (cp) => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex flex-col" style={{ background: '#1A1A1A' }}>
+                              <div className="flex items-center justify-between px-2 py-1" style={{ background: '#E8002D' }}>
+                                <div className="text-[7px] font-black text-white uppercase tracking-[2px]">ZONA A · 4TA</div>
+                                <div className="flex items-center gap-1"><div className="w-1 h-1 rounded-full bg-white animate-pulse"/><div className="text-[6px] text-white font-black">EN VIVO</div></div>
+                              </div>
+                              <div className="flex items-center justify-between px-2 py-1" style={{ borderBottom: '1px solid #E8002D' }}>
+                                <div className="text-[8px] font-bold text-white">J. GARCIA / M. LOPEZ</div>
+                                <div className="flex gap-0.5"><div className="text-[8px] font-black text-white bg-[#E8002D] px-1 rounded">6</div><div className="text-[8px] font-black" style={{ color: '#555' }}>3</div></div>
+                              </div>
+                              <div className="flex items-center justify-between px-2 py-1">
+                                <div className="text-[8px] font-bold" style={{ color: '#555' }}>R. GOMEZ / L. FDEZ</div>
+                                <div className="flex gap-0.5"><div className="text-[8px] font-black" style={{ color: '#555' }}>3</div><div className="text-[8px] font-black text-white bg-[#E8002D] px-1 rounded">6</div></div>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: 13, name: 'Corp. Sponsor',
+                          preview: (cp) => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex flex-col bg-white">
+                              <div className="flex items-center justify-between px-2 py-1" style={{ background: '#1F2937', borderBottom: '2px solid #2563EB' }}>
+                                <div className="text-[7px] font-bold text-white uppercase tracking-[1.5px]">ZONA A</div>
+                                <div className="text-[6px] text-white/60">10:30</div>
+                              </div>
+                              <div className="flex-1 flex items-center justify-between px-2">
+                                <div className="w-7 h-1.5 rounded bg-slate-200"/>
+                                <div className="text-[8px] font-bold px-1.5 py-0.5 rounded text-white" style={{ background: '#2563EB' }}>6-3</div>
+                                <div className="w-7 h-1.5 rounded bg-slate-200"/>
+                              </div>
+                              <div className="flex items-center justify-center gap-1 py-0.5 border-t border-slate-100 bg-slate-50">
+                                <div className="text-[6px] text-slate-400 uppercase tracking-wide">PRESENTADO POR</div>
+                                <div className="w-8 h-2 rounded bg-slate-200"/>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: 14, name: 'Championship',
+                          preview: (cp) => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex flex-col" style={{ background: '#0F172A' }}>
+                              <div className="flex items-center justify-center gap-1 px-2 py-1.5" style={{ borderBottom: '1px solid #1E293B' }}>
+                                <div className="text-[9px]" style={{ color: '#F59E0B' }}>★</div>
+                                <div className="text-[7px] font-black uppercase tracking-[2px]" style={{ color: '#F59E0B' }}>GRAN FINAL</div>
+                                <div className="text-[9px]" style={{ color: '#F59E0B' }}>★</div>
+                              </div>
+                              <div className="flex-1 grid grid-cols-3 items-center px-2">
+                                <div className="flex flex-col gap-0.5"><div className="h-1 w-2 rounded-full bg-blue-500"/><div className="text-[7px] font-bold text-white">GARCIA</div></div>
+                                <div className="flex flex-col items-center"><div className="text-[9px] font-black" style={{ color: '#F59E0B' }}>6-3</div></div>
+                                <div className="flex flex-col items-end gap-0.5"><div className="h-1 w-2 rounded-full bg-red-500 ml-auto"/><div className="text-[7px] font-bold text-white">GOMEZ</div></div>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: 6, name: 'High Contrast',
+                          preview: () => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden bg-white flex flex-col" style={{ border: '2px solid #000' }}>
+                              <div className="h-4 flex items-center px-2 gap-1" style={{ backgroundColor: '#000' }}>
+                                <div className="text-[7px] font-black text-white uppercase">ZONA A</div>
+                                <div className="text-[6px] text-white/60 ml-auto">10:30</div>
+                              </div>
+                              <div className="flex-1 flex flex-col justify-center px-2 gap-0.5">
+                                <div className="flex items-center justify-between" style={{ borderBottom: '1.5px solid #000', paddingBottom: 2 }}>
+                                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded flex items-center justify-center bg-black text-white text-[7px] font-black">✓</div><div className="text-[7px] font-bold">GARCIA/LOPEZ</div></div>
+                                  <div className="text-[8px] font-black">6 3</div>
+                                </div>
+                                <div className="flex items-center justify-between pt-0.5">
+                                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded flex items-center justify-center bg-slate-200 text-[7px] font-black">2</div><div className="text-[7px] font-bold text-slate-400">GOMEZ/FDEZ</div></div>
+                                  <div className="text-[8px] font-black text-slate-300">3 6</div>
+                                </div>
+                              </div>
+                            </div>
+                          ),
+                        },
+                      ].map(({ id, name, preview }) => {
+                        const cp = persona.colorAcentoFixture || club?.colorPrimario || '#10b981'
+                        const sel = (persona.templateFixture ?? 1) === id
+                        return (
+                          <button key={id} type="button" onClick={() => setP('templateFixture', id)}
+                            className={`rounded-xl overflow-hidden border-2 transition-all duration-150 ${sel ? 'border-brand-500 scale-[1.03]' : 'border-slate-200 hover:border-slate-300'}`}>
+                            {preview(cp)}
+                            <div className={`px-2 py-1.5 text-center ${sel ? 'bg-brand-50' : 'bg-slate-50'}`}>
+                              <p className={`text-[10px] font-semibold ${sel ? 'text-brand-600' : 'text-slate-500'}`}>{name}</p>
+                            </div>
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo de cards</label>
-                    <div className="flex items-center gap-2 max-w-xs">
-                      <input type="color" value={persona.colorCardFixture || '#0d1117'} onChange={(e) => setP('colorCardFixture', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                      <input type="text"  value={persona.colorCardFixture} onChange={(e) => setP('colorCardFixture', e.target.value)} placeholder="#0d1117 (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
-                    </div>
-                    <p className="text-slate-400 text-xs mt-1">Vacío = color del estilo seleccionado.</p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {[{ key: 'bannerLateral1Fixture', label: 'Banner lateral izquierda' }, { key: 'bannerLateral2Fixture', label: 'Banner lateral derecha' }].map(({ key, label }) => (
-                      <div key={key}>
-                        <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
-                        <ImagenFileInput value={persona[key]} onChange={(v) => setP(key, v)} onImageLoad={(v) => checkBannerRatio(key, v)} />
-                        {bannerWarnings[key] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1">✓ Imagen vertical correcta</p>}
-                        {bannerWarnings[key] === 'warn' && <p className="text-[11px] text-amber-500 mt-1">⚠ Se recomienda imagen portrait (vertical)</p>}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
 
-              {/* ── SUB-TAB: Grupos ── */}
-              {visualTab === 'grupos' && (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-medium text-slate-600 block mb-1">Imagen header sección</label>
-                      <ImagenFileInput value={persona.imagenHeaderGrupos} onChange={(v) => setP('imagenHeaderGrupos', v)} hint="Banner único arriba de todos los grupos." />
+                  {/* ── Toggle personalización ── */}
+                  {(() => {
+                    const hayOverrides = COLOR_OVERRIDE_KEYS.some((k) => !!persona[k])
+                    return (
+                      <div className="rounded-xl border border-slate-200 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setShowPersonalizar((v) => !v)}
+                          className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-600">Personalizar colores</span>
+                            {hayOverrides && (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded-full">
+                                {COLOR_OVERRIDE_KEYS.filter((k) => !!persona[k]).length} activo{COLOR_OVERRIDE_KEYS.filter((k) => !!persona[k]).length !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                            {!hayOverrides && <span className="text-[10px] text-slate-400">Opcional · el template ya viene diseñado</span>}
+                          </div>
+                          <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${showPersonalizar ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {showPersonalizar && (
+                          <div className="p-4 flex flex-col gap-4 border-t border-slate-100">
+                            <div>
+                              <label className="text-xs font-medium text-slate-600 block mb-2">Color de acento <span className="font-normal text-slate-400">(tabs, score, zona — solo en la página del torneo)</span></label>
+                              <div className="flex items-center gap-2 max-w-xs">
+                                <input type="color" value={persona.colorAcentoFixture || club?.colorPrimario || '#10b981'} onChange={(e) => setP('colorAcentoFixture', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                                <input type="text" value={persona.colorAcentoFixture} onChange={(e) => setP('colorAcentoFixture', e.target.value)} placeholder="vacío = color del club" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                                {persona.colorAcentoFixture && <button type="button" onClick={() => setP('colorAcentoFixture', '')} className="text-slate-400 hover:text-red-400 text-base leading-none px-1">×</button>}
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-slate-600 block mb-2">Estilo de cards</label>
+                              <div className="flex gap-2 max-w-xs">
+                                {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
+                                  <button key={key} type="button" onClick={() => setP('estiloCardFixture', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCardFixture === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo de cards</label>
+                              <div className="flex items-center gap-2 max-w-xs">
+                                <input type="color" value={persona.colorCardFixture || '#0d1117'} onChange={(e) => setP('colorCardFixture', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                                <input type="text" value={persona.colorCardFixture} onChange={(e) => setP('colorCardFixture', e.target.value)} placeholder="default del template" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                                {persona.colorCardFixture && <button type="button" onClick={() => setP('colorCardFixture', '')} className="text-slate-400 hover:text-red-400 text-base leading-none px-1">×</button>}
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-slate-600 block mb-1">Colores de texto</label>
+                              <p className="text-xs text-slate-400 mb-3">Vacío = contraste automático según el fondo.</p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {[
+                                  { key: 'colorTextoNombres',   label: 'Nombres de parejas' },
+                                  { key: 'colorTextoZona',      label: 'Zona (A, B, C…)' },
+                                  { key: 'colorTextoCategoria', label: 'Categoría' },
+                                  { key: 'colorTextoScore',     label: 'Score / VS' },
+                                  { key: 'colorTextoInfo',      label: 'Hora · cancha' },
+                                ].map(({ key, label }) => (
+                                  <div key={key}>
+                                    <label className="text-[11px] text-slate-500 block mb-1">{label}</label>
+                                    <div className="flex items-center gap-2">
+                                      <input type="color" value={persona[key] || '#ffffff'} onChange={(e) => setP(key, e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                                      <input type="text" value={persona[key]} onChange={(e) => setP(key, e.target.value)} placeholder="automático" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                                      {persona[key] && <button type="button" onClick={() => setP(key, '')} className="text-slate-400 hover:text-red-400 text-base leading-none px-1">×</button>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+
+                  {/* ── Logo sponsor (solo T13) ── */}
+                  {(persona.templateFixture ?? 1) === 13 && (
+                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                      <label className="text-xs font-semibold text-blue-700 block mb-1">Logo del sponsor <span className="font-normal text-blue-500">(Corporate Sponsor)</span></label>
+                      <p className="text-[11px] text-blue-400 mb-3">Se muestra en el pie de cada card con el texto "PRESENTADO POR".</p>
+                      {persona.sponsorLogoFixture ? (
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="h-10 px-3 rounded-lg border border-blue-200 bg-white flex items-center">
+                            <img src={persona.sponsorLogoFixture} alt="Sponsor" className="h-7 object-contain max-w-[120px]" />
+                          </div>
+                          <button type="button" onClick={() => setP('sponsorLogoFixture', '')} className="text-xs text-red-400 hover:text-red-600">Quitar</button>
+                        </div>
+                      ) : null}
+                      <ImagenFileInput value={persona.sponsorLogoFixture} onChange={(v) => setP('sponsorLogoFixture', v)} hint="Logo del sponsor. Recomendado: fondo transparente (PNG)." />
                     </div>
-                    <div>
-                      <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo cards</label>
-                      <ImagenFileInput value={persona.imagenFondoGrupos} onChange={(v) => setP('imagenFondoGrupos', v)} hint="Aparece en el header de cada card de zona." />
+                  )}
+
+                  {/* ── Imágenes ── */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-3">Imágenes</label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {/* Header sección */}
+                      <div>
+                        <label className="text-[11px] text-slate-500 block mb-1.5">Header de sección</label>
+                        {persona.imagenFondoFixture ? (
+                          <div className="relative w-full max-w-[160px] h-16 rounded-lg overflow-hidden mb-2 border border-slate-200">
+                            <img src={persona.imagenFondoFixture} alt="" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                              <span className="text-[10px] text-white font-semibold bg-black/50 px-2 py-0.5 rounded">Cambiar</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-full max-w-[160px] h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50 overflow-hidden mb-2 flex flex-col gap-0.5 p-1.5">
+                            <div className="h-3.5 rounded bg-brand-400/50 flex items-center justify-center">
+                              <div className="w-10 h-0.5 rounded bg-white/60" />
+                            </div>
+                            <div className="flex-1 grid grid-cols-3 gap-1">
+                              {[1,2,3].map((i) => <div key={i} className="rounded bg-slate-200" />)}
+                            </div>
+                          </div>
+                        )}
+                        <ImagenFileInput value={persona.imagenFondoFixture} onChange={(v) => setP('imagenFondoFixture', v)} hint="Banner horizontal arriba del fixture." />
+                      </div>
+                      {/* Banner lateral izquierda */}
+                      <div>
+                        <label className="text-[11px] text-slate-500 block mb-1.5">Banner lateral izquierda</label>
+                        {persona.bannerLateral1Fixture ? (
+                          <div className="relative w-full max-w-[160px] h-16 rounded-lg overflow-hidden mb-2 border border-slate-200">
+                            <img src={persona.bannerLateral1Fixture} alt="" className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-full max-w-[160px] h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50 overflow-hidden mb-2 flex gap-1 p-1.5">
+                            <div className="w-4 rounded bg-brand-400/50" />
+                            <div className="flex-1 grid grid-cols-2 gap-1">
+                              {[1,2,3,4].map((i) => <div key={i} className="rounded bg-slate-200" />)}
+                            </div>
+                          </div>
+                        )}
+                        <ImagenFileInput value={persona.bannerLateral1Fixture} onChange={(v) => setP('bannerLateral1Fixture', v)} onImageLoad={(v) => checkBannerRatio('bannerLateral1Fixture', v)} />
+                        {bannerWarnings['bannerLateral1Fixture'] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1">✓ Imagen vertical correcta</p>}
+                        {bannerWarnings['bannerLateral1Fixture'] === 'warn' && <p className="text-[11px] text-amber-500 mt-1">⚠ Se recomienda imagen portrait</p>}
+                      </div>
+                      {/* Banner lateral derecha */}
+                      <div>
+                        <label className="text-[11px] text-slate-500 block mb-1.5">Banner lateral derecha</label>
+                        {persona.bannerLateral2Fixture ? (
+                          <div className="relative w-full max-w-[160px] h-16 rounded-lg overflow-hidden mb-2 border border-slate-200">
+                            <img src={persona.bannerLateral2Fixture} alt="" className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-full max-w-[160px] h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50 overflow-hidden mb-2 flex gap-1 p-1.5">
+                            <div className="flex-1 grid grid-cols-2 gap-1">
+                              {[1,2,3,4].map((i) => <div key={i} className="rounded bg-slate-200" />)}
+                            </div>
+                            <div className="w-4 rounded bg-brand-400/50" />
+                          </div>
+                        )}
+                        <ImagenFileInput value={persona.bannerLateral2Fixture} onChange={(v) => setP('bannerLateral2Fixture', v)} onImageLoad={(v) => checkBannerRatio('bannerLateral2Fixture', v)} />
+                        {bannerWarnings['bannerLateral2Fixture'] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1">✓ Imagen vertical correcta</p>}
+                        {bannerWarnings['bannerLateral2Fixture'] === 'warn' && <p className="text-[11px] text-amber-500 mt-1">⚠ Se recomienda imagen portrait</p>}
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-2">Color de texto en header de cards</label>
-                    <div className="flex items-center gap-2 max-w-xs">
-                      <input type="color" value={persona.colorTextoCardGrupos || '#ffffff'} onChange={(e) => setP('colorTextoCardGrupos', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                      <input type="text"  value={persona.colorTextoCardGrupos} onChange={(e) => setP('colorTextoCardGrupos', e.target.value)} placeholder="#ffffff (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+
+                  {/* ── Sección Grupos ── */}
+                  <div className="border-t border-slate-100 pt-5 mt-1">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">Imágenes — Grupos</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                      <div>
+                        <label className="text-[11px] text-slate-500 block mb-1">Header de sección</label>
+                        <ImageZonePreview src={persona.imagenHeaderGrupos}>
+                          <div className="w-full h-full flex flex-col gap-0.5 p-1.5">
+                            <div className="h-3.5 rounded bg-brand-400/50 flex items-center justify-center"><div className="w-10 h-0.5 rounded bg-white/60" /></div>
+                            <div className="flex-1 grid grid-cols-3 gap-1">{[1,2,3].map((i) => <div key={i} className="rounded bg-slate-200" />)}</div>
+                          </div>
+                        </ImageZonePreview>
+                        <ImagenFileInput value={persona.imagenHeaderGrupos} onChange={(v) => setP('imagenHeaderGrupos', v)} hint="Banner arriba de todos los grupos." />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-500 block mb-1">Fondo de cards de zona</label>
+                        <ImageZonePreview src={persona.imagenFondoGrupos}>
+                          <div className="w-full h-full grid grid-cols-2 gap-1 p-1.5">
+                            {[1,2].map((i) => (<div key={i} className="rounded overflow-hidden flex flex-col"><div className="h-3 bg-brand-400/50" /><div className="flex-1 bg-slate-200/70" /></div>))}
+                          </div>
+                        </ImageZonePreview>
+                        <ImagenFileInput value={persona.imagenFondoGrupos} onChange={(v) => setP('imagenFondoGrupos', v)} hint="Aparece en el header de cada card de zona." />
+                      </div>
                     </div>
-                    <p className="text-slate-400 text-xs mt-1">Color del nombre de zona cuando hay imagen de fondo. Vacío = blanco.</p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-2">Estilo de cards</label>
-                    <div className="flex gap-2 max-w-xs">
-                      {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
-                        <button key={key} type="button" onClick={() => setP('estiloCardGrupos', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCardGrupos === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
+                    {/* Toggle personalización Grupos */}
+                    {(() => {
+                      const hayOverrides = COLOR_OVERRIDE_KEYS_GRUPOS.some((k) => !!persona[k])
+                      const TPL_NAMES = { 1:'Estándar', 2:'Premier Padel', 3:'Pro Tournament', 6:'High Contrast', 7:'Dark Premium', 8:'Luxury Gold', 9:'Modern Gradient', 10:'Mobile First', 11:'Club Branding', 12:'Broadcast TV', 13:'Corp. Sponsor', 14:'Championship' }
+                      const tplName = TPL_NAMES[persona.templateFixture ?? 1] ?? 'Estándar'
+                      return (
+                        <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
+                          <button type="button" onClick={() => setShowPersonalizarGrupos((v) => !v)}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-semibold text-slate-600">Personalizar colores — Grupos</span>
+                              {hayOverrides && (
+                                <span className="text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded-full">{COLOR_OVERRIDE_KEYS_GRUPOS.filter((k) => !!persona[k]).length} activo{COLOR_OVERRIDE_KEYS_GRUPOS.filter((k) => !!persona[k]).length !== 1 ? 's' : ''}</span>
+                              )}
+                              <span className="text-[10px] text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">Hereda: {tplName}</span>
+                            </div>
+                            <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${showPersonalizarGrupos ? 'rotate-180' : ''}`} />
+                          </button>
+                          {showPersonalizarGrupos && (
+                            <div className="p-4 flex flex-col gap-4 border-t border-slate-100">
+                              <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-sky-50 border border-sky-100">
+                                <Info size={13} className="text-sky-400 mt-0.5 shrink-0" />
+                                <p className="text-[11px] text-sky-600 leading-relaxed">
+                                  Los colores de acento, nombres, score y zona se heredan del template <strong>{tplName}</strong>. Solo completá estos campos si querés diferenciar Grupos del Fixture.
+                                </p>
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-slate-600 block mb-2">Estilo de cards</label>
+                                <div className="flex gap-2 max-w-xs">
+                                  {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
+                                    <button key={key} type="button" onClick={() => setP('estiloCardGrupos', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCardGrupos === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo de cards</label>
+                                <div className="flex items-center gap-2 max-w-xs">
+                                  <input type="color" value={persona.colorCardGrupos || '#0d1117'} onChange={(e) => setP('colorCardGrupos', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                                  <input type="text" value={persona.colorCardGrupos} onChange={(e) => setP('colorCardGrupos', e.target.value)} placeholder="default del template" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                                  {persona.colorCardGrupos && <button type="button" onClick={() => setP('colorCardGrupos', '')} className="text-slate-400 hover:text-red-400 text-base leading-none px-1">×</button>}
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-slate-600 block mb-2">Color de texto en header de cards</label>
+                                <div className="flex items-center gap-2 max-w-xs">
+                                  <input type="color" value={persona.colorTextoCardGrupos || '#ffffff'} onChange={(e) => setP('colorTextoCardGrupos', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                                  <input type="text" value={persona.colorTextoCardGrupos} onChange={(e) => setP('colorTextoCardGrupos', e.target.value)} placeholder="automático" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                                  {persona.colorTextoCardGrupos && <button type="button" onClick={() => setP('colorTextoCardGrupos', '')} className="text-slate-400 hover:text-red-400 text-base leading-none px-1">×</button>}
+                                </div>
+                                <p className="text-slate-400 text-xs mt-1">Color del nombre de zona cuando hay imagen de fondo.</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {[{ key: 'bannerLateral1Grupos', label: 'Banner lateral izquierda', left: true }, { key: 'bannerLateral2Grupos', label: 'Banner lateral derecha', left: false }].map(({ key, label, left }) => (
+                        <div key={key}>
+                          <label className="text-[11px] text-slate-500 block mb-1">{label}</label>
+                          <ImageZonePreview src={persona[key]}>
+                            <div className={`w-full h-full flex gap-1 p-1.5 ${!left ? 'flex-row-reverse' : ''}`}>
+                              <div className="w-4 rounded bg-brand-400/50" />
+                              <div className="flex-1 grid grid-cols-2 gap-1">{[1,2,3,4].map((i) => <div key={i} className="rounded bg-slate-200" />)}</div>
+                            </div>
+                          </ImageZonePreview>
+                          <ImagenFileInput value={persona[key]} onChange={(v) => setP(key, v)} onImageLoad={(v) => checkBannerRatio(key, v)} />
+                          {bannerWarnings[key] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1">✓ Imagen vertical correcta</p>}
+                          {bannerWarnings[key] === 'warn' && <p className="text-[11px] text-amber-500 mt-1">⚠ Se recomienda imagen portrait</p>}
+                        </div>
                       ))}
                     </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo de cards</label>
-                    <div className="flex items-center gap-2 max-w-xs">
-                      <input type="color" value={persona.colorCardGrupos || '#0d1117'} onChange={(e) => setP('colorCardGrupos', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                      <input type="text"  value={persona.colorCardGrupos} onChange={(e) => setP('colorCardGrupos', e.target.value)} placeholder="#0d1117 (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
-                    </div>
-                    <p className="text-slate-400 text-xs mt-1">Vacío = color del estilo seleccionado.</p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {[{ key: 'bannerLateral1Grupos', label: 'Banner lateral izquierda' }, { key: 'bannerLateral2Grupos', label: 'Banner lateral derecha' }].map(({ key, label }) => (
-                      <div key={key}>
-                        <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
-                        <ImagenFileInput value={persona[key]} onChange={(v) => setP(key, v)} onImageLoad={(v) => checkBannerRatio(key, v)} />
-                        {bannerWarnings[key] === 'ok'   && <p className="text-[11px] text-emerald-600 mt-1">✓ Imagen vertical correcta</p>}
-                        {bannerWarnings[key] === 'warn' && <p className="text-[11px] text-amber-500 mt-1">⚠ Se recomienda imagen portrait (vertical)</p>}
-                      </div>
-                    ))}
                   </div>
                 </>
               )}
@@ -4929,9 +5428,36 @@ const TorneoDetallePage = () => {
               {visualTab === 'draw' && (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {[{ key: 'imagenFondoDraw', label: 'Imagen fondo header' }, { key: 'imagenFondoBracket', label: 'Imagen fondo llaves' }].map(({ key, label }) => (
+                    {[
+                      { key: 'imagenFondoDraw', label: 'Imagen fondo header', bracket: false },
+                      { key: 'imagenFondoBracket', label: 'Imagen fondo llaves', bracket: true },
+                    ].map(({ key, label, bracket }) => (
                       <div key={key}>
                         <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
+                        <ImageZonePreview src={persona[key]}>
+                          {bracket ? (
+                            <div className="w-full h-full flex items-center gap-1 p-1.5">
+                              <div className="flex flex-col gap-1 flex-1">
+                                {[1,2,3,4].map((i) => <div key={i} className="h-1.5 rounded bg-brand-400/50" />)}
+                              </div>
+                              <div className="flex flex-col gap-2 flex-1">
+                                {[1,2].map((i) => <div key={i} className="h-1.5 rounded bg-brand-400/65" />)}
+                              </div>
+                              <div className="flex flex-col justify-center flex-1">
+                                <div className="h-1.5 rounded bg-brand-500/80" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-full h-full flex flex-col gap-0.5 p-1.5">
+                              <div className="h-4 rounded bg-brand-400/50 flex items-center justify-center">
+                                <span className="text-[7px] font-black text-brand-700 uppercase tracking-widest">Draw</span>
+                              </div>
+                              <div className="flex-1 grid grid-cols-3 gap-1">
+                                {[1,2,3].map((i) => <div key={i} className="rounded bg-slate-200" />)}
+                              </div>
+                            </div>
+                          )}
+                        </ImageZonePreview>
                         <ImagenFileInput value={persona[key]} onChange={(v) => setP(key, v)} />
                       </div>
                     ))}
@@ -5042,6 +5568,8 @@ const TorneoDetallePage = () => {
                       ctaEnCurso:           persona.ctaEnCurso           || null,
                       templateEnCurso:      persona.templateEnCurso      ?? 1,
                       colorAcento:          persona.colorAcento          || null,
+                      templateFixture:      persona.templateFixture      ?? 1,
+                      colorAcentoFixture:   persona.colorAcentoFixture    || null,
                       estiloCardFixture:    persona.estiloCardFixture,
                       colorCardFixture:     persona.colorCardFixture      || null,
                       estiloCardGrupos:     persona.estiloCardGrupos,
@@ -5050,6 +5578,16 @@ const TorneoDetallePage = () => {
                       imagenFondoGrupos:    persona.imagenFondoGrupos     || null,
                       imagenHeaderGrupos:   persona.imagenHeaderGrupos    || null,
                       colorTextoCardGrupos: persona.colorTextoCardGrupos  || null,
+                      colorCardBgEnCurso:   persona.colorCardBgEnCurso    || null,
+                      colorTituloEnCurso:   persona.colorTituloEnCurso    || null,
+                      colorTextoSecEnCurso: persona.colorTextoSecEnCurso  || null,
+                      colorBtnTextEnCurso:  persona.colorBtnTextEnCurso   || null,
+                      sponsorLogoFixture:   persona.sponsorLogoFixture    || null,
+                      colorTextoNombres:    persona.colorTextoNombres     || null,
+                      colorTextoZona:       persona.colorTextoZona        || null,
+                      colorTextoCategoria:  persona.colorTextoCategoria   || null,
+                      colorTextoScore:      persona.colorTextoScore       || null,
+                      colorTextoInfo:       persona.colorTextoInfo        || null,
                       imagenFondoDraw:      persona.imagenFondoDraw       || null,
                       imagenFondoBracket:   persona.imagenFondoBracket    || null,
                       estiloCard:           persona.estiloCard,

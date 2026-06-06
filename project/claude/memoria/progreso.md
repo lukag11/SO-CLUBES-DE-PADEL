@@ -1,6 +1,42 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-04 (sesión — Landing torneos: 20 templates "En curso", scroll-to-section, 2 estados visuales flyer/en curso, fix personalizacion JSON column, upload imagen base64)
+**Última actualización:** 2026-06-05 (sesión — TorneoPublicoPage: grupos diseño independiente + herencia colores fixture, pill "Hereda: template" en admin)
+
+---
+
+## Último bloque completado (2026-06-05) — Grupos: diseño independiente + herencia de colores de fixture
+
+### Objetivo
+Separar el diseño visual de la sección Grupos del fixture para poder iterarlo independientemente, manteniendo herencia de colores del template seleccionado.
+
+### Cambios en `TorneoPublicoPage.jsx`
+
+**TabGrupos vuelve a diseño propio:**
+- Eliminado el bloque `if (templateFixture > 1)` que delegaba al renderer del fixture (`makePartidoCard`)
+- TabGrupos usa siempre su diseño propio: tarjeta compacta con footer mostrando slot/horario + "P{n} ganó"
+- `makePartidoCard` (función module-level) queda en el archivo como referencia para futuro rediseño de grupos
+
+**Herencia de colores del template:**
+- Ya existía: `TPL_BG[templateFixture]` → fondo oscuro/claro correcto según template
+- Nuevo: `TPL_ACCENT` map con el color de acento natural de cada template:
+  ```js
+  { 6:'#000000', 7:'#D4AF37', 8:'#C9A84C', 10:'#22C55E', 12:'#E8002D', 13:'#2563EB', 14:'#F59E0B' }
+  ```
+- `tClrScoreW = colorTextoScore || TPL_ACCENT[templateFixture] || accentColor`
+- Templates 1, 2, 3, 9, 11: sin acento propio → usan `accentColor` del club (correcto)
+- Templates con override manual (`colorTextoScore`) mantienen prioridad
+
+### Cambios en `TorneoDetallePage.jsx`
+
+**Pill "Hereda" en collapsible "Personalizar colores — Grupos":**
+- Siempre visible en el header del collapsible (cerrado o abierto)
+- Muestra el nombre del template activo: `Hereda: Premier Padel`, `Hereda: Broadcast TV`, etc.
+- Mapa `TPL_NAMES` inline en la IIFE del collapsible
+- Info box azul dentro del collapsible cuando está abierto: explica qué se hereda y cuándo completar los campos
+
+### Archivos modificados
+- `project/apps/frontend/src/pages/TorneoPublicoPage.jsx`
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx`
 
 ---
 

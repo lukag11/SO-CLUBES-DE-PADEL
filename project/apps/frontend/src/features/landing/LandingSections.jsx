@@ -100,7 +100,14 @@ const fmtDiaDestacado = (fechaStr) => {
 
 // ─── En Curso Card — 20 templates ────────────────────────────────────────────
 
-const renderEnCursoCard = (tplId, { t, cp, dark, colorPrimario, inscriptos, zonas, bigLabel, ctaLabel, navigate }) => {
+const renderEnCursoCard = (tplId, { t, cp, dark, colorPrimario, inscriptos, zonas, bigLabel, ctaLabel, navigate, clrCardBg = null, clrTitulo = null, clrTextoSec = null, clrBtnText = null }) => {
+  // Colores resueltos con fallback automático
+  const autoTitulo   = dark ? '#ffffff' : '#0f172a'
+  const autoTextoSec = dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.35)'
+  const autoBtnText  = '#080b0f'
+  const cTitulo   = clrTitulo   || autoTitulo
+  const cTextoSec = clrTextoSec || autoTextoSec
+  const cBtnText  = clrBtnText  || autoBtnText
   const cats   = t.categorias ?? []
   const fmtRng = `${fmtFechaTorneo(t.fechaInicio)} → ${fmtFechaTorneo(t.fechaFin)}`
 
@@ -128,7 +135,7 @@ const renderEnCursoCard = (tplId, { t, cp, dark, colorPrimario, inscriptos, zona
     // ── 1 · Sport Hero ───────────────────────────────────────────
     case 1: return (
       <div key={t.id} className="relative rounded-3xl overflow-hidden cursor-pointer" onClick={nav}
-        style={{ background: dark ? 'linear-gradient(135deg,#080b0f 0%,#0d1117 60%,#0f1a0c 100%)' : 'linear-gradient(135deg,#f0fdf4 0%,#f8fafc 100%)' }}>
+        style={{ background: clrCardBg || (dark ? 'linear-gradient(135deg,#080b0f 0%,#0d1117 60%,#0f1a0c 100%)' : 'linear-gradient(135deg,#f0fdf4 0%,#f8fafc 100%)') }}>
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute inset-y-0 right-0" style={{ width:'55%', background:`linear-gradient(120deg,transparent 20%,${cp}0a 100%)`, clipPath:'polygon(12% 0%,100% 0%,100% 100%,0% 100%)' }} />
           <div className="absolute top-6 bottom-6 right-[22%] w-px" style={{ backgroundColor:`${cp}18` }} />
@@ -139,14 +146,14 @@ const renderEnCursoCard = (tplId, { t, cp, dark, colorPrimario, inscriptos, zona
         </div>
         <div className="relative z-10 p-8 md:p-12 flex flex-col md:flex-row gap-10 items-start md:items-center">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-5"><LiveBadge /><div className={`h-px flex-1 max-w-[40px] ${dark?'bg-white/8':'bg-slate-200'}`}/><span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${dark?'text-white/20':'text-slate-300'}`}>Torneo</span></div>
-            <h2 className="font-black italic uppercase leading-[0.9] tracking-tighter mb-4 break-words" style={{ fontSize:'clamp(30px,4.5vw,56px)', color:dark?'#ffffff':'#0f172a', textShadow:dark?`0 0 60px ${cp}18`:'none' }}>{t.nombre}</h2>
+            <div className="flex items-center gap-3 mb-5"><LiveBadge /><div className={`h-px flex-1 max-w-[40px] ${dark?'bg-white/8':'bg-slate-200'}`}/><span className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: cTextoSec }}>Torneo</span></div>
+            <h2 className="font-black italic uppercase leading-[0.9] tracking-tighter mb-4 break-words" style={{ fontSize:'clamp(30px,4.5vw,56px)', color: cTitulo, textShadow: clrTitulo ? 'none' : (dark ? `0 0 60px ${cp}18` : 'none') }}>{t.nombre}</h2>
             <div className="mb-5"><CatChips /></div>
             <div className="flex items-center gap-6 mb-8">
-              <div><span className="text-3xl font-black tabular-nums leading-none block" style={{ color:cp }}>{inscriptos}</span><span className={`text-[10px] font-black uppercase tracking-[0.15em] block mt-0.5 ${dark?'text-white/25':'text-slate-400'}`}>Parejas</span></div>
-              {zonas!==null&&<><div className={`w-px h-10 ${dark?'bg-white/8':'bg-slate-200'}`}/><div><span className={`text-3xl font-black tabular-nums leading-none block ${dark?'text-white':'text-slate-900'}`}>{zonas}</span><span className={`text-[10px] font-black uppercase tracking-[0.15em] block mt-0.5 ${dark?'text-white/25':'text-slate-400'}`}>Zonas</span></div></>}
+              <div><span className="text-3xl font-black tabular-nums leading-none block" style={{ color:cp }}>{inscriptos}</span><span className="text-[10px] font-black uppercase tracking-[0.15em] block mt-0.5" style={{ color: cTextoSec }}>Parejas</span></div>
+              {zonas!==null&&<><div className={`w-px h-10 ${dark?'bg-white/8':'bg-slate-200'}`}/><div><span className="text-3xl font-black tabular-nums leading-none block" style={{ color: cTitulo }}>{zonas}</span><span className="text-[10px] font-black uppercase tracking-[0.15em] block mt-0.5" style={{ color: cTextoSec }}>Zonas</span></div></>}
             </div>
-            <button onClick={nav} className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105 active:scale-95" style={{ backgroundColor:cp, color:'#080b0f', boxShadow:`0 8px 32px ${cp}45` }}><Zap size={15} strokeWidth={2.5}/>{ctaLabel}</button>
+            <button onClick={nav} className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-2xl text-sm font-black uppercase tracking-wider transition-all hover:scale-105 active:scale-95" style={{ backgroundColor:cp, color: cBtnText, boxShadow:`0 8px 32px ${cp}45` }}><Zap size={15} strokeWidth={2.5}/>{ctaLabel}</button>
           </div>
           <div className="hidden md:flex items-center justify-center w-40 shrink-0">
             <div className="relative w-28 h-40 rounded" style={{ border:`1.5px solid ${cp}30` }}>
@@ -672,10 +679,14 @@ export const TorneosSection = ({ colorPrimario = '#afca0b', dark = true, onCta }
           const inscriptos = t.inscriptos.filter((p) => p.estado === 'inscripto').length
           const zonas      = Array.isArray(t.grupos) ? t.grupos.length : null
           const bigLabel   = t.categorias?.[0] ?? ''
-          const cp         = t.colorAcento || colorPrimario
-          const ctaLabel   = t.ctaEnCurso || 'Seguir el torneo'
-          const tplId      = t.templateEnCurso ?? 1
-          const imgEnCurso = t.imagenFondoEnCurso || null
+          const cp              = t.colorAcento || colorPrimario
+          const ctaLabel        = t.ctaEnCurso || 'Seguir el torneo'
+          const tplId           = t.templateEnCurso ?? 1
+          const imgEnCurso      = t.imagenFondoEnCurso || null
+          const clrCardBg       = t.colorCardBgEnCurso   || null
+          const clrTitulo       = t.colorTituloEnCurso   || null
+          const clrTextoSec     = t.colorTextoSecEnCurso || null
+          const clrBtnText      = t.colorBtnTextEnCurso  || null
 
           // Imagen propia → override de template
           if (imgEnCurso) return (
@@ -699,7 +710,7 @@ export const TorneosSection = ({ colorPrimario = '#afca0b', dark = true, onCta }
             </div>
           )
 
-          return renderEnCursoCard(tplId, { t, cp, dark, colorPrimario, inscriptos, zonas, bigLabel, ctaLabel, navigate })
+          return renderEnCursoCard(tplId, { t, cp, dark, colorPrimario, inscriptos, zonas, bigLabel, ctaLabel, navigate, clrCardBg, clrTitulo, clrTextoSec, clrBtnText })
         })}
 
         {/* ── FLYER "Próximamente" ──────────────────────────────────── */}

@@ -18,7 +18,6 @@ import PlayerDashboardPage from '../pages/PlayerDashboardPage'
 import PlayerRegisterPage from '../pages/PlayerRegisterPage'
 import PlayerStatsPage from '../pages/PlayerStatsPage'
 import PlayerTournamentsPage from '../pages/PlayerTournamentsPage'
-import PlayerOpponentsPage from '../pages/PlayerOpponentsPage'
 import PlayerProfilePage from '../pages/PlayerProfilePage'
 import PlayerTurnosFijosPage from '../pages/PlayerTurnosFijosPage'
 import PlayerReservasPage from '../pages/PlayerReservasPage'
@@ -28,6 +27,7 @@ import ProfesorDashboardPage from '../pages/ProfesorDashboardPage'
 import ProfesorAgendaPage from '../pages/ProfesorAgendaPage'
 import ProfesorDisponibilidadPage from '../pages/ProfesorDisponibilidadPage'
 import TorneoPublicoPage from '../pages/TorneoPublicoPage'
+import TorneosPublicosPage from '../pages/TorneosPublicosPage'
 import JugadoresAdminPage from '../pages/JugadoresAdminPage'
 import ClasesProfesorAdminPage from '../pages/ClasesProfesorAdminPage'
 import AdminSponsorsPage from '../pages/AdminSponsorsPage'
@@ -66,7 +66,6 @@ const router = createBrowserRouter([
           { path: 'reservas',       element: <PlayerReservasPage /> },
           { path: 'estadisticas',   element: <PlayerStatsPage /> },
           { path: 'torneos',        element: <PlayerTournamentsPage /> },
-          { path: 'oponentes',      element: <PlayerOpponentsPage /> },
           { path: 'turnos-fijos',   element: <PlayerTurnosFijosPage /> },
           { path: 'mis-reservas',   element: <PlayerMisReservasPage /> },
           { path: 'perfil',         element: <PlayerProfilePage /> },
@@ -116,6 +115,7 @@ const router = createBrowserRouter([
     ],
   },
   // Ruta pública del torneo (seguimiento sin login)
+  { path: '/torneos', element: <TorneosPublicosPage /> },
   { path: '/torneos/:id', element: <TorneoPublicoPage /> },
 
   // Redirects de rutas viejas → nuevas (compatibilidad)

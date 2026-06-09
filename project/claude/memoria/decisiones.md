@@ -2,6 +2,16 @@
 
 ---
 
+## [2026-06-09] Vista pública de torneos — listado dedicado + sin gate de días
+
+- La **landing** muestra SOLO el hero del torneo en curso (`in_progress`). No más listado embebido ni cards de finalizados en el scroll principal.
+- El listado completo vive en **`/torneos`** (página dedicada con tabs Todos/Abiertos/En curso/Finalizados). El navbar "Torneos" navega ahí.
+- Los torneos **finalizados quedan accesibles para siempre** (se eliminó la ventana de 3 días). Se descubren por la sección Finalizados.
+
+**Motivo:** Referencia tipo marketplace (PadelUp). La home queda enfocada en el evento activo; lo histórico se consulta aparte. Mantener finalizados visibles sirve para que la gente vea al campeón y para estadísticas futuras. Se descartó la lógica de "mostrar X días" por la fricción que generaba (fechas, updatedAt).
+
+---
+
 ## [2026-04-02] Arquitectura separada frontend / backend
 
 Estructura con `/frontend` y `/backend` independientes.

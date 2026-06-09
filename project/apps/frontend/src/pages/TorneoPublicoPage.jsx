@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Trophy, Calendar, ArrowLeft, Users, GitMerge, Clock, CheckCircle, Flag, Tag,
-  LayoutGrid, MapPin, Award, ChevronRight,
+  LayoutGrid, MapPin, Award, ChevronRight, Crown, Medal,
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
 import useClubStore from '../store/clubStore'
@@ -2254,7 +2254,33 @@ const TabResumen = ({ torneo, club, accentColor }) => {
   const categorias  = torneo.categorias ?? []
   const imagenHero  = torneo.imagenFondoFixture || torneo.imagenFondoGrupos || null
 
+  // Campeones + subcampeones por categoría (solo torneo finalizado con final cargada)
+  const isFinished = torneo.estado === 'finished'
+  const nombrePareja = (p) =>
+    p ? `${p.jugador1 ?? ''}${p.jugador2 ? ` / ${p.jugador2}` : ''}`.trim() : '—'
+  const campeonesPorCat = (() => {
+    const out = []
+    Object.entries(torneo.brackets ?? {}).forEach(([cat, bracketObj]) => {
+      const rondas = Array.isArray(bracketObj) ? bracketObj : (bracketObj?.rondas ?? [])
+      const finalRonda = rondas.find((r) => r.nombre === 'Final') ?? rondas[rondas.length - 1]
+      const finalMatch = finalRonda?.partidos?.[0]
+      if (!finalMatch?.ganador || finalMatch.estado !== 'finalizado') return
+      const { ganador, pareja1, pareja2, resultado } = finalMatch
+      const campeonEsP1 = ganador.id === pareja1?.id
+      out.push({
+        cat,
+        campeon: ganador,
+        subcampeon: campeonEsP1 ? pareja2 : pareja1,
+        campeonEsP1,
+        resultado: Array.isArray(resultado) ? resultado : [],
+      })
+    })
+    return out
+  })()
+  const hayCampeones = isFinished && campeonesPorCat.length > 0
+
   return (
+    <div className="flex flex-col gap-6">
     <div className="flex flex-col lg:flex-row gap-5 items-start">
 
       {/* ── Hero izquierda ── */}
@@ -2278,11 +2304,19 @@ const TabResumen = ({ torneo, club, accentColor }) => {
                 {club.nombre && <p className="text-white/40 text-sm mt-1">{club.nombre}</p>}
               </div>
               <div className="flex items-center gap-2 flex-wrap justify-center">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
-                  style={{ backgroundColor: `${accentColor}22`, color: accentColor, border: `1px solid ${accentColor}44` }}>
-                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
-                  En curso
-                </span>
+                {isFinished ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
+                    style={{ backgroundColor: 'rgba(212,175,55,0.14)', color: '#e8c860', border: '1px solid rgba(212,175,55,0.35)' }}>
+                    <Trophy size={11} />
+                    Finalizado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
+                    style={{ backgroundColor: `${accentColor}22`, color: accentColor, border: `1px solid ${accentColor}44` }}>
+                    <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
+                    En curso
+                  </span>
+                )}
                 <span className="text-white/30 text-xs">
                   {fmtF(torneo.fechaInicio)} → {fmtF(torneo.fechaReprogramada || torneo.fechaFin)}
                 </span>
@@ -2389,6 +2423,144 @@ const TabResumen = ({ torneo, club, accentColor }) => {
         </div>
 
       </div>
+    </div>
+
+    {/* ── Sección CAMPEONES (solo torneo finalizado con final cargada) ── */}
+    {hayCampeones && (
+      <div className="relative overflow-hidden rounded-2xl border border-white/[0.06]">
+        <style>{`
+          @keyframes champFadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+          @keyframes champShine { 0%,100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
+          @keyframes champGlowPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 0.85; } }
+          @keyframes champTrophyFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        `}</style>
+
+        {/* Glow dorado de fondo */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'radial-gradient(ellipse 60% 80% at 50% 0%, rgba(212,175,55,0.16) 0%, rgba(212,175,55,0.04) 40%, transparent 70%)',
+            animation: 'champGlowPulse 4s ease-in-out infinite',
+          }}
+        />
+        {/* Línea de acento dorada superior */}
+        <div className="h-px w-full" style={{ background: 'linear-gradient(90deg, transparent 0%, #d4af37 50%, transparent 100%)' }} />
+
+        <div className="relative px-4 py-8 sm:py-10">
+          {/* Encabezado */}
+          <div className="text-center mb-7" style={{ animation: 'champFadeUp 0.6s ease-out both' }}>
+            <div className="inline-flex items-center gap-2.5 mb-1.5">
+              <span className="h-px w-8 sm:w-14" style={{ background: 'linear-gradient(90deg, transparent, rgba(212,175,55,0.7))' }} />
+              <Trophy size={15} style={{ color: '#e8c860', animation: 'champShine 2.6s ease-in-out infinite' }} />
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.3em]" style={{ color: '#e8c860' }}>
+                Torneo Finalizado
+              </span>
+              <Trophy size={15} style={{ color: '#e8c860', animation: 'champShine 2.6s ease-in-out infinite 0.4s' }} />
+              <span className="h-px w-8 sm:w-14" style={{ background: 'linear-gradient(90deg, rgba(212,175,55,0.7), transparent)' }} />
+            </div>
+          </div>
+
+          {/* Una fila de campeones por categoría */}
+          <div className="space-y-9">
+            {campeonesPorCat.map(({ cat, campeon, subcampeon, campeonEsP1, resultado }, idx) => (
+              <div key={cat} style={{ animation: `champFadeUp 0.6s ease-out ${0.15 + idx * 0.12}s both` }}>
+                {/* Etiqueta de categoría */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <span className="h-px w-6 bg-white/10" />
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-white/45">
+                    <Tag size={9} /> {cat}
+                  </span>
+                  <span className="h-px w-6 bg-white/10" />
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+                  {/* ── Tarjeta CAMPEÓN (oro, destacada) ── */}
+                  <div
+                    className="relative flex-1 sm:max-w-[340px] rounded-2xl px-5 py-5 overflow-hidden"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(212,175,55,0.16) 0%, rgba(20,15,3,0.6) 55%)',
+                      border: '1px solid rgba(212,175,55,0.45)',
+                      boxShadow: '0 8px 40px rgba(212,175,55,0.14), inset 0 1px 0 rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    {/* Brillo de esquina */}
+                    <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full pointer-events-none"
+                      style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.35) 0%, transparent 70%)' }} />
+
+                    <div className="relative flex items-center gap-2 mb-3">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                        style={{ background: 'linear-gradient(135deg, #f4e08a 0%, #d4af37 60%, #9c7a1e 100%)', boxShadow: '0 2px 12px rgba(212,175,55,0.5)', animation: 'champTrophyFloat 3.2s ease-in-out infinite' }}>
+                        <Crown size={20} style={{ color: '#3a2c05' }} />
+                      </div>
+                      <span className="text-[11px] font-black uppercase tracking-[0.22em]" style={{ color: '#e8c860' }}>
+                        Campeones
+                      </span>
+                    </div>
+
+                    <p className="relative text-white font-black leading-tight text-lg sm:text-xl">
+                      {nombrePareja(campeon)}
+                    </p>
+                  </div>
+
+                  {/* ── Resultado de la final (centro): sets en casilleros ── */}
+                  {resultado.length > 0 && (
+                    <div className="flex flex-col items-center justify-center gap-2 px-1 shrink-0">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Final</span>
+                      <div className="flex gap-1.5">
+                        {resultado.map((s, i) => {
+                          const cg = campeonEsP1 ? s.p1 : s.p2
+                          const sg = campeonEsP1 ? s.p2 : s.p1
+                          return (
+                            <div key={i} className="flex flex-col gap-0.5 text-center">
+                              <span className="w-7 h-7 flex items-center justify-center rounded text-sm font-black"
+                                style={{ background: 'rgba(212,175,55,0.18)', color: '#e8c860', border: '1px solid rgba(212,175,55,0.4)' }}>
+                                {cg}
+                              </span>
+                              <span className="w-7 h-7 flex items-center justify-center rounded text-sm font-bold text-white/40"
+                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                {sg}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Tarjeta SUBCAMPEÓN (plata) ── */}
+                  <div
+                    className="relative flex-1 sm:max-w-[340px] rounded-2xl px-5 py-5 overflow-hidden"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(190,196,204,0.10) 0%, rgba(15,18,22,0.55) 55%)',
+                      border: '1px solid rgba(190,196,204,0.28)',
+                    }}
+                  >
+                    {/* Brillo de esquina */}
+                    <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full pointer-events-none"
+                      style={{ background: 'radial-gradient(circle, rgba(190,196,204,0.20) 0%, transparent 70%)' }} />
+
+                    <div className="relative flex items-center gap-2 mb-3">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                        style={{ background: 'linear-gradient(135deg, #e2e6ea 0%, #aab0b8 60%, #71777f 100%)', boxShadow: '0 2px 12px rgba(190,196,204,0.35)' }}>
+                        <Medal size={20} style={{ color: '#3a3e44' }} />
+                      </div>
+                      <span className="text-[11px] font-black uppercase tracking-[0.22em] text-white/55">
+                        Subcampeones
+                      </span>
+                    </div>
+
+                    <p className="relative text-white/85 font-black leading-tight text-lg sm:text-xl">
+                      {nombrePareja(subcampeon)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
+
     </div>
   )
 }
@@ -2615,19 +2787,11 @@ const TorneoPublicoPage = () => {
     )
   }
 
-  // Visible si está en curso, o finalizado dentro de la ventana post-torneo
-  // (para que la gente vea campeón + draw final unos días después).
-  const DIAS_VISIBLE_FINISHED = 3
-  const torneoVisible = (() => {
-    if (!torneo) return false
-    if (torneo.estado === 'in_progress') return true
-    if (torneo.estado === 'finished') {
-      if (!torneo.updatedAt) return true
-      const dias = (Date.now() - new Date(torneo.updatedAt).getTime()) / 86400000
-      return dias <= DIAS_VISIBLE_FINISHED
-    }
-    return false
-  })()
+  // Visible si está en curso o finalizado (los finalizados quedan accesibles de forma
+  // permanente — se listan en la sección "Finalizados" de la landing).
+  const torneoVisible = torneo
+    ? (torneo.estado === 'in_progress' || torneo.estado === 'finished')
+    : false
 
   if (notFound || (torneo && !torneoVisible)) {
     return (
@@ -2648,6 +2812,8 @@ const TorneoPublicoPage = () => {
   }
 
   if (!torneo) return null
+
+  const isFinished = torneo.estado === 'finished'
 
   return (
     <div className="min-h-screen bg-[#0d1117]" style={{ animation: 'pageFadeIn 0.3s ease-out both' }}>
@@ -2689,13 +2855,23 @@ const TorneoPublicoPage = () => {
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest"
-                    style={{ backgroundColor: `${accentColor}22`, color: accentColor, border: `1px solid ${accentColor}44` }}
-                  >
-                    <span className="w-1 h-1 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
-                    En curso
-                  </span>
+                  {isFinished ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest"
+                      style={{ backgroundColor: 'rgba(212,175,55,0.14)', color: '#e8c860', border: '1px solid rgba(212,175,55,0.35)' }}
+                    >
+                      <Trophy size={9} />
+                      Finalizado
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest"
+                      style={{ backgroundColor: `${accentColor}22`, color: accentColor, border: `1px solid ${accentColor}44` }}
+                    >
+                      <span className="w-1 h-1 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
+                      En curso
+                    </span>
+                  )}
                 </div>
                 <h1 className="text-white font-bold text-sm leading-tight truncate">{torneo.nombre}</h1>
               </div>

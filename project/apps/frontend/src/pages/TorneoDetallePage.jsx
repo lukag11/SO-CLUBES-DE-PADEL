@@ -4308,7 +4308,7 @@ const TorneoDetallePage = () => {
     } catch (e) { showToast(e.message) }
   }
 
-  const gruposConfirmados = torneo.grupos !== null && torneo.estado === 'in_progress'
+  const gruposConfirmados = torneo.grupos !== null && ['in_progress', 'finished'].includes(torneo.estado)
   const gruposPendientes  = torneo.grupos !== null && torneo.estado === 'closed'
   const inscriptosActivos = torneo.inscriptos.filter((i) => i.estado === 'inscripto')
 

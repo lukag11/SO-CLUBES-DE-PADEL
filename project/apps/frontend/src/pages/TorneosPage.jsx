@@ -2165,7 +2165,11 @@ const TorneosPage = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {finalizadosFiltrados.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                    <tr
+                      key={t.id}
+                      onClick={() => handleVerDetalle(t)}
+                      className="hover:bg-slate-50 transition-colors cursor-pointer group"
+                    >
                       <td className="py-3.5 pr-4">
                         <p className="font-medium text-slate-800">{t.nombre}</p>
                         <p className="text-xs text-slate-400 mt-0.5">{t.formato}</p>
@@ -2204,14 +2208,8 @@ const TorneosPage = () => {
                           <span className="text-slate-400 text-xs">—</span>
                         )}
                       </td>
-                      <td className="py-3.5">
-                        <button
-                          onClick={() => handleVerDetalle(t)}
-                          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg transition-all"
-                        >
-                          Ver detalle
-                          <ChevronRight size={13} />
-                        </button>
+                      <td className="py-3.5 text-right pr-2">
+                        <ChevronRight size={16} className="inline text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all" />
                       </td>
                     </tr>
                   ))}

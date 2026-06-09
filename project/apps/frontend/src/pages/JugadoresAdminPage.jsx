@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Users, UserPlus, Search, CheckCircle, Clock, Phone, Mail,
   ChevronRight, ChevronDown, X, AlertCircle, Trophy, CalendarDays, Zap, Shield,
-  Pencil, Trash2, UserMinus, HelpCircle, Repeat,
+  Pencil, Trash2, UserMinus, HelpCircle, Repeat, TrendingUp,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
@@ -397,12 +397,23 @@ const DrawerJugador = ({ jugador, onClose, onEditar, onEliminar, onDarDeBaja, on
   const turnosFijos = jugador._count?.turnosFijos ?? 0
   const reservas = jugador._count?.reservas ?? 0
 
+  const [miniStats, setMiniStats] = useState(null)
+  const [loadingStats, setLoadingStats] = useState(true)
+  const [expandTitulos, setExpandTitulos] = useState(false)
+
   const [expandFijos, setExpandFijos] = useState(false)
   const [expandReservas, setExpandReservas] = useState(false)
   const [datosFijos, setDatosFijos] = useState(null)
   const [datosReservas, setDatosReservas] = useState(null)
   const [loadingFijos, setLoadingFijos] = useState(false)
   const [loadingReservas, setLoadingReservas] = useState(false)
+
+  useEffect(() => {
+    if (!adminToken || !jugador.id) return
+    setLoadingStats(true)
+    api.get(`/jugadores/${jugador.id}/stats`, { Authorization: `Bearer ${adminToken}` })
+      .then(setMiniStats).catch(() => setMiniStats(null)).finally(() => setLoadingStats(false))
+  }, [jugador.id, adminToken])
 
   const toggleFijos = async () => {
     const next = !expandFijos
@@ -487,6 +498,88 @@ const DrawerJugador = ({ jugador, onClose, onEditar, onEliminar, onDarDeBaja, on
               <span className="text-red-500/40 text-xs ml-auto">Sin acceso al sistema</span>
             </div>
           )}
+        </div>
+
+        {/* Mini-stats torneos */}
+        <div className="px-6 pb-4 flex flex-col gap-2">
+          {loadingStats ? (
+            <div className="grid grid-cols-4 gap-2">
+              {[...Array(4)].map((_, i) => <div key={i} className="h-14 rounded-xl bg-white/4 animate-pulse" />)}
+            </div>
+          ) : miniStats ? (
+            <>
+              <div className="grid grid-cols-4 gap-2">
+                {/* Torneos */}
+                <div className="flex flex-col items-center bg-white/3 border border-white/6 rounded-xl py-3 px-2">
+                  <span className="text-lg font-black leading-none text-white">{miniStats.torneos}</span>
+                  <span className="text-white/25 text-[10px] mt-1">Torneos</span>
+                </div>
+                {/* Títulos — clickable si tiene alguno */}
+                <button
+                  type="button"
+                  onClick={() => miniStats.titulos > 0 && setExpandTitulos((v) => !v)}
+                  className={`flex flex-col items-center rounded-xl py-3 px-2 transition-all ${
+                    miniStats.titulos > 0
+                      ? 'bg-amber-500/12 border border-amber-500/30 hover:bg-amber-500/20 cursor-pointer'
+                      : 'bg-white/3 border border-white/6 cursor-default'
+                  }`}
+                >
+                  <span className="text-lg font-black leading-none text-amber-400 flex items-center gap-0.5">
+                    {miniStats.titulos > 0 && <Trophy size={12} className="text-amber-400 shrink-0" />}
+                    {miniStats.titulos}
+                  </span>
+                  <span className="text-white/25 text-[10px] mt-1">Títulos</span>
+                  {miniStats.titulos > 0 && (
+                    <ChevronDown size={10} className={`text-amber-400/50 mt-0.5 transition-transform ${expandTitulos ? 'rotate-180' : ''}`} />
+                  )}
+                </button>
+                {/* Win % */}
+                <div className="flex flex-col items-center bg-white/3 border border-white/6 rounded-xl py-3 px-2">
+                  <span className={`text-lg font-black leading-none ${
+                    miniStats.partidos.winRate >= 60 ? 'text-[#afca0b]' :
+                    miniStats.partidos.winRate >= 40 ? 'text-amber-400' : 'text-white/50'
+                  }`}>
+                    {miniStats.partidos.winRate !== null ? `${miniStats.partidos.winRate}%` : '—'}
+                  </span>
+                  <span className="text-white/25 text-[10px] mt-1">Win %</span>
+                </div>
+                {/* Horas */}
+                <div className="flex flex-col items-center bg-white/3 border border-white/6 rounded-xl py-3 px-2">
+                  <span className="text-lg font-black leading-none text-white/70">{miniStats.reservas.horasTotales}</span>
+                  <span className="text-white/25 text-[10px] mt-1">Horas</span>
+                </div>
+              </div>
+
+              {/* Detalle títulos expandible */}
+              {expandTitulos && miniStats.titulosDetalle?.length > 0 && (
+                <div className="rounded-2xl bg-amber-500/6 border border-amber-500/20 overflow-hidden">
+                  <p className="text-amber-400/60 text-[10px] font-bold uppercase tracking-widest px-4 pt-3 pb-1">Campeonatos ganados</p>
+                  {miniStats.titulosDetalle.map((t, i) => (
+                    <div key={i} className="flex items-start gap-3 px-4 py-3 border-t border-amber-500/10 first:border-t-0">
+                      <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                        <Trophy size={13} className="text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white/80 text-xs font-semibold leading-snug truncate">{t.torneoNombre}</p>
+                        <p className="text-white/35 text-[10px] mt-0.5">
+                          {t.categoria} · {t.fechaInicio ? t.fechaInicio.slice(0, 7).split('-').reverse().join('/') : ''}
+                        </p>
+                        <p className="text-white/25 text-[10px] mt-0.5">
+                          Final vs <span className="text-white/50">{t.rival}</span>
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {miniStats?.ultimaReserva && (
+                <p className="text-white/20 text-[10px] text-center">
+                  Última reserva: {miniStats.ultimaReserva.split('-').reverse().join('/')}
+                </p>
+              )}
+            </>
+          ) : null}
         </div>
 
         {/* Stats expandibles */}
@@ -690,6 +783,7 @@ const JugadoresAdminPage = () => {
   const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
+  const [sugeridosAscenso, setSugeridosAscenso] = useState(new Set())
 
   const showToast = (msg) => {
     setToast(msg)
@@ -701,6 +795,9 @@ const JugadoresAdminPage = () => {
     setLoading(true)
     api.get('/jugadores', { Authorization: `Bearer ${token}` })
       .then(setJugadores).catch(() => {}).finally(() => setLoading(false))
+    api.get('/jugadores/ascenso-sugeridos', { Authorization: `Bearer ${token}` })
+      .then((lista) => setSugeridosAscenso(new Set(lista.map((s) => s.jugadorId))))
+      .catch(() => {})
   }, [token])
 
   const jugadoresFiltrados = useMemo(() => {
@@ -968,6 +1065,11 @@ const JugadoresAdminPage = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-white font-semibold text-sm group-hover:text-brand-300 transition-colors">{j.apellido}, {j.nombre}</span>
                       {j.categoria && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0">{j.categoria}</span>}
+                      {sugeridosAscenso.has(j.id) && (
+                        <span className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25 shrink-0">
+                          <TrendingUp size={9} />Subir
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                       <span className="text-white/25 text-xs">DNI {j.dni}</span>

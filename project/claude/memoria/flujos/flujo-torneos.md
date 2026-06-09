@@ -1,7 +1,7 @@
 # Flujo: Torneos
 
 Gestión de torneos desde el admin y visualización/inscripción del jugador.
-Última actualización: 2026-06-03
+Última actualización: 2026-06-09
 
 ---
 
@@ -78,6 +78,34 @@ Gestión de torneos desde el admin y visualización/inscripción del jugador.
 - Pre-relleno si el admin cargó sus datos previamente (matching por DNI)
 - Estados visibles: inscripto / en espera / suplente
 - Vista del bracket cuando el torneo está in_progress o finished
+
+---
+
+## Visitante — Vista pública (sin login)
+
+Tres lugares conectados:
+
+### 1. Landing del club — hero "En curso"
+- `TorneosSection` con `soloEnCurso` en las 5 templates (entre la sección features y reservas).
+- Muestra el hero del torneo **solo cuando `in_progress`** (usa el `templateEnCurso` elegido en admin). Si no hay torneo en curso, no renderiza nada.
+- "Seguir el torneo" / card → `/torneos/:id`.
+- Al pasar a `finished` el hero **desaparece** de la home (sin ventana de días).
+- El navbar (`PublicNavbar`) "Torneos" navega a `/torneos` (Link SPA, ya no scroll a `#torneos`).
+
+### 2. Página de torneos — `/torneos` (`TorneosPublicosPage`)
+- Header con logo del club + volver. Renderiza `TorneosSection` completa (con tabs).
+- Tabs de filtro: **Todos / Abiertos / En curso / Finalizados** (solo aparecen las que tienen contenido; Todos siempre).
+- **Finalizados**: cards permanentes (sin gate de días) con imagen/flyer, badge "FINALIZADO", fecha, categoría y 🏆 campeón. Card clickeable → `/torneos/:id`.
+- Carga club + torneos si se entra directo por URL (usa `mapTorneoLanding` exportado de LandingPage).
+
+### 3. Página del torneo — `/torneos/:id` (`TorneoPublicoPage`)
+- Visible para `in_progress` y `finished` (se eliminó el límite de 3 días — finalizados quedan accesibles siempre).
+- Header: badge "FINALIZADO" dorado cuando corresponde.
+- Tab **Resumen**: debajo de la info, sección "TORNEO FINALIZADO" con tarjetas Campeones (oro) + resultado de la final + Subcampeones (plata), una fila por categoría.
+- Tab **Draw** (`BracketView`): panel a la derecha de la Final con copa (campeón) + medalla (subcampeón). Aparece en los 6 templates (color de acento de cada uno). Reemplazó a la franja "Campeones" superior.
+
+### Admin — info persistente post-finalización
+- En `TorneoDetallePage`, `gruposConfirmados` incluye `finished` (no solo `in_progress`) → las tabs Grupos y Fixture/Cuadro siguen mostrando zonas/resultados/bracket después de finalizar. Base para estadísticas futuras.
 
 ---
 

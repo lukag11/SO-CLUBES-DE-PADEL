@@ -1,6 +1,85 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-09 — Imágenes a Supabase Storage (fix egress), template Championship Gold rediseñado, visibilidad post-torneo (finished 3 días)
+**Última actualización:** 2026-06-09 — Stats: trayectoria categoría + filtro período + mini-stats admin drawer con títulos expandibles
+
+---
+
+## Último bloque completado (2026-06-09 · sesión 2) — Estadísticas: trayectoria + período + admin drawer
+
+### Qué se hizo
+
+**Tab Torneos — Trayectoria de categoría:**
+- Nueva sección con tarjetas por cada categoría jugada: torneos, winRate (barra de color), títulos (íconos Trophy), categoría actual destacada con borde verde
+- Banner ámbar "Listo para ascender" si `sugerenciaAscenso === true` (≥2 títulos o winRate≥75% en ≥3 torneos en esa categoría)
+
+**Filtro de período (3 botones en header):**
+- Botones `Últimos 12M / 2026 / Todo` — re-fetchea al cambiar
+- Backend `/me/stats?periodo=12m|2026|todo` filtra reservas y torneos por fecha. Gráfico porMes adapta los 12 meses según período
+
+**Badge "↑ Subir" en admin JugadoresAdminPage:**
+- Llama a `GET /jugadores/ascenso-sugeridos` al montar y muestra badge ámbar en la lista para jugadores que cumplen criterio
+
+**Mini-stats en DrawerJugador (al hacer click en un jugador):**
+- Fetch automático a `GET /api/jugadores/:id/stats` al abrir el drawer
+- 4 chips: Torneos / Títulos (clickable) / Win % / Horas
+- Chip Títulos expande panel con detalle de campeonatos: torneo, categoría, fecha, rival en la final
+- Bug corregido: `jugador1`/`jugador2` en Pareja son strings escalares — select con subfields causaba 500 silencioso
+
+**Nuevo endpoint admin `GET /api/jugadores/:id/stats`:**
+- Retorna: torneos, titulos, titulosDetalle[], partidos{total/ganados/perdidos/winRate}, reservas{total/horasTotales}, ultimaReserva, categoria
+
+### Archivos tocados
+- `backend/src/routes/jugadores.js` (filtro período en `/me/stats` + nuevo `/:id/stats` admin)
+- `frontend/src/features/player-stats/usePlayerStats.js` (acepta `periodo` param)
+- `frontend/src/pages/PlayerStatsPage.jsx` (selector 3 botones + TabTorneos trayectoria + banner ascenso)
+- `frontend/src/pages/JugadoresAdminPage.jsx` (badge ascenso lista + mini-stats drawer con títulos expandibles)
+- `flujo-prueba-torneos.html` (5 nuevos checkitems)
+
+---
+
+## Último bloque completado (2026-06-09 · sesión 1) — Estadísticas jugador completas (4 tabs reales)
+
+### Qué se hizo
+- **Backend `/me/stats`**: día favorito, distribución días/franja, horas totales, compañero frecuente, racha máxima, grupos vs eliminatoria, historial con resultado. Datos reales desde JSON `grupos`/`brackets`.
+- **`GET /me/oponentes`**: rivales reales con W/L/%, tag favorable/rival/parejo, radar top rival
+- **`PlayerStatsPage`** 4 tabs: Resumen (mini-cards, círculos V/D) · Torneos (rendimiento por cat, barras fases, historial) · Reservas (AreaChart, distribución días/franja) · Oponentes (lazy, buscador, RadarChart)
+- Oponentes eliminado del sidebar y router — vive dentro de Estadísticas
+
+### Archivos tocados
+- `backend/src/routes/jugadores.js`, `frontend/src/features/player-stats/usePlayerStats.js`
+- `frontend/src/pages/PlayerStatsPage.jsx`, `PlayerLayout.jsx`, `router/index.jsx`
+
+---
+
+## Último bloque completado (2026-06-09 · tarde) — Vista pública de torneos (campeón/subcampeón + listado /torneos)
+
+### 1. Campeón y subcampeón destacados
+- **Página pública (Resumen)**: `TorneoPublicoPage` muestra, debajo de la info, sección "TORNEO FINALIZADO" con tarjetas Campeones (oro) + resultado de la final en casilleros + Subcampeones (plata), una fila por categoría. Badge "FINALIZADO" dorado en el header.
+- **Draw (`BracketView`)**: panel a la derecha de la Final con copa (campeón, aro con glow pulsante) + medalla (subcampeón). En los 6 templates, con el color de acento de cada uno. Se quitó la franja "Campeones" superior (redundante).
+
+### 2. Listado público de torneos `/torneos` (`TorneosPublicosPage` — NUEVO)
+- Página dedicada con header (logo club + volver) y `TorneosSection` con **tabs de filtro**: Todos / Abiertos / En curso / Finalizados (solo las que tienen contenido).
+- **Finalizados**: cards permanentes con imagen/flyer, badge "FINALIZADO", fecha, categoría y 🏆 campeón. Card → `/torneos/:id`.
+- Navbar público "Torneos" ahora navega a `/torneos` (Link SPA). Ruta `/torneos` registrada antes de `/torneos/:id`.
+
+### 3. Landing principal — hero "en curso" solo durante el torneo
+- `TorneosSection` ganó modo `soloEnCurso`: en las 5 templates renderiza SOLO el hero del torneo en curso (sin tabs/abiertos/finalizados). Reusa los `templateEnCurso`.
+- Se muestra solo en `in_progress`; al finalizar desaparece de la home. "Seguir el torneo" → `/torneos/:id`.
+- Se sacó la `TorneosSection` completa del scroll de la landing (ya no estaba el listado embebido).
+
+### 4. Visibilidad e info post-finalización
+- **Sin gate de 3 días**: los torneos `finished` quedan accesibles siempre en `/torneos/:id` (se descubren por la sección Finalizados).
+- **Admin**: `gruposConfirmados` ahora incluye `finished` → tabs Grupos y Fixture/Cuadro siguen mostrando zonas/resultados/bracket tras finalizar (base para estadísticas).
+- **Lista admin de torneos**: la fila de finalizados es clickeable completa (se quitó el botón "Ver detalle", quedó chevron).
+
+### Archivos tocados
+- `TorneoPublicoPage.jsx` (campeón/subcampeón en Resumen, sin gate días), `BracketView.jsx` (panel campeón+medalla, sin franja superior), `LandingSections.jsx` (tabs + finalizados + `soloEnCurso`), `TorneosPublicosPage.jsx` (nuevo), `LandingPage.jsx` (`mapTorneoLanding` exportado + brackets), `router/index.jsx` (ruta `/torneos`), `PublicNavbar.jsx` (Link a `/torneos`), `Template1-5.jsx` (hero soloEnCurso + nav onTorneos), `TorneosPage.jsx` (fila clickeable).
+
+### ⏳ Pendientes (heredados, siguen abiertos)
+- Hacer configurable desde admin la visibilidad post-torneo (hoy: siempre visible).
+- Railway: env vars Supabase (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) + correr migración si prod difiere.
+- Rotar la `service_role` key (se compartió en chat).
+- Bajar body limit global de 8mb a ~2mb una vez confirmado todo por Storage.
 
 ---
 

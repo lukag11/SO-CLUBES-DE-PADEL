@@ -10,13 +10,7 @@ const FEATURES = [
   { icon: Users,        title: 'Tu perfil',         desc: 'Historial de partidos, estadísticas y nivel actualizado.' },
 ]
 
-const scrollToTorneos = (fallback) => {
-  const el = document.getElementById('torneos')
-  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  else fallback()
-}
-
-const Template2 = ({ club, onCta }) => {
+const Template2 = ({ club, onCta, onTorneos }) => {
   const { colorPrimario, colorSecundario, nombre, canchas, horarios,
     heroTitulo, heroTituloDestacado, heroSubtitulo, heroBadge,
     heroCtaPrimarioTexto, heroCtaSecundarioTexto, heroImagen,
@@ -61,7 +55,7 @@ const Template2 = ({ club, onCta }) => {
             <button onClick={onCta} className="inline-flex items-center gap-2 font-black text-base px-8 py-4 rounded-2xl transition-all duration-200" style={{ backgroundColor: colorPrimario, color: '#0a0a0a', boxShadow: `0 12px 40px ${colorPrimario}40` }}>
               {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={18} />
             </button>
-            <button onClick={() => scrollToTorneos(onCta)} className="inline-flex items-center gap-2 text-base font-medium text-white/70 hover:text-white transition-colors px-4 py-4">
+            <button onClick={onTorneos} className="inline-flex items-center gap-2 text-base font-medium text-white/70 hover:text-white transition-colors px-4 py-4">
               {heroCtaSecundarioTexto || 'Ver torneos'}
             </button>
           </div>
@@ -108,7 +102,7 @@ const Template2 = ({ club, onCta }) => {
           </div>
           <div className="grid md:grid-cols-3 gap-px bg-white/5 rounded-2xl overflow-hidden">
             {FEATURES.map(({ icon: Icon, title, desc }, i) => (
-              <div key={title} onClick={() => title === 'Torneos' ? scrollToTorneos(onCta) : onCta()} className="bg-[#0a0a0a] p-8 hover:bg-white/3 transition-colors cursor-pointer group">
+              <div key={title} onClick={() => title === 'Torneos' ? onTorneos() : onCta()} className="bg-[#0a0a0a] p-8 hover:bg-white/3 transition-colors cursor-pointer group">
                 <div className="text-5xl font-black mb-6 opacity-20" style={{ color: colorPrimario }}>0{i+1}</div>
                 <Icon size={24} className="mb-4" style={{ color: colorPrimario }} />
                 <h3 className="text-white font-bold text-lg mb-2">{title}</h3>
@@ -119,8 +113,8 @@ const Template2 = ({ club, onCta }) => {
         </div>
       </section>
 
-      {/* TORNEOS */}
-      <TorneosSection colorPrimario={colorPrimario} dark={true} onCta={onCta} />
+      {/* TORNEO EN CURSO (hero) */}
+      <TorneosSection colorPrimario={colorPrimario} dark={true} onCta={onCta} soloEnCurso />
 
       {/* TURNOS DISPONIBLES */}
       {(seccionesVisibles?.reservas ?? true) && (

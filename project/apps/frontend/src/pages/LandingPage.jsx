@@ -12,6 +12,43 @@ import Template5 from '../features/landing/Template5'
 
 const TEMPLATES = { 1: Template1, 2: Template2, 3: Template3, 4: Template4, 5: Template5 }
 
+// Mapea un torneo del backend al shape que usa la landing (TorneosSection, TurnosDisponibles).
+// Exportado para reusar en TorneosPublicosPage.
+export const mapTorneoLanding = (t) => {
+  const p = t.personalizacion ?? {}
+  return {
+    id: t.id,
+    nombre: t.nombre,
+    estado: t.estado,
+    fechaInicio: t.fechaInicio,
+    fechaFin: t.fechaFin,
+    categorias: t.categorias ?? [],
+    genero: t.genero ?? null,
+    canchasAsignadas: t.canchasAsignadas ?? [],
+    cupoLibre: t.cupoLibre ?? false,
+    cuposPorCategoria: t.cuposPorCategoria ?? {},
+    // Campos de personalización — vienen en t.personalizacion (JSON column)
+    modoLandingFlyer:   p.modoLandingFlyer   ?? 'auto',
+    premioPrimero:      p.premioPrimero      ?? null,
+    premioSegundo:      p.premioSegundo      ?? null,
+    premioSemifinal:    p.premioSemifinal    ?? null,
+    whatsapp:           p.whatsapp           ?? null,
+    imagenFondo:        p.imagenFondo        ?? null,
+    imagenFondoEnCurso: p.imagenFondoEnCurso ?? null,
+    ctaEnCurso:         p.ctaEnCurso         ?? null,
+    templateEnCurso:    p.templateEnCurso    ?? 1,
+    colorAcento:          p.colorAcento          ?? null,
+    colorCardBgEnCurso:   p.colorCardBgEnCurso   ?? null,
+    colorTituloEnCurso:   p.colorTituloEnCurso   ?? null,
+    colorTextoSecEnCurso: p.colorTextoSecEnCurso ?? null,
+    colorBtnTextEnCurso:  p.colorBtnTextEnCurso  ?? null,
+    descripcion:        t.descripcion        ?? '',
+    grupos:     t.grupos   ?? null,
+    brackets:   t.brackets ?? {},
+    inscriptos: (t.parejas ?? []).map((par) => ({ id: par.id, jugador1: par.jugador1, jugador2: par.jugador2, estado: par.estado ?? 'inscripto' })),
+  }
+}
+
 const LandingPage = () => {
   const navigate = useNavigate()
   const isAuthenticated = usePlayerStore((s) => s.isAuthenticated)
@@ -39,39 +76,7 @@ const LandingPage = () => {
           api.get(`/torneos?clubId=${data.id}`)
             .then((ts) => {
               if (!Array.isArray(ts)) return
-              setTorneos(ts.map((t) => {
-                const p = t.personalizacion ?? {}
-                return {
-                  id: t.id,
-                  nombre: t.nombre,
-                  estado: t.estado,
-                  fechaInicio: t.fechaInicio,
-                  fechaFin: t.fechaFin,
-                  categorias: t.categorias ?? [],
-                  genero: t.genero ?? null,
-                  canchasAsignadas: t.canchasAsignadas ?? [],
-                  cupoLibre: t.cupoLibre ?? false,
-                  cuposPorCategoria: t.cuposPorCategoria ?? {},
-                  // Campos de personalización — vienen en t.personalizacion (JSON column)
-                  modoLandingFlyer:   p.modoLandingFlyer   ?? 'auto',
-                  premioPrimero:      p.premioPrimero      ?? null,
-                  premioSegundo:      p.premioSegundo      ?? null,
-                  premioSemifinal:    p.premioSemifinal    ?? null,
-                  whatsapp:           p.whatsapp           ?? null,
-                  imagenFondo:        p.imagenFondo        ?? null,
-                  imagenFondoEnCurso: p.imagenFondoEnCurso ?? null,
-                  ctaEnCurso:         p.ctaEnCurso         ?? null,
-                  templateEnCurso:    p.templateEnCurso    ?? 1,
-                  colorAcento:          p.colorAcento          ?? null,
-                  colorCardBgEnCurso:   p.colorCardBgEnCurso   ?? null,
-                  colorTituloEnCurso:   p.colorTituloEnCurso   ?? null,
-                  colorTextoSecEnCurso: p.colorTextoSecEnCurso ?? null,
-                  colorBtnTextEnCurso:  p.colorBtnTextEnCurso  ?? null,
-                  descripcion:        t.descripcion        ?? '',
-                  grupos:     t.grupos   ?? null,
-                  inscriptos: (t.parejas ?? []).map((par) => ({ id: par.id, jugador1: par.jugador1, jugador2: par.jugador2, estado: par.estado ?? 'inscripto' })),
-                }
-              }))
+              setTorneos(ts.map(mapTorneoLanding))
             })
             .catch(() => {})
         }
@@ -81,6 +86,7 @@ const LandingPage = () => {
   }, [])
 
   const handleCta = () => navigate(isAuthenticated ? '/dashboardJugadores/dashboard' : '/dashboardJugadores')
+  const handleTorneos = () => navigate('/torneos')
 
   // Esperamos hasta que el fetch terminó (_loaded: datos reales) o hasta que
   // se confirmó que no hay datos disponibles (fetchDone: defaults o error)
@@ -97,7 +103,7 @@ const LandingPage = () => {
 
   const Template = TEMPLATES[club.templateId] ?? Template1
 
-  return <Template club={club} onCta={handleCta} />
+  return <Template club={club} onCta={handleCta} onTorneos={handleTorneos} />
 }
 
 export default LandingPage

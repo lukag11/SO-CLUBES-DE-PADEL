@@ -6,7 +6,7 @@ import useClubStore from '../../store/clubStore'
 const navLinks = [
   { to: '/#quienes-somos', label: 'Quiénes Somos' },
   { to: '/#reservas', label: 'Reservas' },
-  { to: '/#torneos', label: 'Torneos' },
+  { to: '/torneos', label: 'Torneos', route: true },
   { to: '/#contacto', label: 'Contacto' },
 ]
 
@@ -64,10 +64,16 @@ const PublicNavbar = () => {
 
         {/* Links desktop */}
         <nav className="hidden md:flex items-center gap-1">
-          {navLinks.map(({ to, label }) => (
-            <a key={to} href={to} className={`px-4 py-2 text-sm font-medium transition-colors duration-150 rounded-lg ${linkColor}`}>
-              {label}
-            </a>
+          {navLinks.map(({ to, label, route }) => (
+            route ? (
+              <Link key={to} to={to} className={`px-4 py-2 text-sm font-medium transition-colors duration-150 rounded-lg ${linkColor}`}>
+                {label}
+              </Link>
+            ) : (
+              <a key={to} href={to} className={`px-4 py-2 text-sm font-medium transition-colors duration-150 rounded-lg ${linkColor}`}>
+                {label}
+              </a>
+            )
           ))}
         </nav>
 
@@ -115,10 +121,16 @@ const PublicNavbar = () => {
               : { backgroundColor: '#1E1F23', borderColor: 'rgba(255,255,255,0.05)' }
           }
         >
-          {navLinks.map(({ to, label }) => (
-            <a key={to} href={to} onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium transition-colors ${linkColor}`}>
-              {label}
-            </a>
+          {navLinks.map(({ to, label, route }) => (
+            route ? (
+              <Link key={to} to={to} onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium transition-colors ${linkColor}`}>
+                {label}
+              </Link>
+            ) : (
+              <a key={to} href={to} onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium transition-colors ${linkColor}`}>
+                {label}
+              </a>
+            )
           ))}
           <Link to="/dashboardJugadores" onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium transition-colors ${linkColor}`}>
             Jugadores

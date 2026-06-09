@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { Trophy, Star, Clock, Pencil } from 'lucide-react'
+import { Trophy, Clock, Pencil, Medal } from 'lucide-react'
 import { BRACKET_THEMES } from './BracketThemes'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -935,7 +935,11 @@ const BracketView = ({
 
   const catBrackets = Object.keys(torneo.brackets ?? {})
   const multiCatD   = catBrackets.length > 1
-  const champion    = rondas[rondas.length - 1]?.partidos[0]?.ganador
+  const finalMatch  = rondas[rondas.length - 1]?.partidos[0]
+  const champion    = finalMatch?.estado === 'finalizado' ? finalMatch?.ganador : undefined
+  const subChampion = champion
+    ? (champion.id === finalMatch?.pareja1?.id ? finalMatch?.pareja2 : finalMatch?.pareja1)
+    : undefined
   const connStroke  = torneo.bracketConnColor ?? theme.connStroke
   const connGlow    = (torneo.bracketConnGlow ?? true) && (theme.connGlow ?? false)
   const watermarkText   = torneo.bracketWatermarkOculto ? null : (torneo.bracketWatermark ?? theme.watermark)
@@ -1469,15 +1473,6 @@ const BracketView = ({
             </div>
           )}
 
-          {champion && (
-            <div className="flex items-center justify-center gap-3 py-3.5" style={{ background: accentColor + (theme.isDark ? '0d' : '12'), borderBottom: `1px solid ${theme.isDark ? 'rgba(255,255,255,0.05)' : '#ececea'}` }}>
-              <Star size={13} style={{ color: accentColor }} />
-              <p className="font-bold text-sm" style={{ color: accentColor }}>
-                {champion.jugador1} / {champion.jugador2}
-              </p>
-              <span className="text-[9px] uppercase tracking-widest" style={{ color: theme.isDark ? 'rgba(255,255,255,0.20)' : '#94a3b8' }}>Campeones</span>
-            </div>
-          )}
         </>
       )}
 
@@ -1668,6 +1663,72 @@ const BracketView = ({
                 </div>
               )
             })}
+
+            {/* ── Panel CAMPEÓN + SUBCAMPEÓN (a la derecha de la Final) ── */}
+            {champion && (
+              <div
+                className="flex flex-col items-center justify-center shrink-0"
+                style={{ height: BRACKET_H, position: 'relative', zIndex: 1, paddingLeft: 8, paddingRight: 8, minWidth: 200 }}
+              >
+                <style>{`
+                  @keyframes champPanelIn { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
+                  @keyframes champRingPulse { 0%,100% { box-shadow: 0 0 22px ${accentColor}55, inset 0 0 12px ${accentColor}30; } 50% { box-shadow: 0 0 38px ${accentColor}88, inset 0 0 16px ${accentColor}45; } }
+                  @keyframes champTrophyBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+                `}</style>
+
+                {/* ── Campeón ── */}
+                <div className="flex flex-col items-center" style={{ animation: 'champPanelIn 0.55s ease-out both' }}>
+                  <div
+                    className="rounded-full flex items-center justify-center"
+                    style={{
+                      width: 92, height: 92,
+                      border: `2px solid ${accentColor}`,
+                      background: `radial-gradient(circle at 50% 35%, ${accentColor}26 0%, ${theme.isDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)'} 75%)`,
+                      animation: 'champRingPulse 3s ease-in-out infinite',
+                    }}
+                  >
+                    <Trophy size={42} style={{ color: accentColor, animation: 'champTrophyBob 3.2s ease-in-out infinite' }} />
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-3.5">
+                    <Trophy size={11} style={{ color: accentColor }} />
+                    <span className="text-[11px] font-black uppercase tracking-[0.25em]" style={{ color: accentColor }}>
+                      Campeón
+                    </span>
+                  </div>
+                  <p className="text-center font-black leading-tight mt-1.5 max-w-[180px]"
+                    style={{ color: theme.isDark ? '#fff' : '#0d1117', fontSize: 16 }}>
+                    {champion.jugador1} {champion.jugador2 ? `– ${champion.jugador2}` : ''}
+                  </p>
+                </div>
+
+                {/* ── Subcampeón ── */}
+                {subChampion && (
+                  <div className="flex flex-col items-center mt-7 pt-7 w-full"
+                    style={{ borderTop: `1px solid ${theme.isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb'}`, animation: 'champPanelIn 0.55s ease-out 0.12s both' }}>
+                    <div
+                      className="rounded-full flex items-center justify-center"
+                      style={{
+                        width: 58, height: 58,
+                        border: '2px solid rgba(190,196,204,0.7)',
+                        background: `radial-gradient(circle at 50% 35%, rgba(190,196,204,0.20) 0%, ${theme.isDark ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)'} 75%)`,
+                      }}
+                    >
+                      <Medal size={26} style={{ color: '#c4cad1' }} />
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-2.5">
+                      <Medal size={10} style={{ color: '#c4cad1' }} />
+                      <span className="text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: theme.isDark ? 'rgba(196,202,209,0.85)' : '#71777f' }}>
+                        Subcampeón
+                      </span>
+                    </div>
+                    <p className="text-center font-bold leading-tight mt-1 max-w-[170px]"
+                      style={{ color: theme.isDark ? 'rgba(255,255,255,0.72)' : '#475569', fontSize: 13 }}>
+                      {subChampion.jugador1} {subChampion.jugador2 ? `– ${subChampion.jugador2}` : ''}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* SVG overlay con líneas desde posiciones reales del DOM */}
             <svg

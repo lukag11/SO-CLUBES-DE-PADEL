@@ -10,13 +10,7 @@ const FEATURES = [
   { icon: Users,        title: 'Tu perfil',         desc: 'Historial de partidos, estadísticas y nivel actualizado.' },
 ]
 
-const scrollToTorneos = (fallback) => {
-  const el = document.getElementById('torneos')
-  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  else fallback()
-}
-
-const Template3 = ({ club, onCta }) => {
+const Template3 = ({ club, onCta, onTorneos }) => {
   const { colorPrimario, nombre, canchas, horarios,
     heroTitulo, heroTituloDestacado, heroSubtitulo, heroBadge,
     heroCtaPrimarioTexto, heroCtaSecundarioTexto, heroImagen,
@@ -55,7 +49,7 @@ const Template3 = ({ club, onCta }) => {
               <button onClick={onCta} className="inline-flex items-center gap-2 font-bold text-sm px-6 py-3.5 rounded-xl transition-all duration-200 text-white" style={{ backgroundColor: colorPrimario }}>
                 {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={16} />
               </button>
-              <button onClick={() => scrollToTorneos(onCta)} className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors px-2">
+              <button onClick={onTorneos} className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors px-2">
                 {heroCtaSecundarioTexto || 'Ver torneos'} →
               </button>
             </div>
@@ -110,7 +104,7 @@ const Template3 = ({ club, onCta }) => {
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {FEATURES.map(({ icon: Icon, title, desc }) => (
-              <div key={title} onClick={() => title === 'Torneos' ? scrollToTorneos(onCta) : onCta()} className="group cursor-pointer flex flex-col gap-4">
+              <div key={title} onClick={() => title === 'Torneos' ? onTorneos() : onCta()} className="group cursor-pointer flex flex-col gap-4">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200" style={{ backgroundColor: `${colorPrimario}15` }}>
                   <Icon size={22} style={{ color: colorPrimario }} />
                 </div>
@@ -124,8 +118,8 @@ const Template3 = ({ club, onCta }) => {
         </div>
       </section>
 
-      {/* TORNEOS */}
-      <TorneosSection colorPrimario={colorPrimario} dark={false} onCta={onCta} />
+      {/* TORNEO EN CURSO (hero) */}
+      <TorneosSection colorPrimario={colorPrimario} dark={false} onCta={onCta} soloEnCurso />
 
       {/* TURNOS DISPONIBLES */}
       {(seccionesVisibles?.reservas ?? true) && (

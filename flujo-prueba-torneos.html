@@ -185,7 +185,7 @@
     ✅ Fixes 2026-05-31: DNI lookup registro · lista de espera UX · promover espera con validación cupo · auto-promoción notifica j1 y j2<br>
     ✅ 2026-06-07 sesión 2: <strong>Bracket esqueleto TBD</strong> (pre-asignar horarios antes de terminar grupos) · <strong>Auto-asignar draw multi-categoría</strong> con split Día1/Día2 · Fix "undefined undefined" BracketCard · 3 campos nuevos DB (fechaInicioEliminatoria, fechaInicioQF, horaInicioQF)
   </div>
-  <p class="version" style="margin-top:16px">PadelOS v1.0 · Backend Bloque 4 conectado · Sección 7 draw actualizada · 2026-06-07</p>
+  <p class="version" style="margin-top:16px">PadelOS v1.0 · Backend Bloque 4 conectado · Sección 9 vista pública (landing + /torneos + campeón) · 2026-06-09</p>
 </div>
 
 <!-- ═══════════════════════════════════════════ ÍNDICE -->
@@ -201,7 +201,8 @@
     <a href="#b6"><span class="blq">B6</span> Admin: Resultados de grupos</a>
     <a href="#b7"><span class="blq">B7</span> Admin: Fase eliminatoria</a>
     <a href="#b8"><span class="blq">B8</span> Seguridad y casos límite</a>
-    <a href="#b9"><span class="blq">B9</span> Torneos: estados y transiciones</a>
+    <a href="#b9"><span class="blq">B9</span> Vista pública (landing + /torneos + campeón)</a>
+    <a href="#b10"><span class="blq">B10</span> Torneos: estados y transiciones</a>
   </div>
 </div>
 
@@ -1391,10 +1392,119 @@
     </div>
   </div>
 
-  <!-- ─── B9: ESTADOS Y TRANSICIONES ─── -->
+  <!-- ─── B9: VISTA PÚBLICA (LANDING + PÁGINA TORNEO) ─── -->
   <div class="seccion" id="b9">
     <div class="seccion-header">
-      <div class="numero multi">9</div>
+      <div class="numero">9</div>
+      <h2>Vista pública: landing, listado de torneos y página del torneo</h2>
+      <span class="rol-chip chip-jugador">VISITANTE</span>
+    </div>
+    <div class="seccion-body">
+
+      <div class="resultado info">
+        <div class="titulo">ℹ️ Cómo está organizada la vista pública</div>
+        El visitante (sin login) navega tres lugares: la <strong>landing del club</strong> (hero del torneo en curso),
+        la <strong>página de torneos</strong> (<span class="campo">/torneos</span> — listado con tabs), y la
+        <strong>página de cada torneo</strong> (<span class="campo">/torneos/:id</span> — Resumen/Fixture/Grupos/Draw).
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- 9.1 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">9.1</span>
+          <div>
+            <div class="paso-titulo">Hero "En curso" en la landing principal</div>
+            <div class="paso-ruta">Landing del club → sección torneo en curso</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Con un torneo en estado <strong>in_progress</strong>, abrir la landing del club</li>
+              <li>Verificar que aparece el <strong>hero del torneo en curso</strong> (usa el template "en curso" elegido en el admin)</li>
+              <li>Clic en <strong>"Seguir el torneo"</strong></li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            El hero solo aparece mientras el torneo está <strong>in_progress</strong>. Al tocar "Seguir el torneo" → navega a
+            <span class="campo">/torneos/:id</span>. Cuando el torneo pasa a <strong>finished</strong>, el hero <strong>desaparece</strong> de la landing
+            (no hay ventana de días). Los demás estados (open/finished) NO se muestran como hero en la home.
+          </div>
+        </div>
+      </div>
+
+      <!-- 9.2 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">9.2</span>
+          <div>
+            <div class="paso-titulo">Listado de torneos con tabs de filtro</div>
+            <div class="paso-ruta">Navbar → "Torneos" (/torneos)</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En el navbar público tocar <strong>"Torneos"</strong></li>
+              <li>Verificar que navega a <span class="campo">/torneos</span> (navegación SPA, sin recarga)</li>
+              <li>Revisar las tabs: <strong>Todos / Abiertos / En curso / Finalizados</strong> (solo aparecen las que tienen contenido)</li>
+              <li>Cada tab muestra un contador</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Página dedicada con header (logo del club + volver). Tab "Todos" siempre presente. Los torneos <strong>finalizados</strong> aparecen
+            como cards permanentes (sin límite de días) con imagen/flyer, badge "FINALIZADO", fecha, categoría y <strong>🏆 campeón</strong>.
+            Botón "Ver torneo →" o card clickeable → <span class="campo">/torneos/:id</span>.
+          </div>
+        </div>
+      </div>
+
+      <!-- 9.3 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">9.3</span>
+          <div>
+            <div class="paso-titulo">Página del torneo — campeón y subcampeón (finalizado)</div>
+            <div class="paso-ruta">/torneos/:id → tab Resumen + tab Draw</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Abrir un torneo <strong>finished</strong> en <span class="campo">/torneos/:id</span></li>
+              <li>En el header: badge <strong>"FINALIZADO"</strong> dorado (en vez de "En curso")</li>
+              <li>Tab <strong>Resumen</strong>: debajo de la info, sección "TORNEO FINALIZADO" con tarjetas <strong>Campeones</strong> (oro) +
+                resultado de la final en casilleros + <strong>Subcampeones</strong> (plata), una fila por categoría</li>
+              <li>Tab <strong>Draw</strong>: a la derecha de la Final, panel con copa (campeón) + medalla (subcampeón)</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            El torneo finalizado queda visible <strong>siempre</strong> (se sacó el gate de 3 días). Campeón/subcampeón se calculan desde
+            la final del bracket. El panel del Draw aparece en los 6 templates (toma el color de acento de cada uno).
+          </div>
+          <div class="resultado warn">
+            <div class="titulo">⚠️ Verificar también (admin)</div>
+            En <span class="campo">/dashboardAdmin/torneos/:id</span> con el torneo finalizado: las tabs <strong>Grupos</strong> y
+            <strong>Fixture/Cuadro</strong> siguen mostrando toda la info (zonas, resultados, bracket) — no quedan vacías. Sirve para estadísticas futuras.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── B10: ESTADOS Y TRANSICIONES ─── -->
+  <div class="seccion" id="b10">
+    <div class="seccion-header">
+      <div class="numero multi">10</div>
       <h2>Estados del torneo y transiciones válidas</h2>
       <span class="rol-chip chip-multi">REFERENCIA</span>
     </div>
@@ -1442,10 +1552,19 @@
         <div class="check-item importante"><input type="checkbox" id="c18"><label for="c18">Promover desde espera: si cupo lleno → botón deshabilitado con tooltip en TorneoDetallePage</label></div>
         <div class="check-item importante"><input type="checkbox" id="c19"><label for="c19">Auto-promoción: al eliminar pareja inscripta → primera en espera pasa a inscripta y recibe notificación</label></div>
         <div class="check-item normal"><input type="checkbox" id="c20"><label for="c20">DNI lookup en registro: al ingresar DNI válido → nombre/apellido se pre-llenan con badge verde</label></div>
+        <div class="check-item normal"><input type="checkbox" id="c21"><label for="c21">Landing: hero "en curso" visible solo con torneo in_progress; "Seguir el torneo" → /torneos/:id</label></div>
+        <div class="check-item normal"><input type="checkbox" id="c22"><label for="c22">Navbar "Torneos" → /torneos con tabs Todos/Abiertos/En curso/Finalizados</label></div>
+        <div class="check-item normal"><input type="checkbox" id="c23"><label for="c23">Finalizado: queda visible siempre (sin gate de 3 días) + card en listado con campeón</label></div>
+        <div class="check-item importante"><input type="checkbox" id="c24"><label for="c24">Admin torneo finalizado: tabs Grupos y Fixture siguen mostrando la info (no vacías)</label></div>
+        <div class="check-item critico"><input type="checkbox" id="c25"><label for="c25">Estadísticas jugador: Tab Torneos muestra "Trayectoria de categoría" con tarjetas por cat, títulos y winRate</label></div>
+        <div class="check-item critico"><input type="checkbox" id="c26"><label for="c26">Estadísticas jugador: banner "Listo para ascender" aparece si ≥2 títulos o winRate≥75% en ≥3 torneos</label></div>
+        <div class="check-item importante"><input type="checkbox" id="c27"><label for="c27">Admin Jugadores: badge "↑ Subir" visible en jugadores que cumplen criterio de ascenso (llamada a /ascenso-sugeridos)</label></div>
+        <div class="check-item normal"><input type="checkbox" id="c28"><label for="c28">Estadísticas jugador: 4 tabs (Resumen / Torneos / Reservas / Oponentes) cargan sin errores</label></div>
+        <div class="check-item normal"><input type="checkbox" id="c29"><label for="c29">Estadísticas: tab Oponentes carga lazy al hacer click (no en el mount inicial)</label></div>
       </div>
 
       <div class="progress-wrap" style="margin-top:20px">
-        <div class="progress-label" id="progress-label">0 / 20 completado</div>
+        <div class="progress-label" id="progress-label">0 / 25 completado</div>
         <div class="progress-bar-outer">
           <div class="progress-bar-inner" id="progress-bar"></div>
         </div>
@@ -1456,7 +1575,7 @@
 
 </div>
 
-<div class="footer">PadelOS · Guía de prueba Torneos · 2026-05-31 · Backend Bloque 4 · Bloque 3 testing completo ✅</div>
+<div class="footer">PadelOS · Guía de prueba Torneos · 2026-06-09 · Estadísticas jugador: 4 tabs reales + trayectoria categoría + badge ascenso admin ✅</div>
 
 <script>
   function toggle(header) {

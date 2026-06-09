@@ -7,7 +7,7 @@ import {
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   ShowerHead, Car, GraduationCap, Wifi, Coffee,
   Dumbbell, Shield, Wind, Utensils, Music, Wrench,
-  CalendarDays, CheckCircle, Lock, Trophy, Zap, Users,
+  CalendarDays, CheckCircle, Lock, Trophy, Zap, Users, Medal,
 } from 'lucide-react'
 import usePlayerStore from '../../store/playerStore'
 import useTorneosStore from '../../store/torneosStore'
@@ -650,9 +650,12 @@ const renderEnCursoCard = (tplId, { t, cp, dark, colorPrimario, inscriptos, zona
   }
 }
 
-export const TorneosSection = ({ colorPrimario = '#afca0b', dark = true, onCta }) => {
+// soloEnCurso: modo para la home — renderiza SOLO el hero del torneo en curso
+// (sin tabs, sin abiertos, sin finalizados). Reutiliza los templates "en curso".
+export const TorneosSection = ({ colorPrimario = '#afca0b', dark = true, onCta, soloEnCurso = false }) => {
   const navigate  = useNavigate()
   const torneos   = useTorneosStore((s) => s.torneos)
+  const [filtro, setFiltro] = useState('todos')
 
   const visibles = useMemo(() => {
     return [...torneos]
@@ -661,21 +664,82 @@ export const TorneosSection = ({ colorPrimario = '#afca0b', dark = true, onCta }
       .slice(0, 4)
   }, [torneos])
 
-  if (visibles.length === 0) return null
+  const finishedList = useMemo(() => {
+    return [...torneos]
+      .filter((t) => t.estado === 'finished')
+      .sort((a, b) => (a.fechaFin > b.fechaFin ? -1 : 1))
+  }, [torneos])
 
   const totalCupo = (t) =>
     t.cupoLibre ? null : Object.values(t.cuposPorCategoria).reduce((a, b) => a + b, 0)
+
+  // Campeón de un torneo finalizado (primera categoría con final cargada)
+  const getCampeon = (t) => {
+    for (const bracketObj of Object.values(t.brackets ?? {})) {
+      const rondas = Array.isArray(bracketObj) ? bracketObj : (bracketObj?.rondas ?? [])
+      const finalRonda = rondas.find((r) => r.nombre === 'Final') ?? rondas[rondas.length - 1]
+      const fm = finalRonda?.partidos?.[0]
+      if (fm?.ganador && fm.estado === 'finalizado') {
+        const g = fm.ganador
+        return `${g.jugador1 ?? ''}${g.jugador2 ? ` / ${g.jugador2}` : ''}`.trim()
+      }
+    }
+    return null
+  }
 
   const enCursoList = visibles.filter((t) => t.estado === 'in_progress')
   const proximoList = visibles.filter((t) => t.estado === 'open' && diasHasta(t.fechaInicio) <= DIAS_FLYER)
   const openList    = visibles.filter((t) => t.estado === 'open' && diasHasta(t.fechaInicio) > DIAS_FLYER)
 
+  // Modo home: solo hero en curso. Si no hay torneo en curso, no renderiza nada.
+  if (soloEnCurso) {
+    if (enCursoList.length === 0) return null
+  } else if (visibles.length === 0 && finishedList.length === 0) {
+    return null
+  }
+
+  // ── Tabs de filtro ──────────────────────────────────────────────────────
+  const TABS_TORNEOS = [
+    { key: 'todos',       label: 'Todos',       count: enCursoList.length + proximoList.length + openList.length + finishedList.length },
+    { key: 'abiertos',    label: 'Abiertos',    count: proximoList.length + openList.length },
+    { key: 'en_curso',    label: 'En curso',    count: enCursoList.length },
+    { key: 'finalizados', label: 'Finalizados', count: finishedList.length },
+  ].filter((tab) => tab.key === 'todos' || tab.count > 0)
+
+  const showEnCurso     = soloEnCurso || filtro === 'todos' || filtro === 'en_curso'
+  const showAbiertos    = !soloEnCurso && (filtro === 'todos' || filtro === 'abiertos')
+  const showFinalizados = !soloEnCurso && (filtro === 'todos' || filtro === 'finalizados')
+
   return (
     <section id="torneos" className="py-20 px-6">
       <div className="max-w-5xl mx-auto flex flex-col gap-5">
 
+        {/* ── Tabs de filtro ─────────────────────────────────────────── */}
+        {!soloEnCurso && TABS_TORNEOS.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {TABS_TORNEOS.map(({ key, label, count }) => {
+              const activo = filtro === key
+              return (
+                <button
+                  key={key}
+                  onClick={() => setFiltro(key)}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
+                    activo ? '' : dark ? 'text-white/40 hover:text-white/70 bg-white/5 hover:bg-white/10' : 'text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200'
+                  }`}
+                  style={activo ? { backgroundColor: colorPrimario, color: '#080b0f' } : undefined}
+                >
+                  {label}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                    activo ? 'bg-black/15' : dark ? 'bg-white/10' : 'bg-white'
+                  }`}>{count}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* ── HERO — torneo en curso ─────────────────────────────────── */}
-        {enCursoList.map((t) => {
+        {showEnCurso && enCursoList.map((t) => {
           const inscriptos = t.inscriptos.filter((p) => p.estado === 'inscripto').length
           const zonas      = Array.isArray(t.grupos) ? t.grupos.length : null
           const bigLabel   = t.categorias?.[0] ?? ''
@@ -714,7 +778,7 @@ export const TorneosSection = ({ colorPrimario = '#afca0b', dark = true, onCta }
         })}
 
         {/* ── FLYER "Próximamente" ──────────────────────────────────── */}
-        {proximoList.map((t) => {
+        {showAbiertos && proximoList.map((t) => {
           const cp        = t.colorAcento || colorPrimario
           const cupo      = totalCupo(t)
           const inscriptos = t.inscriptos.filter((p) => p.estado === 'inscripto').length
@@ -879,7 +943,7 @@ export const TorneosSection = ({ colorPrimario = '#afca0b', dark = true, onCta }
         })}
 
         {/* ── Torneos open ─────────────────────────────────────────── */}
-        {openList.length > 0 && (
+        {showAbiertos && openList.length > 0 && (
           <div className={`grid gap-4 ${
             openList.length === 1 ? 'max-w-sm' :
             openList.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'
@@ -951,6 +1015,82 @@ export const TorneosSection = ({ colorPrimario = '#afca0b', dark = true, onCta }
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {/* ── Torneos FINALIZADOS ──────────────────────────────────── */}
+        {showFinalizados && finishedList.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {filtro === 'todos' && (
+              <span className={`text-[11px] font-black uppercase tracking-[0.18em] mt-2 ${dark ? 'text-white/25' : 'text-slate-400'}`}>
+                Finalizados
+              </span>
+            )}
+            <div className={`grid gap-4 ${
+              finishedList.length === 1 ? 'max-w-sm' :
+              finishedList.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'
+            }`}>
+              {finishedList.map((t) => {
+                const cp       = t.colorAcento || colorPrimario
+                const campeon  = getCampeon(t)
+                const imagen   = t.imagenFondo || t.imagenFondoEnCurso || null
+
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => navigate(`/torneos/${t.id}`)}
+                    className={`relative rounded-2xl overflow-hidden flex flex-col cursor-pointer group transition-all ${
+                      dark ? 'bg-white/3 border border-white/8 hover:border-white/18 hover:bg-white/5' : 'bg-white border border-slate-200 shadow-sm hover:shadow-lg'
+                    }`}
+                  >
+                    {/* Imagen / fondo */}
+                    <div className="relative h-36 overflow-hidden" style={!imagen ? { background: `linear-gradient(135deg, ${dark ? '#0d1117' : '#1e293b'} 55%, ${cp}33)` } : undefined}>
+                      {imagen ? (
+                        <img src={imagen} alt={t.nombre} className="w-full h-full object-cover opacity-70 group-hover:opacity-85 group-hover:scale-[1.03] transition-all duration-500" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Trophy size={40} style={{ color: `${cp}55` }} />
+                        </div>
+                      )}
+                      <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55), transparent 60%)' }} />
+                      {/* Badge FINALIZADO */}
+                      <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider"
+                        style={{ backgroundColor: 'rgba(212,175,55,0.18)', color: '#e8c860', border: '1px solid rgba(212,175,55,0.4)', backdropFilter: 'blur(6px)' }}>
+                        <Trophy size={9} /> Finalizado
+                      </div>
+                    </div>
+
+                    {/* Contenido */}
+                    <div className="p-4 flex flex-col gap-2 flex-1">
+                      <h3 className={`font-black text-base leading-tight ${dark ? 'text-white' : 'text-slate-900'}`}>
+                        {t.nombre}
+                      </h3>
+                      <div className={`flex items-center gap-1.5 text-xs ${dark ? 'text-white/35' : 'text-slate-400'}`}>
+                        <CalendarDays size={10} />
+                        {fmtFechaTorneo(t.fechaInicio)} → {fmtFechaTorneo(t.fechaFin)}
+                        {t.categorias?.[0] && <span className="ml-1 opacity-70">· {t.categorias[0]}</span>}
+                      </div>
+
+                      {/* Campeón */}
+                      {campeon && (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Trophy size={12} style={{ color: '#e8c860' }} />
+                          <span className="text-xs font-bold truncate" style={{ color: '#e8c860' }}>{campeon}</span>
+                        </div>
+                      )}
+
+                      <button
+                        className={`mt-2 w-full py-2.5 text-sm font-black uppercase tracking-wider rounded-xl transition-all group-hover:scale-[1.02] ${
+                          dark ? 'bg-white/8 text-white hover:bg-white/12' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        Ver torneo →
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 

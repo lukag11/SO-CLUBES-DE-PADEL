@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Plus, Trash2, Star, Upload, ImageOff, Sparkles } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, uploadImage, fileToDataUrl } from '../lib/api'
 import useAuthStore from '../store/authStore'
 
 const blobToBase64 = (blob) =>
@@ -10,7 +10,7 @@ const blobToBase64 = (blob) =>
     r.readAsDataURL(blob)
   })
 
-const LogoPicker = ({ value, onChange }) => {
+const LogoPicker = ({ value, onChange, token }) => {
   const refBg  = useRef(null) // con eliminación de fondo
   const refRaw = useRef(null) // tal cual
   const [processing, setProcessing] = useState(false)
@@ -21,28 +21,32 @@ const LogoPicker = ({ value, onChange }) => {
     if (!file) return
     e.target.value = ''
     setBgRemoved(false)
-
-    if (!removeBg) {
-      const reader = new FileReader()
-      reader.onload = (ev) => onChange(ev.target.result)
-      reader.readAsDataURL(file)
-      return
-    }
-
-    const previewUrl = URL.createObjectURL(file)
     setProcessing(true)
+
     try {
-      const { removeBackground } = await import('@imgly/background-removal')
-      const blob   = await removeBackground(previewUrl)
-      const base64 = await blobToBase64(blob)
-      onChange(base64)
-      setBgRemoved(true)
-    } catch {
-      const reader = new FileReader()
-      reader.onload = (ev) => onChange(ev.target.result)
-      reader.readAsDataURL(file)
+      let dataUrl
+      if (removeBg) {
+        const previewUrl = URL.createObjectURL(file)
+        try {
+          const { removeBackground } = await import('@imgly/background-removal')
+          const blob = await removeBackground(previewUrl)
+          dataUrl = await blobToBase64(blob)
+          setBgRemoved(true)
+        } catch {
+          dataUrl = await fileToDataUrl(file)
+        } finally {
+          URL.revokeObjectURL(previewUrl)
+        }
+      } else {
+        dataUrl = await fileToDataUrl(file)
+      }
+      // Sube a Storage → guarda la URL pública (no base64 en la DB)
+      const url = await uploadImage(dataUrl, { profile: 'logo', folder: 'sponsors', token })
+      onChange(url)
+    } catch (err) {
+      console.error('Error al subir logo:', err)
+      alert('No se pudo subir el logo. Probá de nuevo.')
     } finally {
-      URL.revokeObjectURL(previewUrl)
       setProcessing(false)
     }
   }
@@ -209,7 +213,7 @@ const AdminSponsorsPage = () => {
 
           <div>
             <label className="text-xs font-medium text-slate-600 block mb-2">Logo</label>
-            <LogoPicker value={form.logoUrl} onChange={(v) => setForm((f) => ({ ...f, logoUrl: v }))} />
+            <LogoPicker value={form.logoUrl} onChange={(v) => setForm((f) => ({ ...f, logoUrl: v }))} token={token} />
           </div>
 
           {error && (

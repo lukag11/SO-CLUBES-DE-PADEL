@@ -192,9 +192,13 @@ model Torneo {
   canchasAsignadas       Int[]
   fechaInicio            String?
   fechaFin               String?
+  fechaReprogramada      String?
   fechaLimiteInscripcion String?
   diaInicioEliminatoria  String?
   horaInicioEliminatoria String?
+  fechaInicioEliminatoria String?
+  fechaInicioQF           String?
+  horaInicioQF            String?
   puntosPorVictoria      Int      @default(2)
   descripcion            String?
   grupos                 Json?

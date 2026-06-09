@@ -12,7 +12,7 @@ import {
 import useClubStore from '../store/clubStore'
 import useProfesoresStore from '../store/profesoresStore'
 import useAuthStore from '../store/authStore'
-import { api } from '../lib/api'
+import { api, uploadImage } from '../lib/api'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -125,6 +125,7 @@ const SaveButton = ({ onClick, saved, label = 'Guardar cambios' }) => (
 // ─── Tab: Información ────────────────────────────────────────────────────────
 
 const TabInfo = ({ club, updateClub, saveClub }) => {
+  const token = useAuthStore((s) => s.token)
   const [form, setForm] = useState({ ...club })
   const [saved, setSaved] = useState(false)
   const [preview, setPreview] = useState(club.logo)
@@ -135,15 +136,18 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleLogo = (e) => {
+  const handleLogo = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      setPreview(ev.target.result)
-      setForm((prev) => ({ ...prev, logo: ev.target.result }))
+    e.target.value = ''
+    try {
+      const url = await uploadImage(file, { profile: 'logo', folder: 'club', token })
+      setPreview(url)
+      setForm((prev) => ({ ...prev, logo: url }))
+    } catch (err) {
+      console.error('Error al subir logo:', err)
+      alert('No se pudo subir el logo. Probá de nuevo.')
     }
-    reader.readAsDataURL(file)
   }
 
   const handleSave = () => {
@@ -1329,6 +1333,7 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
 // ─── Tab: Hero ──────────────────────────────────────────────────────────────
 
 const TabHero = ({ club, updateClub, saveClub }) => {
+  const token = useAuthStore((s) => s.token)
   const [form, setForm] = useState({
     heroTitulo:            club.heroTitulo            ?? '',
     heroTituloDestacado:   club.heroTituloDestacado   ?? '',
@@ -1346,12 +1351,17 @@ const TabHero = ({ club, updateClub, saveClub }) => {
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleImagen = (e) => {
+  const handleImagen = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => setForm((prev) => ({ ...prev, heroImagen: ev.target.result }))
-    reader.readAsDataURL(file)
+    e.target.value = ''
+    try {
+      const url = await uploadImage(file, { profile: 'fondo', folder: 'club', token })
+      setForm((prev) => ({ ...prev, heroImagen: url }))
+    } catch (err) {
+      console.error('Error al subir imagen:', err)
+      alert('No se pudo subir la imagen. Probá de nuevo.')
+    }
   }
 
   const handleSave = () => {
@@ -1488,6 +1498,7 @@ const TabHero = ({ club, updateClub, saveClub }) => {
 // ─── Tab: Historia ──────────────────────────────────────────────────────────
 
 const TabHistoria = ({ club, updateClub, saveClub }) => {
+  const token = useAuthStore((s) => s.token)
   const [form, setForm] = useState({
     tituloBio:     club.tituloBio     ?? 'Quiénes Somos',
     historia:      club.historia      ?? '',
@@ -1502,12 +1513,17 @@ const TabHistoria = ({ club, updateClub, saveClub }) => {
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleFoto = (e) => {
+  const handleFoto = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => setForm((prev) => ({ ...prev, fotoPrincipal: ev.target.result }))
-    reader.readAsDataURL(file)
+    e.target.value = ''
+    try {
+      const url = await uploadImage(file, { profile: 'galeria', folder: 'club', token })
+      setForm((prev) => ({ ...prev, fotoPrincipal: url }))
+    } catch (err) {
+      console.error('Error al subir imagen:', err)
+      alert('No se pudo subir la imagen. Probá de nuevo.')
+    }
   }
 
   const handleSave = () => {
@@ -1613,23 +1629,28 @@ const TabHistoria = ({ club, updateClub, saveClub }) => {
 // ─── Tab: Galería ───────────────────────────────────────────────────────────
 
 const TabGaleria = ({ club, updateClub, saveClub }) => {
+  const token = useAuthStore((s) => s.token)
   const [items, setItems] = useState(club.galeria ?? [])
   const [saved, setSaved] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const fileRef = useRef()
 
-  const handleFiles = (e) => {
+  const handleFiles = async (e) => {
     const files = Array.from(e.target.files)
-    files.forEach((file) => {
-      const reader = new FileReader()
-      reader.onload = (ev) => {
-        setItems((prev) => [
-          ...prev,
-          { id: Date.now() + Math.random(), url: ev.target.result, caption: '' },
-        ])
-      }
-      reader.readAsDataURL(file)
-    })
     e.target.value = ''
+    if (files.length === 0) return
+    setUploading(true)
+    try {
+      for (const file of files) {
+        const url = await uploadImage(file, { profile: 'galeria', folder: 'club', token })
+        setItems((prev) => [...prev, { id: Date.now() + Math.random(), url, caption: '' }])
+      }
+    } catch (err) {
+      console.error('Error al subir imágenes:', err)
+      alert('No se pudieron subir todas las imágenes. Probá de nuevo.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   const handleCaption = (id, value) =>
@@ -1807,17 +1828,23 @@ const TabServicios = ({ club, updateClub, saveClub }) => {
 // ─── Tab: Staff ──────────────────────────────────────────────────────────────
 
 const StaffCard = ({ miembro, onUpdate, onDelete }) => {
+  const token = useAuthStore((s) => s.token)
   const [editing, setEditing] = useState(false)
   const [local, setLocal] = useState({ ...miembro })
   const fileRef = useRef()
   const inicial = miembro.nombre?.charAt(0)?.toUpperCase() ?? '?'
 
-  const handleFoto = (e) => {
+  const handleFoto = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => setLocal((p) => ({ ...p, foto: ev.target.result }))
-    reader.readAsDataURL(file)
+    e.target.value = ''
+    try {
+      const url = await uploadImage(file, { profile: 'avatar', folder: 'club', token })
+      setLocal((p) => ({ ...p, foto: url }))
+    } catch (err) {
+      console.error('Error al subir foto:', err)
+      alert('No se pudo subir la foto. Probá de nuevo.')
+    }
   }
 
   const handleSave = () => { onUpdate(miembro.id, local); setEditing(false) }

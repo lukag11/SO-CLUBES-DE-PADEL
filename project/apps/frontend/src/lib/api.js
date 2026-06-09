@@ -22,3 +22,28 @@ export const api = {
   delete: (path, headers)        => request(path, { method: 'DELETE', headers }),
   get:    (path, headers)        => request(path, { method: 'GET',    headers }),
 }
+
+// Lee un File/Blob como data URL (base64).
+export const fileToDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = (e) => resolve(e.target.result)
+    r.onerror = reject
+    r.readAsDataURL(file)
+  })
+
+/**
+ * Sube una imagen al Storage y devuelve la URL pública.
+ * @param {File|Blob|string} image  File, Blob o data URL/base64
+ * @param {object} opts  { profile: 'logo'|'avatar'|'flyer'|'fondo'|'galeria', folder, token }
+ * @returns {Promise<string>} URL pública
+ */
+export const uploadImage = async (image, { profile = 'default', folder, token } = {}) => {
+  const dataUrl = (typeof image === 'string') ? image : await fileToDataUrl(image)
+  const { url } = await request('/uploads', {
+    method: 'POST',
+    body: JSON.stringify({ image: dataUrl, profile, folder }),
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  return url
+}

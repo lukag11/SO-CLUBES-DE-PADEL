@@ -12,6 +12,7 @@ import notificacionesRouter from './routes/notificaciones.js'
 import cargosRouter from './routes/cargos.js'
 import profesoresRouter from './routes/profesores.js'
 import sponsorsRouter from './routes/sponsors.js'
+import uploadsRouter from './routes/uploads.js'
 import devResetRouter from './routes/dev-reset.js'
 
 const app = express()
@@ -27,7 +28,13 @@ const corsOrigin = (origin, callback) => {
 
 app.use(cors({ origin: corsOrigin, credentials: true }))
 
-app.use(express.json({ limit: '10mb' }))
+// /uploads recibe imágenes en base64 (subida puntual) → parser grande, montado
+// ANTES del parser global para que el límite chico no rechace el body.
+app.use('/api/uploads', express.json({ limit: '15mb' }), uploadsRouter)
+
+// Tras migrar las imágenes a Storage los payloads quedan chicos; este límite
+// se puede bajar a ~2mb una vez confirmada la migración.
+app.use(express.json({ limit: '8mb' }))
 
 app.use('/api', healthRouter)
 app.use('/api/auth', authRouter)

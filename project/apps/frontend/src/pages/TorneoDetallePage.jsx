@@ -4,15 +4,17 @@ import {
   ArrowLeft, Trophy, Medal, Users, Calendar, Zap, Trash2,
   ToggleLeft, ToggleRight, Lock, CheckCircle, Clock, Archive,
   AlertTriangle, Shuffle, CheckCheck, GitMerge, UserPlus, Plus, X, Pencil, Swords,
-  Palette, ChevronDown, Maximize2, Minimize2, Share2, Upload, Search, Info,
+  Palette, ChevronDown, Maximize2, Minimize2, Share2, Upload, Search, Info, Flag,
 } from 'lucide-react'
 import Toast from '../components/ui/Toast'
 import useTorneosStore from '../store/torneosStore'
 import useAuthStore from '../store/authStore'
-import { api } from '../lib/api'
+import { api, uploadImage } from '../lib/api'
 import {
   generateEliminationBracket,
   generateAPAEliminationBracket,
+  generateAPASkeletonBracket,
+  mergeScheduleFromSkeleton,
   advanceWinner,
   isBracketFinished,
   getBracketWinner,
@@ -28,6 +30,7 @@ import {
 } from '../services/torneoService'
 import useClubStore from '../store/clubStore'
 import BracketView, { BracketCard } from '../components/BracketView'
+import { BRACKET_TEMPLATE_LIST } from '../components/BracketThemes'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1426,19 +1429,26 @@ const ImageZonePreview = ({ src, children }) =>
     </div>
   )
 
-const ImagenFileInput = ({ value, onChange, onImageLoad, hint, className = '' }) => {
+const ImagenFileInput = ({ value, onChange, onImageLoad, hint, className = '', profile = 'fondo', folder = 'torneos' }) => {
   const ref = useRef(null)
-  const handleFile = (e) => {
+  const token = useAuthStore((s) => s.token)
+  const [uploading, setUploading] = useState(false)
+  const handleFile = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const dataUrl = ev.target.result
-      onChange(dataUrl)
-      onImageLoad?.(dataUrl)
-    }
-    reader.readAsDataURL(file)
     e.target.value = ''
+    setUploading(true)
+    try {
+      // Sube a Storage → guarda la URL pública (no base64 en la DB)
+      const url = await uploadImage(file, { profile, folder, token })
+      onChange(url)
+      onImageLoad?.(url)
+    } catch (err) {
+      console.error('Error al subir imagen:', err)
+      alert('No se pudo subir la imagen. Probá de nuevo.')
+    } finally {
+      setUploading(false)
+    }
   }
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
@@ -1448,13 +1458,14 @@ const ImagenFileInput = ({ value, onChange, onImageLoad, hint, className = '' })
         )}
         <button
           type="button"
+          disabled={uploading}
           onClick={() => ref.current.click()}
-          className="flex items-center gap-1.5 text-xs font-medium text-brand-600 border border-brand-200 bg-brand-50 hover:bg-brand-100 px-3 py-2 rounded-xl transition-all"
+          className="flex items-center gap-1.5 text-xs font-medium text-brand-600 border border-brand-200 bg-brand-50 hover:bg-brand-100 px-3 py-2 rounded-xl transition-all disabled:opacity-50"
         >
           <Upload size={12} />
-          {value ? 'Cambiar imagen' : 'Subir imagen'}
+          {uploading ? 'Subiendo…' : value ? 'Cambiar imagen' : 'Subir imagen'}
         </button>
-        {value && (
+        {value && !uploading && (
           <button
             type="button"
             onClick={() => { onChange(''); onImageLoad?.('') }}
@@ -3100,21 +3111,35 @@ const ModalEditarDisponibilidad = ({ torneo, inscripto, onClose, onGuardar, toke
 
 const ModalResultado = ({ partido, onClose, onGuardar }) => {
   const { pareja1, pareja2 } = partido
-  const [sets, setSets] = useState(
-    partido.resultado?.length
-      ? partido.resultado.map((s) => ({ p1: String(s.p1), p2: String(s.p2) }))
-      : [{ p1: '', p2: '' }]
-  )
 
-  const updateSet = (idx, field, val) =>
-    setSets((prev) => prev.map((s, i) => i === idx ? { ...s, [field]: val.replace(/\D/g, '').slice(0, 2) } : s))
+  const initSets = (r) => [
+    { p1: String(r?.[0]?.p1 ?? ''), p2: String(r?.[0]?.p2 ?? '') },
+    { p1: String(r?.[1]?.p1 ?? ''), p2: String(r?.[1]?.p2 ?? '') },
+    { p1: String(r?.[2]?.p1 ?? ''), p2: String(r?.[2]?.p2 ?? '') },
+  ]
+  const [sets, setSets] = useState(() => initSets(partido.resultado))
 
-  const addSet    = () => sets.length < 3 && setSets((p) => [...p, { p1: '', p2: '' }])
-  const removeSet = (idx) => setSets((p) => p.filter((_, i) => i !== idx))
+  const upd = (i, side, val) =>
+    setSets((prev) => prev.map((s, j) => j === i ? { ...s, [side]: val.replace(/\D/g, '').slice(0, 2) } : s))
 
-  const parsedSets     = sets.filter((s) => s.p1 !== '' && s.p2 !== '' && isValidSet(s.p1, s.p2)).map((s) => ({ p1: parseInt(s.p1), p2: parseInt(s.p2) }))
-  const ganadorPreview = calcularGanadorDesdeResultado(parsedSets, pareja1, pareja2)
-  const haySetInvalido = sets.some((s) => s.p1 !== '' && s.p2 !== '' && !isValidSet(s.p1, s.p2))
+  const filled  = (s) => s.p1 !== '' && s.p2 !== ''
+  const valido  = (s) => filled(s) && isValidSet(s.p1, s.p2)
+  const ganSet  = (s) => !valido(s) ? null : Number(s.p1) > Number(s.p2) ? 1 : 2
+
+  const v0 = valido(sets[0]), v1 = valido(sets[1])
+  const g0 = ganSet(sets[0]), g1 = ganSet(sets[1])
+  const needsSet3 = v0 && v1 && g0 !== g1
+  const completo  = v0 && v1 && (!needsSet3 || valido(sets[2]))
+
+  const parsedSets = [
+    valido(sets[0]) ? { p1: Number(sets[0].p1), p2: Number(sets[0].p2) } : null,
+    valido(sets[1]) ? { p1: Number(sets[1].p1), p2: Number(sets[1].p2) } : null,
+    needsSet3 && valido(sets[2]) ? { p1: Number(sets[2].p1), p2: Number(sets[2].p2) } : null,
+  ].filter(Boolean)
+
+  const ganadorPreview = completo ? calcularGanadorDesdeResultado(parsedSets, pareja1, pareja2) : null
+
+  const apeLabel = (p) => p ? `${p.jugador1?.split(' ').at(-1)} / ${p.jugador2?.split(' ').at(-1)}` : '—'
 
   const handleGuardar = () => {
     if (!ganadorPreview) return
@@ -3122,16 +3147,28 @@ const ModalResultado = ({ partido, onClose, onGuardar }) => {
     onClose()
   }
 
+  const inputCls = (s, lado) => {
+    const g = ganSet(s)
+    const gana  = g === lado
+    const pierde = g !== null && g !== lado
+    return `w-12 text-center text-base font-bold border rounded-xl px-1 py-2.5 outline-none transition-all focus:ring-2 focus:ring-brand-400/30 focus:border-brand-400 ${
+      gana   ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+      : pierde ? 'border-slate-200 bg-white text-slate-300'
+      :          'border-slate-200 bg-white text-slate-700'
+    }`
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xs flex flex-col">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xs flex flex-col overflow-hidden">
 
+        {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h2 className="text-slate-800 font-bold text-sm">Registrar resultado</h2>
-            <p className="text-slate-400 text-[11px] mt-0.5 truncate max-w-[200px]">
-              {pareja1?.jugador1?.split(' ').at(-1)} / {pareja1?.jugador2?.split(' ').at(-1)} vs {pareja2?.jugador1?.split(' ').at(-1)} / {pareja2?.jugador2?.split(' ').at(-1)}
+            <p className="text-slate-400 text-[11px] mt-0.5 truncate max-w-[210px]">
+              {apeLabel(pareja1)} vs {apeLabel(pareja2)}
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-lg transition-all shrink-0">
@@ -3139,57 +3176,89 @@ const ModalResultado = ({ partido, onClose, onGuardar }) => {
           </button>
         </div>
 
-        <div className="px-5 py-4 flex flex-col gap-3">
-
-          {/* Header nombres */}
-          <div className="grid grid-cols-[1fr_20px_1fr_20px] gap-2 px-1">
-            <span className="text-[10px] text-slate-400 font-semibold truncate">{pareja1?.jugador1?.split(' ')[0]}</span>
-            <span />
-            <span className="text-[10px] text-slate-400 font-semibold truncate">{pareja2?.jugador1?.split(' ')[0]}</span>
-            <span />
+        {/* Cards de pareja */}
+        <div className="px-5 pt-4 flex items-stretch gap-2">
+          <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 min-w-0">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pareja 1</p>
+            <p className="text-xs font-bold text-slate-700 leading-tight truncate">{pareja1?.jugador1?.split(' ').at(-1)}</p>
+            <p className="text-xs text-slate-500 leading-tight truncate">{pareja1?.jugador2?.split(' ').at(-1)}</p>
           </div>
+          <div className="flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-slate-300">vs</span>
+          </div>
+          <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 min-w-0">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pareja 2</p>
+            <p className="text-xs font-bold text-slate-700 leading-tight truncate">{pareja2?.jugador1?.split(' ').at(-1)}</p>
+            <p className="text-xs text-slate-500 leading-tight truncate">{pareja2?.jugador2?.split(' ').at(-1)}</p>
+          </div>
+        </div>
 
-          {sets.map((set, idx) => {
-            const completo = set.p1 !== '' && set.p2 !== ''
-            const invalido = completo && !isValidSet(set.p1, set.p2)
-            const inputBase = `w-full bg-slate-50 border rounded-lg px-2 py-2 text-sm text-slate-800 outline-none focus:ring-2 transition-all text-center font-mono ${
-              invalido ? 'border-red-300 focus:ring-red-400/30' : 'border-slate-200 focus:ring-brand-500/30 focus:border-brand-500'
-            }`
+        {/* Sets */}
+        <div className="px-5 py-4 flex flex-col gap-3">
+          {[0, 1, ...(needsSet3 ? [2] : [])].map((i) => {
+            const s   = sets[i]
+            const g   = ganSet(s)
+            const ok  = valido(s)
+            const bad = filled(s) && !ok
             return (
-              <div key={idx} className="flex flex-col gap-1">
-                <div className="grid grid-cols-[1fr_20px_1fr_20px] gap-2 items-center">
-                  <input type="text" inputMode="numeric" maxLength={2} value={set.p1} onChange={(e) => updateSet(idx, 'p1', e.target.value)} className={inputBase} placeholder="0" />
-                  <span className="text-slate-300 text-xs font-bold text-center">-</span>
-                  <input type="text" inputMode="numeric" maxLength={2} value={set.p2} onChange={(e) => updateSet(idx, 'p2', e.target.value)} className={inputBase} placeholder="0" />
-                  <button onClick={() => removeSet(idx)} disabled={sets.length === 1} className="text-slate-300 hover:text-red-400 disabled:opacity-0 transition-all flex justify-center">
-                    <X size={13} />
-                  </button>
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-[10px] font-semibold text-slate-300 w-9 shrink-0 text-right">Set {i + 1}</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text" inputMode="numeric" maxLength={2}
+                    value={s.p1} onChange={(e) => upd(i, 'p1', e.target.value)}
+                    placeholder="0" className={inputCls(s, 1)}
+                  />
+                  <span className="text-slate-300 font-bold text-base select-none">—</span>
+                  <input
+                    type="text" inputMode="numeric" maxLength={2}
+                    value={s.p2} onChange={(e) => upd(i, 'p2', e.target.value)}
+                    placeholder="0" className={inputCls(s, 2)}
+                  />
                 </div>
-                {invalido && <p className="text-[10px] text-red-500 pl-1">Resultado inválido</p>}
+                {ok && (
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded-lg border leading-none ${
+                    g === 1
+                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                      : 'text-sky-700 bg-sky-50 border-sky-200'
+                  }`}>
+                    P{g} ganó
+                  </span>
+                )}
+                {bad && <span className="text-[10px] text-red-400 font-medium">Inválido</span>}
               </div>
             )
           })}
-
-          {sets.length < 3 && (
-            <button onClick={addSet} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand-600 transition-all">
-              <Plus size={11} /> Agregar set
-            </button>
-          )}
-
-          {ganadorPreview && (
-            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
-              <Trophy size={13} className="text-emerald-500 shrink-0" />
-              <div>
-                <p className="text-[10px] text-emerald-600 font-medium">Ganador</p>
-                <p className="text-xs font-bold text-emerald-700">{ganadorPreview.jugador1} / {ganadorPreview.jugador2}</p>
-              </div>
-            </div>
+          {needsSet3 && !valido(sets[2]) && (
+            <p className="text-[10px] text-amber-500 font-medium pl-12">Empate 1-1 · Cargá el set definitivo</p>
           )}
         </div>
 
+        {/* Ganador */}
+        {ganadorPreview ? (
+          <div className="mx-5 mb-4 flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+            <Trophy size={14} className="text-emerald-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[10px] text-emerald-600 font-semibold uppercase tracking-wide leading-none mb-1">Ganador</p>
+              <p className="text-sm font-bold text-emerald-800 leading-tight truncate">
+                {ganadorPreview.jugador1?.split(' ').at(-1)} / {ganadorPreview.jugador2?.split(' ').at(-1)}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="h-1" />
+        )}
+
+        {/* Footer */}
         <div className="px-5 py-3.5 border-t border-slate-100 flex gap-2 justify-end">
-          <button onClick={onClose} className="px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all">Cancelar</button>
-          <button onClick={handleGuardar} disabled={!ganadorPreview || haySetInvalido} className="px-4 py-2 text-xs font-bold bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-all">
+          <button onClick={onClose} className="px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all">
+            Cancelar
+          </button>
+          <button
+            onClick={handleGuardar}
+            disabled={!ganadorPreview}
+            className="px-4 py-2 text-xs font-bold bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-all"
+          >
             Guardar
           </button>
         </div>
@@ -3200,16 +3269,34 @@ const ModalResultado = ({ partido, onClose, onGuardar }) => {
 
 // ── Modal horario partido del bracket ────────────────────────────────────────
 
-const ModalHorario = ({ partido, canchasActivas, onClose, onGuardar }) => {
+const ModalHorario = ({ partido, canchasActivas, allPartidos = [], onClose, onGuardar }) => {
   const [fecha,  setFecha]  = useState(partido.fecha  ?? '')
   const [hora,   setHora]   = useState(partido.hora   ?? '')
   const [cancha, setCancha] = useState(partido.cancha ?? '')
 
   const apellido = (n) => n?.split(' ').at(-1) ?? n
-  const p1 = partido.pareja1 ? `${apellido(partido.pareja1.jugador1)} / ${apellido(partido.pareja1.jugador2)}` : '—'
-  const p2 = partido.pareja2 ? `${apellido(partido.pareja2.jugador1)} / ${apellido(partido.pareja2.jugador2)}` : '—'
+  const parejaLabel = (p) => {
+    if (!p) return '—'
+    if (p.tbd) return p.label
+    return `${apellido(p.jugador1)} / ${apellido(p.jugador2)}`
+  }
+  const p1 = parejaLabel(partido.pareja1)
+  const p2 = parejaLabel(partido.pareja2)
 
   const inputCls = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all'
+
+  // Validación inline: misma cancha + mismo horario + misma fecha en otro partido
+  const conflicto = useMemo(() => {
+    if (!fecha || !hora || !cancha) return null
+    const otro = allPartidos.find(
+      (p) => p.id !== partido.id && p.fecha === fecha && p.hora === hora && String(p.cancha) === String(cancha)
+    )
+    if (!otro) return null
+    const a1 = otro.pareja1?.tbd ? otro.pareja1.label : otro.pareja1 ? `${apellido(otro.pareja1.jugador1)} / ${apellido(otro.pareja1.jugador2)}` : '—'
+    const a2 = otro.pareja2?.tbd ? otro.pareja2.label : otro.pareja2 ? `${apellido(otro.pareja2.jugador1)} / ${apellido(otro.pareja2.jugador2)}` : '—'
+    const nombreCancha = canchasActivas.find((c) => String(c.id) === String(cancha))?.nombre ?? `Cancha ${cancha}`
+    return `${nombreCancha} ya tiene un partido a las ${hora} hs: ${a1} vs ${a2}`
+  }, [fecha, hora, cancha, allPartidos, partido.id, canchasActivas])
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -3229,22 +3316,64 @@ const ModalHorario = ({ partido, canchasActivas, onClose, onGuardar }) => {
             </div>
             <div>
               <label className="text-xs font-medium text-slate-600 block mb-1.5">Hora</label>
-              <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className={inputCls} />
+              <div className="flex items-center gap-1">
+                <select
+                  value={hora ? hora.split(':')[0] : ''}
+                  onChange={(e) => {
+                    const m = hora ? hora.split(':')[1] : '00'
+                    setHora(e.target.value ? `${e.target.value}:${m}` : '')
+                  }}
+                  className={inputCls}
+                >
+                  <option value="">--</option>
+                  {Array.from({ length: 18 }, (_, i) => i + 6).map((h) => (
+                    <option key={h} value={String(h).padStart(2, '0')}>{String(h).padStart(2, '0')}</option>
+                  ))}
+                </select>
+                <span className="text-slate-400 font-bold shrink-0">:</span>
+                <select
+                  value={hora ? hora.split(':')[1] : ''}
+                  onChange={(e) => {
+                    const h = hora ? hora.split(':')[0] : '08'
+                    setHora(e.target.value ? `${h}:${e.target.value}` : '')
+                  }}
+                  className={inputCls}
+                >
+                  <option value="">--</option>
+                  <option value="00">00</option>
+                  <option value="15">15</option>
+                  <option value="30">30</option>
+                  <option value="45">45</option>
+                </select>
+              </div>
             </div>
           </div>
           <div>
             <label className="text-xs font-medium text-slate-600 block mb-1.5">Cancha</label>
-            <select value={cancha} onChange={(e) => setCancha(e.target.value)} className={inputCls}>
+            <select value={cancha} onChange={(e) => setCancha(e.target.value)} className={`${inputCls} ${conflicto ? 'border-red-300 focus:ring-red-400/30 focus:border-red-400' : ''}`}>
               <option value="">— Sin asignar —</option>
               {canchasActivas.map((c) => (
                 <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
             </select>
           </div>
+
+          {conflicto && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3.5 py-3">
+              <AlertTriangle size={14} className="text-red-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-red-600 leading-snug">{conflicto}</p>
+            </div>
+          )}
         </div>
         <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
           <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all">Cancelar</button>
-          <button onClick={() => onGuardar(fecha || null, hora || null, cancha || null)} className="px-5 py-2 text-sm font-bold bg-brand-500 hover:bg-brand-600 text-white rounded-xl transition-all">Guardar</button>
+          <button
+            onClick={() => !conflicto && onGuardar(fecha || null, hora || null, cancha || null)}
+            disabled={!!conflicto}
+            className={`px-5 py-2 text-sm font-bold rounded-xl transition-all ${conflicto ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-brand-500 hover:bg-brand-600 text-white'}`}
+          >
+            Guardar
+          </button>
         </div>
       </div>
     </div>
@@ -3359,7 +3488,7 @@ const TorneoDetallePage = () => {
   const navigate = useNavigate()
   const { torneos, setTorneos, addTorneoFromApi, setEstado, setBracket, updateBracket, bajaInscripto, setGanadores,
           setGrupos, updateGrupos, resolveGroupTie, addPareja, addParejaFromApi, updatePareja,
-          updatePersonalizacion } = useTorneosStore()
+          updatePersonalizacion, updateTorneoFromApi } = useTorneosStore()
   const token = useAuthStore((s) => s.token)
   const adminClubId = useAuthStore((s) => s.user?.club?.id)
   // Notificaciones al jugador se crean en el backend (tabla notificaciones), no desde el admin
@@ -3397,8 +3526,13 @@ const TorneoDetallePage = () => {
   const [vistaParalela,     setVistaParalela]     = useState(false)
   const [intervaloPartidoMin, setIntervaloPartidoMin] = useState(75)
   const [autoScheduleState, setAutoScheduleState] = useState(null) // null | {status:'procesando'} | {status:'done',asignados,sinHorario}
+  const [elimIntervaloMin, setElimIntervaloMin] = useState(75)
+  const [elimAutoState, setElimAutoState] = useState(null) // null | {status:'procesando'} | {status:'done',asignados}
   const [modalAsignarManual, setModalAsignarManual] = useState(null) // null | { matchId, zonaIdx, partido }
   const [toast, setToast] = useState(null)
+  const [reprogramarOpen, setReprogramarOpen] = useState(false)
+  const [reprogramarFecha, setReprogramarFecha] = useState('')
+  const [reprogramarSaving, setReprogramarSaving] = useState(false)
   const [toastEstado, setToastEstado] = useState(null)
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
   const [confirmModal, setConfirmModal] = useState(null) // { titulo, mensaje, onConfirmar }
@@ -3454,6 +3588,13 @@ const TorneoDetallePage = () => {
       drawColorTitulo:       t?.drawColorTitulo       ?? '',
       bracketColores:        t?.bracketColores        ?? {},
       bracketColorCards:     t?.bracketColorCards     ?? {},
+      bracketTemplate:       t?.bracketTemplate       ?? 'default',
+      bracketConnColor:      t?.bracketConnColor      ?? null,
+      bracketConnGlow:       t?.bracketConnGlow       ?? true,
+      bracketWatermark:      t?.bracketWatermark      ?? null,
+      bracketWatermarkOculto: t?.bracketWatermarkOculto ?? false,
+      bracketFondoColor:     t?.bracketFondoColor     ?? null,
+      drawMostrarGenero:     t?.drawMostrarGenero     ?? true,
     }
   })
   const [selectedBracketCat, setSelectedBracketCat] = useState(() => {
@@ -3508,7 +3649,28 @@ const TorneoDetallePage = () => {
   const [showPersonalizarEnCurso, setShowPersonalizarEnCurso] = useState(() =>
     COLOR_OVERRIDE_KEYS_ENCURSO.some((k) => !!(torneos.find((x) => String(x.id) === id)?.[k]))
   )
+  const [showDrawHeader, setShowDrawHeader] = useState(false)
+  const [showDrawCards, setShowDrawCards] = useState(false)
+  const [showDrawFondo, setShowDrawFondo] = useState(false)
   const setP = (k, v) => setPersona((p) => ({ ...p, [k]: v }))
+
+  // Al cambiar de template se limpian los overrides visuales (colores, glow, watermark, fondo)
+  // para que cada template arranque con su identidad propia.
+  // Se preservan: título, imágenes subidas, visibilidad de secciones, colores por categoría.
+  const VISUAL_OVERRIDES_DRAW = [
+    'bracketConnColor', 'bracketConnGlow', 'bracketWatermark',
+    'bracketWatermarkOculto', 'bracketFondoColor', 'drawColorTitulo',
+  ]
+  const switchBracketTemplate = (newId) => {
+    if (newId === (persona.bracketTemplate ?? 'default')) return
+    setPersona((p) => {
+      const next = { ...p, bracketTemplate: newId }
+      VISUAL_OVERRIDES_DRAW.forEach((k) => { next[k] = null })
+      next.bracketConnGlow = null   // null → usa el default del theme (true/false según tema)
+      next.bracketWatermarkOculto = false
+      return next
+    })
+  }
 
   // Si el store estaba vacío al montar (navegación directa / refresh), persona queda con
   // defaults. Cuando el fetch async puebla el store, sincronizamos persona con los valores
@@ -3571,9 +3733,13 @@ const TorneoDetallePage = () => {
             generoPorCategoria: t.generoPorCategoria ?? {},
             canchasAsignadas: t.canchasAsignadas ?? [],
             fechaInicio: t.fechaInicio, fechaFin: t.fechaFin,
+            fechaReprogramada: t.fechaReprogramada ?? null,
             fechaLimiteInscripcion: t.fechaLimiteInscripcion,
             diaInicioEliminatoria: t.diaInicioEliminatoria ?? null,
             horaInicioEliminatoria: t.horaInicioEliminatoria ?? null,
+            fechaInicioEliminatoria: t.fechaInicioEliminatoria ?? null,
+            fechaInicioQF: t.fechaInicioQF ?? null,
+            horaInicioQF: t.horaInicioQF ?? null,
             descripcion: t.descripcion ?? '',
             inscriptos: (t.parejas ?? []).map((p) => ({
               id: p.id, jugador1: p.jugador1, jugador2: p.jugador2,
@@ -3606,6 +3772,18 @@ const TorneoDetallePage = () => {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [torneo?.id])
+
+  // Sync selectedBracketCat en cold start: el useState inicializa con store vacío y queda en null.
+  // Cuando llega el fetch y torneo aparece, setear la categoría correcta.
+  useEffect(() => {
+    if (selectedBracketCat !== null) return
+    if (!torneo) return
+    const brackets = torneo.brackets ?? {}
+    const cats = Object.keys(brackets)
+    if (cats.length > 0) { setSelectedBracketCat(cats[0]); return }
+    if (torneo.categorias?.[0]) setSelectedBracketCat(torneo.categorias[0])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [torneo?.id, torneo?.brackets])
 
   // Navegar de vuelta si el torneo fue eliminado
   useEffect(() => {
@@ -3676,6 +3854,21 @@ const TorneoDetallePage = () => {
     }
   }
 
+  const handleReprogramar = async (nueva) => {
+    if (reprogramarSaving) return
+    setReprogramarSaving(true)
+    try {
+      await api.patch(`/torneos/${torneo.id}/reprogramar`, { fechaReprogramada: nueva || null }, authH)
+      updateTorneoFromApi({ id: torneo.id, fechaReprogramada: nueva || null })
+      setReprogramarOpen(false)
+      setReprogramarFecha('')
+    } catch {
+      showToast('Error al reprogramar el torneo')
+    } finally {
+      setReprogramarSaving(false)
+    }
+  }
+
   const handleRegistrarResultado = (matchId, datos) => {
     if (!activeBracket) return
     const newBracket = advanceWinner(activeBracket, matchId, datos)
@@ -3712,6 +3905,130 @@ const TorneoDetallePage = () => {
     updateBracket(torneo.id, selectedBracketCat, newBracket)
     syncBrackets({ ...(torneo.brackets ?? {}), [selectedBracketCat]: newBracket })
     setModalHorario(null)
+  }
+
+  const handleAutoScheduleElim = () => {
+    const allBrackets = torneo.brackets ?? {}
+    if (!Object.keys(allBrackets).length) return
+    setElimAutoState({ status: 'procesando' })
+
+    setTimeout(() => {
+      const canchasParaTorneo = torneo.canchasAsignadas?.length
+        ? canchas.filter((c) => torneo.canchasAsignadas.includes(c.id))
+        : canchas.filter((c) => c.activa)
+      const canchasActivas = canchasParaTorneo
+
+      const fechaDia1 = torneo.fechaInicioEliminatoria ?? null
+      const horaElim  = torneo.horaInicioEliminatoria  ?? null
+      const fechaQF   = torneo.fechaInicioQF            ?? null
+      const horaQF    = torneo.horaInicioQF             ?? null
+
+      const isDate = (d) => d && typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)
+      const isTime = (t) => t && typeof t === 'string' && t.includes(':')
+
+      if (!isDate(fechaDia1) || !isTime(horaElim) || !canchasActivas.length) {
+        setElimAutoState({ status: 'done', asignados: 0, sinConfig: true })
+        setTimeout(() => setElimAutoState(null), 4000)
+        return
+      }
+
+      const timeToMin = (t) => { const [h, m = 0] = (t ?? '00:00').split(':').map(Number); return h * 60 + m }
+      const minToTime = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+
+      // Mapa global de canchas ocupadas para evitar pisadas entre categorías
+      // clave: `${courtId}||${dia}||${min}`
+      const ocupados = new Set()
+      const cortLibre  = (courtId, dia, min) => !ocupados.has(`${courtId}||${dia}||${min}`)
+      const reservar   = (courtId, dia, min) => ocupados.add(`${courtId}||${dia}||${min}`)
+
+      // Encuentra el slot más temprano (>= startMin en `dia`) donde haya `needed` canchas libres
+      const findSlot = (dia, startMin, needed) => {
+        let m = startMin
+        for (let i = 0; i < 48; i++) {
+          const libres = canchasActivas.filter((c) => cortLibre(c.id, dia, m))
+          if (libres.length >= needed) return { m, libres }
+          m += elimIntervaloMin
+        }
+        return { m: startMin, libres: canchasActivas.slice(0, needed) }
+      }
+
+      // Ordena categorías: menor cantidad de zonas primero (categoría más baja = slots más temprano)
+      const zonasPorCat = {}
+      for (const zona of torneo.grupos ?? []) {
+        const c = zona.categoria ?? 'default'
+        zonasPorCat[c] = (zonasPorCat[c] ?? 0) + 1
+      }
+      const cats = Object.keys(allBrackets).sort(
+        (a, b) => (zonasPorCat[a] ?? 999) - (zonasPorCat[b] ?? 999)
+      )
+
+      const newBrackets = JSON.parse(JSON.stringify(allBrackets))
+      let totalAsignados = 0
+
+      for (const cat of cats) {
+        const bracket = newBrackets[cat]
+        if (!bracket?.rondas?.length) continue
+
+        // Identifica dónde empieza QF (nombre exacto o 4 partidos dentro de un bracket ≥ 8)
+        const qfIdx = bracket.rondas.findIndex((r) => r.nombre === 'Cuartos de final')
+        const hasSplit = qfIdx !== -1 && isDate(fechaQF) && isTime(horaQF)
+
+        const rondasDia1 = hasSplit ? bracket.rondas.slice(0, qfIdx) : bracket.rondas
+        const rondasDia2 = hasSplit ? bracket.rondas.slice(qfIdx)    : []
+
+        // Programa rondas del Día 1
+        let curMin1 = timeToMin(horaElim)
+        for (const ronda of rondasDia1) {
+          const partidos = ronda.partidos ?? []
+          if (!partidos.length) continue
+          let idx = 0
+          while (idx < partidos.length) {
+            const oleada = partidos.slice(idx, idx + canchasActivas.length)
+            const { m, libres } = findSlot(fechaDia1, curMin1, oleada.length)
+            oleada.forEach((partido, i) => {
+              partido.fecha  = fechaDia1
+              partido.hora   = minToTime(m)
+              partido.cancha = libres[i].id
+              reservar(libres[i].id, fechaDia1, m)
+              totalAsignados++
+            })
+            curMin1 = m + elimIntervaloMin
+            idx += canchasActivas.length
+          }
+        }
+
+        // Programa rondas del Día 2 (QF, SF, Final)
+        if (rondasDia2.length) {
+          let curMin2 = timeToMin(horaQF)
+          for (const ronda of rondasDia2) {
+            const partidos = ronda.partidos ?? []
+            if (!partidos.length) continue
+            let idx = 0
+            while (idx < partidos.length) {
+              const oleada = partidos.slice(idx, idx + canchasActivas.length)
+              const { m, libres } = findSlot(fechaQF, curMin2, oleada.length)
+              oleada.forEach((partido, i) => {
+                partido.fecha  = fechaQF
+                partido.hora   = minToTime(m)
+                partido.cancha = libres[i].id
+                reservar(libres[i].id, fechaQF, m)
+                totalAsignados++
+              })
+              curMin2 = m + elimIntervaloMin
+              idx += canchasActivas.length
+            }
+          }
+        }
+      }
+
+      // Guarda todos los brackets actualizados
+      for (const [cat, bracket] of Object.entries(newBrackets)) {
+        updateBracket(torneo.id, cat, bracket)
+      }
+      syncBrackets(newBrackets)
+      setElimAutoState({ status: 'done', asignados: totalAsignados })
+      setTimeout(() => setElimAutoState(null), 4000)
+    }, 500)
   }
 
   const handleBajaInscripto = async (inscriptoId, ins) => {
@@ -3935,12 +4252,40 @@ const TorneoDetallePage = () => {
     if (grupos) syncGrupos(grupos)
   }
 
-  const handleGenerarFaseEliminatoria = () => {
+  const handleGenerarBracketPreliminar = () => {
     try {
-      const cats = [...new Set((torneo.grupos ?? []).map((z) => z.categoria).filter(Boolean))]
+      const cats        = [...new Set((torneo.grupos ?? []).map((z) => z.categoria).filter(Boolean))]
       const newBrackets = { ...(torneo.brackets ?? {}) }
       if (cats.length <= 1) {
-        const bracket = generateAPAEliminationBracket(torneo.grupos)
+        const bracket = generateAPASkeletonBracket(torneo.grupos)
+        const cat     = cats[0] ?? torneo.categorias[0] ?? 'default'
+        setBracket(torneo.id, cat, bracket)
+        newBrackets[cat] = bracket
+        setSelectedBracketCat(cat)
+      } else {
+        let firstCat = null
+        cats.forEach((cat) => {
+          const zonasCat = torneo.grupos.filter((z) => z.categoria === cat)
+          const bracket  = generateAPASkeletonBracket(zonasCat)
+          setBracket(torneo.id, cat, bracket)
+          newBrackets[cat] = bracket
+          if (!firstCat) firstCat = cat
+        })
+        if (firstCat) setSelectedBracketCat(firstCat)
+      }
+      syncBrackets(newBrackets)
+      setTab('fixture')
+    } catch (e) { showToast(e.message) }
+  }
+
+  const handleGenerarFaseEliminatoria = () => {
+    try {
+      const cats        = [...new Set((torneo.grupos ?? []).map((z) => z.categoria).filter(Boolean))]
+      const newBrackets = { ...(torneo.brackets ?? {}) }
+      if (cats.length <= 1) {
+        let bracket   = generateAPAEliminationBracket(torneo.grupos)
+        const skelCat = torneo.brackets?.[cats[0] ?? torneo.categorias[0] ?? 'default']
+        if (skelCat?.isSkeleton) bracket = mergeScheduleFromSkeleton(bracket, skelCat)
         const cat = cats[0] ?? torneo.categorias[0] ?? 'default'
         setBracket(torneo.id, cat, bracket)
         newBrackets[cat] = bracket
@@ -3949,7 +4294,9 @@ const TorneoDetallePage = () => {
         let firstCat = null
         cats.forEach((cat) => {
           const zonasCat = torneo.grupos.filter((z) => z.categoria === cat)
-          const bracket = generateAPAEliminationBracket(zonasCat)
+          let bracket    = generateAPAEliminationBracket(zonasCat)
+          if (torneo.brackets?.[cat]?.isSkeleton)
+            bracket = mergeScheduleFromSkeleton(bracket, torneo.brackets[cat])
           setBracket(torneo.id, cat, bracket)
           newBrackets[cat] = bracket
           if (!firstCat) firstCat = cat
@@ -4007,7 +4354,15 @@ const TorneoDetallePage = () => {
           <div className="flex items-center gap-4 mt-1.5 text-slate-400 text-xs flex-wrap">
             <span className="flex items-center gap-1.5">
               <Calendar size={12} />
-              {fmtFecha(torneo.fechaInicio)} → {fmtFecha(torneo.fechaFin)}
+              <span className="text-slate-500 font-medium">Inicio</span> {fmtFecha(torneo.fechaInicio)}
+              <span className="mx-0.5">→</span>
+              <span className="text-slate-500 font-medium">Fin</span>
+              <span className={torneo.fechaReprogramada ? 'line-through text-slate-300' : ''}>{fmtFecha(torneo.fechaFin)}</span>
+              {torneo.fechaReprogramada && (
+                <span className="text-amber-500 font-semibold flex items-center gap-1">
+                  <Flag size={11} /> Reprogr. {fmtFecha(torneo.fechaReprogramada)}
+                </span>
+              )}
             </span>
             <span>{torneo.formato}</span>
             <span>{torneo.categorias.join(', ')}</span>
@@ -4083,7 +4438,7 @@ const TorneoDetallePage = () => {
           {[
             { key: 'inscriptos', label: 'Parejas inscriptas', icon: Users,     count: torneo.inscriptos.filter((i) => i.estado === 'inscripto').length },
             ...(esFormatoGrupos ? [{ key: 'grupos',   label: 'Grupos',          icon: GitMerge, count: torneo.grupos ? torneo.grupos.length : null }] : []),
-            { key: 'fixture',    label: 'Fixture / Bracket',  icon: Zap,       count: activeBracket ? activeBracket.rondas.length : null },
+            { key: 'fixture',    label: 'Fixture / Cuadro',   icon: Zap,       count: activeBracket ? activeBracket.rondas.length : null },
             ...(torneo.estado !== 'finished' ? [{ key: 'visual', label: 'Personalización', icon: Palette, count: null }] : []),
           ].map(({ key, label, icon: Icon, count }) => (
             <button
@@ -4313,7 +4668,8 @@ const TorneoDetallePage = () => {
             {/* Grupos confirmados — modo juego */}
             {gruposConfirmados && (
               <div className="flex flex-col gap-4">
-                {isGroupPhaseFinished(torneo.grupos) && (!torneo.brackets || Object.keys(torneo.brackets).length === 0) && (
+                {/* Fase de grupos completa → generar bracket final (o confirmar si hay skeleton) */}
+                {isGroupPhaseFinished(torneo.grupos) && (!torneo.brackets || Object.keys(torneo.brackets).length === 0 || activeBracket?.isSkeleton) && (
                   <div className="flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
                     <p className="text-emerald-700 text-sm font-semibold">
                       ✓ Fase de grupos completa — {getAllClasificados(torneo.grupos).length} parejas clasificadas
@@ -4322,7 +4678,24 @@ const TorneoDetallePage = () => {
                       onClick={handleGenerarFaseEliminatoria}
                       className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shrink-0"
                     >
-                      <Zap size={13} /> Generar fase eliminatoria
+                      <Zap size={13} />
+                      {activeBracket?.isSkeleton ? 'Confirmar bracket' : 'Generar fase eliminatoria'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Grupos en curso → generar bracket preliminar para pre-asignar horarios */}
+                {!isGroupPhaseFinished(torneo.grupos) && (!torneo.brackets || Object.keys(torneo.brackets).length === 0 || activeBracket?.isSkeleton) && (
+                  <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                    <div>
+                      <p className="text-amber-800 text-sm font-semibold">Bracket preliminar disponible</p>
+                      <p className="text-amber-700 text-xs mt-0.5">Pre-asigná horarios del Draw aunque los grupos no estén terminados.</p>
+                    </div>
+                    <button
+                      onClick={handleGenerarBracketPreliminar}
+                      className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shrink-0"
+                    >
+                      <Zap size={13} /> {activeBracket?.isSkeleton ? 'Regenerar preliminar' : 'Bracket preliminar'}
                     </button>
                   </div>
                 )}
@@ -4485,88 +4858,85 @@ const TorneoDetallePage = () => {
               <div className="bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <Palette size={13} className="text-slate-400 shrink-0" />
-                  <span className="text-xs font-semibold text-slate-600 flex-1">Colores del bracket por categoría</span>
+                  <span className="text-xs font-semibold text-slate-600 flex-1">Colores del cuadro</span>
                   <span className="text-[10px] font-medium text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-md">No afecta la landing</span>
-                  {Object.values(persona.bracketColores ?? {}).some(Boolean) && (
-                    <button
-                      onClick={() => {
-                        setPersona(p => ({ ...p, bracketColores: {} }))
-                        updatePersonalizacion(torneo.id, { bracketColores: {} })
-                      }}
-                      className="text-[10px] text-slate-400 hover:text-red-400 transition-colors"
-                    >
-                      Limpiar todo
-                    </button>
-                  )}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {torneo.categorias.map((cat) => {
-                    const color = persona.bracketColores?.[cat] || ''
-                    return (
-                      <div key={cat} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5">
-                        <input
-                          type="color"
-                          value={color || club?.colorPrimario || '#10b981'}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            setPersona(p => ({ ...p, bracketColores: { ...p.bracketColores, [cat]: val } }))
-                            updatePersonalizacion(torneo.id, { bracketColores: { ...(torneo.bracketColores ?? {}), [cat]: val } })
-                          }}
-                          className="w-6 h-6 rounded-md border-0 cursor-pointer p-0 bg-transparent shrink-0"
-                        />
-                        <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">{cat}</span>
-                        {color && (
-                          <button
-                            onClick={() => {
-                              setPersona(p => { const bc = { ...p.bracketColores }; delete bc[cat]; return { ...p, bracketColores: bc } })
-                              const bc = { ...(torneo.bracketColores ?? {}) }; delete bc[cat]
-                              updatePersonalizacion(torneo.id, { bracketColores: bc })
-                            }}
-                            className="text-slate-300 hover:text-red-400 transition-colors ml-0.5"
-                            title="Quitar color"
-                          >
-                            <X size={11} />
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                <div className="flex gap-6 flex-wrap">
+                  {/* Colores del cuadro */}
+                  <div className="flex flex-col gap-1.5 min-w-0">
+                    <span className="text-[10px] font-semibold text-slate-400">Color por categoría</span>
+                    <div className="flex flex-wrap gap-2">
+                      {torneo.categorias.map((cat) => {
+                        const color = persona.bracketColores?.[cat] || ''
+                        return (
+                          <div key={cat} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5">
+                            <input
+                              type="color"
+                              value={color || club?.colorPrimario || '#10b981'}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setPersona(p => ({ ...p, bracketColores: { ...p.bracketColores, [cat]: val } }))
+                                updatePersonalizacion(torneo.id, { bracketColores: { ...(torneo.bracketColores ?? {}), [cat]: val } })
+                              }}
+                              className="w-6 h-6 rounded-md border-0 cursor-pointer p-0 bg-transparent shrink-0"
+                            />
+                            <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">{cat}</span>
+                            {color && (
+                              <button
+                                onClick={() => {
+                                  setPersona(p => { const bc = { ...p.bracketColores }; delete bc[cat]; return { ...p, bracketColores: bc } })
+                                  const bc = { ...(torneo.bracketColores ?? {}) }; delete bc[cat]
+                                  updatePersonalizacion(torneo.id, { bracketColores: bc })
+                                }}
+                                className="text-slate-300 hover:text-red-400 transition-colors ml-0.5"
+                                title="Quitar color"
+                              >
+                                <X size={11} />
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
 
-                {/* Fondo del draw por categoría */}
-                <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
-                  <span className="text-[10px] font-semibold text-slate-400 w-full">Color de card por categoría</span>
-                  {torneo.categorias.map((cat) => {
-                    const fondo = persona.bracketColorCards?.[cat] || ''
-                    return (
-                      <div key={cat} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5">
-                        <input
-                          type="color"
-                          value={fondo || '#0d1117'}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            setPersona(p => ({ ...p, bracketColorCards: { ...p.bracketColorCards, [cat]: val } }))
-                            updatePersonalizacion(torneo.id, { bracketColorCards: { ...(torneo.bracketColorCards ?? {}), [cat]: val } })
-                          }}
-                          className="w-6 h-6 rounded-md border-0 cursor-pointer p-0 bg-transparent shrink-0"
-                        />
-                        <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">{cat}</span>
-                        {fondo && (
-                          <button
-                            onClick={() => {
-                              setPersona(p => { const bf = { ...p.bracketColorCards }; delete bf[cat]; return { ...p, bracketColorCards: bf } })
-                              const bf = { ...(torneo.bracketColorCards ?? {}) }; delete bf[cat]
-                              updatePersonalizacion(torneo.id, { bracketColorCards: bf })
-                            }}
-                            className="text-slate-300 hover:text-red-400 transition-colors ml-0.5"
-                            title="Quitar color de card"
-                          >
-                            <X size={11} />
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
+                  {/* Fondo de card por categoría */}
+                  <div className="flex flex-col gap-1.5 min-w-0">
+                    <span className="text-[10px] font-semibold text-slate-400">Fondo de card</span>
+                    <div className="flex flex-wrap gap-2">
+                      {torneo.categorias.map((cat) => {
+                        const fondo = persona.bracketColorCards?.[cat] || ''
+                        return (
+                          <div key={cat} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5">
+                            <input
+                              type="color"
+                              value={fondo || '#0d1117'}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setPersona(p => ({ ...p, bracketColorCards: { ...p.bracketColorCards, [cat]: val } }))
+                                updatePersonalizacion(torneo.id, { bracketColorCards: { ...(torneo.bracketColorCards ?? {}), [cat]: val } })
+                              }}
+                              className="w-6 h-6 rounded-md border-0 cursor-pointer p-0 bg-transparent shrink-0"
+                            />
+                            <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">{cat}</span>
+                            {fondo && (
+                              <button
+                                onClick={() => {
+                                  setPersona(p => { const bf = { ...p.bracketColorCards }; delete bf[cat]; return { ...p, bracketColorCards: bf } })
+                                  const bf = { ...(torneo.bracketColorCards ?? {}) }; delete bf[cat]
+                                  updatePersonalizacion(torneo.id, { bracketColorCards: bf })
+                                }}
+                                className="text-slate-300 hover:text-red-400 transition-colors ml-0.5"
+                                title="Quitar color de card"
+                              >
+                                <X size={11} />
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -4627,6 +4997,40 @@ const TorneoDetallePage = () => {
                       Vista paralela
                     </button>
                   )}
+                  {/* Chip bracket preliminar */}
+                  {activeBracket?.isSkeleton && (
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                      Bracket preliminar — confirmá en Grupos cuando terminen
+                    </span>
+                  )}
+                  {/* ── Auto-asignar horarios Draw ── */}
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={elimIntervaloMin}
+                      onChange={(e) => setElimIntervaloMin(Number(e.target.value))}
+                      className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-600 outline-none focus:ring-2 focus:ring-brand-500/30 cursor-pointer"
+                    >
+                      <option value={60}>60 min</option>
+                      <option value={75}>75 min</option>
+                      <option value={90}>90 min</option>
+                    </select>
+                    <button
+                      onClick={handleAutoScheduleElim}
+                      disabled={elimAutoState?.status === 'procesando'}
+                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all border shadow-sm disabled:opacity-50 text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200 hover:border-amber-300"
+                    >
+                      <Zap size={12} />
+                      {elimAutoState?.status === 'procesando' ? 'Asignando…' : 'Auto-asignar'}
+                    </button>
+                    {elimAutoState?.status === 'done' && (
+                      <span className={`text-[10px] font-semibold px-2 py-1 rounded-lg border ${elimAutoState.sinConfig ? 'text-red-600 bg-red-50 border-red-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200'}`}>
+                        {elimAutoState.sinConfig
+                          ? 'Falta la fecha real del 1er día del draw (editá el torneo)'
+                          : `${elimAutoState.asignados} partido${elimAutoState.asignados !== 1 ? 's' : ''} asignado${elimAutoState.asignados !== 1 ? 's' : ''}`}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex-1" />
                   {/* Publicar en redes */}
                   <button
@@ -4668,6 +5072,7 @@ const TorneoDetallePage = () => {
                             onEditarHorario={setModalHorario}
                             accentColorOverride={color}
                             colorCardOverride={torneo.bracketColorCards?.[cat] || null}
+                            bracketTemplate="default"
                             hideHeader
                           />
                         </div>
@@ -4686,6 +5091,7 @@ const TorneoDetallePage = () => {
                     onEditarHorario={setModalHorario}
                     accentColorOverride={torneo.bracketColores?.[selectedBracketCat] || null}
                     colorCardOverride={torneo.bracketColorCards?.[selectedBracketCat] || null}
+                    bracketTemplate="default"
                     hideHeader
                   />
                 )}
@@ -4717,6 +5123,7 @@ const TorneoDetallePage = () => {
                     onEditarHorario={setModalHorario}
                     accentColorOverride={torneo.bracketColores?.[selectedBracketCat] || null}
                     colorCardOverride={torneo.bracketColorCards?.[selectedBracketCat] || null}
+                    bracketTemplate="default"
                   />
                 </div>
               </div>
@@ -5295,7 +5702,7 @@ const TorneoDetallePage = () => {
                           <button type="button" onClick={() => setP('sponsorLogoFixture', '')} className="text-xs text-red-400 hover:text-red-600">Quitar</button>
                         </div>
                       ) : null}
-                      <ImagenFileInput value={persona.sponsorLogoFixture} onChange={(v) => setP('sponsorLogoFixture', v)} hint="Logo del sponsor. Recomendado: fondo transparente (PNG)." />
+                      <ImagenFileInput value={persona.sponsorLogoFixture} onChange={(v) => setP('sponsorLogoFixture', v)} profile="logo" hint="Logo del sponsor. Recomendado: fondo transparente (PNG)." />
                     </div>
                   )}
 
@@ -5382,7 +5789,7 @@ const TorneoDetallePage = () => {
                             </div>
                           </div>
                         </ImageZonePreview>
-                        <ImagenFileInput value={persona.imagenWatermarkGrupos} onChange={(v) => setP('imagenWatermarkGrupos', v)} hint="Logo o imagen vectorizada al fondo de las cards de zona. Recomendado: PNG transparente." />
+                        <ImagenFileInput value={persona.imagenWatermarkGrupos} onChange={(v) => setP('imagenWatermarkGrupos', v)} profile="logo" hint="Logo o imagen vectorizada al fondo de las cards de zona. Recomendado: PNG transparente." />
                       </div>
                     </div>
 
@@ -5470,94 +5877,234 @@ const TorneoDetallePage = () => {
               {/* ── SUB-TAB: Draw ── */}
               {visualTab === 'draw' && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {[
-                      { key: 'imagenFondoDraw', label: 'Imagen fondo header', bracket: false },
-                      { key: 'imagenFondoBracket', label: 'Imagen fondo llaves', bracket: true },
-                    ].map(({ key, label, bracket }) => (
-                      <div key={key}>
-                        <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
-                        <ImageZonePreview src={persona[key]}>
-                          {bracket ? (
-                            <div className="w-full h-full flex items-center gap-1 p-1.5">
-                              <div className="flex flex-col gap-1 flex-1">
-                                {[1,2,3,4].map((i) => <div key={i} className="h-1.5 rounded bg-brand-400/50" />)}
+                  {/* ── 1. Template ── */}
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Diseño del bracket</label>
+                    <p className="text-xs text-slate-400 mb-3">Elegí el estilo visual de las llaves de eliminación.</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {[
+                        { id: 'default', name: 'Default', preview: () => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex" style={{ background: '#0d1117' }}>
+                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-2">
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}><div className="w-1.5 h-1.5 rounded-full" style={{ background: '#afca0b' }} /><div className="w-10 h-1.5 rounded bg-white/20" /></div>
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}><div className="w-1.5 h-1.5 rounded-full bg-white/10" /><div className="w-8 h-1.5 rounded bg-white/10" /></div>
                               </div>
-                              <div className="flex flex-col gap-2 flex-1">
-                                {[1,2].map((i) => <div key={i} className="h-1.5 rounded bg-brand-400/65" />)}
+                              <div className="flex items-center px-1"><div className="w-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.22)' }} /></div>
+                            </div>) },
+                        { id: 'world-tour-dark', name: 'World Tour Dark', preview: () => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex" style={{ background: '#080c14' }}>
+                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-2">
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}><div className="w-1.5 h-1.5 rounded-full bg-white/70" /><div className="w-10 h-1.5 rounded bg-white/30" /></div>
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}><div className="w-1.5 h-1.5 rounded-full bg-white/10" /><div className="w-8 h-1.5 rounded bg-white/10" /></div>
                               </div>
-                              <div className="flex flex-col justify-center flex-1">
-                                <div className="h-1.5 rounded bg-brand-500/80" />
+                              <div className="flex items-center px-1"><div className="w-3 border-t" style={{ borderColor: 'rgba(0,220,255,0.70)' }} /></div>
+                            </div>) },
+                        { id: 'electric-blue', name: 'Electric Blue', preview: () => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex" style={{ background: 'radial-gradient(ellipse at 50% 0%, #071a3e 0%, #07182e 100%)' }}>
+                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-2">
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(56,182,255,0.20)', boxShadow: '0 0 8px rgba(56,182,255,0.10)' }}><div className="w-1.5 h-1.5 rounded-full" style={{ background: '#38b6ff' }} /><div className="w-10 h-1.5 rounded bg-white/25" /></div>
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(56,182,255,0.12)' }}><div className="w-1.5 h-1.5 rounded-full bg-white/10" /><div className="w-8 h-1.5 rounded bg-white/10" /></div>
                               </div>
+                              <div className="flex items-center px-1"><div className="w-3 border-t" style={{ borderColor: 'rgba(56,182,255,0.55)' }} /></div>
+                            </div>) },
+                        { id: 'minimal-pro', name: 'Minimal Pro', preview: () => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex" style={{ background: '#f5f5f5' }}>
+                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-2">
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white shadow-sm" style={{ border: '1px solid #e5e7eb' }}><div className="w-1.5 h-1.5 rounded-full bg-slate-700" /><div className="w-10 h-1.5 rounded bg-slate-300" /></div>
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white" style={{ border: '1px solid #e5e7eb' }}><div className="w-1.5 h-1.5 rounded-full bg-slate-200" /><div className="w-8 h-1.5 rounded bg-slate-200" /></div>
+                              </div>
+                              <div className="flex items-center px-1"><div className="w-3 border-t" style={{ borderColor: 'rgba(0,0,0,0.15)' }} /></div>
+                            </div>) },
+                        { id: 'neon-arena', name: 'Neon Arena', preview: () => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex" style={{ background: '#050505' }}>
+                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-2">
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: 'rgba(0,255,180,0.05)', border: '1px solid rgba(0,255,180,0.25)', boxShadow: '0 0 10px rgba(0,255,180,0.08)' }}><div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(0,255,180,0.9)' }} /><div className="w-10 h-1.5 rounded" style={{ background: 'rgba(0,255,180,0.20)' }} /></div>
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: 'rgba(0,255,180,0.02)', border: '1px solid rgba(0,255,180,0.12)' }}><div className="w-1.5 h-1.5 rounded-full bg-white/10" /><div className="w-8 h-1.5 rounded bg-white/8" /></div>
+                              </div>
+                              <div className="flex items-center px-1"><div className="w-3 border-t" style={{ borderColor: 'rgba(0,255,180,0.55)' }} /></div>
+                            </div>) },
+                        { id: 'championship-gold', name: 'Championship Gold', preview: () => (
+                            <div className="h-14 w-full rounded-t-xl overflow-hidden flex" style={{ background: '#080601' }}>
+                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-2">
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.35)' }}><div className="w-1.5 h-1.5 rounded-full" style={{ background: '#d4af37' }} /><div className="w-10 h-1.5 rounded" style={{ background: 'rgba(212,175,55,0.30)' }} /></div>
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: 'rgba(212,175,55,0.04)', border: '1px solid rgba(212,175,55,0.15)' }}><div className="w-1.5 h-1.5 rounded-full bg-white/10" /><div className="w-8 h-1.5 rounded bg-white/10" /></div>
+                              </div>
+                              <div className="flex items-center px-1"><div className="w-3 border-t" style={{ borderColor: 'rgba(212,175,55,0.50)' }} /></div>
+                            </div>) },
+                      ].map(({ id, name, preview }) => {
+                        const sel = (persona.bracketTemplate ?? 'default') === id
+                        return (
+                          <button key={id} type="button" onClick={() => switchBracketTemplate(id)}
+                            className={`rounded-xl overflow-hidden border-2 transition-all duration-150 ${sel ? 'border-brand-500 scale-[1.03]' : 'border-slate-200 hover:border-slate-300'}`}>
+                            {preview()}
+                            <div className={`px-2 py-1.5 text-center ${sel ? 'bg-brand-50' : 'bg-slate-50'}`}>
+                              <p className={`text-[10px] font-semibold ${sel ? 'text-brand-600' : 'text-slate-500'}`}>{name}</p>
                             </div>
-                          ) : (
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* ── 2. Header del draw ── */}
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                    <button type="button" onClick={() => setShowDrawHeader((v) => !v)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-600">Header del draw</span>
+                        {(persona.drawTitulo || persona.drawColorTitulo || persona.imagenFondoDraw)
+                          ? <span className="text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded-full">personalizado</span>
+                          : <span className="text-[10px] text-slate-400">Título, color, imagen, visibilidad</span>}
+                      </div>
+                      <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${showDrawHeader ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showDrawHeader && (
+                      <div className="p-4 border-t border-slate-100 flex flex-col gap-4">
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-1">Título principal</label>
+                          <input type="text" value={persona.drawTitulo} onChange={(e) => setP('drawTitulo', e.target.value)} placeholder="MAIN DRAW (vacío = oculto)" className="w-full max-w-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-1">Color del título</label>
+                          <div className="flex items-center gap-2 max-w-xs">
+                            <input type="color" value={persona.drawColorTitulo || club?.colorPrimario || '#10b981'} onChange={(e) => setP('drawColorTitulo', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                            <input type="text" value={persona.drawColorTitulo} onChange={(e) => setP('drawColorTitulo', e.target.value)} placeholder="vacío = color acento" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo del header</label>
+                          <ImageZonePreview src={persona.imagenFondoDraw}>
                             <div className="w-full h-full flex flex-col gap-0.5 p-1.5">
-                              <div className="h-4 rounded bg-brand-400/50 flex items-center justify-center">
-                                <span className="text-[7px] font-black text-brand-700 uppercase tracking-widest">Draw</span>
-                              </div>
-                              <div className="flex-1 grid grid-cols-3 gap-1">
-                                {[1,2,3].map((i) => <div key={i} className="rounded bg-slate-200" />)}
-                              </div>
+                              <div className="h-4 rounded bg-brand-400/50 flex items-center justify-center"><span className="text-[7px] font-black text-brand-700 uppercase tracking-widest">Draw</span></div>
+                              <div className="flex-1 grid grid-cols-3 gap-1">{[1,2,3].map((i) => <div key={i} className="rounded bg-slate-200" />)}</div>
                             </div>
-                          )}
-                        </ImageZonePreview>
-                        <ImagenFileInput value={persona[key]} onChange={(v) => setP(key, v)} />
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-2">Estilo de cards</label>
-                    <div className="flex gap-2 max-w-xs">
-                      {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
-                        <button key={key} type="button" onClick={() => setP('estiloCard', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCard === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo de cards</label>
-                    <div className="flex items-center gap-2 max-w-xs">
-                      <input type="color" value={persona.colorCard || '#0d1117'} onChange={(e) => setP('colorCard', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                      <input type="text"  value={persona.colorCard} onChange={(e) => setP('colorCard', e.target.value)} placeholder="#0d1117 (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
-                    </div>
-                    <p className="text-slate-400 text-xs mt-1">Vacío = color del estilo seleccionado.</p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-2">Tamaño de fuentes</label>
-                    <div className="flex gap-2 max-w-xs">
-                      {[{ key: 'normal', label: 'Normal' }, { key: 'grande', label: 'Grande' }, { key: 'muy-grande', label: 'Muy grande' }].map(({ key, label }) => (
-                        <button key={key} type="button" onClick={() => setP('fontScale', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.fontScale === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 block mb-2">Header del draw</label>
-                    <div className="flex flex-col gap-3">
-                      <div>
-                        <label className="text-xs font-medium text-slate-600 block mb-1">Título principal</label>
-                        <input type="text" value={persona.drawTitulo} onChange={(e) => setP('drawTitulo', e.target.value)} placeholder="Main Draw (vacío = oculto)" className="w-full max-w-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-slate-600 block mb-1">Color del título</label>
-                        <div className="flex items-center gap-2 max-w-xs">
-                          <input type="color" value={persona.drawColorTitulo || club?.colorPrimario || '#10b981'} onChange={(e) => setP('drawColorTitulo', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
-                          <input type="text"  value={persona.drawColorTitulo} onChange={(e) => setP('drawColorTitulo', e.target.value)} placeholder="vacío = color acento" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                          </ImageZonePreview>
+                          <ImagenFileInput value={persona.imagenFondoDraw} onChange={(v) => setP('imagenFondoDraw', v)} />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-medium text-slate-600 block">Elementos visibles</label>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                            {[
+                              { key: 'drawMostrarClub',       label: 'Nombre del club' },
+                              { key: 'drawMostrarNombre',     label: 'Nombre del torneo' },
+                              { key: 'drawMostrarFechas',     label: 'Fechas' },
+                              { key: 'drawMostrarCategorias', label: 'Categorías' },
+                              { key: 'drawMostrarGenero',     label: 'Badge género' },
+                            ].map(({ key, label }) => (
+                              <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                                <input type="checkbox" checked={persona[key]} onChange={(e) => setP(key, e.target.checked)} className="rounded border-slate-300 text-brand-500 focus:ring-brand-400" />
+                                <span className="text-xs text-slate-600">{label}</span>
+                              </label>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex flex-col gap-2">
-                        <label className="text-xs font-medium text-slate-600 block">Elementos visibles</label>
-                        {[
-                          { key: 'drawMostrarClub',       label: 'Nombre del club' },
-                          { key: 'drawMostrarNombre',     label: 'Nombre del torneo' },
-                          { key: 'drawMostrarFechas',     label: 'Fechas' },
-                          { key: 'drawMostrarCategorias', label: 'Categorías / género' },
-                        ].map(({ key, label }) => (
-                          <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                            <input type="checkbox" checked={persona[key]} onChange={(e) => setP(key, e.target.checked)} className="rounded border-slate-300 text-brand-500 focus:ring-brand-400" />
-                            <span className="text-xs text-slate-600">{label}</span>
-                          </label>
-                        ))}
+                    )}
+                  </div>
+
+                  {/* ── 3. Cards ── */}
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                    <button type="button" onClick={() => setShowDrawCards((v) => !v)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-600">Cards</span>
+                        {(persona.colorCard || persona.fontScale !== 'normal')
+                          ? <span className="text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded-full">personalizado</span>
+                          : <span className="text-[10px] text-slate-400">Estilo, color, fuentes</span>}
                       </div>
-                    </div>
+                      <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${showDrawCards ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showDrawCards && (
+                      <div className="p-4 border-t border-slate-100 flex flex-col gap-4">
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-2">Estilo</label>
+                          <div className="flex gap-2 max-w-xs">
+                            {[{ key: 'oscura', label: 'Oscura' }, { key: 'clara', label: 'Clara' }, { key: 'transparente', label: 'Transparente' }].map(({ key, label }) => (
+                              <button key={key} type="button" onClick={() => setP('estiloCard', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.estiloCard === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo</label>
+                          <div className="flex items-center gap-2 max-w-xs">
+                            <input type="color" value={persona.colorCard || '#0d1117'} onChange={(e) => setP('colorCard', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                            <input type="text" value={persona.colorCard} onChange={(e) => setP('colorCard', e.target.value)} placeholder="#0d1117 (default)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                          </div>
+                          <p className="text-slate-400 text-xs mt-1">Vacío = color del estilo seleccionado.</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-2">Tamaño de fuentes</label>
+                          <div className="flex gap-2 max-w-xs">
+                            {[{ key: 'normal', label: 'Normal' }, { key: 'grande', label: 'Grande' }, { key: 'muy-grande', label: 'Muy grande' }].map(({ key, label }) => (
+                              <button key={key} type="button" onClick={() => setP('fontScale', key)} className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${persona.fontScale === key ? 'border-brand-500 bg-brand-500/8 text-brand-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>{label}</button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 4. Líneas & Fondo ── */}
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                    <button type="button" onClick={() => setShowDrawFondo((v) => !v)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-600">Líneas y fondo</span>
+                        {(persona.bracketConnColor || persona.bracketFondoColor || persona.bracketWatermark || persona.imagenFondoBracket)
+                          ? <span className="text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded-full">personalizado</span>
+                          : <span className="text-[10px] text-slate-400">Color líneas, glow, fondo, watermark</span>}
+                      </div>
+                      <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${showDrawFondo ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showDrawFondo && (
+                      <div className="p-4 border-t border-slate-100 flex flex-col gap-4">
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-2">Color de líneas del cuadro</label>
+                          <div className="flex items-center gap-2 max-w-xs">
+                            <input type="color" value={persona.bracketConnColor || '#00dcff'} onChange={(e) => setP('bracketConnColor', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                            <input type="text" value={persona.bracketConnColor || ''} onChange={(e) => setP('bracketConnColor', e.target.value || null)} placeholder="Vacío = default del template" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                            {persona.bracketConnColor && <button onClick={() => setP('bracketConnColor', null)} className="text-slate-300 hover:text-red-400 transition-colors shrink-0"><X size={14} /></button>}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between py-0.5">
+                          <div>
+                            <label className="text-xs font-medium text-slate-600">Efecto glow en líneas</label>
+                            <p className="text-[11px] text-slate-400">Resplandor neon sobre los conectores</p>
+                          </div>
+                          <button type="button" onClick={() => setP('bracketConnGlow', !persona.bracketConnGlow)} className={`relative w-9 h-5 rounded-full transition-colors ${persona.bracketConnGlow ? 'bg-brand-500' : 'bg-slate-200'}`}>
+                            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${persona.bracketConnGlow ? 'left-4' : 'left-0.5'}`} />
+                          </button>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-2">Color de fondo del cuadro</label>
+                          <div className="flex items-center gap-2 max-w-xs">
+                            <input type="color" value={persona.bracketFondoColor || '#080c14'} onChange={(e) => setP('bracketFondoColor', e.target.value)} className="w-10 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-slate-50 shrink-0" />
+                            <input type="text" value={persona.bracketFondoColor || ''} onChange={(e) => setP('bracketFondoColor', e.target.value || null)} placeholder="Vacío = default del template" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono transition-all" />
+                            {persona.bracketFondoColor && <button onClick={() => setP('bracketFondoColor', null)} className="text-slate-300 hover:text-red-400 transition-colors shrink-0"><X size={14} /></button>}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-2">Texto de fondo (watermark)</label>
+                          <div className="flex items-center gap-2">
+                            <input type="text" value={persona.bracketWatermark ?? ''} onChange={(e) => setP('bracketWatermark', e.target.value || null)} placeholder="Vacío = usa el del template" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all" />
+                            <button type="button" onClick={() => setP('bracketWatermarkOculto', !persona.bracketWatermarkOculto)} className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap ${persona.bracketWatermarkOculto ? 'border-red-200 bg-red-50 text-red-500' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                              {persona.bracketWatermarkOculto ? 'Oculto' : 'Visible'}
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-1">Imagen de fondo del bracket</label>
+                          <ImageZonePreview src={persona.imagenFondoBracket}>
+                            <div className="w-full h-full flex items-center gap-1 p-1.5">
+                              <div className="flex flex-col gap-1 flex-1">{[1,2,3,4].map((i) => <div key={i} className="h-1.5 rounded bg-brand-400/50" />)}</div>
+                              <div className="flex flex-col gap-2 flex-1">{[1,2].map((i) => <div key={i} className="h-1.5 rounded bg-brand-400/65" />)}</div>
+                              <div className="flex flex-col justify-center flex-1"><div className="h-1.5 rounded bg-brand-500/80" /></div>
+                            </div>
+                          </ImageZonePreview>
+                          <ImagenFileInput value={persona.imagenFondoBracket} onChange={(v) => setP('imagenFondoBracket', v)} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="text-xs font-medium text-slate-600 block mb-2">Sponsors</label>
@@ -5649,8 +6196,15 @@ const TorneoDetallePage = () => {
                       drawMostrarNombre:     persona.drawMostrarNombre,
                       drawMostrarFechas:     persona.drawMostrarFechas,
                       drawMostrarCategorias: persona.drawMostrarCategorias,
+                      drawMostrarGenero:     persona.drawMostrarGenero,
                       drawColorTitulo:       persona.drawColorTitulo       || null,
                       bracketColores:        persona.bracketColores,
+                      bracketTemplate:       persona.bracketTemplate,
+                      bracketConnColor:      persona.bracketConnColor      ?? null,
+                      bracketConnGlow:       persona.bracketConnGlow       ?? true,
+                      bracketWatermark:      persona.bracketWatermark      ?? null,
+                      bracketWatermarkOculto: persona.bracketWatermarkOculto ?? false,
+                      bracketFondoColor:     persona.bracketFondoColor     ?? null,
                     }
                     updatePersonalizacion(torneo.id, campos)
                     if (isBackend) {
@@ -5684,6 +6238,7 @@ const TorneoDetallePage = () => {
         <ModalHorario
           partido={modalHorario}
           canchasActivas={canchasActivas}
+          allPartidos={activeBracket ? activeBracket.rondas.flatMap((r) => r.partidos) : []}
           onClose={() => setModalHorario(null)}
           onGuardar={handleGuardarHorario}
         />

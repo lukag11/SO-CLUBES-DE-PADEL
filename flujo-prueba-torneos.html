@@ -182,12 +182,10 @@
     <span class="badge badge-seguridad">🔒 Seguridad</span>
   </div>
   <div class="alerta-nueva">
-    ⚠️ Fixes sesión anterior: race condition cupo · auth ownership · validación fechas · confirmación regenerar grupos<br>
-    ✅ Fixes 2026-05-30 sesión 1: widget torneos real en dashboard jugador · lookup DNI compañero + pre-registro · máquina de estados backend · modal confirmación custom · colores club en fixture<br>
-    ✅ Fixes 2026-05-31 sesión 1: disponibilidad opcional · validación doble inscripción por DNI (frontend + backend 409) · permisos j1/j2 (j2 solo edita disponibilidad) · mejoras visuales MiTorneoCard<br>
-    ✅ Fixes 2026-05-31 sesión 2: DNI lookup en registro (Step1) · lista de espera UX (borde ámbar + tooltip) · promover espera con validación cupo + notificación · auto-promoción notifica j1 y j2 (admin DELETE + player DELETE)
+    ✅ Fixes 2026-05-31: DNI lookup registro · lista de espera UX · promover espera con validación cupo · auto-promoción notifica j1 y j2<br>
+    ✅ 2026-06-07 sesión 2: <strong>Bracket esqueleto TBD</strong> (pre-asignar horarios antes de terminar grupos) · <strong>Auto-asignar draw multi-categoría</strong> con split Día1/Día2 · Fix "undefined undefined" BracketCard · 3 campos nuevos DB (fechaInicioEliminatoria, fechaInicioQF, horaInicioQF)
   </div>
-  <p class="version" style="margin-top:16px">PadelOS v1.0 · Backend Bloque 4 conectado · Bloque 3 testing completo · 2026-05-31</p>
+  <p class="version" style="margin-top:16px">PadelOS v1.0 · Backend Bloque 4 conectado · Sección 7 draw actualizada · 2026-06-07</p>
 </div>
 
 <!-- ═══════════════════════════════════════════ ÍNDICE -->
@@ -1075,36 +1073,46 @@
   <div class="seccion" id="b7">
     <div class="seccion-header">
       <div class="numero admin">7</div>
-      <h2>Admin: Fase eliminatoria (bracket)</h2>
+      <h2>Admin: Fase eliminatoria (bracket + horarios)</h2>
       <span class="rol-chip chip-admin">ADMIN</span>
     </div>
     <div class="seccion-body">
+
+      <div class="resultado warning" style="margin-bottom:16px">
+        <div class="titulo">⚠️ Prerrequisito: configurar fechas del draw en el torneo</div>
+        Antes de usar "Auto-asignar", editá el torneo y completá las <strong>Fechas del draw</strong>:<br>
+        • <strong>Fecha 1ª ronda</strong> (octavos/previas) → ej: 2025-06-14 (sábado real)<br>
+        • <strong>Fecha de cuartos</strong> (opcional) → ej: 2025-06-15 (domingo real)<br>
+        • <strong>Hora inicio cuartos</strong> → ej: 09:00<br>
+        La hora de inicio de la 1ª ronda usa el campo "Desde las" de la sección eliminatoria.
+      </div>
 
       <div class="paso">
         <div class="paso-header" onclick="toggle(this)">
           <span class="paso-num admin">7.1</span>
           <div>
-            <div class="paso-titulo">Generar bracket (solo cuando grupos 100% completos)</div>
-            <div class="paso-ruta">Tab "Eliminatorias" → botón "Generar bracket"</div>
+            <div class="paso-titulo">Bracket preliminar (esqueleto) — pre-asignar horarios antes de terminar grupos</div>
+            <div class="paso-ruta">Tab "Grupos" → botón "Generar bracket preliminar" · Tab "Fixture" → Auto-asignar</div>
           </div>
           <span class="paso-toggle">▶</span>
         </div>
         <div class="paso-body">
           <div class="instrucciones">
             <ol>
-              <li>Ir al tab <strong>"Eliminatorias"</strong></li>
-              <li>Si la fase de grupos no está completa, el botón debe estar deshabilitado o no visible</li>
-              <li>Una vez completa la fase de grupos, el botón debe habilitarse</li>
-              <li>Clic en "Generar bracket" → se arma el cuadro eliminatorio con los clasificados</li>
+              <li>Ir al tab <strong>"Grupos"</strong>. Mientras los grupos no estén completos, debe aparecer el botón <strong>"Generar bracket preliminar"</strong> (ámbar).</li>
+              <li>Clic → genera el bracket con posiciones TBD (ej: "1° Zona A", "2° Zona B"). Navega automáticamente al tab Fixture.</li>
+              <li>En el tab Fixture, debe aparecer un chip ámbar pulsante <strong>"Bracket preliminar"</strong>.</li>
+              <li>Usar el selector de intervalo (60/75/90 min) y el botón <strong>"Auto-asignar"</strong> para asignar fechas/horas/canchas a todos los partidos del draw.</li>
+              <li>Verificar que los partidos muestren fecha y hora correctas. Los nombres aparecen como "1° Zona A" en cursiva ámbar.</li>
             </ol>
           </div>
           <div class="resultado ok">
             <div class="titulo">✅ Esperado</div>
-            Bracket generado según tablas APA oficiales. Los BYEs se asignan automáticamente a los primeros de zona si hay plazas sobrantes. El bracket muestra los cruces iniciales.
+            Partidos del bracket con fecha, hora y cancha asignadas aunque los grupos aún no terminaron. Las posiciones muestran labels TBD en cursiva ámbar (no apellidos reales todavía).
           </div>
-          <div class="resultado error" style="margin-top:10px">
-            <div class="titulo">✅ Esperado si grupos incompletos</div>
-            El botón "Generar bracket" no aparece o está deshabilitado hasta que todos los partidos de grupos tengan resultado.
+          <div class="resultado warning" style="margin-top:10px">
+            <div class="titulo">⚠️ Si falta configurar fechas</div>
+            El botón Auto-asignar muestra "Falta la fecha real del 1er día del draw (editá el torneo)". Ir a editar el torneo y completar las "Fechas del draw".
           </div>
         </div>
       </div>
@@ -1113,22 +1121,27 @@
         <div class="paso-header" onclick="toggle(this)">
           <span class="paso-num admin">7.2</span>
           <div>
-            <div class="paso-titulo">Cargar resultados del bracket</div>
+            <div class="paso-titulo">Confirmar bracket (cuando grupos terminan)</div>
+            <div class="paso-ruta">Tab "Grupos" → botón "Confirmar bracket" (reemplaza al preliminar)</div>
           </div>
           <span class="paso-toggle">▶</span>
         </div>
         <div class="paso-body">
           <div class="instrucciones">
             <ol>
-              <li>En cada partido del bracket, cargar resultado en sets</li>
-              <li>El ganador avanza automáticamente a la siguiente ronda</li>
-              <li>Seguir hasta que quede solo 1 pareja (campeón)</li>
+              <li>Completar todos los resultados de la fase de grupos.</li>
+              <li>Ir al tab <strong>"Grupos"</strong>. Ahora debe aparecer el botón <strong>"Confirmar bracket"</strong> (verde) en lugar del "Preliminar".</li>
+              <li>Clic → genera el bracket real con los clasificados reales. Los horarios pre-asignados en el esqueleto se conservan automáticamente.</li>
+              <li>Ir al tab Fixture y verificar que los partidos ahora muestran los apellidos reales + mantienen los horarios asignados.</li>
             </ol>
           </div>
           <div class="resultado ok">
             <div class="titulo">✅ Esperado</div>
-            Ganadores avanzan automáticamente. El bracket se actualiza visualmente con cada resultado.
-            Al terminarse todos los partidos, el estado del torneo puede pasarse a <strong>finished</strong>.
+            Bracket final con clasificados reales. Las fechas/horas/canchas pre-asignadas en el esqueleto se preservaron. El chip "Bracket preliminar" desaparece.
+          </div>
+          <div class="resultado ok" style="margin-top:10px">
+            <div class="titulo">✅ Si nunca se usó el esqueleto</div>
+            El botón "Generar bracket" normal aparece cuando grupos están 100% completos. Después se puede usar Auto-asignar desde cero.
           </div>
         </div>
       </div>
@@ -1137,6 +1150,81 @@
         <div class="paso-header" onclick="toggle(this)">
           <span class="paso-num admin">7.3</span>
           <div>
+            <div class="paso-titulo">Auto-asignar horarios multi-categoría</div>
+            <div class="paso-ruta">Tab "Fixture" → selector intervalo → botón "Auto-asignar"</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Si el torneo tiene más de una categoría, el Auto-asignar procesa <strong>todas las categorías</strong> en un solo click.</li>
+              <li>Categorías con menos zonas (categoría más baja) reciben los slots más temprano del día.</li>
+              <li>El sistema garantiza que dos categorías no compartan cancha+hora: el segundo categoría usa canchas libres o el siguiente slot.</li>
+              <li>Si hay "Fecha de cuartos" configurada: rondas antes de QF van al sábado, QF+SF+Final van al domingo.</li>
+              <li>Sin "Fecha de cuartos": todo en el mismo día desde la hora configurada.</li>
+              <li>Verificar resultado cambiando entre tabs de categorías en el Fixture.</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado (torneo 2 categorías)</div>
+            Cat 4ª tiene los slots del sábado mañana. Cat 1ª tiene los siguientes slots (o el domingo). Sin pisadas de cancha+hora entre categorías.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">7.4</span>
+          <div>
+            <div class="paso-titulo">Asignar horario manual a un partido</div>
+            <div class="paso-ruta">Tab "Fixture" → click en un partido → modal de horario</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Click en cualquier partido del bracket (ya sea con TBD o con parejas reales).</li>
+              <li>Seleccionar fecha con el date picker, hora con los selects de horas y minutos, y cancha.</li>
+              <li>Si se elige un horario que pisa con otro partido en la misma cancha, debe aparecer aviso de conflicto en rojo.</li>
+              <li>Clic en "Guardar" para confirmar.</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Partido actualizado con fecha/hora/cancha. Conflictos bloqueantes con mensaje en rojo y botón Guardar deshabilitado.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">7.5</span>
+          <div>
+            <div class="paso-titulo">Cargar resultados y avance del bracket</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En cada partido con parejas reales asignadas, click para cargar resultado en sets.</li>
+              <li>El ganador avanza automáticamente a la siguiente ronda.</li>
+              <li>Seguir hasta que quede solo 1 pareja (campeón).</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Esperado</div>
+            Ganadores avanzan automáticamente. El bracket se actualiza visualmente con cada resultado. Al terminarse todos los partidos, el estado puede pasarse a <strong>finished</strong>.
+          </div>
+        </div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num admin">7.6</span>
+          <div>
             <div class="paso-titulo">Finalizar torneo: in_progress → finished</div>
           </div>
           <span class="paso-toggle">▶</span>
@@ -1144,8 +1232,8 @@
         <div class="paso-body">
           <div class="instrucciones">
             <ol>
-              <li>Con todos los resultados del bracket cargados, cambiar estado a <strong>finished</strong></li>
-              <li>Desde el dashboard del jugador: el torneo debe aparecer en el historial con el resultado final</li>
+              <li>Con todos los resultados del bracket cargados, cambiar estado a <strong>finished</strong>.</li>
+              <li>Desde el dashboard del jugador: el torneo debe aparecer en el historial con el resultado final.</li>
             </ol>
           </div>
           <div class="resultado ok">

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Trophy, Plus, Users, X, ChevronRight, Calendar, Medal,
   CheckCircle, Clock, Archive, ToggleLeft, ToggleRight, Infinity,
-  Lock, Pencil, Trash2, AlertTriangle, Bell, UserCheck, Camera, Download,
+  Lock, Pencil, Trash2, AlertTriangle, Bell, UserCheck, Camera, Download, Flag,
 } from 'lucide-react'
 import FlyerTorneo from '../components/FlyerTorneo'
 import Toast from '../components/ui/Toast'
@@ -305,6 +305,9 @@ const EMPTY_FORM = {
   fechaLimiteInscripcion: '',
   diaInicioEliminatoria: '',
   horaInicioEliminatoria: '',
+  fechaInicioEliminatoria: '',
+  fechaInicioQF: '',
+  horaInicioQF: '',
   puntosPorVictoria: 2,
   descripcion: '',
   // flyer
@@ -448,9 +451,12 @@ const ModalCerrarInscripcion = ({ torneo, onConfirmar, onCancelar }) => {
   )
 }
 
-const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar, onFlyer }) => {
+const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar, onFlyer, onReprogramar }) => {
   const [confirmarEliminar, setConfirmarEliminar] = useState(false)
   const [catsExpanded, setCatsExpanded] = useState(false)
+  const [reprogramarModal, setReprogramarModal] = useState(false)
+  const [reprogramarFecha, setReprogramarFecha] = useState('')
+  const [reprogramarSaving, setReprogramarSaving] = useState(false)
   const confirmados  = torneo.inscriptos.filter((i) => i.estado === 'inscripto')
   const enEspera     = torneo.inscriptos.filter((i) => i.estado === 'espera')
   const suplentes    = torneo.inscriptos.filter((i) => i.estado === 'suplente')
@@ -643,6 +649,15 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
         </span>
 
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {torneo.estado === 'in_progress' && (
+            <button
+              onClick={() => { setReprogramarModal(true); setReprogramarFecha(torneo.fechaReprogramada ?? '') }}
+              title={torneo.fechaReprogramada ? `Reprogramado: ${torneo.fechaReprogramada}` : 'Reprogramar torneo'}
+              className={`p-1.5 rounded-lg transition-all ${torneo.fechaReprogramada ? 'text-amber-400 hover:bg-amber-50' : 'text-slate-300 hover:text-amber-500 hover:bg-amber-50'}`}
+            >
+              <Flag size={13} />
+            </button>
+          )}
           <button
             onClick={() => onFlyer(torneo)}
             title="Generar flyer"
@@ -685,6 +700,68 @@ const TorneoCard = ({ torneo, onVerDetalle, onToggleEstado, onEditar, onEliminar
           )}
         </div>
       </div>
+
+      {/* Modal reprogramar */}
+      {reprogramarModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setReprogramarModal(false)}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                <Flag size={16} className="text-amber-500" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-800 text-sm">Reprogramar torneo</p>
+                <p className="text-xs text-slate-400">{torneo.nombre}</p>
+              </div>
+            </div>
+            {torneo.fechaReprogramada && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                Fecha actual reprogramada: <strong>{torneo.fechaReprogramada}</strong>
+              </p>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-600">Nueva fecha de finalización</label>
+              <input
+                type="date"
+                value={reprogramarFecha}
+                onChange={(e) => setReprogramarFecha(e.target.value)}
+                className="text-sm border border-slate-200 rounded-xl px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  if (!reprogramarFecha || reprogramarSaving) return
+                  setReprogramarSaving(true)
+                  try { await onReprogramar(torneo.id, reprogramarFecha); setReprogramarModal(false) }
+                  finally { setReprogramarSaving(false) }
+                }}
+                disabled={!reprogramarFecha || reprogramarSaving}
+                className="flex-1 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-xl transition-all disabled:opacity-50"
+              >
+                {reprogramarSaving ? 'Guardando...' : 'Confirmar'}
+              </button>
+              {torneo.fechaReprogramada && (
+                <button
+                  onClick={async () => {
+                    setReprogramarSaving(true)
+                    try { await onReprogramar(torneo.id, null); setReprogramarModal(false) }
+                    finally { setReprogramarSaving(false) }
+                  }}
+                  disabled={reprogramarSaving}
+                  className="text-sm font-medium text-red-400 hover:text-red-600 px-3 py-2 rounded-xl transition-colors"
+                >
+                  Quitar
+                </button>
+              )}
+              <button onClick={() => setReprogramarModal(false)} className="text-sm text-slate-400 hover:text-slate-600 px-3 py-2 rounded-xl transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -721,6 +798,9 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
     fechaLimiteInscripcion: torneoEditar.fechaLimiteInscripcion ?? '',
     diaInicioEliminatoria: torneoEditar.diaInicioEliminatoria ?? '',
     horaInicioEliminatoria: torneoEditar.horaInicioEliminatoria ?? '',
+    fechaInicioEliminatoria: torneoEditar.fechaInicioEliminatoria ?? '',
+    fechaInicioQF: torneoEditar.fechaInicioQF ?? '',
+    horaInicioQF: torneoEditar.horaInicioQF ?? '',
     puntosPorVictoria: torneoEditar.puntosPorVictoria ?? 2,
     descripcion: torneoEditar.descripcion ?? '',
     premioPrimero: torneoEditar.premioPrimero ?? '',
@@ -1208,6 +1288,53 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
               <p className="text-slate-400 text-xs">
                 Los jugadores solo podrán elegir disponibilidad de grupos antes de este corte. El día elegido (desde la hora) y los días posteriores quedan reservados para eliminatoria.
               </p>
+
+              {/* Fechas reales del draw para auto-asignar horarios */}
+              <div className="border-t border-slate-100 pt-3">
+                <p className="text-xs font-medium text-slate-600 mb-2">
+                  Fechas del draw <span className="text-slate-400 font-normal">(para auto-asignar horarios)</span>
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-slate-400 mb-1">Fecha 1ª ronda (octavos / previas)</p>
+                    <input
+                      type="date"
+                      value={form.fechaInicioEliminatoria}
+                      onChange={(e) => set('fechaInicioEliminatoria', e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 mb-1">Fecha de cuartos <span className="text-slate-300">(opcional)</span></p>
+                    <input
+                      type="date"
+                      value={form.fechaInicioQF}
+                      onChange={(e) => set('fechaInicioQF', e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+                    />
+                  </div>
+                </div>
+                {form.fechaInicioQF && (
+                  <div className="mt-2">
+                    <p className="text-xs text-slate-400 mb-1">Hora inicio cuartos</p>
+                    <select
+                      value={form.horaInicioQF}
+                      onChange={(e) => set('horaInicioQF', e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+                    >
+                      <option value="">-- horario --</option>
+                      {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
+                        <option key={h} value={`${String(h).padStart(2, '0')}:00`}>
+                          {String(h).padStart(2, '0')}:00 hs
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <p className="text-slate-400 text-xs mt-1.5">
+                  Si hay cuartos de final en un día distinto (ej: domingo), completá la fecha de cuartos y su horario. Dejalo vacío si todo es un mismo día.
+                </p>
+              </div>
             </div>
           )}
 
@@ -1538,9 +1665,13 @@ const mapBackendTorneo = (t) => ({
   canchasAsignadas: t.canchasAsignadas ?? [],
   fechaInicio: t.fechaInicio,
   fechaFin: t.fechaFin,
+  fechaReprogramada: t.fechaReprogramada ?? null,
   fechaLimiteInscripcion: t.fechaLimiteInscripcion,
   diaInicioEliminatoria: t.diaInicioEliminatoria,
   horaInicioEliminatoria: t.horaInicioEliminatoria,
+  fechaInicioEliminatoria: t.fechaInicioEliminatoria ?? null,
+  fechaInicioQF: t.fechaInicioQF ?? null,
+  horaInicioQF: t.horaInicioQF ?? null,
   descripcion: t.descripcion ?? '',
   premioPrimero:  t.personalizacion?.premioPrimero  ?? '',
   premioSegundo:  t.personalizacion?.premioSegundo  ?? '',
@@ -1790,6 +1921,11 @@ const TorneosPage = () => {
   }
 
   const handleEditar = (torneo) => setTorneoEditar(torneo)
+
+  const handleReprogramar = async (id, fecha) => {
+    await api.patch(`/torneos/${id}/reprogramar`, { fechaReprogramada: fecha ?? null }, authHeader)
+    updateTorneoFromApi({ id, fechaReprogramada: fecha ?? null })
+  }
 
   const handleGuardarEdicion = async (form) => {
     if (isBackend(torneoEditar.id)) {
@@ -2095,6 +2231,7 @@ const TorneosPage = () => {
                   onEditar={handleEditar}
                   onEliminar={handleEliminar}
                   onFlyer={setFlyerTorneo}
+                  onReprogramar={handleReprogramar}
                 />
               ))}
             </div>

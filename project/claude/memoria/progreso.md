@@ -1,6 +1,259 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-06 (sesión 2 — sponsors auth fix, LogoPicker dual upload, SponsorStrip FIP, loading profesional, flash template fix, z-index sticky header)
+**Última actualización:** 2026-06-09 — Imágenes a Supabase Storage (fix egress), template Championship Gold rediseñado, visibilidad post-torneo (finished 3 días)
+
+---
+
+## Último bloque completado (2026-06-09) — Imágenes a Storage + Championship Gold + visibilidad torneo finalizado
+
+### 1. Fix de egress: imágenes a Supabase Storage (no más base64 en DB)
+
+**Problema raíz:** todas las imágenes (logos club/sponsor, flyer, fondos draw/bracket, galería, staff) se guardaban como **base64 dentro de la DB** (columnas JSON `config`, `personalizacion`, y `sponsors.logoUrl`). Cada visita a landing/torneos re-descargaba todo → reventó la cuota de egress (5GB) del Free Plan de Supabase.
+
+**Solución (corrección completa):**
+- Backend:
+  - `src/lib/supabase.js` — cliente Storage (service_role, bucket `media`).
+  - `src/lib/imageUpload.js` — `sharp` redimensiona+comprime a **webp** (perfiles: logo/avatar 400px, flyer 1080px, fondo 1920px, galeria 1600px) y sube → devuelve URL pública.
+  - `POST /api/uploads` (requireAuth) — recibe data URL, devuelve `{ url }`. Parser propio de 15mb montado antes del global (bajado a 8mb).
+  - `scripts/migrate-images-to-storage.js` — migración única del base64 existente (tiene `--dry`).
+- Frontend:
+  - Helper `uploadImage(file, { profile, folder, token })` + `fileToDataUrl` en `lib/api.js`.
+  - Migrados todos los `readAsDataURL` que persistían: `AdminSponsorsPage` (LogoPicker), `TorneoDetallePage` (ImagenFileInput — lee token del store), `QuienesSomosPage` (5 handlers: logo/hero/historia/galería/staff).
+  - El avatar de registro (Step1Basicos) es solo preview, NO se persiste → sin cambios.
+- **Migración ya corrida**: 9 imágenes, 1.09 MB base64 → 0.13 MB en Storage (−88%). DB sin base64.
+- Dep nueva: `sharp` en backend.
+
+**Setup hecho:** bucket `media` (público) creado, env `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` en `.env` local.
+
+### 2. Template Championship Gold rediseñado ("placa de honor grabada")
+- `cardLayout: 'gold'`, `headerLayout: 'gold'`, `roundLabelStyle: 'gold'` en BracketThemes + BracketView.
+- Negro carbón + oro nítido. Seed en placa metálica (highlight→acento), nombre Cinzel, sets en casilleros, esquinas grabadas tipo marco, Final con borde más grueso. Header con medallón doble anillo + filete ❧ + título con brillo metálico (background-clip).
+- Quitado watermark "ARENA" del Neon Arena.
+
+### 3. Visibilidad de torneo finalizado (público)
+- `TorneoPublicoPage.jsx`: el gate ahora muestra torneos `finished` por **3 días** desde `updatedAt` (antes solo `in_progress`). Permite ver campeón + draw final post-torneo. `DIAS_VISIBLE_FINISHED` hardcodeado en el componente.
+
+### ⏳ Pendientes para mañana (pulir)
+- Badge "FINALIZADO" + campeón destacado arriba en la página pública (hoy el campeón solo aparece dentro del Draw).
+- Hacer los 3 días de visibilidad configurables desde admin.
+- Revisar el Championship Gold renderizado real y ajustar (oro, medallón, etc.).
+- Agregar las env vars de Supabase en **Railway** (producción) + correr migración si la DB de prod difiere.
+- Rotar la `service_role` key (se pegó en el chat).
+- Bajar el body limit global de 8mb a ~2mb una vez confirmado que todo va por Storage.
+
+---
+
+## Bloque anterior (2026-06-08) — BracketView: templates visuales avanzados + personalización Draw
+
+### Objetivo
+Hacer que los 5 templates del bracket sean visualmente distintos (no solo color): tipografías distintas por template, nuevo layout de card "flat", header estilo broadcast para World Tour Dark, conectores SVG con color neon y glow, watermark configurable, y reorganización del tab Draw en acordeones colapsables.
+
+### Google Fonts por template
+
+| Template | Font | Estilo |
+|----------|------|--------|
+| Default | Inter | Sans-serif clásico |
+| World Tour Dark | Barlow Condensed | TV broadcast, condensado, deportivo |
+| Electric Blue | Exo 2 | Tech/futurista |
+| Minimal Pro | DM Sans | Clean, geométrico, SaaS premium |
+| Neon Arena | Chakra Petch | Cyberpunk, angular |
+| Championship Gold | Cinzel | Serif clásico, elegante, élite |
+
+Cargadas en `index.html` via Google Fonts (un solo `<link>`).
+
+### `BracketThemes.js` — tokens nuevos
+
+- `fontFamily` — hereda a todos los elementos via wrapper div
+- `cardLayout: 'flat'` — seed badge 20×20px, rows compactos, winner dot a la derecha
+- `cardBorderRadius`, `cardNameTransform`, `cardNameLetterSpacing`, `cardNameFontWeight`, `cardRowPaddingY`, `cardSeedRadius`
+- `headerLayout: 'broadcast'` — header especial World Tour Dark
+- `roundLabelStyle: 'boxed'` — etiquetas de ronda como pill/box
+- `connGlow: true` — SVG blur glow sobre conectores
+- `watermark` / `watermarkColor` — texto de fondo rotado -12deg
+- `cardStyleOverride`, `cardBorderOverride`, `cardGlow`
+
+### `BracketView.jsx` — cambios principales
+
+**Layout `flat` (cardLayout):**
+- Seed badge circular configurable (color acento, `cardSeedRadius`)
+- Nombre con transform/spacing/weight propio del template
+- Winner dot verde a la derecha
+- Hora en row dedicado — siempre visible aunque el match esté finalizado (fix: antes se ocultaba si j1 ganó)
+
+**Header `broadcast` (World Tour Dark):**
+- Barra vertical acento izquierda + textura diagonal
+- `drawTitulo` gigante (Barlow Condensed bold) como título principal
+- `torneo.nombre` como subtitle en color acento
+- Badge género top-right (toggle `drawMostrarGenero`)
+- Pills de categorías + fechas en fila inferior
+
+**Conectores SVG con glow:**
+- `<defs><filter id="connGlow">` con `feGaussianBlur stdDeviation="2.5"` + feMerge
+- Aplicado a todos los `<line>` cuando `connGlow === true`
+- Color: `torneo.bracketConnColor ?? theme.connStroke`
+
+**Watermark:**
+- Texto gigante (200px) rotado -12deg, pointer-events-none
+- Controlable: `bracketWatermarkOculto` oculta, `bracketWatermark` personaliza texto
+
+### Personalización admin — Draw tab reorganizado con acordeones
+
+**Nuevo orden (macro → micro):**
+1. Diseño del bracket — siempre visible
+2. **Header del draw** — acordeón (título, color, imagen, checkboxes visibilidad)
+3. **Cards** — acordeón (estilo, color fondo, fuentes)
+4. **Líneas y fondo** — acordeón (color líneas, glow, fondo cuadro, watermark, imagen bracket)
+5. Sponsors
+
+Patrón idéntico a Fixture: `useState(false)`, badge "personalizado" si hay campos activos, `ChevronDown` rotante.
+
+### Campos personalizables del Draw
+
+`bracketTemplate`, `bracketConnColor`, `bracketConnGlow`, `bracketWatermark`, `bracketWatermarkOculto`, `bracketFondoColor`, `drawMostrarGenero` — todos incluidos en `mapBackendTorneoPublico`.
+
+### Archivos modificados
+- `project/apps/frontend/index.html` — Google Fonts (6 familias)
+- `project/apps/frontend/src/components/BracketThemes.js` — tokens completos
+- `project/apps/frontend/src/components/BracketView.jsx` — flat layout, broadcast header, SVG glow, watermark, hora fix
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx` — Draw tab acordeones, reorganización, 3 estados nuevos
+- `project/apps/frontend/src/pages/TorneoPublicoPage.jsx` — mapBackendTorneoPublico campos nuevos
+
+### Pendiente
+- Iterar template-by-template: Electric Blue, Minimal Pro, Neon Arena, Championship Gold (tokens definidos, diseño por afinar)
+- World Tour Dark es el más avanzado y sirve de referencia
+
+---
+
+## Último bloque completado (2026-06-07 sesión 2) — Draw: bracket esqueleto + auto-asignar horarios con split de días
+
+### Objetivo
+Implementar el bracket "esqueleto" (TBD) para pre-asignar horarios del draw antes de que terminen los grupos, y reescribir el auto-asignar del draw con soporte multi-categoría, split Día1/Día2 y anti-conflicto entre categorías.
+
+### Bug raíz identificado y corregido
+
+**"undefined undefined" en BracketCard header:**
+- Causa: `fmtFecha(fecha)` recibía `"undefined"` (string literal). La función producía `"undefined undefined"` sin validar el input.
+- Fix en `BracketView.jsx`: validación de formato antes de parsear. Guards dobles en JSX.
+- Causa real del bug original: `diaInicioEliminatoria` es un NOMBRE DE DÍA ("Sábado"), no una fecha ISO. El auto-asignar lo usaba como `partido.fecha`.
+- **El auto-asignar del draw NUNCA había funcionado**: la validación `diaInicio.includes('-')` siempre fallaba porque "Sábado" no contiene "-".
+
+**ModalHorario — "undefined undefined" al acceder a `.jugador1` de objetos TBD:**
+- Fix: helper `parejaLabel(p)` que devuelve `p.label` si `p.tbd`, apellidos si pareja real, "—" si null.
+
+### Bracket esqueleto (TBD)
+
+**`torneoService.js` — 2 funciones nuevas exportadas:**
+- `generateAPASkeletonBracket(grupos)`: mismo bracket APA pero con TBD `{tbd: true, label: '1° Zona A'}`. Sin BYE auto-resuelto. Retorna `{ rondas, isSkeleton: true }`.
+- `mergeScheduleFromSkeleton(bracket, skeleton)`: preserva `fecha/hora/cancha` del esqueleto al convertir al bracket final real. Matchea por partido ID.
+
+**Flujo esqueleto en TorneoDetallePage:**
+- "Generar bracket preliminar": crea esqueleto + navega a Fixture.
+- "Confirmar bracket" (reemplaza al botón normal cuando hay esqueleto + grupos terminados): genera bracket real + merge de horarios.
+- Tab Grupos: banner ámbar cuando hay esqueleto activo.
+- Tab Fixture: chip pulsante ámbar "Bracket preliminar".
+
+**BracketView.jsx — soporte TBD:**
+- `isBye`, `puedeCargar`, `estaFinalizado`: TBD-aware (TBD no activa BYE ni acciones).
+- Nombre TBD en cursiva ámbar en la tarjeta. Seeds excluidos para TBD.
+- Conflicto en ModalHorario: validación TBD-aware.
+
+### Auto-asignar draw — reescritura completa
+
+**3 campos nuevos en DB:**
+| Campo | Tipo | Uso |
+|-------|------|-----|
+| `fechaInicioEliminatoria` | String? | Fecha real (YYYY-MM-DD) del 1er día del draw |
+| `fechaInicioQF` | String? | Fecha real del día de cuartos/domingo (opcional) |
+| `horaInicioQF` | String? | Hora de inicio de cuartos |
+
+- `diaInicioEliminatoria` ("Sábado") sigue siendo el corte de disponibilidad de grupos — los nuevos campos son solo para el scheduler.
+- Schema aplicado via SQL directo en Supabase SQL Editor (prisma db push se cae por statement timeout del pooler).
+
+**Formulario crear/editar torneo — bloque "Fechas del draw":**
+- Date picker "Fecha 1ª ronda (octavos / previas)". Date picker "Fecha de cuartos" (opcional). Select hora cuartos 06:00–22:00.
+
+**`handleAutoScheduleElim` — nueva lógica:**
+- Opera sobre TODOS los brackets (todas las categorías).
+- Ordena categorías: menor zonas → primero (categoría más baja = slots más temprano).
+- Mapa global de canchas para evitar pisadas entre categorías.
+- `findSlot(dia, startMin, needed)`: primer slot con N canchas libres.
+- Split Day1/Day2: rondas antes de "Cuartos de final" → `fechaInicioEliminatoria`. QF+SF+Final → `fechaInicioQF`. Si no hay QF: todo Day1.
+
+### Cobertura del split por cantidad de zonas
+- 2-3 zonas (no hay QF): todo Day1
+- 4 zonas (empieza en QF): Day2 si hay `fechaInicioQF`, sino Day1
+- 5-10 zonas: previas/16avos/octavos = Day1; QF+SF+Final = Day2
+
+### Archivos modificados
+- `project/apps/frontend/src/services/torneoService.js` — `generateAPASkeletonBracket`, `mergeScheduleFromSkeleton`
+- `project/apps/frontend/src/components/BracketView.jsx` — fmtFecha defensivo, TBD guards y rendering
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx` — esqueleto, handleAutoScheduleElim reescrito, ModalHorario TBD, mapeo nuevos campos
+- `project/apps/frontend/src/pages/TorneosPage.jsx` — form state 3 nuevos campos, UI "Fechas del draw", mapBackendTorneo
+- `project/apps/backend/prisma/schema.prisma` — 3 campos nuevos en modelo Torneo
+- `project/apps/backend/src/routes/torneos.js` — POST y PATCH con 3 campos nuevos
+
+### Pendiente
+- Probar el auto-asignar cuando se cree el próximo torneo (el actual ya está en curso)
+- Sección Draw en TorneoPublicoPage (pendiente)
+
+---
+
+## Último bloque completado (2026-06-07) — Página pública torneo: tab Resumen + sistema de reprogramación + fixes
+
+### Objetivo
+Agregar tab "Resumen" informativo en la página pública del torneo (estilo 4Set Padel Club), implementar sistema de reprogramación de torneos (DB + backend + admin + público), y corregir bugs de cold-start y mapeo de datos.
+
+### Nuevas funcionalidades
+
+**Tab "Resumen" en TorneoPublicoPage (estilo 4Set Padel Club):**
+- Nuevo tab como primero en la barra: `[ Resumen ] [ Fixture ] [ Grupos ] [ Draw ]`
+- Default tab cambiado a `'resumen'`
+- Layout 2 columnas en desktop (`lg:flex-row`), apilado en mobile
+- **Izquierda (hero)**: card con gradiente de `accentColor`. Si hay `imagenFondoFixture` o `imagenFondoGrupos`, muestra la imagen con overlay + nombre del torneo. Sin imagen: logo del club + nombre + badge "En curso" animado + fechas
+- **Derecha (sidebar)**: secciones condicionales:
+  - Premios (si `premioPrimero || premioSegundo || premioSemifinal || premioExtra`)
+  - Descripción (si `torneo.descripcion`)
+  - Categorías como pills con `accentColor`
+  - Sede: logo + nombre del club + formato/género/parejas inscriptas
+
+**Sistema de reprogramación:**
+- Campo `fechaReprogramada String?` agregado al schema Prisma + `npx prisma db push` aplicado
+- Backend: `PATCH /torneos/:id/reprogramar` — solo admin, solo si pertenece al club. Acepta `fechaReprogramada: null` para quitar
+- Admin — TorneosPage: ícono `Flag` en footer de `TorneoCard` (solo para `in_progress`). Click abre modal con datepicker. Botones: Confirmar / Quitar / Cancelar. Color ámbar cuando hay fecha reprogramada
+- Admin — TorneoDetallePage: header muestra fecha tachada + nueva fecha en ámbar cuando hay reprogramación
+- Público — TorneoPublicoPage: chip "Fin" en ámbar con nueva fecha + tachado de la original cuando hay `fechaReprogramada`. Chips con etiquetas "Inicio" / "Fin"
+
+**Renombres en pestañas:**
+- Admin TorneoDetallePage: "Fixture / Bracket" → "Fixture / Cuadro"
+- Público TorneoPublicoPage: "Fixture / Cuadro" → solo "Fixture"
+
+**Color pickers en admin (Fixture):**
+- "Color por categoría" y "Fondo de card" reorganizados lado a lado (`flex gap-6 flex-wrap`)
+
+### Bugs corregidos
+
+**Cold-start bracket (TorneoDetallePage):**
+- Causa: `useState` lazy initializer corre una vez al mount con el store vacío → `selectedBracketCat` queda en `null` y el bracket aparece vacío tras refresh directo
+- Fix: `useEffect` adicional que observa `[torneo?.id, torneo?.brackets]`. Cuando el fetch async trae datos, setea `selectedBracketCat` al primer key del bracket o primera categoría
+
+**mapBackendTorneoPublico — campos faltantes:**
+- `descripcion` y `formato` son columnas top-level en Prisma (no en `personalizacion`) — no estaban mapeados
+- Fix: `descripcion: data.descripcion ?? null` y `formato: data.formato ?? null` agregados
+- Resultado: tab Resumen puede mostrar descripción del torneo y formato en sección Sede
+
+### Arquitectura clarificada
+
+Los campos `premioPrimero`, `premioSegundo`, `premioSemifinal`, `premioExtra` viven en la columna JSON `personalizacion`. `mapBackendTorneoPublico` los obtiene vía `...p` (spread de `personalizacion`). `mapBackendTorneo` en TorneosPage los extrae explícitamente con `t.personalizacion?.premioPrimero`. `updatePersonalizacion` en el store los guarda al top-level via spread. El flujo es correcto: crear torneo con premios → aparecen pre-cargados en tab Personalización del admin.
+
+### Archivos modificados
+- `project/apps/frontend/src/pages/TorneoDetallePage.jsx` — cold-start bracket, "Fixture / Cuadro", color pickers, reprogramar header, Flag import, updateTorneoFromApi
+- `project/apps/frontend/src/pages/TorneosPage.jsx` — TorneoCard reprogramar modal, Flag icon, handleReprogramar, fechaReprogramada mapping
+- `project/apps/frontend/src/pages/TorneoPublicoPage.jsx` — tabs array (Resumen primero), TabResumen 2col hero+sidebar, chips Inicio/Fin, mapBackendTorneoPublico +descripcion +formato
+- `project/apps/backend/prisma/schema.prisma` — `fechaReprogramada String?`
+- `project/apps/backend/src/routes/torneos.js` — `PATCH /:id/reprogramar`
+
+### Próximo en cola
+- Sección Draw en TorneoPublicoPage (pendiente)
 
 ---
 

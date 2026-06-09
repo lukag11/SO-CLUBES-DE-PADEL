@@ -122,6 +122,101 @@ export const generateAPAEliminationBracket = (grupos) => {
   return { rondas }
 }
 
+/**
+ * generateAPASkeletonBracket(grupos)
+ *
+ * Como generateAPAEliminationBracket pero genera posiciones TBD para zonas
+ * que aún no tienen clasificados. Permite pre-asignar horarios antes de que
+ * terminen todos los grupos.
+ *
+ * Las posiciones sin clasificar llevan { tbd: true, label: '1° Zona A', zoneCode: '1A' }
+ * en lugar de null. No resuelve BYEs (se resuelven al convertir a bracket final).
+ */
+export const generateAPASkeletonBracket = (grupos) => {
+  const nZonas = grupos.length
+  const draw   = APA_DRAWS[nZonas]
+  if (!draw) throw new Error(`No existe draw APA para ${nZonas} zonas (máximo: 10).`)
+
+  const { previas, slots } = draw
+  const size        = slots.length
+  const numMain     = Math.log2(size)
+  const rondas      = []
+  const rondaOffset = previas.length > 0 ? 1 : 0
+
+  const resolveTBD = (code) => {
+    if (!code) return null
+    if (code.startsWith('pi')) return null
+    const pos     = parseInt(code[0]) - 1
+    const zonaIdx = code.charCodeAt(1) - 65
+    const pareja  = grupos[zonaIdx]?.clasificados?.[pos] ?? null
+    if (pareja) return pareja
+    const zonaNom = grupos[zonaIdx]?.nombre ?? String.fromCharCode(65 + zonaIdx)
+    return { tbd: true, label: `${pos === 0 ? '1°' : '2°'} Zona ${zonaNom}`, zoneCode: code }
+  }
+
+  if (previas.length > 0) {
+    const partidos = previas.map((pr, idx) =>
+      _nuevoPartido(`pi_m${idx}`, resolveTBD(pr.p1), resolveTBD(pr.p2), null, null)
+    )
+    rondas.push({ numero: 1, nombre: 'Ronda Previa', partidos })
+  }
+
+  for (let r = 0; r < numMain; r++) {
+    const matchCount = size / Math.pow(2, r + 1)
+    const nombre     = ROUND_NAMES[matchCount] ?? `Ronda ${r + 1}`
+    const rondaNum   = r + 1 + rondaOffset
+    const nextRonda  = r < numMain - 1 ? rondaNum + 1 : null
+
+    const partidos = Array.from({ length: matchCount }, (_, i) => {
+      let p1 = null, p2 = null
+      if (r === 0) {
+        const s1 = slots[i * 2], s2 = slots[i * 2 + 1]
+        p1 = (s1 && !s1.startsWith('pi')) ? resolveTBD(s1) : null
+        p2 = (s2 && !s2.startsWith('pi')) ? resolveTBD(s2) : null
+      }
+      return _nuevoPartido(`r${rondaNum}_m${i}`, p1, p2, nextRonda ? `r${nextRonda}_m${Math.floor(i / 2)}` : null, i % 2)
+    })
+
+    rondas.push({ numero: rondaNum, nombre, partidos })
+  }
+
+  if (previas.length > 0) {
+    const firstMain = rondas[1]
+    previas.forEach((_, idx) => {
+      const piCode  = `pi${idx}`
+      const slotIdx = slots.findIndex((s) => s === piCode)
+      if (slotIdx === -1) return
+      rondas[0].partidos[idx].nextMatchId = firstMain.partidos[Math.floor(slotIdx / 2)].id
+      rondas[0].partidos[idx].nextSlot    = slotIdx % 2
+    })
+  }
+
+  return { rondas, isSkeleton: true }
+}
+
+/**
+ * mergeScheduleFromSkeleton(bracket, skeleton)
+ *
+ * Copia fecha/hora/cancha del bracket esqueleto al bracket final generado.
+ * Usa el id del partido como clave (determinista: r1_m0, r1_m1, etc.).
+ */
+export const mergeScheduleFromSkeleton = (bracket, skeleton) => {
+  if (!skeleton?.isSkeleton) return bracket
+  const newBracket    = JSON.parse(JSON.stringify(bracket))
+  const skelPartidos  = (skeleton.rondas ?? []).flatMap((r) => r.partidos)
+  for (const ronda of newBracket.rondas) {
+    for (const partido of ronda.partidos) {
+      const skel = skelPartidos.find((p) => p.id === partido.id)
+      if (skel) {
+        if (skel.fecha)  partido.fecha  = skel.fecha
+        if (skel.hora)   partido.hora   = skel.hora
+        if (skel.cancha) partido.cancha = skel.cancha
+      }
+    }
+  }
+  return newBracket
+}
+
 // Uso interno: propaga el ganador de un partido al slot del siguiente.
 const _propagarGanador = (rondas, partido) => {
   if (!partido.nextMatchId || !partido.ganador) return

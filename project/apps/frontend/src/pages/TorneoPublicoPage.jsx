@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  Trophy, Calendar, ArrowLeft, Users, GitMerge, Clock, CheckCircle,
+  Trophy, Calendar, ArrowLeft, Users, GitMerge, Clock, CheckCircle, Flag, Tag,
+  LayoutGrid, MapPin, Award, ChevronRight,
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
 import useClubStore from '../store/clubStore'
@@ -731,7 +732,7 @@ const makePartidoCard = (p, {
         <div className={`flex items-center gap-2 flex-1 min-w-0 ${ganP1 ? st.nameW : ganP2 ? st.nameL : st.nameN}`}
           style={nStyle(ganP1, ganP2 && fin)}>
           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${ganP1 ? 'bg-emerald-500 text-white' : fin ? `${st.seedBg} opacity-50` : st.seedBg}`}>{p._n1}</span>
-          <span className={`text-sm truncate ${ganP2 && fin ? 'line-through' : ''}`}>
+          <span className={`text-[11px] sm:text-sm leading-tight ${ganP2 && fin ? 'line-through' : ''}`}>
             {p.pareja1 ? `${p.pareja1.jugador1.split(' ')[0]} / ${p.pareja1.jugador2.split(' ')[0]}` : '—'}
           </span>
         </div>
@@ -749,7 +750,7 @@ const makePartidoCard = (p, {
         </div>
         <div className={`flex items-center gap-2 flex-1 min-w-0 justify-end ${ganP2 ? st.nameW : ganP1 ? st.nameL : st.nameN}`}
           style={nStyle(ganP2, ganP1 && fin)}>
-          <span className={`text-sm truncate text-right ${ganP1 && fin ? 'line-through' : ''}`}>
+          <span className={`text-[11px] sm:text-sm leading-tight text-right ${ganP1 && fin ? 'line-through' : ''}`}>
             {p.pareja2 ? `${p.pareja2.jugador1.split(' ')[0]} / ${p.pareja2.jugador2.split(' ')[0]}` : '—'}
           </span>
           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${ganP2 ? 'bg-emerald-500 text-white' : fin ? `${st.seedBg} opacity-50` : st.seedBg}`}>{p._n2}</span>
@@ -1556,7 +1557,7 @@ const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, water
             style={nStyle(ganP1, ganP2 && fin)}>
             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${ganP1 ? 'bg-emerald-500 text-white' : fin ? `${st.seedBg} opacity-50` : st.seedBg}`}>{p._n1}</span>
             <span className={`text-sm truncate ${ganP2 && fin ? 'line-through' : ''}`}>
-              {p.pareja1 ? `${p.pareja1.jugador1.split(' ')[0]} / ${p.pareja1.jugador2.split(' ')[0]}` : '—'}
+              {p.pareja1 ? [(p.pareja1.jugador1 ?? '').split(' ')[0], (p.pareja1.jugador2 ?? '').split(' ')[0]].filter(Boolean).join(' / ') || '—' : '—'}
             </span>
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
@@ -1574,7 +1575,7 @@ const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, water
           <div className={`flex items-center gap-2 flex-1 min-w-0 justify-end ${ganP2 ? st.nameW : ganP1 ? st.nameL : st.nameN}`}
             style={nStyle(ganP2, ganP1 && fin)}>
             <span className={`text-sm truncate text-right ${ganP1 && fin ? 'line-through' : ''}`}>
-              {p.pareja2 ? `${p.pareja2.jugador1.split(' ')[0]} / ${p.pareja2.jugador2.split(' ')[0]}` : '—'}
+              {p.pareja2 ? [(p.pareja2.jugador1 ?? '').split(' ')[0], (p.pareja2.jugador2 ?? '').split(' ')[0]].filter(Boolean).join(' / ') || '—' : '—'}
             </span>
             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${ganP2 ? 'bg-emerald-500 text-white' : fin ? `${st.seedBg} opacity-50` : st.seedBg}`}>{p._n2}</span>
           </div>
@@ -1613,23 +1614,81 @@ const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, water
     [todosConSlot, diaActivo]
   )
 
-  const bracketRondas = useMemo(() => {
-    if (!torneo.bracket?.length) return []
-    return torneo.bracket
-      .map((ronda) => ({
-        nombre: ronda.nombre,
-        partidos: ronda.partidos
-          .filter((p) => p.fecha)
-          .sort((a, b) => {
-            const fa = (a.fecha ?? '') + (a.hora ?? '')
-            const fb = (b.fecha ?? '') + (b.hora ?? '')
-            return fa < fb ? -1 : fa > fb ? 1 : 0
-          }),
-      }))
-      .filter((r) => r.partidos.length > 0)
-  }, [torneo.bracket])
+  const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/
 
-  if (dias.length === 0 && bracketRondas.length === 0) {
+  // Nombres exactos del service (minúscula en "de final")
+  const ROUND_ORDER = { 'Ronda Previa': 0, '16avos de final': 1, 'Octavos de final': 2, 'Cuartos de final': 3, 'Semifinal': 4, 'Final': 5 }
+
+  // Todas las rondas del bracket agrupadas por nombre — para mostrar en el día del draw
+  // SIN filtro por fecha, así se ven QF+SF+Final aunque SF/Final sean skeleton sin fecha
+  const allBracketRounds = useMemo(() => {
+    const map = {}
+    Object.entries(torneo.brackets ?? {}).forEach(([cat, bracketObj]) => {
+      const rondas = Array.isArray(bracketObj) ? bracketObj : (bracketObj?.rondas ?? [])
+      rondas.forEach((ronda) => {
+        if (!map[ronda.nombre]) map[ronda.nombre] = { nombre: ronda.nombre, partidos: [] }
+        ;(ronda.partidos ?? []).forEach((p) => {
+          if (!map[ronda.nombre].partidos.find((x) => x.id === p.id)) {
+            map[ronda.nombre].partidos.push({ ...p, _cat: cat })
+          }
+        })
+      })
+    })
+    return map
+  }, [torneo.brackets])
+
+  // Fechas ISO con al menos 1 partido asignado — solo para saber cuántos "días draw" mostrar como pill
+  const bracketFechasConPartidos = useMemo(() => {
+    const set = new Set()
+    Object.entries(torneo.brackets ?? {}).forEach(([, bracketObj]) => {
+      const rondas = Array.isArray(bracketObj) ? bracketObj : (bracketObj?.rondas ?? [])
+      rondas.forEach((ronda) => {
+        ;(ronda.partidos ?? []).forEach((p) => {
+          if (p.fecha && ISO_DATE_RE.test(p.fecha)) set.add(p.fecha)
+        })
+      })
+    })
+    return set
+  }, [torneo.brackets])
+
+  // Hay datos de bracket si hay rondas con partidos (con o sin fecha)
+  const hasBracketData = Object.keys(allBracketRounds).length > 0
+
+  // Fechas para las pills: las ISO reales + "__draw__" como fallback si el bracket existe pero sin fechas asignadas
+  const drawFechas = useMemo(() => {
+    const sorted = [...bracketFechasConPartidos].sort()
+    return sorted.length > 0 ? sorted : hasBracketData ? ['__draw__'] : []
+  }, [bracketFechasConPartidos, hasBracketData])
+
+  const roundsForDrawDay = useMemo(() => {
+    if (!hasBracketData) return []
+    return Object.values(allBracketRounds)
+      .sort((a, b) => (ROUND_ORDER[a.nombre] ?? 99) - (ROUND_ORDER[b.nombre] ?? 99))
+      .map((r) => ({ ...r, partidos: r.partidos.slice().sort((a, b) => (a.hora ?? '') < (b.hora ?? '') ? -1 : 1) }))
+  }, [allBracketRounds, hasBracketData])
+
+  // Si no hay día activo pero hay días de draw, seleccionar el primero
+  useEffect(() => {
+    if (!diaActivo && drawFechas.length > 0) setDiaActivo(drawFechas[0])
+  }, [drawFechas])
+
+  const isDrawDay = !!(diaActivo && drawFechas.includes(diaActivo))
+
+  // Formatea fecha ISO o marcador "__draw__" → label de pill
+  const fmtDrawDayLabel = (isoDate) => {
+    if (isoDate === '__draw__') return 'Fase eliminatoria'
+    try {
+      if (!isoDate || !/^\d{4}-\d{2}-\d{2}/.test(isoDate)) return isoDate ?? '?'
+      const [, , d] = isoDate.split('-')
+      const date = new Date(isoDate + 'T12:00:00')
+      if (isNaN(date.getTime())) return isoDate
+      const dia = date.toLocaleDateString('es-AR', { weekday: 'long' })
+      const mes = date.toLocaleDateString('es-AR', { month: 'short' })
+      return `${dia.charAt(0).toUpperCase() + dia.slice(1)} ${parseInt(d)} ${mes}`
+    } catch { return isoDate }
+  }
+
+  if (dias.length === 0 && drawFechas.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
         <Clock size={32} className="text-white/10" />
@@ -1647,104 +1706,98 @@ const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, water
             <div className="absolute inset-0 bg-black/55" />
           </>
         )}
-        <div className="relative z-10 h-full flex items-center justify-between px-4 gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-1 h-4 rounded-full" style={{ background: imagenFondo ? 'rgba(255,255,255,0.7)' : clrScoreW }} />
-            <p className={`font-bold text-xs uppercase tracking-widest ${imagenFondo ? 'text-white opacity-80' : ''}`}
-              style={!imagenFondo ? { color: clrScoreW, opacity: 0.8 } : undefined}>
-              Fixture del día
-            </p>
-          </div>
+        <div className="relative z-10 h-full flex items-center justify-center gap-2">
+          <div className="w-1 h-4 rounded-full" style={{ background: imagenFondo ? 'rgba(255,255,255,0.7)' : clrScoreW }} />
+          <p className={`font-bold text-xs uppercase tracking-widest ${imagenFondo ? 'text-white opacity-80' : ''}`}
+            style={!imagenFondo ? { color: clrScoreW, opacity: 0.8 } : undefined}>
+            Fixture del día
+          </p>
           {sponsorLogo && (
-            <img src={sponsorLogo} alt="Sponsor" className="h-8 w-auto object-contain opacity-80" />
+            <img src={sponsorLogo} alt="Sponsor" className="h-8 w-auto object-contain opacity-80 absolute right-4" />
           )}
         </div>
       </div>
 
-      {/* Fase de grupos */}
-      {dias.length > 0 && (
-        <div className="relative z-10 flex flex-col gap-5">
-          <div className="flex gap-2 flex-wrap">
-            {dias.map((dia) => (
-              <button
-                key={dia}
-                onClick={() => setDiaActivo(dia)}
-                className={`px-4 py-1.5 rounded-xl text-sm font-semibold border transition-all ${
-                  diaActivo === dia
-                    ? 'text-[#0d1117] border-transparent'
-                    : 'text-white/40 border-white/10 hover:border-white/25 hover:text-white/70'
-                }`}
-                style={diaActivo === dia ? { background: accentColor, borderColor: accentColor } : {}}
-              >
-                {dia}
-              </button>
-            ))}
-          </div>
+      {/* Barra de días — grupos + días del draw */}
+      {(dias.length > 0 || drawFechas.length > 0) && (
+        <div className="relative z-10 flex items-center gap-2 flex-wrap">
+          {dias.map((dia) => (
+            <button key={dia} onClick={() => setDiaActivo(dia)}
+              className={`px-4 py-1.5 rounded-xl text-sm font-semibold border transition-all ${
+                diaActivo === dia
+                  ? 'text-[#0d1117] border-transparent'
+                  : isClara ? 'text-gray-400 border-gray-200 hover:border-gray-300 hover:text-gray-600' : 'text-white/40 border-white/10 hover:border-white/25 hover:text-white/70'
+              }`}
+              style={diaActivo === dia ? { background: accentColor, borderColor: accentColor } : {}}
+            >{dia}</button>
+          ))}
 
-          <div className="flex flex-col gap-2.5">
-            {partidosDelDia.map((p) => renderPartidoCard(p))}
-          </div>
+          {/* Separador visual entre grupos y draw */}
+          {dias.length > 0 && drawFechas.length > 0 && (
+            <div className={`w-px h-5 rounded-full self-center ${isClara ? 'bg-gray-200' : 'bg-white/15'}`} />
+          )}
+
+          {drawFechas.map((fecha) => (
+            <button key={fecha} onClick={() => setDiaActivo(fecha)}
+              className={`px-4 py-1.5 rounded-xl text-sm font-semibold border transition-all flex items-center gap-1.5 ${
+                diaActivo === fecha
+                  ? 'text-[#0d1117] border-transparent'
+                  : isClara ? 'text-gray-400 border-gray-200 hover:border-gray-300 hover:text-gray-600' : 'text-white/40 border-white/10 hover:border-white/25 hover:text-white/70'
+              }`}
+              style={diaActivo === fecha ? { background: accentColor, borderColor: accentColor } : {}}
+            >
+              <GitMerge size={12} style={{ opacity: diaActivo === fecha ? 1 : 0.5 }} />
+              {fmtDrawDayLabel(fecha)}
+            </button>
+          ))}
         </div>
       )}
 
-      {/* Fase eliminatoria */}
-      {bracketRondas.length > 0 && (
-        <div className="flex flex-col gap-5">
-          {dias.length > 0 && (
-            <div className={`flex items-center gap-3 ${isClara ? 'text-gray-300' : 'text-white/20'}`}>
-              <div className="flex-1 h-px bg-current" />
-              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest">
-                <GitMerge size={11} />
-                Fase Eliminatoria
-              </span>
-              <div className="flex-1 h-px bg-current" />
-            </div>
-          )}
-          {bracketRondas.map(({ nombre, partidos }) => (
+      {/* Contenido según día activo */}
+
+      {/* Día de grupos */}
+      {!isDrawDay && (
+        <div className="flex flex-col gap-2.5">
+          {partidosDelDia.map((p) => renderPartidoCard(p))}
+        </div>
+      )}
+
+      {/* Día del draw — rondas agrupadas, usando renderPartidoCard para respetar el template */}
+      {isDrawDay && roundsForDrawDay.length > 0 && (
+        <div className="flex flex-col gap-6">
+          {roundsForDrawDay.map(({ nombre, partidos }) => (
             <div key={nombre} className="flex flex-col gap-2.5">
-              <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: accentColor }}>{nombre}</p>
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1" style={{ background: `${accentColor}30` }} />
+                <p className="text-[13px] font-bold uppercase tracking-widest px-2" style={{ color: accentColor }}>{nombre}</p>
+                <div className="h-px flex-1" style={{ background: `${accentColor}30` }} />
+              </div>
               {partidos.map((p) => {
-                const finalizado = p.estado === 'finalizado'
-                const ganP1 = p.ganador?.id === p.pareja1?.id
-                const ganP2 = p.ganador?.id === p.pareja2?.id
-                return (
-                  <div key={p.id} className={cardStyle_(finalizado)} style={cardBg}>
-                    <div className={`flex items-center justify-between px-4 py-2.5 border-b ${st.hdrBorder}`}>
-                      <span className={`text-[10px] font-bold ${isClara ? 'text-gray-400' : 'text-white/30'}`}>
-                        {fmtFecha(p.fecha)}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        {p.hora   && <span className={st.hora}>{p.hora} hs</span>}
-                        {p.cancha && <span className={st.cancha}>{canchaName(p.cancha)}</span>}
-                        {finalizado && <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold"><CheckCircle size={9} /> Finalizado</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <div className={`flex items-center flex-1 min-w-0 ${ganP1 ? st.nameW : ganP2 ? st.nameL : st.nameN}`}>
-                        <span className={`text-sm truncate ${ganP2 && finalizado ? 'line-through' : ''}`}>
-                          {p.pareja1 ? `${p.pareja1.jugador1.split(' ')[0]} / ${p.pareja1.jugador2.split(' ')[0]}` : '—'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        {finalizado && p.resultado?.length > 0 ? (
-                          p.resultado.map((s, i) => (
-                            <span key={i} className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border ${s.p1 > s.p2 ? st.chipW : st.chipL}`}>{s.p1}-{s.p2}</span>
-                          ))
-                        ) : (
-                          <span className={`text-xs px-2 font-bold ${st.vs}`}>vs</span>
-                        )}
-                      </div>
-                      <div className={`flex items-center flex-1 min-w-0 justify-end ${ganP2 ? st.nameW : ganP1 ? st.nameL : st.nameN}`}>
-                        <span className={`text-sm truncate text-right ${ganP1 && finalizado ? 'line-through' : ''}`}>
-                          {p.pareja2 ? `${p.pareja2.jugador1.split(' ')[0]} / ${p.pareja2.jugador2.split(' ')[0]}` : '—'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )
+                // Adaptar el partido del bracket al shape que espera renderPartidoCard:
+                // slot.hora en lugar de p.hora directo, _zona vacío, _n1/_n2 desde seed
+                const adaptP = (par) => {
+                  if (!par || !par.tbd) return par
+                  return { ...par, jugador1: par.label ?? 'Por definir', jugador2: '' }
+                }
+                const adapted = {
+                  ...p,
+                  slot: { hora: p.hora, dia: null },
+                  _zona: '',
+                  _n1: p.pareja1?.seed ?? '',
+                  _n2: p.pareja2?.seed ?? '',
+                  pareja1: adaptP(p.pareja1),
+                  pareja2: adaptP(p.pareja2),
+                }
+                return renderPartidoCard(adapted)
               })}
             </div>
           ))}
+        </div>
+      )}
+
+      {isDrawDay && roundsForDrawDay.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 gap-2">
+          <p className={`text-sm ${isClara ? 'text-gray-400' : 'text-white/30'}`}>Sin partidos asignados para este día.</p>
         </div>
       )}
 
@@ -2072,7 +2125,7 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
                       {/* P1 */}
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${ganP1 ? 'bg-emerald-500 text-white' : `${st.seedBg}${finalizado ? ' opacity-60' : ''}`}`}>{n1 ?? '?'}</span>
-                        <span className={`text-xs truncate font-semibold`}
+                        <span className="text-xs font-semibold leading-tight"
                           style={{ color: ganP1 ? tNameW : finalizado ? tNameL : tNameW, textDecoration: ganP2 && finalizado ? 'line-through' : 'none', opacity: ganP2 && finalizado ? 0.5 : 1 }}>
                           {m.pareja1 ? `${m.pareja1.jugador1.split(' ')[0]} / ${m.pareja1.jugador2.split(' ')[0]}` : '—'}
                         </span>
@@ -2092,7 +2145,7 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
                       </div>
                       {/* P2 */}
                       <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
-                        <span className="text-xs truncate text-right font-semibold"
+                        <span className="text-xs text-right font-semibold leading-tight"
                           style={{ color: ganP2 ? tNameW : finalizado ? tNameL : tNameW, textDecoration: ganP1 && finalizado ? 'line-through' : 'none', opacity: ganP1 && finalizado ? 0.5 : 1 }}>
                           {m.pareja2 ? `${m.pareja2.jugador1.split(' ')[0]} / ${m.pareja2.jugador2.split(' ')[0]}` : '—'}
                         </span>
@@ -2182,14 +2235,169 @@ const TabDraw = ({ torneo, club }) => {
       seedingMap={seedingMap}
       selectedCat={catTabD}
       onSelectCat={multiCatD ? setCatTabD : null}
+      bracketTemplate={torneo.bracketTemplate ?? 'default'}
     />
+  )
+}
+
+// ── TabResumen ────────────────────────────────────────────────────────────────
+
+const TabResumen = ({ torneo, club, accentColor }) => {
+  const fmtF = (s) => {
+    if (!s) return '—'
+    const [y, m, d] = s.split('-')
+    const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+    return `${Number(d)} ${meses[Number(m)-1]} ${y}`
+  }
+  const inscriptos  = (torneo.inscriptos ?? []).filter((p) => p.estado === 'inscripto')
+  const hasPremios  = torneo.premioPrimero || torneo.premioSegundo || torneo.premioSemifinal || torneo.premioExtra
+  const categorias  = torneo.categorias ?? []
+  const imagenHero  = torneo.imagenFondoFixture || torneo.imagenFondoGrupos || null
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-5 items-start">
+
+      {/* ── Hero izquierda ── */}
+      <div className="w-full lg:w-[55%] shrink-0">
+        <div className="relative rounded-2xl overflow-hidden aspect-square sm:aspect-[4/3] lg:aspect-square"
+          style={{ background: imagenHero ? undefined : `linear-gradient(135deg, #0d1117 60%, ${accentColor}22)`, border: `1px solid ${accentColor}25` }}>
+          {imagenHero ? (
+            <img src={imagenHero} alt={torneo.nombre} className="w-full h-full object-cover" />
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6">
+              {club.logo ? (
+                <img src={club.logo} alt={club.nombre} className="w-24 h-24 rounded-2xl object-cover border border-white/10" />
+              ) : (
+                <div className="w-20 h-20 rounded-2xl flex items-center justify-center border border-white/10"
+                  style={{ background: `${accentColor}20` }}>
+                  <Trophy size={32} style={{ color: accentColor }} />
+                </div>
+              )}
+              <div className="text-center">
+                <p className="text-white font-bold text-2xl leading-tight">{torneo.nombre}</p>
+                {club.nombre && <p className="text-white/40 text-sm mt-1">{club.nombre}</p>}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap justify-center">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
+                  style={{ backgroundColor: `${accentColor}22`, color: accentColor, border: `1px solid ${accentColor}44` }}>
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
+                  En curso
+                </span>
+                <span className="text-white/30 text-xs">
+                  {fmtF(torneo.fechaInicio)} → {fmtF(torneo.fechaReprogramada || torneo.fechaFin)}
+                </span>
+              </div>
+            </div>
+          )}
+          {/* overlay gradient bottom */}
+          {imagenHero && (
+            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-4 gap-1">
+              <p className="text-white font-bold text-lg leading-tight">{torneo.nombre}</p>
+              {club.nombre && <p className="text-white/50 text-xs">{club.nombre}</p>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Sidebar derecha ── */}
+      <div className="w-full lg:flex-1 flex flex-col gap-4">
+
+        {/* Premios */}
+        {hasPremios && (
+          <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Trophy size={13} style={{ color: accentColor }} />
+              <p className="text-[11px] uppercase tracking-widest font-bold text-white/50">Premios</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              {torneo.premioPrimero && (
+                <div className="flex items-start gap-2">
+                  <span className="text-[11px] font-bold text-amber-400 shrink-0 mt-0.5">1er puesto</span>
+                  <span className="text-sm text-white/70">{torneo.premioPrimero}</span>
+                </div>
+              )}
+              {torneo.premioSegundo && (
+                <div className="flex items-start gap-2">
+                  <span className="text-[11px] font-bold text-slate-400 shrink-0 mt-0.5">2do puesto</span>
+                  <span className="text-sm text-white/70">{torneo.premioSegundo}</span>
+                </div>
+              )}
+              {torneo.premioSemifinal && (
+                <div className="flex items-start gap-2">
+                  <span className="text-[11px] font-bold text-white/30 shrink-0 mt-0.5">Semifinal</span>
+                  <span className="text-sm text-white/50">{torneo.premioSemifinal}</span>
+                </div>
+              )}
+              {torneo.premioExtra && (
+                <div className="flex items-start gap-2">
+                  <span className="text-[11px] font-bold text-white/30 shrink-0 mt-0.5">Premio extra</span>
+                  <span className="text-sm text-white/50">{torneo.premioExtra}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Descripción */}
+        {torneo.descripcion && (
+          <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle size={13} style={{ color: accentColor }} />
+              <p className="text-[11px] uppercase tracking-widest font-bold text-white/50">Descripción</p>
+            </div>
+            <p className="text-sm text-white/60 leading-relaxed">{torneo.descripcion}</p>
+          </div>
+        )}
+
+        {/* Categorías */}
+        {categorias.length > 0 && (
+          <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Tag size={13} style={{ color: accentColor }} />
+              <p className="text-[11px] uppercase tracking-widest font-bold text-white/50">Categorías</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {categorias.map((cat) => (
+                <span key={cat} className="text-xs font-semibold px-3 py-1 rounded-full"
+                  style={{ backgroundColor: `${accentColor}18`, color: accentColor, border: `1px solid ${accentColor}35` }}>
+                  {cat}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sede */}
+        <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <MapPin size={13} style={{ color: accentColor }} />
+            <p className="text-[11px] uppercase tracking-widest font-bold text-white/50">Sede</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {club.logo && (
+              <img src={club.logo} alt={club.nombre} className="w-10 h-10 rounded-xl object-cover border border-white/10 shrink-0" />
+            )}
+            <div>
+              <p className="text-sm font-bold text-white/80">{club.nombre || '—'}</p>
+              <div className="flex flex-wrap gap-x-3 mt-1">
+                <span className="text-xs text-white/40">{torneo.formato}</span>
+                {torneo.genero && <span className="text-xs text-white/40">{torneo.genero}</span>}
+                <span className="text-xs text-white/40">{inscriptos.length} parejas</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
   )
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: 'fixture', label: 'Fixture del día', icon: Calendar },
+  { key: 'resumen', label: 'Resumen',         icon: LayoutGrid },
+  { key: 'fixture', label: 'Fixture', icon: Calendar },
   { key: 'grupos',  label: 'Grupos',          icon: Users    },
   { key: 'draw',    label: 'Draw',            icon: GitMerge },
 ]
@@ -2202,14 +2410,18 @@ const mapBackendTorneoPublico = (data) => {
     id:                   data.id,
     nombre:               data.nombre,
     estado:               data.estado,
+    updatedAt:            data.updatedAt ?? null,
     fechaInicio:          data.fechaInicio,
     fechaFin:             data.fechaFin,
+    fechaReprogramada:    data.fechaReprogramada ?? null,
     categorias:           data.categorias           ?? [],
     genero:               data.genero               ?? null,
     canchasAsignadas:     data.canchasAsignadas      ?? [],
     grupos:               data.grupos               ?? null,
     brackets:             data.brackets             ?? {},
     puntosPorVictoria:    data.puntosPorVictoria     ?? 2,
+    descripcion:          data.descripcion          ?? null,
+    formato:              data.formato              ?? null,
     colorAcento:          p.colorAcento             ?? null,
     colorAcentoFixture:   p.colorAcentoFixture      ?? null,
     templateFixture:      p.templateFixture          ?? 1,
@@ -2237,6 +2449,13 @@ const mapBackendTorneoPublico = (data) => {
     colorCard:            p.colorCard                ?? null,
     fontScale:            p.fontScale                ?? 'normal',
     bracketColores:       p.bracketColores           ?? {},
+    bracketTemplate:      p.bracketTemplate          ?? 'default',
+    bracketConnColor:     p.bracketConnColor         ?? null,
+    bracketConnGlow:      p.bracketConnGlow          ?? true,
+    bracketWatermark:     p.bracketWatermark         ?? null,
+    bracketWatermarkOculto: p.bracketWatermarkOculto ?? false,
+    bracketFondoColor:    p.bracketFondoColor        ?? null,
+    drawMostrarGenero:    p.drawMostrarGenero        ?? true,
     drawMostrarClub:      p.drawMostrarClub          ?? true,
     drawTitulo:           p.drawTitulo               ?? null,
     drawMostrarNombre:    p.drawMostrarNombre        ?? true,
@@ -2261,7 +2480,7 @@ const TorneoPublicoPage = () => {
   const _loaded            = useClubStore((s) => s._loaded)
   const loadFromBackend    = useClubStore((s) => s.loadFromBackend)
   const canchas            = club.canchas
-  const [tab, setTab]      = useState('fixture')
+  const [tab, setTab]      = useState('resumen')
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const pollRef            = useRef(null)
@@ -2396,7 +2615,21 @@ const TorneoPublicoPage = () => {
     )
   }
 
-  if (notFound || (torneo && torneo.estado !== 'in_progress')) {
+  // Visible si está en curso, o finalizado dentro de la ventana post-torneo
+  // (para que la gente vea campeón + draw final unos días después).
+  const DIAS_VISIBLE_FINISHED = 3
+  const torneoVisible = (() => {
+    if (!torneo) return false
+    if (torneo.estado === 'in_progress') return true
+    if (torneo.estado === 'finished') {
+      if (!torneo.updatedAt) return true
+      const dias = (Date.now() - new Date(torneo.updatedAt).getTime()) / 86400000
+      return dias <= DIAS_VISIBLE_FINISHED
+    }
+    return false
+  })()
+
+  if (notFound || (torneo && !torneoVisible)) {
     return (
       <div className="min-h-screen bg-[#0d1117] flex items-center justify-center px-6">
         <div className="text-center">
@@ -2421,54 +2654,109 @@ const TorneoPublicoPage = () => {
       <style>{`@keyframes pageFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }`}</style>
 
       {/* Header sticky */}
-      <div className="border-b border-white/8 bg-[#0d1117]/95 backdrop-blur-sm sticky top-0 z-30">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button
-            onClick={() => navigate('/')}
-            className="p-2 text-white/30 hover:text-white hover:bg-white/5 rounded-xl transition-all shrink-0"
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
-              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: accentColor }}>En curso</span>
-            </div>
-            <h1 className="text-white font-bold text-base leading-tight truncate">{torneo.nombre}</h1>
-          </div>
-          <div className="hidden sm:flex flex-col items-end gap-0.5 shrink-0">
-            <span className="text-xs text-white/40">
-              {fmtFecha(torneo.fechaInicio)} → {fmtFecha(torneo.fechaFin)}
-            </span>
-            <span className="text-xs text-white/25">{torneo.categorias?.join(', ')}</span>
-          </div>
-        </div>
+      <div className="sticky top-0 z-30">
+        {/* Línea de acento superior */}
+        <div className="h-px w-full" style={{ background: `linear-gradient(90deg, transparent 0%, ${accentColor} 40%, ${accentColor} 60%, transparent 100%)` }} />
 
-        {/* Tabs */}
-        <div className="max-w-4xl mx-auto px-4">
-          <div className="flex">
-            {TABS.map(({ key, label, icon: Icon }) => (
+        <div className="bg-[#0d1117]/96 backdrop-blur-md border-b border-white/[0.06]">
+          {/* Fila título */}
+          <div className="relative pt-3 pb-2.5">
+            {/* Logo flotante — solo desktop (sm+) */}
+            {club?.logo && (
               <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`flex items-center gap-1.5 px-4 py-3 text-xs font-semibold border-b-2 transition-all ${
-                  tab === key
-                    ? ''
-                    : 'border-transparent text-white/30 hover:text-white/60'
-                }`}
-                style={tab === key ? { borderColor: accentColor, color: accentColor } : {}}
+                onClick={() => navigate('/')}
+                className="hidden sm:block absolute left-4 bottom-0 translate-y-1/2 z-10 hover:opacity-80 transition-opacity"
+                title="Volver"
               >
-                <Icon size={12} />
-                {label}
+                <div className="w-20 h-20 rounded-2xl overflow-hidden border border-white/20">
+                  <img src={club.logo} alt={club.nombre} className="w-full h-full object-cover" />
+                </div>
               </button>
-            ))}
+            )}
+
+            {/* Contenido centrado */}
+            <div className="max-w-4xl mx-auto px-4 flex items-center gap-3">
+              {/* Botón volver: siempre en mobile / oculto en desktop si hay logo */}
+              <button
+                onClick={() => navigate('/')}
+                className={`w-8 h-8 flex items-center justify-center rounded-full border border-white/10 text-white/40 hover:text-white hover:border-white/30 transition-all shrink-0 ${club?.logo ? 'sm:hidden' : ''}`}
+              >
+                <ArrowLeft size={15} />
+              </button>
+
+              {/* Separador vertical — solo desktop si hay logo */}
+              <div className={`w-px h-6 bg-white/10 shrink-0 ${club?.logo ? 'hidden sm:block' : ''}`} />
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest"
+                    style={{ backgroundColor: `${accentColor}22`, color: accentColor, border: `1px solid ${accentColor}44` }}
+                  >
+                    <span className="w-1 h-1 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
+                    En curso
+                  </span>
+                </div>
+                <h1 className="text-white font-bold text-sm leading-tight truncate">{torneo.nombre}</h1>
+              </div>
+
+              <div className="hidden sm:flex flex-col items-end gap-1.5 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold"
+                    style={{ backgroundColor: `${accentColor}20`, color: accentColor, border: `1px solid ${accentColor}35` }}>
+                    <Calendar size={9} />
+                    <span className="opacity-60">Inicio</span>
+                    {fmtFecha(torneo.fechaInicio)}
+                  </span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold ${torneo.fechaReprogramada ? 'line-through text-white/25 bg-white/5 border border-white/10' : 'text-red-400 bg-red-400/10 border border-red-400/25'}`}>
+                    <Flag size={9} />
+                    <span className="opacity-60">Fin</span>
+                    {fmtFecha(torneo.fechaFin)}
+                  </span>
+                  {torneo.fechaReprogramada && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30">
+                      <Flag size={9} />
+                      <span className="opacity-70">Reprogr.</span>
+                      {fmtFecha(torneo.fechaReprogramada)}
+                    </span>
+                  )}
+                </div>
+                {torneo.categorias?.length > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium text-white/35 bg-white/5 border border-white/8">
+                    <Tag size={9} />
+                    {torneo.categorias.join(' · ')}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs pill */}
+          <div className="max-w-4xl mx-auto px-4 pb-2.5">
+            <div className="flex items-center gap-1.5 bg-white/[0.05] rounded-2xl p-1.5 w-fit">
+              {TABS.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all"
+                  style={tab === key
+                    ? { backgroundColor: accentColor, color: '#0d1117' }
+                    : { color: 'rgba(255,255,255,0.35)' }
+                  }
+                >
+                  <Icon size={13} />
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Contenido fixture / grupos — ancho normal */}
+      {/* Contenido fixture / grupos / resumen — ancho normal */}
       {tab !== 'draw' && (
         <div className="max-w-4xl mx-auto w-full px-4 py-6">
+          {tab === 'resumen'  && <TabResumen torneo={torneo} club={club} accentColor={accentColor} onGoTab={setTab} />}
           {tab === 'fixture' && <TabFixture torneo={torneo} canchaName={canchaName} accentColor={accentColor} imagenFondo={torneo.imagenFondoFixture ?? null} sponsorLogo={torneo.sponsorLogoFixture ?? null} sponsors={torneo.sponsorsFixture ?? []} cardStyle={torneo.estiloCardFixture ?? 'oscura'} colorCard={torneo.colorCardFixture ?? null} templateFixture={torneo.templateFixture ?? 1} colorTextoNombres={torneo.colorTextoNombres ?? null} colorTextoZona={torneo.colorTextoZona ?? null} colorTextoCategoria={torneo.colorTextoCategoria ?? null} colorTextoScore={torneo.colorTextoScore ?? null} colorTextoInfo={torneo.colorTextoInfo ?? null} />}
           {tab === 'grupos'  && <TabGrupos  torneo={torneo} accentColor={accentColor} imagenFondo={torneo.imagenFondoGrupos ?? null} imagenHeader={torneo.imagenHeaderGrupos ?? null} watermark={torneo.imagenWatermarkGrupos ?? null} colorTexto={torneo.colorTextoCardGrupos ?? null} cardStyle={torneo.estiloCardGrupos ?? 'oscura'} colorCard={torneo.colorCardGrupos ?? null} templateFixture={torneo.templateFixture ?? 1} colorTextoNombres={torneo.colorTextoNombres ?? null} colorTextoScore={torneo.colorTextoScore ?? null} canchaName={canchaName} puntosPorVictoria={torneo.puntosPorVictoria ?? 2} sponsors={torneo.sponsorsGrupos ?? []} />}
         </div>

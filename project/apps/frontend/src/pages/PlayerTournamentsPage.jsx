@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Trophy, Calendar, Flag, X, ChevronDown, ChevronUp,
   Zap, Clock, Lock, CheckCircle, Archive, Plus, Infinity as InfinityIcon, Pencil, Info, Users, LayoutGrid,
@@ -7,9 +7,11 @@ import useTorneosStore from '../store/torneosStore'
 import usePlayerStore from '../store/playerStore'
 import useTorneosNotif from '../store/playerNotificationsStore'
 import useNotificacionesStore from '../store/notificacionesStore'
+import useClubStore from '../store/clubStore'
 import { esSlotDeGrupos } from '../services/torneoService'
 import { api } from '../lib/api'
 import InfoBlock from '../components/InfoBlock'
+import BracketView from '../components/BracketView'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -777,6 +779,17 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
   const [activeTab, setActiveTab]               = useState(null) // null | 'miZona' | 'todasZonas'
   const [showDisp, setShowDisp]                 = useState(false)
   const [showInscriptos, setShowInscriptos]     = useState(false)
+  const club = useClubStore((s) => s.club)
+  const seedingMap = useMemo(() => {
+    const map = {}
+    ;(torneo.grupos ?? []).forEach((zona) => {
+      const letra = (zona.nombre ?? '').replace('Zona ', '')
+      ;(zona.clasificados ?? []).forEach((pareja, pos) => {
+        if (pareja?.id) map[pareja.id] = `${pos + 1}°${letra}`
+      })
+    })
+    return map
+  }, [torneo.grupos])
   const miPareja = torneo.inscriptos.find(
     (i) => i.jugador1 === playerName || i.jugador2 === playerName
   )
@@ -786,7 +799,7 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
     : miPareja?.jugador1 === playerName
   const editable      = puedeEditar(torneo) && !!miPareja && esOwner
   const editableDisp  = puedeEditar(torneo) && !!miPareja && !esOwner
-  const tieneGrupos  = torneo.grupos !== null && torneo.formato === 'Fase de grupos + Eliminación'
+  const tieneGrupos  = Array.isArray(torneo.grupos) && torneo.grupos.length > 0
   const miBracket    = (() => {
     const cat = miPareja?.categoria
     if (cat && torneo.brackets?.[cat]?.rondas) return torneo.brackets[cat]
@@ -971,34 +984,37 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
               </button>
             </div>
           )}
-          {tieneGrupos && (
+          {(tieneGrupos || miBracket) && (
             <>
-              {/* Tab bar */}
+              {/* Tab bar unificado */}
               <div className={`flex items-center gap-1 px-4 py-2.5 ${editable || editableDisp ? 'border-t border-white/5' : ''}`}>
+
                 {/* Tab Mi zona */}
-                <button
-                  onClick={() => setActiveTab((v) => v === 'miZona' ? null : 'miZona')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    activeTab === 'miZona'
-                      ? 'bg-[#afca0b]/15 text-[#afca0b] border border-[#afca0b]/25'
-                      : 'text-white/35 hover:text-white/60 hover:bg-white/5 border border-transparent'
-                  }`}
-                >
-                  <span>Mi zona</span>
-                  {(() => {
-                    const z = torneo.grupos?.find((z) => z.parejas.some((p) => p.jugador1 === playerName || p.jugador2 === playerName))
-                    return z ? (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md border ${
-                        activeTab === 'miZona'
-                          ? 'bg-[#afca0b]/10 border-[#afca0b]/20 text-[#afca0b]/70'
-                          : 'bg-white/5 border-white/8 text-white/25'
-                      }`}>{z.nombre}</span>
-                    ) : null
-                  })()}
-                </button>
+                {tieneGrupos && (
+                  <button
+                    onClick={() => setActiveTab((v) => v === 'miZona' ? null : 'miZona')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                      activeTab === 'miZona'
+                        ? 'bg-[#afca0b]/15 text-[#afca0b] border border-[#afca0b]/25'
+                        : 'text-white/35 hover:text-white/60 hover:bg-white/5 border border-transparent'
+                    }`}
+                  >
+                    <span>Mi zona</span>
+                    {(() => {
+                      const z = torneo.grupos?.find((z) => z.parejas.some((p) => p.jugador1 === playerName || p.jugador2 === playerName))
+                      return z ? (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md border ${
+                          activeTab === 'miZona'
+                            ? 'bg-[#afca0b]/10 border-[#afca0b]/20 text-[#afca0b]/70'
+                            : 'bg-white/5 border-white/8 text-white/25'
+                        }`}>{z.nombre}</span>
+                      ) : null
+                    })()}
+                  </button>
+                )}
 
                 {/* Tab Todas las zonas (solo si hay más de 1) */}
-                {(torneo.grupos?.length ?? 0) > 1 && (
+                {tieneGrupos && (torneo.grupos?.length ?? 0) > 1 && (
                   <button
                     onClick={() => setActiveTab((v) => v === 'todasZonas' ? null : 'todasZonas')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
@@ -1016,15 +1032,30 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
                     }`}>{torneo.grupos.length}</span>
                   </button>
                 )}
+
+                {/* Tab Cuadros */}
+                {miBracket && (
+                  <button
+                    onClick={() => setActiveTab((v) => v === 'cuadros' ? null : 'cuadros')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                      activeTab === 'cuadros'
+                        ? 'bg-white/10 text-white/80 border border-white/15'
+                        : 'text-white/35 hover:text-white/60 hover:bg-white/5 border border-transparent'
+                    }`}
+                  >
+                    <Trophy size={11} />
+                    <span>Cuadros</span>
+                  </button>
+                )}
               </div>
 
               {/* Contenido del tab activo */}
-              {activeTab === 'miZona' && (
+              {activeTab === 'miZona' && tieneGrupos && (
                 <div className="px-5 pb-4 border-t border-white/5">
                   <GrupoReadOnly grupos={torneo.grupos} playerName={playerName} puntosPorVictoria={torneo.puntosPorVictoria ?? 2} />
                 </div>
               )}
-              {activeTab === 'todasZonas' && (
+              {activeTab === 'todasZonas' && tieneGrupos && (
                 <div className="px-4 pb-4 border-t border-white/5 pt-3 flex flex-col gap-3">
                   {(() => {
                     const grupos = [...(torneo.grupos ?? [])].sort((a, b) =>
@@ -1042,20 +1073,16 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
                   })()}
                 </div>
               )}
-            </>
-          )}
-          {miBracket && (
-            <>
-              <button
-                onClick={() => setOpen((v) => !v)}
-                className={`w-full flex items-center justify-between px-5 py-2.5 text-xs text-white/30 hover:text-white/60 hover:bg-white/3 transition-all ${(editable || tieneGrupos) ? 'border-t border-white/5' : ''}`}
-              >
-                <span>{open ? 'Ocultar bracket' : 'Ver bracket'}</span>
-                {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              </button>
-              {open && (
-                <div className="px-5 pb-4 border-t border-white/5">
-                  <BracketReadOnly bracket={miBracket} playerName={playerName} />
+              {activeTab === 'cuadros' && miBracket && (
+                <div className="pb-4 border-t border-white/5 overflow-x-auto">
+                  <BracketView
+                    bracket={miBracket}
+                    torneo={torneo}
+                    club={club}
+                    seedingMap={seedingMap}
+                    hideHeader={true}
+                    bracketTemplate="default"
+                  />
                 </div>
               )}
             </>

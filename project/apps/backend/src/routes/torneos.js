@@ -87,7 +87,9 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
     nombre, categorias, formato, genero, cupoLibre, cuposPorCategoria, cupoEspera,
     cupoEsperaPorCategoria, generoPorCategoria,
     canchasAsignadas, fechaInicio, fechaFin, fechaLimiteInscripcion,
-    diaInicioEliminatoria, horaInicioEliminatoria, puntosPorVictoria, descripcion,
+    diaInicioEliminatoria, horaInicioEliminatoria,
+    fechaInicioEliminatoria, fechaInicioQF, horaInicioQF,
+    puntosPorVictoria, descripcion,
   } = req.body
   const clubId = req.user.clubId
 
@@ -123,6 +125,9 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         fechaLimiteInscripcion: fechaLimiteInscripcion ?? null,
         diaInicioEliminatoria: diaInicioEliminatoria ?? null,
         horaInicioEliminatoria: horaInicioEliminatoria ?? null,
+        fechaInicioEliminatoria: fechaInicioEliminatoria ?? null,
+        fechaInicioQF: fechaInicioQF ?? null,
+        horaInicioQF: horaInicioQF ?? null,
         puntosPorVictoria: puntosPorVictoria ?? 2,
         descripcion: descripcion ?? '',
         ...(flyer && { personalizacion: flyer }),
@@ -143,7 +148,9 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
     nombre, categorias, formato, genero, cupoLibre, cuposPorCategoria, cupoEspera,
     cupoEsperaPorCategoria, generoPorCategoria,
     canchasAsignadas, fechaInicio, fechaFin, fechaLimiteInscripcion,
-    diaInicioEliminatoria, horaInicioEliminatoria, puntosPorVictoria, descripcion,
+    diaInicioEliminatoria, horaInicioEliminatoria,
+    fechaInicioEliminatoria, fechaInicioQF, horaInicioQF,
+    puntosPorVictoria, descripcion,
   } = req.body
 
   try {
@@ -186,8 +193,11 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
         ...(fechaInicio            !== undefined && { fechaInicio }),
         ...(fechaFin               !== undefined && { fechaFin }),
         ...(fechaLimiteInscripcion !== undefined && { fechaLimiteInscripcion }),
-        ...(diaInicioEliminatoria  !== undefined && { diaInicioEliminatoria }),
-        ...(horaInicioEliminatoria !== undefined && { horaInicioEliminatoria }),
+        ...(diaInicioEliminatoria   !== undefined && { diaInicioEliminatoria }),
+        ...(horaInicioEliminatoria  !== undefined && { horaInicioEliminatoria }),
+        ...(fechaInicioEliminatoria !== undefined && { fechaInicioEliminatoria }),
+        ...(fechaInicioQF           !== undefined && { fechaInicioQF }),
+        ...(horaInicioQF            !== undefined && { horaInicioQF }),
         ...(puntosPorVictoria      !== undefined && { puntosPorVictoria: Number(puntosPorVictoria) }),
         ...(descripcion            !== undefined && { descripcion }),
         ...(personalizacionUpdate  !== undefined && { personalizacion: personalizacionUpdate }),
@@ -315,6 +325,27 @@ router.patch('/:id/personalizacion', requireAuth, requireRole('admin'), async (r
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al guardar personalización' })
+  }
+})
+
+// PATCH /api/torneos/:id/reprogramar   — admin setea nueva fecha (null para cancelar reprogramación)
+router.patch('/:id/reprogramar', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params
+  const { fechaReprogramada } = req.body
+
+  try {
+    const torneo = await prisma.torneo.findUnique({ where: { id } })
+    if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' })
+    if (torneo.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
+
+    const updated = await prisma.torneo.update({
+      where: { id },
+      data: { fechaReprogramada: fechaReprogramada ?? null },
+    })
+    res.json({ id: updated.id, fechaReprogramada: updated.fechaReprogramada })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al reprogramar torneo' })
   }
 })
 

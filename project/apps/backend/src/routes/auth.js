@@ -113,7 +113,7 @@ router.post('/jugador/login', async (req, res) => {
       return res.status(403).json({ error: 'Tu cuenta fue dada de baja. Contactá al club.' })
     }
 
-    const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId })
+    const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId, tokenVersion: jugador.tokenVersion ?? 0 })
     res.json({ token, user: jugadorPublico(jugador) })
   } catch (err) {
     console.error(err)
@@ -165,7 +165,7 @@ router.post('/jugador/registro', async (req, res) => {
         },
         include: { club: true },
       })
-      const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId })
+      const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId, tokenVersion: jugador.tokenVersion ?? 0 })
       return res.status(201).json({ token, user: jugadorPublico(jugador) })
     }
 
@@ -192,7 +192,7 @@ router.post('/jugador/registro', async (req, res) => {
       include: { club: true },
     })
 
-    const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId })
+    const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId, tokenVersion: jugador.tokenVersion ?? 0 })
     res.status(201).json({ token, user: jugadorPublico(jugador) })
   } catch (err) {
     console.error(err)

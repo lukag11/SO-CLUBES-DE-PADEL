@@ -588,10 +588,13 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
             <div className="rounded-xl overflow-hidden border border-slate-100">
               <div className="bg-[#1E1F23] px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: colorPrimario }}>
-                    <span className="text-[8px] font-bold text-white">P</span>
+                  <div className="w-5 h-5 rounded flex items-center justify-center overflow-hidden" style={{ backgroundColor: club.logo ? 'transparent' : colorPrimario }}>
+                    {club.logo
+                      ? <img src={club.logo} alt={club.nombre || 'Club'} className="w-full h-full object-cover" />
+                      : <span className="text-[8px] font-bold text-white">{(club.nombre || 'P').charAt(0).toUpperCase()}</span>
+                    }
                   </div>
-                  <span className="text-white text-xs font-bold">PadelOS</span>
+                  <span className="text-white text-xs font-bold">{club.nombre || 'PadelOS'}</span>
                 </div>
                 <div
                   className="px-2.5 py-1 rounded-lg text-xs font-bold text-[#1E1F23]"

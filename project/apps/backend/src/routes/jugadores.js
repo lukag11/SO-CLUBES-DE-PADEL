@@ -1,5 +1,7 @@
 import { Router } from 'express'
+import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
+import { signToken } from '../lib/jwt.js'
 import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 
 const router = Router()
@@ -120,6 +122,49 @@ router.patch('/me', requireAuth, requireRole('jugador'), requireActive, async (r
   }
 })
 
+// PATCH /api/jugadores/me/password — cambio de contraseña del jugador autenticado
+router.patch('/me/password', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
+  const jugadorId = req.user.id
+  const { actual, nueva } = req.body
+
+  if (!actual || !nueva) {
+    return res.status(400).json({ error: 'datos_incompletos', message: 'Faltan datos' })
+  }
+  if (typeof nueva !== 'string' || nueva.length < 8) {
+    return res.status(400).json({ error: 'password_invalida', message: 'La nueva contraseña debe tener al menos 8 caracteres' })
+  }
+
+  try {
+    const jugador = await prisma.jugador.findUnique({
+      where: { id: jugadorId },
+      select: { password: true },
+    })
+    if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' })
+
+    const coincide = await bcrypt.compare(actual, jugador.password)
+    if (!coincide) {
+      return res.status(400).json({ error: 'contrasena_actual_incorrecta', message: 'La contraseña actual es incorrecta' })
+    }
+
+    const passwordHash = await bcrypt.hash(nueva, 10)
+    // Incrementar tokenVersion invalida todas las sesiones existentes (otros dispositivos).
+    const actualizado = await prisma.jugador.update({
+      where: { id: jugadorId },
+      data: { password: passwordHash, tokenVersion: { increment: 1 } },
+      select: { tokenVersion: true },
+    })
+
+    // Re-firmar un token para la sesión actual con la nueva versión, así el propio
+    // usuario no se queda afuera. El frontend reemplaza el token guardado.
+    const token = signToken({ id: jugadorId, role: 'jugador', clubId: req.user.clubId, tokenVersion: actualizado.tokenVersion })
+
+    res.json({ ok: true, token })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al cambiar la contraseña' })
+  }
+})
+
 const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
 // GET /api/jugadores/me/stats — estadísticas reales del jugador autenticado
@@ -130,12 +175,14 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
 
   // Calcular rango de fechas según período
   let fechaDesde = null
+  let fechaHasta = null
   if (periodo === '12m') {
     fechaDesde = new Date()
     fechaDesde.setFullYear(fechaDesde.getFullYear() - 1)
     fechaDesde = fechaDesde.toISOString().slice(0, 10)
   } else if (/^\d{4}$/.test(periodo ?? '')) {
     fechaDesde = `${periodo}-01-01`
+    fechaHasta = `${periodo}-12-31`
   }
 
   try {
@@ -146,15 +193,23 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
     if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' })
 
     // ── Reservas ──────────────────────────────────────────────────────────────
-    const reservas = await prisma.reserva.findMany({
-      where: {
-        jugadorId,
-        clubId,
-        ...(fechaDesde ? { fecha: { gte: fechaDesde } } : {}),
-      },
-      include: { cancha: { select: { nombre: true } } },
-      orderBy: { fecha: 'asc' },
-    })
+    const hoy = new Date().toISOString().slice(0, 10)
+    const [reservas, proximaReservaRaw] = await Promise.all([
+      prisma.reserva.findMany({
+        where: {
+          jugadorId,
+          clubId,
+          ...(fechaDesde ? { fecha: { gte: fechaDesde, ...(fechaHasta ? { lte: fechaHasta } : {}) } } : {}),
+        },
+        include: { cancha: { select: { nombre: true } } },
+        orderBy: { fecha: 'asc' },
+      }),
+      prisma.reserva.findFirst({
+        where: { jugadorId, clubId, estado: 'confirmada', fecha: { gte: hoy } },
+        include: { cancha: { select: { nombre: true } } },
+        orderBy: { fecha: 'asc' },
+      }),
+    ])
 
     const confirmadas = reservas.filter((r) => r.estado === 'confirmada')
     const turnosFijos = confirmadas.filter((r) => r.esTurnoFijo).length
@@ -217,7 +272,7 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
     const torneos = await prisma.torneo.findMany({
       where: {
         clubId,
-        ...(fechaDesde ? { fechaInicio: { gte: fechaDesde } } : {}),
+        ...(fechaDesde ? { fechaInicio: { gte: fechaDesde, ...(fechaHasta ? { lte: fechaHasta } : {}) } } : {}),
       },
       select: {
         id: true,
@@ -237,7 +292,7 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
       t.parejas.some((p) => p.jugador1Dni === dni || p.jugador2Dni === dni)
     )
 
-    // Compañero más frecuente
+    // Compañeros (top 3 más frecuentes)
     const companeroCount = {}
     participados.forEach((t) => {
       t.parejas
@@ -247,13 +302,15 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
           if (comp) companeroCount[comp] = (companeroCount[comp] ?? 0) + 1
         })
     })
-    const companeroFrecuente = Object.entries(companeroCount).sort(([, a], [, b]) => b - a)[0] ?? null
+    const companerosSorted = Object.entries(companeroCount).sort(([, a], [, b]) => b - a)
+    const companeroFrecuente = companerosSorted[0] ? { nombre: companerosSorted[0][0], veces: companerosSorted[0][1] } : null
+    const topCompaneros = companerosSorted.slice(0, 3).map(([nombre, veces]) => ({ nombre, veces }))
 
     // Partidos: acumular con fase
     const resultados = [] // { resultado, categoria, fase, setsGanados, setsPerdidos }
     let titulos = 0
 
-    const procesarPartido = (partido, misParejasIds, categoria, fase) => {
+    const procesarPartido = (partido, misParejasIds, categoria, fase, torneoCtx) => {
       if (!partido.ganador) return
       const esP1 = misParejasIds.has(partido.pareja1?.id)
       const esP2 = misParejasIds.has(partido.pareja2?.id)
@@ -262,12 +319,22 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
       const gane = partido.ganador.id === miParejaId
       const sets = partido.resultado?.sets ?? []
       let sG = 0, sP = 0
+      const scoreParts = []
       sets.forEach(({ p1, p2 }) => {
         const mis = esP1 ? p1 : p2
         const su  = esP1 ? p2 : p1
         if (mis > su) sG++; else sP++
+        scoreParts.push(`${mis}-${su}`)
       })
-      resultados.push({ resultado: gane ? 'W' : 'L', categoria, fase, setsGanados: sG, setsPerdidos: sP })
+      const rivalPareja = esP1 ? partido.pareja2 : partido.pareja1
+      const rival = rivalPareja
+        ? [rivalPareja.jugador1, rivalPareja.jugador2].filter(Boolean).join(' / ') || 'Rival'
+        : 'Rival'
+      resultados.push({
+        resultado: gane ? 'W' : 'L', categoria, fase, setsGanados: sG, setsPerdidos: sP,
+        torneoId: torneoCtx.id, torneoNombre: torneoCtx.nombre, fecha: torneoCtx.fechaInicio,
+        rival, score: scoreParts.join('  '),
+      })
       return gane
     }
 
@@ -277,11 +344,12 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
           .filter((p) => p.jugador1Dni === dni || p.jugador2Dni === dni)
           .map((p) => p.id)
       )
+      const torneoCtx = { id: torneo.id, nombre: torneo.nombre, fechaInicio: torneo.fechaInicio }
 
       if (Array.isArray(torneo.grupos)) {
         for (const zona of torneo.grupos) {
           for (const partido of (zona.partidos ?? [])) {
-            procesarPartido(partido, misParejasIds, zona.categoria ?? 'Grupos', 'grupos')
+            procesarPartido(partido, misParejasIds, zona.categoria ?? 'Grupos', 'grupos', torneoCtx)
           }
         }
       }
@@ -292,7 +360,7 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
           for (let ri = 0; ri < rondas.length; ri++) {
             for (const partido of (rondas[ri].partidos ?? [])) {
               if (partido.estado !== 'finalizado') continue
-              const gane = procesarPartido(partido, misParejasIds, cat, 'eliminatoria')
+              const gane = procesarPartido(partido, misParejasIds, cat, 'eliminatoria', torneoCtx)
               if (ri === rondas.length - 1 && gane) titulos++
             }
           }
@@ -330,6 +398,44 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
     // Tendencia reciente (últimos 10)
     const recentTrend = resultados.slice(-10).map((r) => r.resultado)
 
+    // Últimos partidos con detalle (más reciente primero)
+    const ultimosPartidos = resultados.slice(-5).reverse().map((r) => ({
+      resultado: r.resultado,
+      rival: r.rival,
+      score: r.score,
+      torneo: r.torneoNombre,
+      fecha: r.fecha,
+      categoria: r.categoria,
+    }))
+
+    // Evolución de winRate — acumulado por torneo (cronológico)
+    // resultados ya viene ordenado por fechaInicio asc (participados está ordenado)
+    const evolucionWinRate = []
+    {
+      const torneosOrden = []         // ids en orden de aparición
+      const porTorneo = {}            // id -> { nombre, fecha, g, p }
+      for (const r of resultados) {
+        if (!porTorneo[r.torneoId]) {
+          porTorneo[r.torneoId] = { nombre: r.torneoNombre, fecha: r.fecha, g: 0, p: 0 }
+          torneosOrden.push(r.torneoId)
+        }
+        if (r.resultado === 'W') porTorneo[r.torneoId].g++
+        else porTorneo[r.torneoId].p++
+      }
+      let accG = 0, accTotal = 0
+      for (const id of torneosOrden) {
+        const tr = porTorneo[id]
+        accG += tr.g
+        accTotal += tr.g + tr.p
+        evolucionWinRate.push({
+          torneo: tr.nombre,
+          fecha: tr.fecha,
+          winRateTorneo: (tr.g + tr.p) > 0 ? Math.round((tr.g / (tr.g + tr.p)) * 100) : 0,
+          winRateAcumulado: accTotal > 0 ? Math.round((accG / accTotal) * 100) : 0,
+        })
+      }
+    }
+
     // Rendimiento por categoría
     const porCategoria = {}
     for (const r of resultados) {
@@ -355,21 +461,51 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
         t.parejas.filter((p) => p.jugador1Dni === dni || p.jugador2Dni === dni).map((p) => p.categoria)
       )]
       let resultado = 'participante'
+      let partidosJugados = 0
+      let partidosGanados = 0
+
+      if (Array.isArray(t.grupos)) {
+        for (const zona of t.grupos) {
+          for (const partido of (zona.partidos ?? [])) {
+            if (!partido.ganador) continue
+            const esP1 = misParejasIds.has(partido.pareja1?.id)
+            const esP2 = misParejasIds.has(partido.pareja2?.id)
+            if (!esP1 && !esP2) continue
+            partidosJugados++
+            const miId = esP1 ? partido.pareja1?.id : partido.pareja2?.id
+            if (partido.ganador.id === miId) partidosGanados++
+          }
+        }
+      }
+
       if (t.brackets && typeof t.brackets === 'object') {
         outer: for (const bracket of Object.values(t.brackets)) {
           const rondas = bracket?.rondas ?? []
           if (!rondas.length) continue
-          const finalPartido = rondas[rondas.length - 1]?.partidos?.[0]
-          if (!finalPartido?.ganador || finalPartido.estado !== 'finalizado') continue
-          const esP1 = misParejasIds.has(finalPartido.pareja1?.id)
-          const esP2 = misParejasIds.has(finalPartido.pareja2?.id)
-          if (!esP1 && !esP2) continue
-          const gane = finalPartido.ganador.id === (esP1 ? finalPartido.pareja1?.id : finalPartido.pareja2?.id)
-          resultado = gane ? 'campeon' : 'subcampeon'
-          break outer
+          for (let ri = 0; ri < rondas.length; ri++) {
+            for (const partido of (rondas[ri].partidos ?? [])) {
+              if (partido.estado !== 'finalizado') continue
+              const esP1 = misParejasIds.has(partido.pareja1?.id)
+              const esP2 = misParejasIds.has(partido.pareja2?.id)
+              if (!esP1 && !esP2) continue
+              partidosJugados++
+              const miId = esP1 ? partido.pareja1?.id : partido.pareja2?.id
+              if (partido.ganador?.id === miId) {
+                partidosGanados++
+                if (ri === rondas.length - 1) {
+                  resultado = 'campeon'
+                  break outer
+                }
+              } else if (ri === rondas.length - 1) {
+                resultado = 'subcampeon'
+                break outer
+              }
+            }
+          }
         }
       }
-      return { id: t.id, nombre: t.nombre, fechaInicio: t.fechaInicio, categorias, resultado }
+
+      return { id: t.id, nombre: t.nombre, fechaInicio: t.fechaInicio, categorias, resultado, partidosJugados, partidosGanados }
     })
 
     // Evolución por categoría — torneos + partidos + títulos por cada cat jugada
@@ -404,9 +540,112 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
       }
     }
 
+    const canceladasTotal = reservas.filter((r) => r.estado === 'cancelada').length
+    const proximaReserva = proximaReservaRaw ? {
+      fecha: proximaReservaRaw.fecha,
+      horaInicio: proximaReservaRaw.horaInicio,
+      horaFin: proximaReservaRaw.horaFin,
+      cancha: proximaReservaRaw.cancha?.nombre ?? null,
+    } : null
+
+    // ── Logros / badges ─────────────────────────────────────────────────────────
+    const companerosDistintos = Object.keys(companeroCount).length
+    const defLogros = [
+      { id: 'primer_titulo', nombre: 'Primer título',   desc: 'Ganá tu primer torneo',            icon: 'trophy',   actual: titulos,             objetivo: 1 },
+      { id: 'tricampeon',    nombre: 'Tricampeón',       desc: 'Ganá 3 torneos',                   icon: 'trophy',   actual: titulos,             objetivo: 3 },
+      { id: 'veterano',      nombre: 'Veterano',         desc: 'Jugá 10 torneos',                  icon: 'award',    actual: participados.length, objetivo: 10 },
+      { id: 'imparable',     nombre: 'Imparable',        desc: 'Conseguí 5 victorias seguidas',    icon: 'flame',    actual: rachMaxima,          objetivo: 5 },
+      { id: 'centurion',     nombre: 'Centurión',        desc: 'Jugá 50 partidos de torneo',       icon: 'swords',   actual: totalPartidos,       objetivo: 50 },
+      { id: 'maratonista',   nombre: 'Maratonista',      desc: 'Acumulá 50 horas en cancha',       icon: 'clock',    actual: horasTotales,        objetivo: 50 },
+      { id: 'sociable',      nombre: 'Sociable',         desc: 'Jugá con 5 compañeros distintos',  icon: 'users',    actual: companerosDistintos, objetivo: 5 },
+      { id: 'francotirador', nombre: 'Francotirador',    desc: '70% de efectividad (mín. 10 part.)', icon: 'target', actual: totalPartidos >= 10 ? winRate : 0, objetivo: 70 },
+    ]
+    const logros = defLogros.map((l) => ({
+      ...l,
+      actual: Math.min(l.actual, l.objetivo),
+      desbloqueado: l.actual >= l.objetivo,
+    }))
+    const logrosDesbloqueados = logros.filter((l) => l.desbloqueado).length
+
+    // ── Comparativa con el club ─────────────────────────────────────────────────
+    // Calcula el winRate de todos los jugadores del club (en memoria, sin queries extra)
+    const MIN_PARTIDOS_RANKING = 5
+    const dniStats = {} // dni -> { g, p }
+    const sumarDni = (d, gano) => {
+      if (!d) return
+      if (!dniStats[d]) dniStats[d] = { g: 0, p: 0 }
+      if (gano) dniStats[d].g++; else dniStats[d].p++
+    }
+    for (const torneo of torneos) {
+      const parejaDni = {} // parejaId -> [dni1, dni2]
+      for (const pj of torneo.parejas) parejaDni[pj.id] = [pj.jugador1Dni, pj.jugador2Dni]
+
+      const atribuir = (partido) => {
+        if (!partido.ganador) return
+        const p1 = partido.pareja1?.id, p2 = partido.pareja2?.id
+        if (!p1 || !p2) return
+        const ganadorId = partido.ganador.id
+        const perdedorId = ganadorId === p1 ? p2 : p1
+        for (const d of (parejaDni[ganadorId] ?? [])) sumarDni(d, true)
+        for (const d of (parejaDni[perdedorId] ?? [])) sumarDni(d, false)
+      }
+
+      if (Array.isArray(torneo.grupos)) {
+        for (const zona of torneo.grupos) {
+          for (const partido of (zona.partidos ?? [])) atribuir(partido)
+        }
+      }
+      if (torneo.brackets && typeof torneo.brackets === 'object') {
+        for (const bracket of Object.values(torneo.brackets)) {
+          for (const ronda of (bracket?.rondas ?? [])) {
+            for (const partido of (ronda.partidos ?? [])) {
+              if (partido.estado !== 'finalizado') continue
+              atribuir(partido)
+            }
+          }
+        }
+      }
+    }
+
+    const ranking = Object.entries(dniStats)
+      .map(([d, s]) => ({ dni: d, total: s.g + s.p, winRate: Math.round((s.g / (s.g + s.p)) * 100) }))
+      .filter((x) => x.total >= MIN_PARTIDOS_RANKING)
+      .sort((a, b) => b.winRate - a.winRate || b.total - a.total)
+
+    let comparativaClub = null
+    if (ranking.length >= 2) {
+      const promedioClub = Math.round(ranking.reduce((s, x) => s + x.winRate, 0) / ranking.length)
+      const mejorWinRate = ranking[0].winRate
+      const idx = ranking.findIndex((x) => x.dni === dni)
+      if (idx >= 0) {
+        const posicion = idx + 1
+        comparativaClub = {
+          ranked: true,
+          posicion,
+          totalJugadores: ranking.length,
+          percentil: Math.max(1, Math.round((posicion / ranking.length) * 100)),
+          miWinRate: ranking[idx].winRate,
+          promedioClub,
+          mejorWinRate,
+        }
+      } else {
+        // El jugador no llega al mínimo de partidos para entrar al ranking
+        comparativaClub = {
+          ranked: false,
+          totalJugadores: ranking.length,
+          minPartidos: MIN_PARTIDOS_RANKING,
+          partidosActuales: totalPartidos,
+          miWinRate: winRate,
+          promedioClub,
+          mejorWinRate,
+        }
+      }
+    }
+
     res.json({
       reservas: {
         total: confirmadas.length,
+        canceladas: canceladasTotal,
         turnosFijos,
         horasTotales,
         porMes,
@@ -415,13 +654,16 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
         diasDistribucion,
         horarioFavorito,
         franjaDistribucion: Object.entries(franjaCount).map(([franja, cantidad]) => ({ franja, cantidad })),
+        proximaReserva,
       },
       torneos: {
         participados: participados.length,
         titulos,
-        companeroFrecuente: companeroFrecuente ? { nombre: companeroFrecuente[0], veces: companeroFrecuente[1] } : null,
+        companeroFrecuente,
+        topCompaneros,
         historial,
         evolucionCategorias,
+        evolucionWinRate,
         sugerenciaAscenso,
         categoriaActual: catActual ?? null,
         partidos: {
@@ -435,10 +677,14 @@ router.get('/me/stats', requireAuth, requireRole('jugador'), requireActive, asyn
           rachMaxima,
           rachaLabel,
           recentTrend,
+          ultimosPartidos,
           porCategoria,
           fases,
         },
       },
+      logros,
+      logrosDesbloqueados,
+      comparativaClub,
     })
   } catch (err) {
     console.error(err)

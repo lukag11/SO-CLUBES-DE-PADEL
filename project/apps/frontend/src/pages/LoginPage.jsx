@@ -176,13 +176,6 @@ const LoginPage = () => {
               Iniciar sesión
             </Button>
           </form>
-
-          {/* Demo hint */}
-          <div className="mt-6 p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <p className="text-xs text-slate-500 text-center">
-              Demo: <span className="font-mono text-slate-700">admin@club.com</span> / <span className="font-mono text-slate-700">123456</span>
-            </p>
-          </div>
         </div>
       </div>
     </div>

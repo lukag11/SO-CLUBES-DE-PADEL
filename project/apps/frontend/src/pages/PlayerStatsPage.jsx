@@ -2,11 +2,11 @@ import { useState, useMemo } from 'react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  BarChart, Bar, Cell,
+  BarChart, Bar, Cell, LineChart, Line, ReferenceLine,
 } from 'recharts'
 import {
   TrendingUp, TrendingDown, Target, Flame, Award, Trophy, Calendar,
-  Star, Users, Swords, Clock, Minus, Search, ChevronRight,
+  Star, Users, Swords, Clock, Minus, Search, ChevronRight, XCircle, HelpCircle,
 } from 'lucide-react'
 import { usePlayerStats } from '../features/player-stats/usePlayerStats'
 
@@ -33,6 +33,19 @@ const RadarTooltip = ({ active, payload }) => {
   )
 }
 
+const EvolucionTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null
+  const d = payload[0]?.payload ?? {}
+  return (
+    <div className="bg-[#111827] border border-white/10 rounded-xl px-4 py-3 shadow-xl">
+      <p className="text-white font-semibold text-xs mb-1 max-w-[200px] truncate">{d.torneo}</p>
+      <p className="text-white/40 text-[11px] mb-2">{formatFechaMes(d.fecha)}</p>
+      <p className="text-sm font-semibold text-[#afca0b]">Acumulado: {d.winRateAcumulado}%</p>
+      <p className="text-xs text-white/50 mt-0.5">En este torneo: {d.winRateTorneo}%</p>
+    </div>
+  )
+}
+
 const MiniStat = ({ label, value, sub, icon: Icon, accent = false, gold = false }) => (
   <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5">
     <div className="flex items-start justify-between mb-3">
@@ -42,6 +55,15 @@ const MiniStat = ({ label, value, sub, icon: Icon, accent = false, gold = false 
     <p className={`text-3xl font-black ${gold ? 'text-yellow-400' : accent ? 'text-[#afca0b]' : 'text-white'}`}>{value}</p>
     {sub && <p className="text-white/30 text-xs mt-1">{sub}</p>}
   </div>
+)
+
+const InfoTooltip = ({ text }) => (
+  <span className="group relative inline-flex items-center align-middle ml-1.5">
+    <HelpCircle size={13} className="text-white/25 hover:text-white/50 transition-colors cursor-help" />
+    <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-60 -translate-x-1/2 rounded-xl border border-white/10 bg-[#111827] px-3.5 py-2.5 text-xs leading-relaxed text-white/70 opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+      {text}
+    </span>
+  </span>
 )
 
 const Skeleton = ({ className }) => <div className={`bg-white/5 rounded-xl animate-pulse ${className}`} />
@@ -67,6 +89,20 @@ const RESULTADO_CONFIG = {
   participante:{ label: 'Participante',color: 'text-white/40',   bg: 'bg-white/5 border-white/10' },
 }
 
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+const formatFechaMes = (fechaStr) => {
+  if (!fechaStr) return ''
+  const [year, month] = String(fechaStr).slice(0, 10).split('-')
+  return `${MESES_CORTOS[parseInt(month, 10) - 1]}. ${year}`
+}
+
+const formatFechaFull = (fechaStr) => {
+  if (!fechaStr) return ''
+  const [year, month, day] = String(fechaStr).slice(0, 10).split('-')
+  return `${parseInt(day, 10)} ${MESES_CORTOS[parseInt(month, 10) - 1]}. ${year}`
+}
+
 const TABS = [
   { id: 'resumen',   label: 'Resumen' },
   { id: 'torneos',   label: 'Torneos' },
@@ -74,11 +110,141 @@ const TABS = [
   { id: 'oponentes', label: 'Oponentes' },
 ]
 
+const LOGRO_ICONS = { trophy: Trophy, award: Award, flame: Flame, swords: Swords, clock: Clock, users: Users, target: Target }
+
+const ComparativaClub = ({ data }) => {
+  if (!data) return null
+  const { ranked, miWinRate, promedioClub, mejorWinRate } = data
+  const maxBar = Math.max(miWinRate, promedioClub, mejorWinRate, 1)
+  const diff = miWinRate - promedioClub
+
+  return (
+    <div className="bg-gradient-to-br from-[#0d1117] to-[#0d1117] border border-white/8 rounded-2xl p-6">
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <h3 className="text-white font-semibold inline-flex items-center">
+            Tu lugar en el club
+            <InfoTooltip text="Compara tu efectividad con la de todos los jugadores del club que jugaron al menos 5 partidos de torneo. Incluye todas las categorías juntas." />
+          </h3>
+          <p className="text-white/30 text-xs mt-0.5">Comparado con jugadores activos en torneos</p>
+        </div>
+        {ranked ? (
+          <div className="text-right shrink-0">
+            <p className="text-2xl font-black text-[#afca0b] leading-none">Top {data.percentil}%</p>
+            <p className="text-white/30 text-xs mt-1">#{data.posicion} de {data.totalJugadores}</p>
+          </div>
+        ) : (
+          <span className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2.5 py-1 rounded-lg shrink-0">
+            Sin ranking aún
+          </span>
+        )}
+      </div>
+
+      {!ranked && (
+        <div className="bg-amber-400/5 border border-amber-400/15 rounded-xl px-4 py-3 mb-5">
+          <p className="text-amber-300/80 text-xs">
+            Te faltan {Math.max(0, data.minPartidos - data.partidosActuales)} partidos de torneo para entrar al ranking del club (mínimo {data.minPartidos}).
+          </p>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3.5">
+        {[
+          { label: 'Vos', value: miWinRate, color: 'bg-[#afca0b]', text: 'text-[#afca0b]', strong: true },
+          { label: 'Promedio del club', value: promedioClub, color: 'bg-white/25', text: 'text-white/50' },
+          { label: 'Mejor del club', value: mejorWinRate, color: 'bg-amber-400/60', text: 'text-amber-400/80' },
+        ].map((row) => (
+          <div key={row.label}>
+            <div className="flex justify-between items-center mb-1.5">
+              <span className={`text-xs ${row.strong ? 'font-semibold text-white' : 'text-white/50'}`}>{row.label}</span>
+              <span className={`text-sm font-bold ${row.text}`}>{row.value}%</span>
+            </div>
+            <div className="h-2 bg-white/6 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all duration-700 ${row.color}`} style={{ width: `${Math.round((row.value / maxBar) * 100)}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {ranked && (
+        <div className="mt-4 pt-4 border-t border-white/6">
+          <p className={`text-xs ${diff >= 0 ? 'text-[#afca0b]' : 'text-amber-400'}`}>
+            {diff > 0
+              ? `Estás ${diff} puntos por encima del promedio del club. ¡Seguí así!`
+              : diff === 0
+                ? 'Estás justo en el promedio del club.'
+                : `Estás ${Math.abs(diff)} puntos por debajo del promedio. Hay margen para escalar.`}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const LogrosGrid = ({ logros, desbloqueados }) => {
+  if (!logros?.length) return null
+  return (
+    <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-6">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h3 className="text-white font-semibold inline-flex items-center">
+            Logros
+            <InfoTooltip text="Insignias que se desbloquean según tu actividad. Algunas exigen un mínimo de partidos para contar: por ejemplo, Francotirador necesita al menos 10 partidos jugados para evaluar tu efectividad." />
+          </h3>
+          <p className="text-white/30 text-xs mt-0.5">Desbloqueá insignias jugando</p>
+        </div>
+        <span className="text-xs font-semibold text-[#afca0b] bg-[#afca0b]/10 border border-[#afca0b]/20 px-2.5 py-1 rounded-lg">
+          {desbloqueados}/{logros.length}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+        {logros.map((l) => {
+          const Icon = LOGRO_ICONS[l.icon] ?? Award
+          const pct = l.objetivo > 0 ? Math.round((l.actual / l.objetivo) * 100) : 0
+          return (
+            <div
+              key={l.id}
+              className={`rounded-xl p-4 border flex flex-col items-center text-center gap-2 transition-all ${
+                l.desbloqueado
+                  ? 'border-[#afca0b]/30 bg-[#afca0b]/5'
+                  : 'border-white/6 bg-white/2'
+              }`}
+            >
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                l.desbloqueado ? 'bg-[#afca0b]/15' : 'bg-white/4'
+              }`}>
+                <Icon size={20} className={l.desbloqueado ? 'text-[#afca0b]' : 'text-white/20'} strokeWidth={l.desbloqueado ? 2.5 : 2} />
+              </div>
+              <div>
+                <p className={`font-semibold text-sm ${l.desbloqueado ? 'text-white' : 'text-white/45'}`}>{l.nombre}</p>
+                <p className="text-white/30 text-[11px] mt-0.5 leading-tight">{l.desc}</p>
+              </div>
+              {l.desbloqueado ? (
+                <span className="text-[10px] font-bold text-[#afca0b] uppercase tracking-wide mt-0.5">Desbloqueado</span>
+              ) : (
+                <div className="w-full mt-0.5">
+                  <div className="h-1 bg-white/8 rounded-full overflow-hidden">
+                    <div className="h-full bg-white/30 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-white/25 text-[10px] mt-1">{l.actual}/{l.objetivo}</p>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── TAB RESUMEN ───────────────────────────────────────────────────────────────
 const TabResumen = ({ stats }) => {
   const p = stats?.torneos?.partidos ?? {}
   const t = stats?.torneos ?? {}
   const r = stats?.reservas ?? {}
+  const logros = stats?.logros ?? []
+  const logrosDesbloqueados = stats?.logrosDesbloqueados ?? 0
+  const comparativa = stats?.comparativaClub ?? null
 
   const totalPartidos = p.total ?? 0
   const winRate       = p.winRate ?? 0
@@ -96,6 +262,25 @@ const TabResumen = ({ stats }) => {
         <MiniStat label="Racha actual" value={rachaLabel} sub={recentTrend.length > 0 ? 'Últimos resultados' : 'Sin partidos'} icon={Flame} />
         <MiniStat label="Torneos jugados" value={t.participados ?? 0} sub={t.titulos > 0 ? `${t.titulos} campeonato${t.titulos > 1 ? 's' : ''}` : 'Sin campeonatos aún'} icon={Award} />
       </div>
+
+      {r.proximaReserva && (
+        <div className="bg-[#0d1117] border border-[#afca0b]/20 rounded-2xl p-5 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-[#afca0b]/10 flex items-center justify-center shrink-0">
+            <Calendar size={18} className="text-[#afca0b]" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white/40 text-xs">Próxima reserva</p>
+            <p className="text-white font-bold">
+              {formatFechaFull(r.proximaReserva.fecha)}
+              {r.proximaReserva.horaInicio && ` · ${r.proximaReserva.horaInicio}`}
+            </p>
+            {r.proximaReserva.cancha && <p className="text-white/30 text-xs mt-0.5">{r.proximaReserva.cancha}</p>}
+          </div>
+          <span className="text-xs font-semibold text-[#afca0b] bg-[#afca0b]/10 border border-[#afca0b]/20 px-2.5 py-1 rounded-lg shrink-0">Confirmada</span>
+        </div>
+      )}
+
+      <ComparativaClub data={comparativa} />
 
       {t.titulos > 0 && (
         <div className="bg-gradient-to-r from-yellow-500/10 to-amber-400/5 border border-yellow-500/20 rounded-2xl p-5 flex items-center gap-5">
@@ -168,6 +353,8 @@ const TabResumen = ({ stats }) => {
           )}
         </div>
       )}
+
+      <LogrosGrid logros={logros} desbloqueados={logrosDesbloqueados} />
     </div>
   )
 }
@@ -179,8 +366,9 @@ const TabTorneos = ({ stats }) => {
   const historial = t.historial ?? []
   const porCategoria = p.porCategoria ?? {}
   const fases = p.fases ?? {}
-  const companero = t.companeroFrecuente
+  const topCompaneros = t.topCompaneros ?? (t.companeroFrecuente ? [t.companeroFrecuente] : [])
   const evolucion = t.evolucionCategorias ?? []
+  const evolucionWinRate = t.evolucionWinRate ?? []
   const sugerenciaAscenso = t.sugerenciaAscenso ?? false
   const categoriaActual = t.categoriaActual
 
@@ -202,15 +390,29 @@ const TabTorneos = ({ stats }) => {
 
   return (
     <div className="flex flex-col gap-6">
-      {companero && (
-        <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-[#afca0b]/10 flex items-center justify-center shrink-0">
-            <Users size={18} className="text-[#afca0b]" />
+      {topCompaneros.length > 0 && (
+        <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-[#afca0b]/10 flex items-center justify-center shrink-0">
+              <Users size={15} className="text-[#afca0b]" />
+            </div>
+            <div>
+              <p className="text-white font-semibold text-sm">Compañeros frecuentes</p>
+              <p className="text-white/30 text-xs">Parejas más repetidas en torneos</p>
+            </div>
           </div>
-          <div>
-            <p className="text-white/40 text-xs">Compañero más frecuente</p>
-            <p className="text-white font-bold text-lg">{companero.nombre}</p>
-            <p className="text-white/30 text-xs mt-0.5">{companero.veces} torneo{companero.veces > 1 ? 's' : ''} juntos</p>
+          <div className="flex flex-col gap-3">
+            {topCompaneros.map((c, i) => (
+              <div key={c.nombre} className="flex items-center gap-3">
+                <span className="text-white/20 text-sm w-4 shrink-0 font-mono">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-medium text-sm truncate">{c.nombre}</p>
+                </div>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg border ${i === 0 ? 'text-[#afca0b] bg-[#afca0b]/10 border-[#afca0b]/20' : 'text-white/40 bg-white/4 border-white/8'}`}>
+                  {c.veces} torneo{c.veces > 1 ? 's' : ''}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -280,13 +482,91 @@ const TabTorneos = ({ stats }) => {
         )}
       </div>
 
+      {evolucionWinRate.length >= 2 && (() => {
+        const primero = evolucionWinRate[0].winRateAcumulado
+        const ultimo = evolucionWinRate[evolucionWinRate.length - 1].winRateAcumulado
+        const delta = ultimo - primero
+        return (
+          <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-6">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h3 className="text-white font-semibold inline-flex items-center">
+                  Evolución de tu efectividad
+                  <InfoTooltip text="La línea verde (acumulado) es tu efectividad total hasta cada torneo: muestra tu tendencia general. La línea gris (por torneo) es cuánto ganaste en ese torneo puntual: muestra los altibajos." />
+                </h3>
+                <p className="text-white/30 text-xs mt-0.5">Win rate acumulado torneo a torneo</p>
+              </div>
+              <div className="text-right">
+                <div className={`flex items-center gap-1 justify-end font-bold ${delta > 0 ? 'text-[#afca0b]' : delta < 0 ? 'text-red-400' : 'text-white/40'}`}>
+                  {delta > 0 ? <TrendingUp size={16} /> : delta < 0 ? <TrendingDown size={16} /> : <Minus size={16} />}
+                  <span>{delta > 0 ? '+' : ''}{delta} pts</span>
+                </div>
+                <p className="text-white/30 text-xs mt-0.5">{ultimo}% actual</p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={evolucionWinRate} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
+                <defs>
+                  <linearGradient id="gradEvo" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#afca0b" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#afca0b" stopOpacity={1} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="fecha" tickFormatter={formatFechaMes} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+                <Tooltip content={<EvolucionTooltip />} />
+                <ReferenceLine y={50} stroke="rgba(255,255,255,0.12)" strokeDasharray="4 4" />
+                <Line type="monotone" dataKey="winRateTorneo" name="Por torneo" stroke="rgba(255,255,255,0.18)" strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="winRateAcumulado" name="Acumulado" stroke="url(#gradEvo)" strokeWidth={3} dot={{ fill: '#afca0b', r: 3, strokeWidth: 0 }} activeDot={{ r: 6, fill: '#afca0b', strokeWidth: 0 }} />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="flex items-center gap-4 mt-3 justify-end">
+              <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 bg-[#afca0b] rounded-full" /><span className="text-white/40 text-xs">Acumulado</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 bg-white/25 rounded-full" /><span className="text-white/40 text-xs">Por torneo</span></div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {((p.setsGanados ?? 0) + (p.setsPerdidos ?? 0)) > 0 && (
+        <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5 flex items-center gap-5">
+          <div className="w-10 h-10 rounded-xl bg-white/4 flex items-center justify-center shrink-0">
+            <Target size={18} className="text-white/30" />
+          </div>
+          <div className="flex-1">
+            <p className="text-white/40 text-xs mb-2">Sets ganados / perdidos</p>
+            <div className="flex items-center gap-2">
+              <span className="text-[#afca0b] font-black text-2xl leading-none">{p.setsGanados}</span>
+              <span className="text-white/20 text-lg">·</span>
+              <span className="text-red-400 font-black text-2xl leading-none">{p.setsPerdidos}</span>
+            </div>
+            <div className="mt-2 h-1.5 bg-white/6 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#afca0b] to-[#c4e20c] rounded-full transition-all duration-700"
+                style={{ width: `${Math.round((p.setsGanados / (p.setsGanados + p.setsPerdidos)) * 100)}%` }}
+              />
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <p className={`text-2xl font-black leading-none ${Math.round((p.setsGanados / (p.setsGanados + p.setsPerdidos)) * 100) >= 50 ? 'text-[#afca0b]' : 'text-red-400'}`}>
+              {Math.round((p.setsGanados / (p.setsGanados + p.setsPerdidos)) * 100)}%
+            </p>
+            <p className="text-white/30 text-xs mt-0.5">en sets</p>
+          </div>
+        </div>
+      )}
+
       {sugerenciaAscenso && (
         <div className="flex items-center gap-3 bg-amber-500/8 border border-amber-500/30 rounded-2xl px-5 py-4">
           <div className="w-9 h-9 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
             <TrendingUp size={18} className="text-amber-400" />
           </div>
           <div>
-            <p className="text-amber-300 font-semibold text-sm">Listo para ascender</p>
+            <p className="text-amber-300 font-semibold text-sm inline-flex items-center">
+              Listo para ascender
+              <InfoTooltip text="Aparece cuando en tu categoría actual lográs 2 o más títulos, o un 75% de efectividad en al menos 3 torneos. Es una sugerencia: la decisión final de ascenso la toma el admin." />
+            </p>
             <p className="text-amber-400/60 text-xs mt-0.5">Tu rendimiento en <span className="font-bold text-amber-300">{categoriaActual}</span> supera los criterios de ascenso. ¡Hablá con el admin!</p>
           </div>
         </div>
@@ -359,7 +639,10 @@ const TabTorneos = ({ stats }) => {
                     {item.categorias.map((c) => (
                       <span key={c} className="text-xs text-[#afca0b] bg-[#afca0b]/8 border border-[#afca0b]/20 px-1.5 py-0.5 rounded">{c}</span>
                     ))}
-                    {item.fechaInicio && <span className="text-white/25 text-xs">{item.fechaInicio}</span>}
+                    {item.fechaInicio && <span className="text-white/25 text-xs">{formatFechaMes(item.fechaInicio)}</span>}
+                    {item.partidosJugados > 0 && (
+                      <span className="text-white/20 text-xs">{item.partidosJugados}P · {item.partidosGanados}V</span>
+                    )}
                   </div>
                 </div>
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${cfg.bg} ${cfg.color} shrink-0`}>
@@ -375,8 +658,14 @@ const TabTorneos = ({ stats }) => {
 }
 
 // ── TAB RESERVAS ──────────────────────────────────────────────────────────────
-const TabReservas = ({ stats }) => {
+const TabReservas = ({ stats, periodo }) => {
   const r = stats?.reservas ?? {}
+
+  const subtituloChart = periodo === '12m'
+    ? 'Últimos 12 meses'
+    : /^\d{4}$/.test(periodo ?? '')
+      ? `Todo el año ${periodo}`
+      : 'Historial completo'
   const porMes = r.porMes ?? []
   const dias = r.diasDistribucion ?? []
   const franjas = r.franjaDistribucion ?? []
@@ -399,31 +688,57 @@ const TabReservas = ({ stats }) => {
         <MiniStat label="Día favorito" value={r.diaFavorito ?? '—'} sub={r.horarioFavorito ? `Franja ${r.horarioFavorito}` : 'Sin datos'} icon={Calendar} />
       </div>
 
+      {(r.canceladas ?? 0) > 0 && (() => {
+        const pct = Math.round((r.canceladas / (r.total + r.canceladas)) * 100)
+        return (
+          <div className="bg-red-500/5 border border-red-500/15 rounded-2xl px-5 py-3.5 flex items-center gap-3">
+            <XCircle size={15} className="text-red-400/60 shrink-0" />
+            <span className="text-white/40 text-sm flex-1">
+              {r.canceladas} reserva{r.canceladas > 1 ? 's' : ''} cancelada{r.canceladas > 1 ? 's' : ''} en el período
+            </span>
+            <span className="text-red-400/70 text-sm font-semibold shrink-0">{pct}% tasa</span>
+          </div>
+        )
+      })()}
+
       {porMes.length > 0 && (
         <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-white font-semibold">Reservas por mes</h3>
-              <p className="text-white/30 text-xs mt-0.5">Últimos 6 meses</p>
+              <p className="text-white/30 text-xs mt-0.5">{subtituloChart}</p>
             </div>
-            <div className="flex items-center gap-2 bg-[#afca0b]/10 border border-[#afca0b]/20 rounded-xl px-3 py-1.5">
-              <div className="w-2 h-2 bg-[#afca0b] rounded-full" />
-              <span className="text-[#afca0b] text-xs font-semibold">Confirmadas</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 bg-[#afca0b] rounded-full" />
+                <span className="text-[#afca0b] text-xs">Confirmadas</span>
+              </div>
+              {porMes.some((m) => (m.canceladas ?? 0) > 0) && (
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 bg-red-400 rounded-full" />
+                  <span className="text-red-400/70 text-xs">Canceladas</span>
+                </div>
+              )}
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={porMes.map((m) => ({ mes: m.mes, reservas: m.confirmadas }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+            <AreaChart data={porMes.map((m) => ({ mes: m.mes, confirmadas: m.confirmadas, canceladas: m.canceladas ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
               <defs>
                 <linearGradient id="gradRes" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#afca0b" stopOpacity={0.25} />
                   <stop offset="95%" stopColor="#afca0b" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradCanc" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f87171" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis dataKey="mes" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 12 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="reservas" name="Reservas" stroke="#afca0b" strokeWidth={2.5} fill="url(#gradRes)" dot={{ fill: '#afca0b', r: 4, strokeWidth: 0 }} activeDot={{ r: 6, fill: '#afca0b', strokeWidth: 0 }} />
+              <Area type="monotone" dataKey="confirmadas" name="Confirmadas" stroke="#afca0b" strokeWidth={2.5} fill="url(#gradRes)" dot={{ fill: '#afca0b', r: 4, strokeWidth: 0 }} activeDot={{ r: 6, fill: '#afca0b', strokeWidth: 0 }} />
+              <Area type="monotone" dataKey="canceladas" name="Canceladas" stroke="#f87171" strokeWidth={1.5} strokeDasharray="4 4" fill="url(#gradCanc)" dot={false} activeDot={{ r: 4, fill: '#f87171', strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -687,7 +1002,7 @@ const PlayerStatsPage = () => {
         <>
           {tab === 'resumen'   && <TabResumen stats={stats} />}
           {tab === 'torneos'   && <TabTorneos stats={stats} />}
-          {tab === 'reservas'  && <TabReservas stats={stats} />}
+          {tab === 'reservas'  && <TabReservas stats={stats} periodo={periodo} />}
           {tab === 'oponentes' && <TabOponentes fetchOponentes={fetchOponentes} oponentes={oponentes} loadingOponentes={loadingOponentes} errorOponentes={errorOponentes} />}
         </>
       )}

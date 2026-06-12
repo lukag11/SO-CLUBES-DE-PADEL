@@ -24,14 +24,20 @@ export const requireRole = (...roles) => (req, res, next) => {
 }
 
 // Verifica que el jugador siga activo en la DB (para detectar bajas post-login)
+// y que el token no haya sido invalidado por un cambio de contraseña (tokenVersion).
 export const requireActive = async (req, res, next) => {
   try {
     const jugador = await prisma.jugador.findUnique({
       where: { id: req.user.id },
-      select: { activo: true },
+      select: { activo: true, tokenVersion: true },
     })
     if (!jugador || !jugador.activo) {
       return res.status(401).json({ error: 'cuenta_inactiva', message: 'Tu cuenta fue dada de baja. Contactá al club.' })
+    }
+    // Tokens viejos (sin tokenVersion) se tratan como 0; coinciden con el default
+    // hasta que un cambio de contraseña incrementa la versión e invalida los anteriores.
+    if ((req.user.tokenVersion ?? 0) !== jugador.tokenVersion) {
+      return res.status(401).json({ error: 'sesion_expirada', message: 'Tu sesión expiró porque se cambió la contraseña. Iniciá sesión de nuevo.' })
     }
     next()
   } catch {

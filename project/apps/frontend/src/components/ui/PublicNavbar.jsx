@@ -13,7 +13,7 @@ const navLinks = [
 const PublicNavbar = () => {
   const [menuOpen, setMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-  const { templateId, colorPrimario, navbarEstilo } = useClubStore((s) => s.club)
+  const { templateId, colorPrimario, navbarEstilo, nombre, logo } = useClubStore((s) => s.club)
   const isLight = templateId === 3
 
   useEffect(() => {
@@ -54,12 +54,15 @@ const PublicNavbar = () => {
 
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 shrink-0">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg"
-            style={{ backgroundColor: navbarEstilo === 'color-solido' && !isLight ? 'rgba(0,0,0,0.15)' : colorPrimario }}
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg overflow-hidden"
+            style={{ backgroundColor: logo ? 'transparent' : (navbarEstilo === 'color-solido' && !isLight ? 'rgba(0,0,0,0.15)' : colorPrimario) }}
           >
-            <Zap size={16} className={navbarEstilo === 'color-solido' && !isLight ? 'text-black/70' : isLight ? 'text-white' : 'text-[#1E1F23]'} />
+            {logo
+              ? <img src={logo} alt={nombre || 'Club'} className="w-full h-full object-cover" />
+              : <Zap size={16} className={navbarEstilo === 'color-solido' && !isLight ? 'text-black/70' : isLight ? 'text-white' : 'text-[#1E1F23]'} />
+            }
           </div>
-          <span className={`font-bold text-lg tracking-tight ${logoTextColor}`}>PadelOS</span>
+          <span className={`font-bold text-lg tracking-tight ${logoTextColor}`}>{nombre || 'PadelOS'}</span>
         </Link>
 
         {/* Links desktop */}

@@ -14,6 +14,8 @@ const navItems = [
 const ProfesorLayout = () => {
   const { isAuthenticated, profesor, token, logout, setProfesor } = useAuthProfesorStore()
   const loadFromBackend = useClubStore((s) => s.loadFromBackend)
+  const clubNombre = useClubStore((s) => s.club?.nombre)
+  const clubLogo = useClubStore((s) => s.club?.logo)
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
@@ -87,11 +89,14 @@ const ProfesorLayout = () => {
 
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-white/5">
-          <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center shadow-lg shadow-orange-400/25 shrink-0">
-            <Zap size={16} className="text-white" />
+          <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center shadow-lg shadow-orange-400/25 shrink-0 overflow-hidden">
+            {clubLogo
+              ? <img src={clubLogo} alt={clubNombre || 'Club'} className="w-full h-full object-cover" />
+              : <Zap size={16} className="text-white" />
+            }
           </div>
-          <div>
-            <span className="text-white font-bold text-sm tracking-tight block">PadelOS</span>
+          <div className="min-w-0">
+            <span className="text-white font-bold text-sm tracking-tight block truncate">{clubNombre || 'PadelOS'}</span>
             <span className="text-white/30 text-xs">Área Profesores</span>
           </div>
         </div>
@@ -161,7 +166,7 @@ const ProfesorLayout = () => {
           >
             <Menu size={18} />
           </button>
-          <span className="lg:hidden text-white font-bold text-sm tracking-tight">PadelOS</span>
+          <span className="lg:hidden text-white font-bold text-sm tracking-tight truncate">{clubNombre || 'PadelOS'}</span>
           <div className="hidden lg:block" />
 
           {/* Campana */}

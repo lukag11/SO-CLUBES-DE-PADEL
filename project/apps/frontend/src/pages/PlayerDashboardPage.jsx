@@ -1,36 +1,21 @@
-import { Trophy, Swords, CheckCircle, XCircle, Flame, Target, TrendingUp, CalendarDays, ArrowRight, Clock, Repeat, X, Info } from 'lucide-react'
+import { Trophy, Swords, CheckCircle, XCircle, Flame, Target, TrendingUp, CalendarDays, ArrowRight, Clock, Repeat, X, Info, BarChart3, CalendarPlus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useState, useMemo } from 'react'
 import usePlayerStore from '../store/playerStore'
 import useReservasStore from '../store/reservasStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
 import useClubStore from '../store/clubStore'
+import { usePlayerStats } from '../features/player-stats/usePlayerStats'
 import { api } from '../lib/api'
 
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
 const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-// Datos mock — se reemplazarán con API
-const mockStats = [
-  { label: 'Partidos', value: '48', icon: Swords },
-  { label: 'Ganados', value: '34', icon: CheckCircle },
-  { label: 'Torneos', value: '12', icon: Trophy },
-  { label: 'Racha actual', value: '5W', icon: Flame },
-]
-
-const mockResults = [
-  { torneo: 'Copa Verano', fecha: '22 mar 2026', rival: 'Gómez / Pérez', resultado: 'W', score: '6-3  6-2' },
-  { torneo: 'Liga Interna', fecha: '15 mar 2026', rival: 'Torres / Silva', resultado: 'L', score: '4-6  3-6' },
-  { torneo: 'Copa Verano', fecha: '10 mar 2026', rival: 'Ruiz / Díaz', resultado: 'W', score: '7-5  6-4' },
-  { torneo: 'Abierto Club', fecha: '02 mar 2026', rival: 'Martín / López', resultado: 'W', score: '6-1  6-3' },
-  { torneo: 'Liga Interna', fecha: '24 feb 2026', rival: 'Sosa / Vera', resultado: 'L', score: '5-7  4-6' },
-]
-
-const mockOpponents = [
-  { nombre: 'Gómez / Pérez', partidos: 6, ganados: 4 },
-  { nombre: 'Torres / Silva', partidos: 4, ganados: 1 },
-  { nombre: 'Ruiz / Díaz', partidos: 3, ganados: 3 },
-]
+const fmtFechaCorta = (fechaStr) => {
+  if (!fechaStr) return ''
+  const [y, m, d] = String(fechaStr).slice(0, 10).split('-')
+  return `${parseInt(d, 10)} ${MESES[parseInt(m, 10) - 1]} ${y}`
+}
 
 const DIAS_LABEL = {
   domingo: 'Domingo', lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles',
@@ -60,6 +45,17 @@ const PlayerDashboardPage = () => {
   const [reservaACancelar, setReservaACancelar] = useState(null)
   const [misInscripciones, setMisInscripciones] = useState([])
   const [loadingTorneos, setLoadingTorneos] = useState(false)
+
+  // Estadísticas reales (mismo endpoint que la página de Estadísticas)
+  const { stats, loadingStats } = usePlayerStats('todo')
+  const partidosStats = stats?.torneos?.partidos ?? {}
+  const winRate        = partidosStats.winRate ?? 0
+  const totalPartidos  = partidosStats.total ?? 0
+  const partidosGanados = partidosStats.ganados ?? 0
+  const rachaLabel     = partidosStats.rachaLabel ?? null
+  const recentTrend    = partidosStats.recentTrend ?? []
+  const ultimosPartidos = partidosStats.ultimosPartidos ?? []
+  const categoriaReal  = stats?.torneos?.categoriaActual ?? player?.categoria ?? null
 
   const cancelacionInfo = useMemo(() => {
     if (!reservaACancelar) return { horasMinimas: 0, horasRestantes: Infinity, fueraDePlazo: false }
@@ -132,11 +128,19 @@ const PlayerDashboardPage = () => {
   const turnosFijosActivos = turnosFijos.filter((t) => t.activo).slice(0, 3)
   const turnosFijosPendientes = turnosFijos.filter((t) => t.estado === 'pendiente')
 
+  // Torneos vigentes (excluye finalizados) — el resumen solo muestra lo accionable
+  const torneosActivos = misInscripciones.filter((i) => i.torneo.estado !== 'finished')
+
   const initials = player
     ? `${player.nombre?.[0] || ''}${player.apellido?.[0] || ''}`.toUpperCase()
     : 'J'
 
-  const winRate = Math.round((34 / 48) * 100)
+  const statCards = [
+    { label: 'Partidos',     value: totalPartidos,                          icon: Swords },
+    { label: 'Ganados',      value: partidosGanados,                        icon: CheckCircle },
+    { label: 'Torneos',      value: loadingTorneos ? '…' : misInscripciones.length, icon: Trophy },
+    { label: 'Racha actual', value: rachaLabel ?? '—',                      icon: Flame },
+  ]
 
   return (
     <>
@@ -161,32 +165,63 @@ const PlayerDashboardPage = () => {
               {player?.nombre} {player?.apellido}
             </h2>
             <div className="flex items-center gap-3 mt-2">
-              <span className="text-xs font-semibold text-[#1E1F23] bg-[#afca0b] px-2.5 py-1 rounded-lg">
-                3° Categoría
-              </span>
+              {categoriaReal && (
+                <span className="text-xs font-semibold text-[#1E1F23] bg-[#afca0b] px-2.5 py-1 rounded-lg">
+                  {categoriaReal}
+                </span>
+              )}
               <span className="text-xs text-white/40">DNI {player?.dni}</span>
             </div>
           </div>
 
           {/* Win rate circular */}
           <div className="text-right hidden sm:block">
-            <p className="text-5xl font-black text-[#afca0b]">{winRate}%</p>
-            <p className="text-white/40 text-xs mt-1">efectividad</p>
+            {loadingStats ? (
+              <div className="h-12 w-20 rounded-xl bg-white/5 animate-pulse ml-auto" />
+            ) : totalPartidos > 0 ? (
+              <>
+                <p className="text-5xl font-black text-[#afca0b]">{winRate}%</p>
+                <p className="text-white/40 text-xs mt-1">efectividad</p>
+              </>
+            ) : (
+              <>
+                <p className="text-3xl font-black text-white/20">—</p>
+                <p className="text-white/30 text-xs mt-1">sin partidos</p>
+              </>
+            )}
           </div>
         </div>
 
         {/* Mini stats en la hero */}
         <div className="relative z-10 grid grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/8">
-          {mockStats.map(({ label, value, icon: Icon }) => (
+          {statCards.map(({ label, value, icon: Icon }) => (
             <div key={label} className="text-center">
               <Icon size={16} className="text-[#afca0b] mx-auto mb-1.5" />
               <p className="text-xl font-bold text-white">
-                {label === 'Torneos' ? (loadingTorneos ? '…' : misInscripciones.length) : value}
+                {loadingStats && label !== 'Torneos' ? '…' : value}
               </p>
               <p className="text-white/35 text-xs">{label}</p>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── Acciones rápidas ── */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Reservar cancha', icon: CalendarPlus, color: 'text-[#afca0b]', bg: 'hover:border-[#afca0b]/30 hover:bg-[#afca0b]/5', to: '/dashboardJugadores/reservas' },
+          { label: 'Ver torneos',     icon: Trophy,       color: 'text-amber-400', bg: 'hover:border-amber-400/30 hover:bg-amber-400/5', to: '/dashboardJugadores/torneos' },
+          { label: 'Mis estadísticas',icon: BarChart3,    color: 'text-violet-400',bg: 'hover:border-violet-400/30 hover:bg-violet-400/5', to: '/dashboardJugadores/estadisticas' },
+        ].map(({ label, icon: Icon, color, bg, to }) => (
+          <button
+            key={label}
+            onClick={() => navigate(to)}
+            className={`bg-[#0d1117] border border-white/8 rounded-2xl p-4 flex flex-col items-center gap-2 transition-all active:scale-[0.98] ${bg}`}
+          >
+            <Icon size={20} className={color} />
+            <span className="text-white/70 text-xs font-medium text-center">{label}</span>
+          </button>
+        ))}
       </div>
 
       {/* ── Widget reservas ── */}
@@ -328,188 +363,158 @@ const PlayerDashboardPage = () => {
         )}
       </div>
 
-      {/* ── Widget torneos ── */}
+      {/* ── Widget torneos (solo si hay torneos vigentes) ── */}
+      {(loadingTorneos || torneosActivos.length > 0) && (
+        <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-white/6 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Trophy size={15} className="text-amber-400" />
+              <h3 className="text-white font-semibold text-sm">Mis torneos</h3>
+              {torneosActivos.filter((i) => i.torneo.estado === 'in_progress').length > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                  {torneosActivos.filter((i) => i.torneo.estado === 'in_progress').length} en juego
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => navigate('/dashboardJugadores/torneos')}
+              className="flex items-center gap-1 text-amber-400 text-xs font-medium hover:text-amber-300 transition-colors"
+            >
+              Ver todos <ArrowRight size={12} />
+            </button>
+          </div>
+
+          {loadingTorneos ? (
+            <div className="px-5 py-5 flex items-center gap-3">
+              <div className="w-4 h-4 rounded-full border-2 border-amber-400/40 border-t-amber-400 animate-spin shrink-0" />
+              <p className="text-white/25 text-sm">Cargando torneos…</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {torneosActivos.slice(0, 3).map(({ torneo, pareja }) => {
+                const cfg = TORNEO_ESTADO_CONFIG[torneo.estado] ?? TORNEO_ESTADO_CONFIG.draft
+                const enEspera = pareja.estado === 'espera'
+                const companero = pareja.jugador2Nombre
+                  ? `${pareja.jugador2Nombre} ${pareja.jugador2Apellido ?? ''}`.trim()
+                  : null
+                return (
+                  <div key={torneo.id} className="px-5 py-3.5 flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-semibold truncate">{torneo.nombre}</p>
+                      <p className="text-white/40 text-xs mt-0.5 truncate">
+                        {pareja.categoria}
+                        {companero ? ` · con ${companero}` : ' · Sin compañero/a'}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${cfg.badge}`}>
+                        {cfg.label}
+                      </span>
+                      {enEspera && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                          En espera
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+              {torneosActivos.length > 3 && (
+                <div className="px-5 py-3 text-center">
+                  <button
+                    onClick={() => navigate('/dashboardJugadores/torneos')}
+                    className="text-xs text-white/30 hover:text-amber-400 transition-colors"
+                  >
+                    + {torneosActivos.length - 3} más → Ver todos
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Tu rendimiento (teaser → Estadísticas) ── */}
       <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
         <div className="px-5 py-3.5 border-b border-white/6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Trophy size={15} className="text-amber-400" />
-            <h3 className="text-white font-semibold text-sm">Mis torneos</h3>
-            {misInscripciones.filter((i) => i.torneo.estado === 'in_progress').length > 0 && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                {misInscripciones.filter((i) => i.torneo.estado === 'in_progress').length} en juego
-              </span>
-            )}
+            <BarChart3 size={15} className="text-[#afca0b]" />
+            <h3 className="text-white font-semibold text-sm">Tu rendimiento</h3>
           </div>
           <button
-            onClick={() => navigate('/dashboardJugadores/torneos')}
-            className="flex items-center gap-1 text-amber-400 text-xs font-medium hover:text-amber-300 transition-colors"
+            onClick={() => navigate('/dashboardJugadores/estadisticas')}
+            className="flex items-center gap-1 text-[#afca0b] text-xs font-medium hover:text-[#afca0b]/70 transition-colors"
           >
-            Ver todos <ArrowRight size={12} />
+            Ver estadísticas <ArrowRight size={12} />
           </button>
         </div>
 
-        {loadingTorneos ? (
+        {loadingStats ? (
           <div className="px-5 py-5 flex items-center gap-3">
-            <div className="w-4 h-4 rounded-full border-2 border-amber-400/40 border-t-amber-400 animate-spin shrink-0" />
-            <p className="text-white/25 text-sm">Cargando torneos…</p>
+            <div className="w-4 h-4 rounded-full border-2 border-[#afca0b]/40 border-t-[#afca0b] animate-spin shrink-0" />
+            <p className="text-white/25 text-sm">Cargando rendimiento…</p>
           </div>
-        ) : misInscripciones.length === 0 ? (
-          <div className="px-5 py-5 flex items-center justify-between">
-            <p className="text-white/30 text-sm">No estás inscripto en ningún torneo</p>
+        ) : totalPartidos === 0 ? (
+          <div className="px-5 py-8 flex flex-col items-center gap-3 text-center">
+            <Swords size={22} className="text-white/15" />
+            <p className="text-white/30 text-sm">Todavía no jugaste partidos de torneo</p>
             <button
               onClick={() => navigate('/dashboardJugadores/torneos')}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/15 transition-colors"
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#afca0b]/10 text-[#afca0b] hover:bg-[#afca0b]/15 transition-colors"
             >
               Ver torneos
             </button>
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
-            {misInscripciones.slice(0, 3).map(({ torneo, pareja }) => {
-              const cfg = TORNEO_ESTADO_CONFIG[torneo.estado] ?? TORNEO_ESTADO_CONFIG.draft
-              const enEspera = pareja.estado === 'espera'
-              const companero = pareja.jugador2Nombre
-                ? `${pareja.jugador2Nombre} ${pareja.jugador2Apellido ?? ''}`.trim()
-                : null
-              return (
-                <div key={torneo.id} className="px-5 py-3.5 flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-semibold truncate">{torneo.nombre}</p>
-                    <p className="text-white/40 text-xs mt-0.5 truncate">
-                      {pareja.categoria}
-                      {companero ? ` · con ${companero}` : ' · Sin compañero/a'}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${cfg.badge}`}>
-                      {cfg.label}
-                    </span>
-                    {enEspera && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">
-                        En espera
-                      </span>
-                    )}
-                  </div>
+          <div className="p-5 flex flex-col gap-5">
+            {/* Tendencia W/L */}
+            {recentTrend.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-white/40 text-xs font-medium">Tendencia reciente</p>
+                  <p className="text-white/25 text-xs">Últimos {recentTrend.length} partidos</p>
                 </div>
-              )
-            })}
-            {misInscripciones.length > 3 && (
-              <div className="px-5 py-3 text-center">
-                <button
-                  onClick={() => navigate('/dashboardJugadores/torneos')}
-                  className="text-xs text-white/30 hover:text-amber-400 transition-colors"
-                >
-                  + {misInscripciones.length - 3} más → Ver todos
-                </button>
+                <div className="flex items-center gap-1.5">
+                  {recentTrend.map((r, i) => (
+                    <div
+                      key={i}
+                      className={`flex-1 h-7 rounded-md flex items-center justify-center text-xs font-bold ${
+                        r === 'W' ? 'bg-[#afca0b]/20 text-[#afca0b]' : 'bg-red-500/15 text-red-400'
+                      }`}
+                    >
+                      {r === 'W' ? 'V' : 'D'}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Últimos partidos con detalle */}
+            {ultimosPartidos.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-white/40 text-xs font-medium">Últimos resultados</p>
+                <div className="flex flex-col divide-y divide-white/5 -mx-1">
+                  {ultimosPartidos.slice(0, 3).map((p, i) => (
+                    <div key={i} className="px-1 py-2.5 flex items-center gap-3">
+                      <div className={`w-1.5 h-9 rounded-full shrink-0 ${p.resultado === 'W' ? 'bg-[#afca0b]' : 'bg-red-500/60'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium truncate">vs {p.rival}</p>
+                        <p className="text-white/35 text-xs mt-0.5 truncate">{p.torneo} · {fmtFechaCorta(p.fecha)}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        {p.score && <p className="text-white/70 text-sm font-mono">{p.score}</p>}
+                        <p className={`text-xs font-bold mt-0.5 ${p.resultado === 'W' ? 'text-[#afca0b]' : 'text-red-400'}`}>
+                          {p.resultado === 'W' ? 'Victoria' : 'Derrota'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
         )}
-      </div>
-
-      {/* ── Contenido principal ── */}
-      <div className="grid xl:grid-cols-5 gap-4">
-
-        {/* Historial de partidos (3/5) */}
-        <div className="xl:col-span-3 bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-white/8 flex items-center justify-between">
-            <h3 className="text-white font-semibold flex items-center gap-2">
-              <Swords size={16} className="text-[#afca0b]" />
-              Últimos partidos
-            </h3>
-            <span className="text-xs text-white/30">Mostrando 5 de 48</span>
-          </div>
-
-          <div className="divide-y divide-white/5">
-            {mockResults.map((r, i) => (
-              <div key={i} className="px-6 py-4 flex items-center gap-4 hover:bg-white/3 transition-colors">
-                {/* Indicador W/L */}
-                <div className={`w-1.5 h-10 rounded-full shrink-0 ${r.resultado === 'W' ? 'bg-[#afca0b]' : 'bg-red-500/60'}`} />
-
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">vs {r.rival}</p>
-                  <p className="text-white/35 text-xs mt-0.5">{r.torneo} · {r.fecha}</p>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <p className="text-white/70 text-sm font-mono">{r.score}</p>
-                  <p className={`text-xs font-bold mt-0.5 ${r.resultado === 'W' ? 'text-[#afca0b]' : 'text-red-400'}`}>
-                    {r.resultado === 'W' ? 'Victoria' : 'Derrota'}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Panel derecho (2/5) */}
-        <div className="xl:col-span-2 flex flex-col gap-4">
-
-          {/* Mejor resultado */}
-          <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Trophy size={16} className="text-[#afca0b]" />
-              <h3 className="text-white font-semibold text-sm">Mejor resultado</h3>
-            </div>
-            <div className="bg-[#afca0b]/10 border border-[#afca0b]/20 rounded-xl p-4 text-center">
-              <p className="text-[#afca0b] text-2xl font-black">Finalista</p>
-              <p className="text-white/50 text-xs mt-1">Copa Verano 2025</p>
-            </div>
-          </div>
-
-          {/* Oponentes frecuentes */}
-          <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5 flex-1">
-            <div className="flex items-center gap-2 mb-4">
-              <Target size={16} className="text-[#afca0b]" />
-              <h3 className="text-white font-semibold text-sm">Oponentes frecuentes</h3>
-            </div>
-
-            <div className="flex flex-col gap-4">
-              {mockOpponents.map((o) => {
-                const pct = Math.round((o.ganados / o.partidos) * 100)
-                return (
-                  <div key={o.nombre}>
-                    <div className="flex justify-between items-center mb-1.5">
-                      <p className="text-white/80 text-xs font-medium truncate">{o.nombre}</p>
-                      <p className="text-white/35 text-xs shrink-0 ml-2">{o.ganados}V/{o.partidos - o.ganados}D</p>
-                    </div>
-                    <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#afca0b] rounded-full transition-all duration-500"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <p className="text-white/25 text-xs mt-1">{pct}% victorias</p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Tendencia */}
-          <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp size={16} className="text-[#afca0b]" />
-              <h3 className="text-white font-semibold text-sm">Tendencia reciente</h3>
-            </div>
-            <div className="flex items-center gap-1.5">
-              {['W','W','L','W','W','L','W','W','W','W'].map((r, i) => (
-                <div
-                  key={i}
-                  className={`flex-1 h-7 rounded-md flex items-center justify-center text-xs font-bold ${
-                    r === 'W'
-                      ? 'bg-[#afca0b]/20 text-[#afca0b]'
-                      : 'bg-red-500/15 text-red-400'
-                  }`}
-                >
-                  {r}
-                </div>
-              ))}
-            </div>
-            <p className="text-white/30 text-xs mt-2 text-center">Últimos 10 partidos</p>
-          </div>
-        </div>
       </div>
 
     </div>

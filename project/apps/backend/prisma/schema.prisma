@@ -80,6 +80,7 @@ model Jugador {
   password            String?
   cuentaActiva        Boolean  @default(true)
   activo              Boolean  @default(true)
+  tokenVersion        Int      @default(0)
   // Perfil extendido
   genero              String?
   apodo               String?

@@ -7,7 +7,8 @@ const request = async (path, { headers, ...rest } = {}) => {
   })
   const data = await res.json()
   if (!res.ok) {
-    if (data.error === 'cuenta_inactiva') {
+    // Sesión cerrada por baja de cuenta o por cambio de contraseña en otro dispositivo.
+    if (data.error === 'cuenta_inactiva' || data.error === 'sesion_expirada') {
       window.dispatchEvent(new CustomEvent('jugador:cuenta-inactiva', { detail: data.message }))
     }
     throw new Error(data.message || data.error || 'Error del servidor')

@@ -1,6 +1,82 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-09 — Stats: trayectoria categoría + filtro período + mini-stats admin drawer con títulos expandibles
+**Última actualización:** 2026-06-11 — Resumen jugador: rediseño launchpad + branding del club + limpieza de data demo (INITIAL_CLUB)
+
+---
+
+## Último bloque completado (2026-06-11 · tarde) — Resumen jugador + branding + limpieza data demo
+
+### Rediseño "Mi resumen" (PlayerDashboardPage)
+- Eliminado todo el mock (mockStats, mockResults, mockOpponents, winRate 34/48, "3° Categoría", tendencia hardcodeada). Violaba la regla de no-hardcoding.
+- Ahora consume `usePlayerStats('todo')` (mismo endpoint que Estadísticas). Hero con categoría/winRate/mini-stats reales.
+- Nueva fila "Acciones rápidas" (Reservar / Ver torneos / Mis estadísticas).
+- Nueva card "Tu rendimiento" (teaser): tendencia V/D real + 3 últimos partidos con detalle + CTA a Estadísticas. Reemplaza el grid que duplicaba Estadísticas (oponentes, mejor resultado, tendencia → eliminados del resumen).
+- Widget "Mis torneos": filtra `finished`, se oculta entero si no hay torneos vigentes (el CTA ya está en Acciones rápidas).
+
+### Backend
+- `/me/stats` → `partidos.ultimosPartidos[]`: últimos 5 partidos reales (rival, score por sets, torneo, fecha, W/L) desde JSON grupos/brackets.
+
+### Branding del club en PlayerLayout
+- Sidebar y header mobile mostraban "PadelOS" + ícono Zap hardcodeado. Ahora `club.logo` (img) / `club.nombre` desde clubStore, fallback "PadelOS". Mismo patrón que Sidebar admin.
+
+### Limpieza de data demo
+- `INITIAL_CLUB` (clubStore): vaciado contenido demo (nombre, contacto, staff, FAQ, galería Unsplash, historia, heroBadge, politicaReservas). Se conservaron defaults estructurales (colores, horarios, hero copy genérico, heroImagen, canchas). El merge `...INITIAL_CLUB, ...config` ya no filtra identidad falsa a landings de clubes sin configurar. Componentes de landing son defensivos (`if (!x?.length) return null`).
+- Eliminado código muerto: `PlayerOpponentsPage.jsx` + `features/player-stats/mockData.js` (sin ruta, Oponentes vive en Estadísticas).
+- Verificado: `reservasMockData`/`torneosMockData` solo exportan config (enums), no se tocan.
+
+### Cambio de contraseña + invalidación de sesiones (tokenVersion) — RESUELTO
+- `PATCH /jugadores/me/password` (bcrypt: compare actual, nueva≥8, hash). PasswordTab async real + guard doble-submit + Toast éxito/error. Corregido aviso falso de cierre de sesiones.
+- `tokenVersion Int @default(0)` en Jugador. Login + signTokens incluyen tokenVersion. `requireActive` compara y devuelve `sesion_expirada` si no coincide (invalida otras sesiones). El endpoint re-firma token para la sesión actual (no se echa a sí mismo). `playerStore.setToken` + `api.js` maneja sesion_expirada.
+- Toast: se reutilizó `components/ui/Toast.jsx` (no inventar otro). Anotada deuda: unificar las 3-4 variantes de toast → `project_toast_unificar`.
+- **Drift de DB destapado y corregido:** modelo Torneo tenía 3 columnas (fechaInicioEliminatoria/fechaInicioQF/horaInicioQF) en schema pero no en DB. Causa: conexión zombie idle-in-transaction (~4 días) bloqueaba `torneos` → todo db push fallaba por lock timeout. Terminada con pg_terminate_backend + ALTER directo. DB ahora 100% en sync. Ver `project_cambio_password_tokenversion`.
+
+### Pendientes señalados (en memoria, NO resueltos)
+- `canchas` default en INITIAL_CLUB: fuga menor (club sin canchas mostraría 4 demo). No tocado por archivos frágiles. Ver `project_pendientes_resumen_jugador`.
+- Club demo seed post-MVP. Ver `project_club_demo_seed`.
+- Unificar toasts (ToastProvider + useToast). Ver `project_toast_unificar`.
+
+### Archivos tocados
+- `frontend/src/pages/PlayerDashboardPage.jsx`, `frontend/src/layouts/PlayerLayout.jsx`, `frontend/src/store/clubStore.js`
+- `backend/src/routes/jugadores.js` (ultimosPartidos)
+- Eliminados: `frontend/src/pages/PlayerOpponentsPage.jsx`, `frontend/src/features/player-stats/mockData.js`
+
+---
+
+## Último bloque completado (2026-06-11) — Estadísticas: auditoría + mejoras + features futuras
+
+### Auditoría + 8 mejoras (backend `/me/stats` + PlayerStatsPage)
+- Fix `fechaHasta` para filtro de año (`lte`), antes solo `gte`
+- `proximaReserva` (findFirst confirmada futura) → card en Tab Resumen
+- `canceladas` total + banner de tasa de cancelación en Tab Reservas
+- `partidosJugados`+`partidosGanados` por torneo en historial
+- `topCompaneros` (top-3, antes solo el primero)
+- Sets ganados/perdidos ahora se muestran (ratio con barra) en Tab Torneos
+- Área de canceladas en el AreaChart mensual (línea punteada roja)
+- Subtítulo dinámico del chart por período; fechas formateadas (formatFechaMes/Full, sin bug timezone)
+
+### Bloque A — Evolución de winRate
+- Cada resultado lleva `torneoId/torneoNombre/fecha`. Nueva serie `evolucionWinRate[]` (acumulado + por torneo)
+- `LineChart` en Tab Torneos: línea verde acumulada + gris por torneo + ReferenceLine 50% + delta en header
+
+### Bloque B — Logros / badges
+- `logros[]` (8 insignias) + `logrosDesbloqueados`, calculado en `/me/stats` sin queries nuevas
+- `LogrosGrid` en Tab Resumen: desbloqueados a color, bloqueados con barra de progreso. Respeta filtro de período
+
+### Bloque C — Comparativa con el club
+- `comparativaClub`: mapa dni→{g,p} en memoria sobre todos los torneos del club (sin queries extra), mín. 5 partidos para rankear
+- Card "Tu lugar en el club" en Tab Resumen: Top X%, posición, 3 barras (vos/promedio/mejor), mensaje contextual. Caso `ranked:false` si no llega al mínimo
+
+### Tooltips selectivos
+- Componente `InfoTooltip` (CSS puro, HelpCircle) en 4 secciones con reglas no obvias: Comparativa club, Logros, Evolución winRate, Listo para ascender
+
+### Archivos tocados
+- `backend/src/routes/jugadores.js` (`/me/stats` ampliado)
+- `frontend/src/pages/PlayerStatsPage.jsx` (todo lo anterior)
+
+### Pendiente / futuro
+- Comparativa club por **misma categoría** (hoy es club-wide)
+- Cámaras IA / computer vision → ver memoria `project_camaras_ia_vision`
+- Responsive mobile de PlayerStatsPage
 
 ---
 

@@ -17,6 +17,12 @@ const usePlayerStore = create((set) => ({
 
   setPlayer: (player) => set({ player }),
 
+  // Reemplaza el token de la sesión actual (ej: tras cambiar la contraseña)
+  setToken: (token) => {
+    localStorage.setItem('player_token', token)
+    set({ token })
+  },
+
   updatePlayer: (data) => set((state) => ({
     player: { ...state.player, ...data },
   })),

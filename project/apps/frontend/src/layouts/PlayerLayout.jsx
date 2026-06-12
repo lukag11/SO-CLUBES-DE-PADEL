@@ -25,6 +25,8 @@ const PlayerLayout = () => {
   const { notificaciones, locales, fetchNotificaciones } = usePlayerNotificationsStore()
   const sinLeer = [...notificaciones, ...locales].filter((n) => !n.leida).length
   const loadFromBackend = useClubStore((s) => s.loadFromBackend)
+  const clubNombre = useClubStore((s) => s.club?.nombre)
+  const clubLogo = useClubStore((s) => s.club?.logo)
   const setReservas = useReservasStore((s) => s.setReservas)
   const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
   const navigate = useNavigate()
@@ -188,11 +190,14 @@ const PlayerLayout = () => {
 
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-white/5">
-          <div className="w-8 h-8 bg-[#afca0b] rounded-lg flex items-center justify-center shadow-lg shadow-[#afca0b]/20 shrink-0">
-            <Zap size={16} className="text-[#0d1117]" />
+          <div className="w-8 h-8 bg-[#afca0b] rounded-lg flex items-center justify-center shadow-lg shadow-[#afca0b]/20 shrink-0 overflow-hidden">
+            {clubLogo
+              ? <img src={clubLogo} alt={clubNombre || 'Club'} className="w-full h-full object-cover" />
+              : <Zap size={16} className="text-[#0d1117]" />
+            }
           </div>
-          <div>
-            <span className="text-white font-bold text-sm tracking-tight block">PadelOS</span>
+          <div className="min-w-0">
+            <span className="text-white font-bold text-sm tracking-tight block truncate">{clubNombre || 'PadelOS'}</span>
             <span className="text-white/30 text-xs">Área Jugadores</span>
           </div>
         </div>
@@ -279,7 +284,10 @@ const PlayerLayout = () => {
           >
             <Menu size={18} />
           </button>
-          <span className="text-white font-bold text-sm tracking-tight">PadelOS</span>
+          {clubLogo && (
+            <img src={clubLogo} alt={clubNombre || 'Club'} className="w-7 h-7 rounded-lg object-cover shrink-0" />
+          )}
+          <span className="text-white font-bold text-sm tracking-tight truncate">{clubNombre || 'PadelOS'}</span>
         </header>
         <main className="flex-1 p-4 md:p-6 overflow-y-auto overflow-x-hidden">
           <Outlet />

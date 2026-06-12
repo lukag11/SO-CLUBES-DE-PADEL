@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { User, Lock, Save, Eye, EyeOff, CheckCircle, AlertCircle, ChevronDown, MapPin } from 'lucide-react'
+import Toast from '../components/ui/Toast'
 import usePlayerStore from '../store/playerStore'
 import { DIAS, HORARIOS, POSICIONES, MANOS, CATEGORIAS, FRECUENCIAS } from '../hooks/useRegisterForm'
 import { useProvincias, useMunicipios } from '../hooks/useGeoref'
@@ -384,10 +385,18 @@ const DatosTab = ({ player, updatePlayer, token }) => {
 }
 
 const PasswordTab = () => {
+  const token = usePlayerStore((s) => s.token)
+  const setToken = usePlayerStore((s) => s.setToken)
   const [form, setForm] = useState({ actual: '', nueva: '', confirmar: '' })
   const [errors, setErrors] = useState({})
   const [show, setShow] = useState({ actual: false, nueva: false, confirmar: false })
-  const [saved, setSaved] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [toast, setToast] = useState(null) // { tipo: 'exito'|'error', message }
+
+  const showToast = (tipo, message) => {
+    setToast({ tipo, message })
+    setTimeout(() => setToast(null), 3500)
+  }
 
   const checks = passwordChecks(form.nueva)
   const strength = Object.values(checks).filter(Boolean).length
@@ -400,16 +409,32 @@ const PasswordTab = () => {
 
   const toggleShow = (field) => setShow((prev) => ({ ...prev, [field]: !prev[field] }))
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (submitting) return
     const errs = validatePasswordForm(form)
     if (Object.keys(errs).length > 0) {
       setErrors(errs)
       return
     }
-    // Mock: en producción llamaría a la API
-    setSaved(true)
-    setForm({ actual: '', nueva: '', confirmar: '' })
-    setTimeout(() => setSaved(false), 3000)
+    setSubmitting(true)
+    setErrors({})
+    try {
+      const res = await api.patch('/jugadores/me/password', { actual: form.actual, nueva: form.nueva }, { Authorization: `Bearer ${token}` })
+      // El backend re-emite un token con la nueva tokenVersion para no cerrar esta sesión.
+      if (res?.token) setToken(res.token)
+      setForm({ actual: '', nueva: '', confirmar: '' })
+      showToast('exito', 'Tu contraseña se actualizó correctamente')
+    } catch (err) {
+      const msg = err?.message || ''
+      if (/actual/i.test(msg)) {
+        setErrors({ actual: 'La contraseña actual es incorrecta' })
+        showToast('error', 'La contraseña actual es incorrecta')
+      } else {
+        showToast('error', msg || 'No se pudo cambiar la contraseña')
+      }
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -483,7 +508,7 @@ const PasswordTab = () => {
           <div className="flex items-start gap-2 bg-white/3 border border-white/8 rounded-xl px-4 py-3">
             <AlertCircle size={14} className="text-white/30 shrink-0 mt-0.5" />
             <p className="text-white/30 text-xs leading-relaxed">
-              Al cambiar la contraseña, todas las sesiones activas serán cerradas automáticamente.
+              Elegí una contraseña segura que no uses en otros sitios. La próxima vez que inicies sesión deberás usar la nueva.
             </p>
           </div>
         </div>
@@ -491,19 +516,28 @@ const PasswordTab = () => {
 
       {/* Guardar */}
       <div className="flex items-center gap-3 justify-end">
-        {saved && (
-          <span className="flex items-center gap-1.5 text-[#afca0b] text-sm font-medium">
-            <CheckCircle size={15} /> Contraseña actualizada
-          </span>
-        )}
         <button
           onClick={handleSave}
-          className="flex items-center gap-2 bg-[#afca0b] hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-150 shadow-lg shadow-[#afca0b]/20"
+          disabled={submitting}
+          className="flex items-center gap-2 bg-[#afca0b] hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-150 shadow-lg shadow-[#afca0b]/20 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Lock size={15} />
-          Actualizar contraseña
+          {submitting ? 'Actualizando…' : 'Actualizar contraseña'}
         </button>
       </div>
+
+      {toast && (
+        <Toast
+          icon={toast.tipo === 'exito' ? CheckCircle : AlertCircle}
+          iconBg={toast.tipo === 'exito' ? 'bg-[#afca0b]/15' : 'bg-red-500/15'}
+          iconColor={toast.tipo === 'exito' ? 'text-[#afca0b]' : 'text-red-400'}
+          barColor={toast.tipo === 'exito' ? 'bg-[#afca0b]' : 'bg-red-400'}
+          label={toast.tipo === 'exito' ? 'Contraseña' : 'Error'}
+          message={toast.message}
+          duration={3500}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   )
 }

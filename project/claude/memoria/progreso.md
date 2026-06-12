@@ -4,6 +4,17 @@
 
 ---
 
+## Gap turnos impagos + Eliminar turno (2026-06-12 · noche)
+
+- **Turnos impagos como deuda** en cobranzas (Approach B: unión calculada, sin tabla/cron). Turno = deuda si confirmado + impago + no omitido + precio>0 + ya terminó (hora ARG).
+- Helper `turnosImpagosDeuda` + `cargoADeuda` reutilizables. `GET /cargos/cobranzas?jugadorId?` ({deudas, resumen}) usado por PagosPage + drawer. `GET /cargos/me` unificado (jugador ve turnos).
+- Coherente en 3 lugares: Pagos admin, Mis pagos jugador, mini-saldo drawer.
+- **Eliminar turno** = campo `Reserva.cobroOmitido` (no borra la reserva). `PATCH /reservas/:id/cobro-omitido`. Sale de cobranzas, no es ingreso, queda en historial.
+
+### Pendiente (propuesto, ver memoria project_pagos_fase0): filtros (método/turnos), insumos/productos vendibles, inscripciones a torneo → cargo.
+
+---
+
 ## Auditoría de Pagos + fixes (2026-06-12 · noche)
 
 Auditoría completa de la sección. 4 fixes aplicados:

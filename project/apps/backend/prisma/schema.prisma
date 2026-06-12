@@ -140,6 +140,7 @@ model Reserva {
   pagado      Boolean  @default(false)
   metodoPago  String?  // efectivo | transferencia | mercadopago
   pagadoAt    DateTime?
+  cobroOmitido Boolean @default(false) // turno impago que el club decide no cobrar (sale de cobranzas, no es ingreso)
   esTurnoFijo Boolean  @default(false)
   tipo        String   @default("online")
   jugadores   String[]

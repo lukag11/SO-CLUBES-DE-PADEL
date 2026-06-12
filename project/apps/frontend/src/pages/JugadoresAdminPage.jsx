@@ -416,21 +416,21 @@ const DrawerJugador = ({ jugador, onClose, onEditar, onEliminar, onDarDeBaja, on
   }, [jugador.id, adminToken])
 
   // ── Saldo del jugador (solo lectura — la gestión vive en Pagos) ─────────────
-  const [cuenta, setCuenta] = useState(null)
+  // Usa cobranzas: incluye cargos + turnos impagos. Saldo = adeudado del resumen.
+  const [saldoData, setSaldoData] = useState(null)
   const [loadingCuenta, setLoadingCuenta] = useState(true)
 
   useEffect(() => {
     if (!adminToken || !jugador.id) return
     setLoadingCuenta(true)
-    api.get(`/cargos?jugadorId=${jugador.id}`, { Authorization: `Bearer ${adminToken}` })
-      .then((d) => setCuenta(Array.isArray(d) ? d : []))
-      .catch(() => setCuenta([]))
+    api.get(`/cargos/cobranzas?jugadorId=${jugador.id}`, { Authorization: `Bearer ${adminToken}` })
+      .then((d) => setSaldoData(d?.resumen ?? null))
+      .catch(() => setSaldoData(null))
       .finally(() => setLoadingCuenta(false))
   }, [jugador.id, adminToken])
 
-  const cargosPendientes = (cuenta ?? []).filter((c) => c.estado === 'pendiente')
-  const saldo = cargosPendientes.reduce((s, c) => s + (c.monto ?? 0), 0)
-  const saldoVencido = cargosPendientes.some((c) => c.vencido)
+  const saldo = saldoData?.adeudado ?? 0
+  const saldoVencido = (saldoData?.vencido ?? 0) > 0
 
   const toggleFijos = async () => {
     const next = !expandFijos

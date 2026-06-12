@@ -21,7 +21,7 @@ const fmtFecha = (s) => {
 const TIPO_LABEL = {
   cancelacion: 'Cancelación',
   manual: 'Manual',
-  reserva: 'Reserva',
+  reserva: 'Turno',
   torneo: 'Torneo',
 }
 
@@ -142,19 +142,21 @@ const ModalEliminar = ({ cargo, onConfirm, onClose, saving }) => (
             <Trash2 size={18} className="text-rose-500" />
           </div>
           <div>
-            <p className="text-slate-800 font-bold">Eliminar deuda</p>
+            <p className="text-slate-800 font-bold">{cargo.origen === 'reserva' ? 'Quitar de cobranzas' : 'Eliminar deuda'}</p>
             <p className="text-slate-400 text-xs mt-0.5">{cargo.concepto} · {money(cargo.monto)}</p>
           </div>
         </div>
         <p className="text-slate-500 text-sm leading-relaxed">
-          Se borra esta deuda de <span className="font-semibold text-slate-700">{cargo.jugador?.nombre} {cargo.jugador?.apellido}</span> como si nunca se hubiera cargado. No se puede deshacer.
+          {cargo.origen === 'reserva'
+            ? <>Este turno de <span className="font-semibold text-slate-700">{cargo.jugador?.nombre} {cargo.jugador?.apellido}</span> deja de figurar como deuda. La reserva queda en el historial pero no se cobra.</>
+            : <>Se borra esta deuda de <span className="font-semibold text-slate-700">{cargo.jugador?.nombre} {cargo.jugador?.apellido}</span> como si nunca se hubiera cargado. No se puede deshacer.</>}
         </p>
         <div className="flex gap-2 mt-1">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium text-sm hover:bg-slate-50 transition-colors">
             Cancelar
           </button>
           <button onClick={onConfirm} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
-            {saving ? 'Eliminando…' : 'Sí, eliminar'}
+            {saving ? 'Guardando…' : (cargo.origen === 'reserva' ? 'Sí, quitar' : 'Sí, eliminar')}
           </button>
         </div>
       </div>
@@ -248,7 +250,7 @@ const PagosPage = () => {
   const metodosHabilitados = metodosDelClub(club)
 
   const [resumen, setResumen] = useState(null)
-  const [cargos, setCargos] = useState([])
+  const [deudas, setDeudas] = useState([])
   const [jugadores, setJugadores] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('pendiente')
@@ -266,12 +268,9 @@ const PagosPage = () => {
   const fetchData = useCallback(async () => {
     if (!token) return
     try {
-      const [c, r] = await Promise.all([
-        api.get('/cargos', { Authorization: `Bearer ${token}` }),
-        api.get('/cargos/resumen', { Authorization: `Bearer ${token}` }),
-      ])
-      setCargos(Array.isArray(c) ? c : [])
-      setResumen(r)
+      const data = await api.get('/cargos/cobranzas', { Authorization: `Bearer ${token}` })
+      setDeudas(Array.isArray(data?.deudas) ? data.deudas : [])
+      setResumen(data?.resumen ?? null)
     } catch {
       showToast('error', 'No se pudieron cargar las cobranzas')
     } finally {
@@ -291,7 +290,7 @@ const PagosPage = () => {
 
   const visibles = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return cargos.filter((c) => {
+    return deudas.filter((c) => {
       if (filtro === 'vencido' && !c.vencido) return false
       if (filtro === 'pendiente' && c.estado !== 'pendiente') return false
       if (filtro === 'pagado' && c.estado !== 'pagado') return false
@@ -302,7 +301,7 @@ const PagosPage = () => {
       }
       return true
     })
-  }, [cargos, filtro, metodoFiltro, search])
+  }, [deudas, filtro, metodoFiltro, search])
 
   const guardarMetodos = async (ids) => {
     setSaving(true)
@@ -319,7 +318,11 @@ const PagosPage = () => {
   const cobrar = async (metodoPago) => {
     setSaving(true)
     try {
-      await api.patch(`/cargos/${cobrando.id}/estado`, { estado: 'pagado', metodoPago }, { Authorization: `Bearer ${token}` })
+      if (cobrando.origen === 'reserva') {
+        await api.patch(`/reservas/${cobrando.refId}/pago`, { pagado: true, metodoPago }, { Authorization: `Bearer ${token}` })
+      } else {
+        await api.patch(`/cargos/${cobrando.refId}/estado`, { estado: 'pagado', metodoPago }, { Authorization: `Bearer ${token}` })
+      }
       setCobrando(null)
       showToast('exito', 'Cobro registrado')
       fetchData()
@@ -331,9 +334,14 @@ const PagosPage = () => {
   const eliminar = async () => {
     setSaving(true)
     try {
-      await api.delete(`/cargos/${eliminando.id}`, { Authorization: `Bearer ${token}` })
+      if (eliminando.origen === 'reserva') {
+        // Un turno no se borra: se marca "sin cobro" (sale de cobranzas, queda en historial)
+        await api.patch(`/reservas/${eliminando.refId}/cobro-omitido`, { omitido: true }, { Authorization: `Bearer ${token}` })
+      } else {
+        await api.delete(`/cargos/${eliminando.refId}`, { Authorization: `Bearer ${token}` })
+      }
       setEliminando(null)
-      showToast('exito', 'Deuda eliminada')
+      showToast('exito', eliminando.origen === 'reserva' ? 'Turno quitado de cobranzas' : 'Deuda eliminada')
       fetchData()
     } catch (err) {
       showToast('error', err?.message || 'No se pudo eliminar')

@@ -878,6 +878,23 @@ router.patch('/:id/pago', requireAuth, requireRole('admin'), async (req, res) =>
   }
 })
 
+// PATCH /api/reservas/:id/cobro-omitido — admin marca/desmarca un turno como "no se cobra"
+// (sale de cobranzas sin contar como ingreso; la reserva queda en el historial)
+router.patch('/:id/cobro-omitido', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params
+  const { omitido = true } = req.body
+  try {
+    const reserva = await prisma.reserva.findUnique({ where: { id } })
+    if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
+    if (reserva.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
+    const updated = await prisma.reserva.update({ where: { id }, data: { cobroOmitido: !!omitido } })
+    res.json({ ok: true, cobroOmitido: updated.cobroOmitido })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al actualizar el turno' })
+  }
+})
+
 router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params
   const { notas, precio, jugadores, tipo, jugadorId } = req.body

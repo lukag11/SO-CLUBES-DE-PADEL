@@ -176,6 +176,17 @@ const useClubStore = create((set, get) => ({
     })
   },
 
+  // Guarda SOLO la config en el backend (sin tocar canchas). Para ajustes puntuales
+  // como métodos de cobro, donde re-PATCHear canchas sería un efecto acoplado.
+  saveConfig: async (token) => {
+    const { club } = get()
+    if (!token) return
+    const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+    await fetch(`${BASE}/clubs/me`, { method: 'PATCH', headers, body: JSON.stringify({ config: club }) })
+    set({ _dirty: false })
+  },
+
   // Guarda en el backend y actualiza DOM — sin localStorage
   saveClub: async (token) => {
     const { club } = get()

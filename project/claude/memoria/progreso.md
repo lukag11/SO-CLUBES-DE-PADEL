@@ -4,6 +4,18 @@
 
 ---
 
+## Auditoría de Pagos + fixes (2026-06-12 · noche)
+
+Auditoría completa de la sección. 4 fixes aplicados:
+- **#1** Cargo de cancelación: setea `tipo:'cancelacion'` (antes 'manual') + no crea cargos de $0.
+- **#2 Timezone**: `backend/src/lib/tiempo.js` (helpers ARG UTC-3). Dashboard (ingresos día/mes, reservas hoy, ocupación) y `/cargos/resumen` usan hora argentina, no UTC del server (Railway). Antes contaban mal cerca de medianoche.
+- **#4 Validación**: `backend/src/lib/metodosPago.js` (normalizarMetodo). cargos + reservas/pago validan método contra catálogo.
+- **#5 Desacople**: `clubStore.saveConfig` guarda solo config (sin re-PATCHear canchas). PagosPage lo usa para métodos.
+
+**Pendiente #3 (NO hecho):** dinero en `Float` (precio/monto) → pasar a entero/Decimal. Transversal (cruza toda la app, no solo pagos) + migración. Hacer como bloque dedicado antes de tener clubes reales. Ver memoria `project_pagos_fase0`.
+
+---
+
 ## Último ajuste (2026-06-12 · noche) — Métodos de cobro configurables por club
 
 Multi-tenant: cada club define qué métodos acepta. Catálogo del sistema: efectivo, transferencia, mercadopago, débito, crédito, otro (QR NO es método aparte — cae en transferencia o MP según destino).

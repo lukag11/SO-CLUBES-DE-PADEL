@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
+import { inicioDiaArg, inicioMesArg, hoyArgStr, ahoraArgHHMM } from '../lib/tiempo.js'
 
 const router = Router()
 
@@ -23,11 +24,11 @@ router.get('/me', requireAuth, requireRole('admin'), async (req, res) => {
 router.get('/me/dashboard', requireAuth, requireRole('admin'), async (req, res) => {
   const clubId = req.user.clubId
   try {
-    const now = new Date()
-    const inicioDia = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1)
-    const hoyStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-    const ahoraHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    // Límites de fecha/hora en hora local Argentina (el server corre en UTC)
+    const inicioDia = inicioDiaArg()
+    const inicioMes = inicioMesArg()
+    const hoyStr = hoyArgStr()
+    const ahoraHHMM = ahoraArgHHMM()
 
     const [
       reservasPagadasDia, cargosPagadosDia,

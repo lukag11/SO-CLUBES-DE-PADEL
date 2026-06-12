@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
+import { normalizarMetodo } from '../lib/metodosPago.js'
 
 const router = Router()
 
@@ -866,7 +867,7 @@ router.patch('/:id/pago', requireAuth, requireRole('admin'), async (req, res) =>
     const updated = await prisma.reserva.update({
       where: { id },
       data: pagado
-        ? { pagado: true, pagadoAt: new Date(), metodoPago: metodoPago ?? 'efectivo' }
+        ? { pagado: true, pagadoAt: new Date(), metodoPago: normalizarMetodo(metodoPago) }
         : { pagado: false, pagadoAt: null, metodoPago: null },
       include: { cancha: { select: { nombre: true } }, jugador: { select: { id: true, nombre: true, apellido: true } } },
     })
@@ -965,8 +966,14 @@ router.delete('/:id', requireAuth, async (req, res) => {
         }
 
         if (horasRestantes < horasMinimas) {
-          // Fuera del plazo: cancelar pero registrar cargo
+          // Fuera del plazo: cancelar la reserva
           await prisma.reserva.update({ where: { id }, data: { estado: 'cancelada' } })
+
+          // Solo registrar cargo si hay un monto a cobrar
+          const montoCargo = reserva.precio ?? 0
+          if (montoCargo <= 0) {
+            return res.json({ ok: true, cargoAplicado: false })
+          }
 
           const cargo = await prisma.cargo.create({
             data: {
@@ -974,7 +981,8 @@ router.delete('/:id', requireAuth, async (req, res) => {
               jugadorId: req.user.id,
               reservaId: id,
               concepto: `Cancelación fuera de plazo — ${reserva.fecha} ${reserva.horaInicio}`,
-              monto: reserva.precio ?? 0,
+              monto: montoCargo,
+              tipo: 'cancelacion',
               estado: 'pendiente',
             },
           })

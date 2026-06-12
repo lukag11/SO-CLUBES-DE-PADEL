@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
+import { inicioMesArg } from '../lib/tiempo.js'
+import { normalizarMetodo } from '../lib/metodosPago.js'
 
 const router = Router()
 
@@ -9,11 +11,6 @@ const conVencido = (c) => ({
   ...c,
   vencido: c.estado === 'pendiente' && c.vencimiento != null && new Date(c.vencimiento) < new Date(),
 })
-
-const inicioDeMes = () => {
-  const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), 1)
-}
 
 // GET /api/cargos/me — jugador ve sus cargos
 router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
@@ -70,7 +67,7 @@ router.get('/resumen', requireAuth, requireRole('admin'), async (req, res) => {
       .reduce((s, c) => s + c.monto, 0)
 
     const pagadosMes = await prisma.cargo.findMany({
-      where: { clubId, estado: 'pagado', pagadoAt: { gte: inicioDeMes() } },
+      where: { clubId, estado: 'pagado', pagadoAt: { gte: inicioMesArg() } },
       select: { monto: true },
     })
     const cobradoMes = pagadosMes.reduce((s, c) => s + c.monto, 0)
@@ -158,7 +155,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
 
     const data =
       estado === 'pagado'
-        ? { estado, pagadoAt: new Date(), metodoPago: metodoPago ?? 'efectivo' }
+        ? { estado, pagadoAt: new Date(), metodoPago: normalizarMetodo(metodoPago) }
         : { estado, pagadoAt: null, metodoPago: null } // condonado o reabierto
 
     const updated = await prisma.cargo.update({

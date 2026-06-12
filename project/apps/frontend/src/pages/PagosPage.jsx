@@ -244,7 +244,7 @@ const PagosPage = () => {
   const token = useAuthStore((s) => s.token)
   const club = useClubStore((s) => s.club)
   const updateClub = useClubStore((s) => s.updateClub)
-  const saveClub = useClubStore((s) => s.saveClub)
+  const saveConfig = useClubStore((s) => s.saveConfig)
   const metodosHabilitados = metodosDelClub(club)
 
   const [resumen, setResumen] = useState(null)
@@ -308,7 +308,7 @@ const PagosPage = () => {
     setSaving(true)
     try {
       updateClub({ metodosPago: ids })
-      await saveClub(token)
+      await saveConfig(token)
       setConfigMetodos(false)
       showToast('exito', 'Métodos de cobro actualizados')
     } catch {

@@ -3018,7 +3018,7 @@ const ReservasPage = () => {
     jugadores: r.jugador ? [`${r.jugador.nombre} ${r.jugador.apellido}`] : [],
     profesor: r.profesor || null,
     estado: r.estado,
-    pago: r.estado === 'confirmada' ? 'pendiente' : null,
+    pago: r.pagado ? 'pagado' : (r.estado === 'confirmada' ? 'pendiente' : null),
     monto: r.precio || 0,
     notas: r.notas || '',
     creadoPor: 'jugador',
@@ -3208,9 +3208,21 @@ const ReservasPage = () => {
     setEditando(null)
   }
 
-  const handlePago = (id) => {
-    pagarReservaAdmin(id)
+  const handlePago = async (id) => {
     setSeleccion(null)
+    if (String(id).startsWith('backend_')) {
+      const backendId = String(id).replace('backend_', '')
+      // Optimista: marca pagado en el state de reservas backend
+      setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, pagado: true, metodoPago: 'efectivo' } : r))
+      try {
+        await api.patch(`/reservas/${backendId}/pago`, { pagado: true, metodoPago: 'efectivo' }, { Authorization: `Bearer ${adminToken}` })
+      } catch {
+        // Revertir si el backend falla
+        setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, pagado: false, metodoPago: null } : r))
+      }
+    } else {
+      pagarReservaAdmin(id) // reservas locales (no backend) — comportamiento previo
+    }
   }
 
   const handleEditar = (reserva) => {

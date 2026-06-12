@@ -1081,6 +1081,14 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
     if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' })
     if (jugador.clubId !== req.user.clubId) return res.status(403).json({ error: 'Acceso denegado' })
 
+    // No permitir dar de baja a un jugador con deuda pendiente
+    if (activo === false) {
+      const deuda = await prisma.cargo.count({ where: { jugadorId: req.params.id, estado: 'pendiente' } })
+      if (deuda > 0) {
+        return res.status(409).json({ error: 'jugador_con_deuda', message: `No se puede dar de baja: el jugador tiene ${deuda} cargo${deuda > 1 ? 's' : ''} pendiente${deuda > 1 ? 's' : ''}.` })
+      }
+    }
+
     const updated = await prisma.jugador.update({
       where: { id: req.params.id },
       data: {
@@ -1116,6 +1124,13 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
     if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' })
     if (jugador.clubId !== req.user.clubId) return res.status(403).json({ error: 'Acceso denegado' })
     if (jugador.cuentaActiva) return res.status(400).json({ error: 'No se puede eliminar un jugador con cuenta activa' })
+
+    // No permitir eliminar a un jugador con deuda pendiente
+    const deuda = await prisma.cargo.count({ where: { jugadorId: req.params.id, estado: 'pendiente' } })
+    if (deuda > 0) {
+      return res.status(409).json({ error: 'jugador_con_deuda', message: `No se puede eliminar: el jugador tiene ${deuda} cargo${deuda > 1 ? 's' : ''} pendiente${deuda > 1 ? 's' : ''}.` })
+    }
+
     await prisma.jugador.delete({ where: { id: req.params.id } })
     res.json({ ok: true })
   } catch (err) {

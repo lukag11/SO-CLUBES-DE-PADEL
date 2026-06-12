@@ -1,4 +1,4 @@
-import { Trophy, Swords, CheckCircle, XCircle, Flame, Target, TrendingUp, CalendarDays, ArrowRight, Clock, Repeat, X, Info, BarChart3, CalendarPlus } from 'lucide-react'
+import { Trophy, Swords, CheckCircle, XCircle, Flame, Target, TrendingUp, CalendarDays, ArrowRight, Clock, Repeat, X, Info, BarChart3, CalendarPlus, Wallet } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useState, useMemo } from 'react'
 import usePlayerStore from '../store/playerStore'
@@ -45,6 +45,7 @@ const PlayerDashboardPage = () => {
   const [reservaACancelar, setReservaACancelar] = useState(null)
   const [misInscripciones, setMisInscripciones] = useState([])
   const [loadingTorneos, setLoadingTorneos] = useState(false)
+  const [deudas, setDeudas] = useState([])
 
   // Estadísticas reales (mismo endpoint que la página de Estadísticas)
   const { stats, loadingStats } = usePlayerStats('todo')
@@ -74,6 +75,14 @@ const PlayerDashboardPage = () => {
     api
       .get('/turnos-fijos/me', { Authorization: `Bearer ${token}` })
       .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
+      .catch(() => {})
+  }, [token])
+
+  // Carga mis deudas (cargos pendientes) desde el backend
+  useEffect(() => {
+    if (!token) return
+    api.get('/cargos/me', { Authorization: `Bearer ${token}` })
+      .then((data) => { if (Array.isArray(data)) setDeudas(data.filter((c) => c.estado === 'pendiente')) })
       .catch(() => {})
   }, [token])
 
@@ -223,6 +232,39 @@ const PlayerDashboardPage = () => {
           </button>
         ))}
       </div>
+
+      {/* ── Widget deudas (solo si hay cargos pendientes) ── */}
+      {deudas.length > 0 && (() => {
+        const total = deudas.reduce((s, d) => s + (d.monto ?? 0), 0)
+        const hayVencido = deudas.some((d) => d.vencido)
+        return (
+          <div className={`rounded-2xl overflow-hidden border ${hayVencido ? 'border-red-500/25 bg-red-500/5' : 'border-amber-500/25 bg-amber-500/5'}`}>
+            <div className="px-5 py-3.5 flex items-center justify-between border-b border-white/6">
+              <div className="flex items-center gap-2">
+                <Wallet size={15} className={hayVencido ? 'text-red-400' : 'text-amber-400'} />
+                <h3 className="text-white font-semibold text-sm">Tenés pagos pendientes</h3>
+              </div>
+              <span className={`text-sm font-black ${hayVencido ? 'text-red-400' : 'text-amber-400'}`}>
+                ${total.toLocaleString('es-AR')}
+              </span>
+            </div>
+            <div className="divide-y divide-white/5">
+              {deudas.slice(0, 4).map((d) => (
+                <div key={d.id} className="px-5 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium truncate">{d.concepto}</p>
+                    {d.vencido && <p className="text-red-400 text-xs mt-0.5">Vencido</p>}
+                  </div>
+                  <span className="text-white/80 font-semibold text-sm shrink-0">${(d.monto ?? 0).toLocaleString('es-AR')}</span>
+                </div>
+              ))}
+            </div>
+            <div className="px-5 py-2.5">
+              <p className="text-white/35 text-xs">Acercate al club para regularizar tu cuenta.</p>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Widget reservas ── */}
       <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">

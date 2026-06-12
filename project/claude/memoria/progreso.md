@@ -1,6 +1,40 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-11 — Resumen jugador: rediseño launchpad + branding del club + limpieza de data demo (INITIAL_CLUB)
+**Última actualización:** 2026-06-12 — Módulo Pagos Fase 0+1: cobranzas (deudas) + tracking de pago de turnos + ingresos reales en dashboard admin. Sin Mercado Pago.
+
+---
+
+## Último bloque completado (2026-06-12) — Módulo Pagos Fase 0+1 (cobranzas + ingresos)
+
+Enfoque Payment PM/LATAM: máximo ROI sin gateway. Mercado Pago a futuro (seña anti-no-show).
+
+### Modelo de datos (Bloque 1)
+- `Reserva`: + `pagado`, `metodoPago`, `pagadoAt` (Opción A: pago vive en la reserva)
+- `Cargo`: + `tipo`, `vencimiento`, `metodoPago`, `pagadoAt`. Mora calculada en lectura (sin cron)
+- Config club: `modoCobro: 'libre'` (default; sena/total a futuro con MP)
+
+### Backend cobranzas (Bloque 2)
+- `cargos.js`: GET /me, GET / (filtros), GET /resumen (totales), POST / (cargo manual), PATCH /:id/estado (pagado con método/condonar)
+- `reservas.js`: PATCH /:id/pago
+- `jugadores.js`: baja/eliminar bloqueada con deuda (409 jugador_con_deuda)
+
+### Frontend cobranzas (Bloque 3)
+- `PagosPage` (era stub): vista Cobranzas — totales, filtros, marcar pagado (selector método), condonar, cargo manual
+
+### Marcar turnos + Mis deudas (Bloque 4)
+- `ReservasPage` (grilla, 2 ediciones quirúrgicas): el "marcar pagado" estaba roto (local, ignoraba backend). Ahora persiste vía PATCH /reservas/:id/pago. Método efectivo por defecto
+- `PlayerDashboardPage`: widget "Tenés pagos pendientes" (solo si hay deuda)
+
+### Dashboard admin real (Bloque 5)
+- `clubs.js`: GET /me/dashboard (ingresos día/mes reales, reservas hoy, jugadores activos, canchas en uso, torneos activos, deuda, actividad)
+- `AdminDashboardPage`: era 100% mock → datos reales. Cierra el 🔴 de la auditoría
+
+### GAP conocido (a resolver)
+- Cobranzas (PagosPage) solo muestra cargos, NO turnos impagos. Un turno reservado y no pagado no figura como deuda. Decisión pendiente: ¿incluir turnos impagos en Cobranzas? ¿tab "Ingresos"?
+
+### Archivos tocados
+- `backend/prisma/schema.prisma`, `backend/src/routes/{cargos,reservas,jugadores,clubs}.js`
+- `frontend/src/pages/{PagosPage,ReservasPage,PlayerDashboardPage,AdminDashboardPage}.jsx`, `store/clubStore.js`
 
 ---
 

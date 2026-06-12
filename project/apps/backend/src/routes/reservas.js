@@ -853,6 +853,30 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
 })
 
 // PATCH /api/reservas/:id   — admin actualiza campos (notas, precio, jugadores, jugadorId)
+// PATCH /api/reservas/:id/pago — admin marca la reserva como pagada/impaga + método
+router.patch('/:id/pago', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params
+  const { pagado, metodoPago } = req.body
+
+  try {
+    const reserva = await prisma.reserva.findUnique({ where: { id } })
+    if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
+    if (reserva.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
+
+    const updated = await prisma.reserva.update({
+      where: { id },
+      data: pagado
+        ? { pagado: true, pagadoAt: new Date(), metodoPago: metodoPago ?? 'efectivo' }
+        : { pagado: false, pagadoAt: null, metodoPago: null },
+      include: { cancha: { select: { nombre: true } }, jugador: { select: { id: true, nombre: true, apellido: true } } },
+    })
+    res.json(updated)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al actualizar el pago de la reserva' })
+  }
+})
+
 router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params
   const { notas, precio, jugadores, tipo, jugadorId } = req.body

@@ -137,6 +137,9 @@ model Reserva {
   horaFin     String
   estado      String   @default("pendiente")
   precio      Float?
+  pagado      Boolean  @default(false)
+  metodoPago  String?  // efectivo | transferencia | mercadopago
+  pagadoAt    DateTime?
   esTurnoFijo Boolean  @default(false)
   tipo        String   @default("online")
   jugadores   String[]
@@ -217,14 +220,18 @@ model Torneo {
 }
 
 model Cargo {
-  id        String   @id @default(cuid())
-  clubId    String
-  jugadorId String
-  reservaId String?
-  concepto  String
-  monto     Float
-  estado    String   @default("pendiente") // pendiente | pagado | condonado
-  createdAt DateTime @default(now())
+  id          String    @id @default(cuid())
+  clubId      String
+  jugadorId   String
+  reservaId   String?
+  concepto    String
+  monto       Float
+  estado      String    @default("pendiente") // pendiente | pagado | condonado
+  tipo        String    @default("manual")    // cancelacion | manual | reserva | torneo
+  vencimiento DateTime?                        // null = no vence; vencido = pendiente && vencimiento < hoy
+  metodoPago  String?                          // efectivo | transferencia | mercadopago
+  pagadoAt    DateTime?
+  createdAt   DateTime  @default(now())
 
   club    Club    @relation(fields: [clubId], references: [id])
   jugador Jugador @relation(fields: [jugadorId], references: [id], onDelete: Cascade)

@@ -19,6 +19,71 @@ router.get('/me', requireAuth, requireRole('admin'), async (req, res) => {
   }
 })
 
+// GET /api/clubs/me/dashboard — métricas reales para el resumen del admin
+router.get('/me/dashboard', requireAuth, requireRole('admin'), async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const now = new Date()
+    const inicioDia = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1)
+    const hoyStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const ahoraHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+
+    const [
+      reservasPagadasDia, cargosPagadosDia,
+      reservasPagadasMes, cargosPagadosMes,
+      reservasHoy, jugadoresActivos, canchasActivas,
+      torneosActivos, deudaPendiente,
+      ultimasReservas, ultimosJugadores, ultimosCargos,
+    ] = await Promise.all([
+      prisma.reserva.findMany({ where: { clubId, pagado: true, pagadoAt: { gte: inicioDia } }, select: { precio: true } }),
+      prisma.cargo.findMany({ where: { clubId, estado: 'pagado', pagadoAt: { gte: inicioDia } }, select: { monto: true } }),
+      prisma.reserva.findMany({ where: { clubId, pagado: true, pagadoAt: { gte: inicioMes } }, select: { precio: true } }),
+      prisma.cargo.findMany({ where: { clubId, estado: 'pagado', pagadoAt: { gte: inicioMes } }, select: { monto: true } }),
+      prisma.reserva.findMany({ where: { clubId, fecha: hoyStr, estado: 'confirmada' }, select: { horaInicio: true, horaFin: true } }),
+      prisma.jugador.count({ where: { clubId, activo: true } }),
+      prisma.cancha.findMany({ where: { clubId, activo: true }, select: { id: true } }),
+      prisma.torneo.count({ where: { clubId, estado: { in: ['in_progress', 'open'] } } }),
+      prisma.cargo.findMany({ where: { clubId, estado: 'pendiente' }, select: { monto: true } }),
+      prisma.reserva.findMany({ where: { clubId }, orderBy: { createdAt: 'desc' }, take: 5, select: { createdAt: true, fecha: true, horaInicio: true, cancha: { select: { nombre: true } }, jugador: { select: { nombre: true, apellido: true } } } }),
+      prisma.jugador.findMany({ where: { clubId }, orderBy: { createdAt: 'desc' }, take: 5, select: { createdAt: true, nombre: true, apellido: true } }),
+      prisma.cargo.findMany({ where: { clubId, estado: 'pagado' }, orderBy: { pagadoAt: 'desc' }, take: 5, select: { pagadoAt: true, monto: true, concepto: true } }),
+    ])
+
+    const sumPrecio = (arr) => arr.reduce((s, r) => s + (r.precio ?? 0), 0)
+    const sumMonto = (arr) => arr.reduce((s, r) => s + (r.monto ?? 0), 0)
+
+    const ingresosDia = sumPrecio(reservasPagadasDia) + sumMonto(cargosPagadosDia)
+    const ingresosMes = sumPrecio(reservasPagadasMes) + sumMonto(cargosPagadosMes)
+    const ocupadasAhora = reservasHoy.filter((r) => r.horaInicio <= ahoraHHMM && ahoraHHMM < r.horaFin).length
+
+    // Feed de actividad reciente (mezcla y ordena por fecha)
+    const actividad = [
+      ...ultimasReservas.map((r) => ({
+        createdAt: r.createdAt,
+        text: `Reserva — ${r.cancha?.nombre ?? 'Cancha'} ${r.fecha} ${r.horaInicio}${r.jugador ? ` · ${r.jugador.nombre} ${r.jugador.apellido}` : ''}`,
+      })),
+      ...ultimosJugadores.map((j) => ({ createdAt: j.createdAt, text: `Nuevo jugador: ${j.nombre} ${j.apellido}` })),
+      ...ultimosCargos.filter((c) => c.pagadoAt).map((c) => ({ createdAt: c.pagadoAt, text: `Pago recibido: $${(c.monto ?? 0).toLocaleString('es-AR')} — ${c.concepto}` })),
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6)
+
+    res.json({
+      ingresosDia,
+      ingresosMes,
+      reservasHoy: reservasHoy.length,
+      jugadoresActivos,
+      canchasActivas: canchasActivas.length,
+      ocupadasAhora,
+      torneosActivos,
+      deudaPendiente: sumMonto(deudaPendiente),
+      actividad,
+    })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al calcular el dashboard' })
+  }
+})
+
 // PATCH /api/clubs/me   — admin guarda config del club
 router.patch('/me', requireAuth, requireRole('admin'), async (req, res) => {
   const { config } = req.body

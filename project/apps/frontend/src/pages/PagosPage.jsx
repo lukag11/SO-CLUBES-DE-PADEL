@@ -29,6 +29,23 @@ const TIPO_LABEL = {
   torneo: 'Torneo',
 }
 
+const METODO_CFG = {
+  efectivo:      { label: 'Efectivo',      icon: Wallet,        cls: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+  transferencia: { label: 'Transferencia', icon: ArrowDownLeft, cls: 'text-sky-700 bg-sky-50 border-sky-200' },
+  mercadopago:   { label: 'Mercado Pago',  icon: Building2,     cls: 'text-blue-700 bg-blue-50 border-blue-200' },
+}
+
+const MetodoBadge = ({ metodo }) => {
+  const cfg = METODO_CFG[metodo]
+  if (!cfg) return null
+  const Icon = cfg.icon
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${cfg.cls}`}>
+      <Icon size={10} /> {cfg.label}
+    </span>
+  )
+}
+
 const FILTROS = [
   { id: 'pendiente', label: 'Pendientes' },
   { id: 'vencido', label: 'Vencidos' },
@@ -372,7 +389,6 @@ const PagosPage = () => {
                   <p className="text-slate-400 text-xs mt-0.5 truncate">
                     {c.concepto}
                     {c.vencimiento && ` · vence ${fmtFecha(c.vencimiento)}`}
-                    {c.estado === 'pagado' && c.metodoPago && ` · ${c.metodoPago}`}
                   </p>
                 </div>
 
@@ -395,9 +411,12 @@ const PagosPage = () => {
                       </button>
                     </>
                   ) : (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
-                      <CheckCircle size={12} /> Pagado
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <MetodoBadge metodo={c.metodoPago} />
+                      <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                        <CheckCircle size={12} /> Pagado
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>

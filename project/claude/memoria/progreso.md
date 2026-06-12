@@ -1,6 +1,19 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-12 — Módulo Pagos Fase 0+1: cobranzas (deudas) + tracking de pago de turnos + ingresos reales en dashboard admin. Sin Mercado Pago.
+**Última actualización:** 2026-06-12 — Pagos: cuenta por jugador ("Mis pagos" jugador + mini-saldo drawer admin + badges de método)
+
+---
+
+## Último ajuste (2026-06-12 · tarde) — Cuenta de pagos por jugador
+
+- **Jugador**: nueva sección "Mis pagos" en el sidebar del dash jugador (`PlayerPagosPage`). Solo lectura: saldo, pendientes (con vencido), historial con badge de método (efectivo/transferencia/MP, ícono+color). Ruta `/dashboardJugadores/mis-pagos`.
+- **Admin drawer (Jugadores)**: se probó una sección "Cuenta" completa pero era redundante con Pagos → recortada a **mini-saldo de solo lectura** ("Debe $X" / "Al día"). Da contexto (ej: por qué se bloquea la baja).
+- **Pagos (admin)**: se probó agrupar por jugador pero al usuario NO le gustó → **revertido** a la lista plana. Se agregó badge de método al lado de "Pagado".
+- Componente `MetodoBadge` (íconos por método) en ambas pantallas. Candidato a compartir.
+
+### Archivos
+- Nuevos: `frontend/src/pages/PlayerPagosPage.jsx`
+- Tocados: `router/index.jsx`, `layouts/PlayerLayout.jsx`, `pages/JugadoresAdminPage.jsx`, `pages/PagosPage.jsx`
 
 ---
 

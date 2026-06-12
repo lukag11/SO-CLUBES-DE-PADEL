@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Users, UserPlus, Search, CheckCircle, Clock, Phone, Mail,
   ChevronRight, ChevronDown, X, AlertCircle, Trophy, CalendarDays, Zap, Shield,
-  Pencil, Trash2, UserMinus, HelpCircle, Repeat, TrendingUp,
+  Pencil, Trash2, UserMinus, HelpCircle, Repeat, TrendingUp, Wallet,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
@@ -415,6 +415,23 @@ const DrawerJugador = ({ jugador, onClose, onEditar, onEliminar, onDarDeBaja, on
       .then(setMiniStats).catch(() => setMiniStats(null)).finally(() => setLoadingStats(false))
   }, [jugador.id, adminToken])
 
+  // ── Saldo del jugador (solo lectura — la gestión vive en Pagos) ─────────────
+  const [cuenta, setCuenta] = useState(null)
+  const [loadingCuenta, setLoadingCuenta] = useState(true)
+
+  useEffect(() => {
+    if (!adminToken || !jugador.id) return
+    setLoadingCuenta(true)
+    api.get(`/cargos?jugadorId=${jugador.id}`, { Authorization: `Bearer ${adminToken}` })
+      .then((d) => setCuenta(Array.isArray(d) ? d : []))
+      .catch(() => setCuenta([]))
+      .finally(() => setLoadingCuenta(false))
+  }, [jugador.id, adminToken])
+
+  const cargosPendientes = (cuenta ?? []).filter((c) => c.estado === 'pendiente')
+  const saldo = cargosPendientes.reduce((s, c) => s + (c.monto ?? 0), 0)
+  const saldoVencido = cargosPendientes.some((c) => c.vencido)
+
   const toggleFijos = async () => {
     const next = !expandFijos
     setExpandFijos(next)
@@ -581,6 +598,23 @@ const DrawerJugador = ({ jugador, onClose, onEditar, onEliminar, onDarDeBaja, on
             </>
           ) : null}
         </div>
+
+        {/* Saldo (solo lectura — gestión en Pagos) */}
+        {!loadingCuenta && (
+          <div className="px-6 pb-4">
+            <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${
+              saldo > 0
+                ? (saldoVencido ? 'border-red-500/20 bg-red-500/5' : 'border-amber-500/20 bg-amber-500/5')
+                : 'border-white/6 bg-white/3'
+            }`}>
+              <Wallet size={16} className={saldo > 0 ? (saldoVencido ? 'text-red-400' : 'text-amber-400') : 'text-white/30'} />
+              <span className="text-white/50 text-sm flex-1">Saldo</span>
+              {saldo > 0
+                ? <span className={`text-sm font-black ${saldoVencido ? 'text-red-400' : 'text-amber-400'}`}>Debe ${saldo.toLocaleString('es-AR')}</span>
+                : <span className="text-sm font-semibold text-emerald-400">Al día</span>}
+            </div>
+          </div>
+        )}
 
         {/* Stats expandibles */}
         <div className="px-6 pb-4 flex flex-col gap-2">

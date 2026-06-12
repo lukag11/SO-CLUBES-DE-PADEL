@@ -1,26 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Wallet, CheckCircle, Clock, AlertCircle, ArrowDownLeft, Building2 } from 'lucide-react'
+import { Wallet, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import { api } from '../lib/api'
+import { MetodoBadge } from '../lib/metodosPago'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
-
-const METODO_CFG = {
-  efectivo:     { label: 'Efectivo',      icon: Wallet,        cls: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' },
-  transferencia:{ label: 'Transferencia', icon: ArrowDownLeft, cls: 'text-sky-300 bg-sky-500/10 border-sky-500/20' },
-  mercadopago:  { label: 'Mercado Pago',  icon: Building2,     cls: 'text-blue-300 bg-blue-500/10 border-blue-500/20' },
-}
-
-const MetodoBadge = ({ metodo }) => {
-  const cfg = METODO_CFG[metodo]
-  if (!cfg) return null
-  const Icon = cfg.icon
-  return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${cfg.cls}`}>
-      <Icon size={10} /> {cfg.label}
-    </span>
-  )
-}
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 const fmtFecha = (s) => {
@@ -138,7 +122,7 @@ const PlayerPagosPage = () => {
                   <p className="text-white/80 font-medium text-sm truncate">{c.concepto}</p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {c.pagadoAt && <span className="text-white/30 text-xs">{fmtFecha(c.pagadoAt)}</span>}
-                    <MetodoBadge metodo={c.metodoPago} />
+                    <MetodoBadge metodo={c.metodoPago} theme="dark" />
                   </div>
                 </div>
                 <span className="text-emerald-400/80 font-semibold text-sm shrink-0">{money(c.monto)}</span>

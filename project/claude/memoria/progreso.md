@@ -4,6 +4,21 @@
 
 ---
 
+## Último ajuste (2026-06-12 · noche) — Métodos de cobro configurables por club
+
+Multi-tenant: cada club define qué métodos acepta. Catálogo del sistema: efectivo, transferencia, mercadopago, débito, crédito, otro (QR NO es método aparte — cae en transferencia o MP según destino).
+- `lib/metodosPago.jsx` (nuevo): catálogo compartido + `MetodoBadge` (light/dark) + `metodosDelClub`. Centraliza el badge que estaba duplicado.
+- `clubStore`: `metodosPago` default ['efectivo','transferencia'] (JSON config, sin schema).
+- `PagosPage`: botón "Métodos de cobro" (ModalMetodos, checkboxes) → guarda en config del club. Modal de cobro muestra solo habilitados. Filtro por método (arqueo) en Pagados/Todos.
+- `ReservasPage` (grilla): "Marcar pagado" abre selector de método (no asume efectivo). Si ya está pagado: corregir método o "Marcar impago". mapBackendReserva trae metodoPago. handlePago(id, metodo|null).
+- `PlayerPagosPage`: usa MetodoBadge compartido (theme dark).
+
+### Archivos
+- Nuevo: `frontend/src/lib/metodosPago.jsx`
+- Tocados: `store/clubStore.js`, `pages/PagosPage.jsx`, `pages/ReservasPage.jsx`, `pages/PlayerPagosPage.jsx`
+
+---
+
 ## Último ajuste (2026-06-12 · tarde) — Cuenta de pagos por jugador
 
 - **Jugador**: nueva sección "Mis pagos" en el sidebar del dash jugador (`PlayerPagosPage`). Solo lectura: saldo, pendientes (con vencido), historial con badge de método (efectivo/transferencia/MP, ícono+color). Ruta `/dashboardJugadores/mis-pagos`.

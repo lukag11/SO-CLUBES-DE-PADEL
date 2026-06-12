@@ -63,6 +63,8 @@ const INITIAL_CLUB = {
   permitirCruceMedianoche: false, // Si true, habilita reservas/clases que cruzan las 00:00
   // Política de cobro al reservar. Fase 0 solo usa 'libre'; 'sena'/'total' llegan con Mercado Pago.
   modoCobro: 'libre', // 'libre' (paga en mostrador) | 'sena' | 'total'
+  // Métodos de cobro que acepta el club (del catálogo en lib/metodosPago). Cada club tilda los suyos.
+  metodosPago: ['efectivo', 'transferencia'],
   canchas: [
     { id: 1, nombre: 'Cancha 1', tipo: 'Cristal', indoor: true,  activa: true, precioTurno: 12000, recargoPico: 20 },
     { id: 2, nombre: 'Cancha 2', tipo: 'Cristal', indoor: true,  activa: true, precioTurno: 12000, recargoPico: 20 },

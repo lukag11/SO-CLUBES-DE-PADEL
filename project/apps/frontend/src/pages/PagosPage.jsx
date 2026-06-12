@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   DollarSign, AlertTriangle, TrendingUp, Search, Plus, X,
-  CheckCircle, Trash2, Clock, Wallet, ArrowDownLeft, Building2,
+  CheckCircle, Trash2, Clock, Settings, Check,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
+import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
 import Toast from '../components/ui/Toast'
+import { METODOS_CATALOGO, METODO_MAP, metodosDelClub, MetodoBadge } from '../lib/metodosPago'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 
@@ -16,34 +18,11 @@ const fmtFecha = (s) => {
   return `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`
 }
 
-const METODOS = [
-  { id: 'efectivo', label: 'Efectivo', icon: Wallet },
-  { id: 'transferencia', label: 'Transferencia', icon: ArrowDownLeft },
-  { id: 'mercadopago', label: 'Mercado Pago', icon: Building2 },
-]
-
 const TIPO_LABEL = {
   cancelacion: 'Cancelación',
   manual: 'Manual',
   reserva: 'Reserva',
   torneo: 'Torneo',
-}
-
-const METODO_CFG = {
-  efectivo:      { label: 'Efectivo',      icon: Wallet,        cls: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
-  transferencia: { label: 'Transferencia', icon: ArrowDownLeft, cls: 'text-sky-700 bg-sky-50 border-sky-200' },
-  mercadopago:   { label: 'Mercado Pago',  icon: Building2,     cls: 'text-blue-700 bg-blue-50 border-blue-200' },
-}
-
-const MetodoBadge = ({ metodo }) => {
-  const cfg = METODO_CFG[metodo]
-  if (!cfg) return null
-  const Icon = cfg.icon
-  return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${cfg.cls}`}>
-      <Icon size={10} /> {cfg.label}
-    </span>
-  )
 }
 
 const FILTROS = [
@@ -67,8 +46,8 @@ const TotalCard = ({ label, value, sub, icon: Icon, color, bg }) => (
   </div>
 )
 
-// ── Modal: registrar cobro (elegir método) ───────────────────────────────────
-const ModalCobro = ({ cargo, onConfirm, onClose, saving }) => (
+// ── Modal: registrar cobro (elegir método entre los habilitados) ─────────────
+const ModalCobro = ({ cargo, metodos, onConfirm, onClose, saving }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
     <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
     <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -81,21 +60,76 @@ const ModalCobro = ({ cargo, onConfirm, onClose, saving }) => (
       </div>
       <div className="p-6 flex flex-col gap-2.5">
         <p className="text-slate-500 text-xs font-medium mb-1">¿Cómo se cobró?</p>
-        {METODOS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            disabled={saving}
-            onClick={() => onConfirm(id)}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-200 hover:border-brand-400 hover:bg-brand-50 transition-all text-left disabled:opacity-50"
-          >
-            <Icon size={18} className="text-slate-400" />
-            <span className="text-sm font-medium text-slate-700">{label}</span>
-          </button>
-        ))}
+        {metodos.map((id) => {
+          const m = METODO_MAP[id]
+          if (!m) return null
+          const Icon = m.icon
+          return (
+            <button
+              key={id} disabled={saving} onClick={() => onConfirm(id)}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-200 hover:border-brand-400 hover:bg-brand-50 transition-all text-left disabled:opacity-50"
+            >
+              <Icon size={18} className="text-slate-400" />
+              <span className="text-sm font-medium text-slate-700">{m.label}</span>
+            </button>
+          )
+        })}
       </div>
     </div>
   </div>
 )
+
+// ── Modal: configurar métodos de cobro que acepta el club ────────────────────
+const ModalMetodos = ({ seleccion, onSave, onClose, saving }) => {
+  const [sel, setSel] = useState(seleccion)
+  const [error, setError] = useState('')
+  const toggle = (id) => {
+    setError('')
+    setSel((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
+  }
+  const guardar = () => {
+    if (sel.length === 0) return setError('Elegí al menos un método')
+    onSave(sel)
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <p className="text-slate-800 font-bold">Métodos de cobro</p>
+            <p className="text-slate-400 text-xs mt-0.5">Elegí los que acepta tu club</p>
+          </div>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
+        </div>
+        <div className="p-6 flex flex-col gap-2">
+          {METODOS_CATALOGO.map(({ id, label, icon: Icon, desc }) => {
+            const activo = sel.includes(id)
+            return (
+              <button
+                key={id} onClick={() => toggle(id)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${activo ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:bg-slate-50'}`}
+              >
+                <Icon size={18} className={activo ? 'text-brand-600' : 'text-slate-400'} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-700">{label}</p>
+                  <p className="text-[11px] text-slate-400 truncate">{desc}</p>
+                </div>
+                <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${activo ? 'bg-brand-500' : 'border border-slate-300'}`}>
+                  {activo && <Check size={13} className="text-white" />}
+                </div>
+              </button>
+            )
+          })}
+          {error && <p className="text-rose-500 text-xs">{error}</p>}
+          <button onClick={guardar} disabled={saving} className="mt-2 w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
+            {saving ? 'Guardando…' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ── Modal: confirmar eliminación ──────────────────────────────────────────────
 const ModalEliminar = ({ cargo, onConfirm, onClose, saving }) => (
@@ -208,15 +242,22 @@ const ModalNuevoCargo = ({ jugadores, onCreate, onClose, saving }) => {
 // ── Página ────────────────────────────────────────────────────────────────────
 const PagosPage = () => {
   const token = useAuthStore((s) => s.token)
+  const club = useClubStore((s) => s.club)
+  const updateClub = useClubStore((s) => s.updateClub)
+  const saveClub = useClubStore((s) => s.saveClub)
+  const metodosHabilitados = metodosDelClub(club)
+
   const [resumen, setResumen] = useState(null)
   const [cargos, setCargos] = useState([])
   const [jugadores, setJugadores] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('pendiente')
+  const [metodoFiltro, setMetodoFiltro] = useState('todos')
   const [search, setSearch] = useState('')
   const [cobrando, setCobrando] = useState(null)   // cargo en proceso de cobro
   const [eliminando, setEliminando] = useState(null) // cargo a eliminar
   const [nuevoCargo, setNuevoCargo] = useState(false)
+  const [configMetodos, setConfigMetodos] = useState(false)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
 
@@ -254,14 +295,26 @@ const PagosPage = () => {
       if (filtro === 'vencido' && !c.vencido) return false
       if (filtro === 'pendiente' && c.estado !== 'pendiente') return false
       if (filtro === 'pagado' && c.estado !== 'pagado') return false
-      if (filtro === 'condonado' && c.estado !== 'condonado') return false
+      if (metodoFiltro !== 'todos' && c.metodoPago !== metodoFiltro) return false
       if (q) {
         const nombre = `${c.jugador?.nombre ?? ''} ${c.jugador?.apellido ?? ''} ${c.jugador?.dni ?? ''}`.toLowerCase()
         if (!nombre.includes(q)) return false
       }
       return true
     })
-  }, [cargos, filtro, search])
+  }, [cargos, filtro, metodoFiltro, search])
+
+  const guardarMetodos = async (ids) => {
+    setSaving(true)
+    try {
+      updateClub({ metodosPago: ids })
+      await saveClub(token)
+      setConfigMetodos(false)
+      showToast('exito', 'Métodos de cobro actualizados')
+    } catch {
+      showToast('error', 'No se pudieron guardar los métodos')
+    } finally { setSaving(false) }
+  }
 
   const cobrar = async (metodoPago) => {
     setSaving(true)
@@ -307,12 +360,20 @@ const PagosPage = () => {
           <h2 className="text-xl md:text-2xl font-bold text-slate-800">Cobranzas</h2>
           <p className="text-sm text-slate-400 mt-1">Deudas, cobros y estado de cuenta de tus jugadores</p>
         </div>
-        <button
-          onClick={() => setNuevoCargo(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm"
-        >
-          <Plus size={16} /> Nuevo cargo
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setConfigMetodos(true)}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium text-sm hover:bg-slate-50 transition-colors"
+          >
+            <Settings size={15} /> Métodos de cobro
+          </button>
+          <button
+            onClick={() => setNuevoCargo(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm"
+          >
+            <Plus size={16} /> Nuevo cargo
+          </button>
+        </div>
       </div>
 
       {/* Totales */}
@@ -346,6 +407,17 @@ const PagosPage = () => {
             </button>
           ))}
         </div>
+        {(filtro === 'pagado' || filtro === 'todos') && (
+          <select
+            value={metodoFiltro} onChange={(e) => setMetodoFiltro(e.target.value)}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-600 outline-none focus:border-brand-400"
+          >
+            <option value="todos">Todos los métodos</option>
+            {metodosHabilitados.map((id) => (
+              <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>
+            ))}
+          </select>
+        )}
         <div className="relative flex-1 max-w-xs">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
           <input
@@ -425,9 +497,10 @@ const PagosPage = () => {
         )}
       </div>
 
-      {cobrando && <ModalCobro cargo={cobrando} onConfirm={cobrar} onClose={() => setCobrando(null)} saving={saving} />}
+      {cobrando && <ModalCobro cargo={cobrando} metodos={metodosHabilitados} onConfirm={cobrar} onClose={() => setCobrando(null)} saving={saving} />}
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}
       {nuevoCargo && <ModalNuevoCargo jugadores={jugadores} onCreate={crearCargo} onClose={() => setNuevoCargo(false)} saving={saving} />}
+      {configMetodos && <ModalMetodos seleccion={metodosHabilitados} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
 
       {toast && (
         <Toast

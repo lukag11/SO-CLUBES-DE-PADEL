@@ -16,6 +16,7 @@ import useReservasAdminStore from '../store/reservasAdminStore'
 import useProfesoresStore from '../store/profesoresStore'
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
+import { METODO_MAP, metodosDelClub } from '../lib/metodosPago'
 import { api } from '../lib/api'
 import { overlaps, toMin, toTime } from '../utils/timeUtils'
 import InfoBlock from '../components/InfoBlock'
@@ -1324,6 +1325,7 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
   const tipoCfg = TIPO_CONFIG[reserva.tipo]
   const pagoCfg = reserva.pago ? PAGO_CONFIG[reserva.pago] : null
   const estadoCfg = ESTADO_CONFIG[reserva.estado]
+  const metodosCobro = metodosDelClub(useClubStore((s) => s.club))
   // Turno ya terminó: bloquear acciones destructivas para preservar historial y cargos
   const yaTermino = reserva.fecha && reserva.fin ? esPasado(reserva.fecha, reserva.fin) : false
 
@@ -1463,14 +1465,41 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
               Aprobar reserva
             </button>
           )}
-          {reserva.pago !== 'pagado' && reserva.estado === 'confirmada' && (
-            <button
-              onClick={() => onPago(reserva.id)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors"
-            >
-              <Check size={14} />
-              Marcar como pagado
-            </button>
+          {reserva.estado === 'confirmada' && (
+            <div className="rounded-xl border border-slate-200 p-3">
+              <p className="text-slate-500 text-xs font-medium mb-2">
+                {reserva.pago === 'pagado' ? 'Pagado — corregir método' : 'Marcar como pagado — ¿cómo cobró?'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {metodosCobro.map((id) => {
+                  const m = METODO_MAP[id]
+                  if (!m) return null
+                  const Icon = m.icon
+                  const activo = reserva.pago === 'pagado' && reserva.metodoPago === id
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => onPago(reserva.id, id)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                        activo
+                          ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                          : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 text-slate-700'
+                      }`}
+                    >
+                      <Icon size={14} className={activo ? 'text-emerald-500' : 'text-slate-400'} /> {m.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {reserva.pago === 'pagado' && (
+                <button
+                  onClick={() => onPago(reserva.id, null)}
+                  className="mt-2.5 text-xs text-slate-400 hover:text-rose-500 transition-colors"
+                >
+                  Marcar como impago
+                </button>
+              )}
+            </div>
           )}
           <button
             onClick={() => !yaTermino && onCancelar(reserva.id)}
@@ -3019,6 +3048,7 @@ const ReservasPage = () => {
     profesor: r.profesor || null,
     estado: r.estado,
     pago: r.pagado ? 'pagado' : (r.estado === 'confirmada' ? 'pendiente' : null),
+    metodoPago: r.metodoPago ?? null,
     monto: r.precio || 0,
     notas: r.notas || '',
     creadoPor: 'jugador',
@@ -3208,17 +3238,20 @@ const ReservasPage = () => {
     setEditando(null)
   }
 
-  const handlePago = async (id) => {
+  const handlePago = async (id, metodoPago = 'efectivo') => {
     setSeleccion(null)
+    const pagado = metodoPago !== null // metodoPago=null → marcar impago
+    const metodo = pagado ? metodoPago : null
     if (String(id).startsWith('backend_')) {
       const backendId = String(id).replace('backend_', '')
-      // Optimista: marca pagado en el state de reservas backend
-      setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, pagado: true, metodoPago: 'efectivo' } : r))
+      const prevState = reservasBackend.find((r) => r.id === backendId)
+      // Optimista
+      setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, pagado, metodoPago: metodo } : r))
       try {
-        await api.patch(`/reservas/${backendId}/pago`, { pagado: true, metodoPago: 'efectivo' }, { Authorization: `Bearer ${adminToken}` })
+        await api.patch(`/reservas/${backendId}/pago`, { pagado, metodoPago: metodo }, { Authorization: `Bearer ${adminToken}` })
       } catch {
-        // Revertir si el backend falla
-        setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, pagado: false, metodoPago: null } : r))
+        // Revertir al estado previo si el backend falla
+        setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, pagado: prevState?.pagado ?? false, metodoPago: prevState?.metodoPago ?? null } : r))
       }
     } else {
       pagarReservaAdmin(id) // reservas locales (no backend) — comportamiento previo

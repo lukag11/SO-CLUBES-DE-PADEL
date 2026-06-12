@@ -136,7 +136,7 @@ model Reserva {
   horaInicio  String
   horaFin     String
   estado      String   @default("pendiente")
-  precio      Float?
+  precio      Int?
   pagado      Boolean  @default(false)
   metodoPago  String?  // efectivo | transferencia | mercadopago
   pagadoAt    DateTime?
@@ -163,7 +163,7 @@ model TurnoFijo {
   dia                 String   // 'lunes' | 'martes' | ... | 'domingo'
   horaInicio          String   // 'HH:MM'
   horaFin             String   // 'HH:MM'
-  precio              Float?
+  precio              Int?
   estado              String   @default("pendiente") // pendiente | confirmado | inactivo
   diasAusentes        String[] // fechas YYYY-MM-DD excluidas (cualquier ausencia)
   diasAusentesJugador String[] // fechas solicitadas por el jugador y confirmadas por admin
@@ -225,7 +225,7 @@ model Cargo {
   jugadorId   String
   reservaId   String?
   concepto    String
-  monto       Float
+  monto       Int
   estado      String    @default("pendiente") // pendiente | pagado | condonado
   tipo        String    @default("manual")    // cancelacion | manual | reserva | torneo
   vencimiento DateTime?                        // null = no vence; vencido = pendiente && vencimiento < hoy

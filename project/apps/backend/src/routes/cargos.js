@@ -93,7 +93,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
   if (!jugadorId || !concepto?.trim() || monto == null) {
     return res.status(400).json({ error: 'datos_incompletos', message: 'Jugador, concepto y monto son requeridos' })
   }
-  const montoNum = Number(monto)
+  const montoNum = Math.round(Number(monto))
   if (!Number.isFinite(montoNum) || montoNum <= 0) {
     return res.status(400).json({ error: 'monto_invalido', message: 'El monto debe ser mayor a cero' })
   }

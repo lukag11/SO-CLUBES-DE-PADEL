@@ -1479,6 +1479,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
   const [pendingHora, setPendingHora] = useState(horasParaDia(diasValidos[0] ?? DIAS_SEMANA[0])[0] ?? '18:00')
   const [errors, setErrors]           = useState({})
   const [exito, setExito]             = useState(null) // null | { data, vaAEspera }
+  const [submitting, setSubmitting]   = useState(false)
   const [sinCompanero, setSinCompanero] = useState(parejaExistente?.sinCompanero ?? false)
 
   // Días que aún no tienen slot agregado
@@ -1586,41 +1587,58 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
     return e
   }
 
-  const handleConfirmar = () => {
-    if (soloDisponibilidad) {
-      setExito({ data: { disponibilidad: slots, prefiereMismoDia }, vaAEspera: false })
-      return
-    }
-    const e = validate()
-    if (Object.keys(e).length) { setErrors(e); return }
-    // Si el compañero no existía, construir nombre completo desde el mini-form
-    const j2NombreCompleto = dniLookup.status === 'not_found'
-      ? `${jugador2Nombre.trim()} ${jugador2Apellido.trim()}`.trim()
-      : jugador2.trim()
+  const handleConfirmar = async () => {
+    if (submitting) return // guard doble-submit
 
-    const data = {
-      jugador1,
-      jugador1Dni: jugador1Dni ?? '',
-      jugador2: sinCompanero ? 'Por definir' : j2NombreCompleto,
-      jugador2Dni: sinCompanero ? '' : jugador2Dni.trim(),
-      // Solo se envían cuando el compañero no está en DB (para crear el pre-registro)
-      ...(dniLookup.status === 'not_found' && !sinCompanero && {
-        jugador2Nombre: jugador2Nombre.trim(),
-        jugador2Apellido: jugador2Apellido.trim(),
-      }),
-      categoria,
-      fecha: new Date().toISOString().split('T')[0],
-      disponibilidad: slots,
-      prefiereMismoDia,
-      sinCompanero,
+    // Armar el payload según el sub-flujo
+    let data
+    let vaAEsperaLocal = false
+    if (soloDisponibilidad) {
+      data = { disponibilidad: slots, prefiereMismoDia }
+    } else {
+      const e = validate()
+      if (Object.keys(e).length) { setErrors(e); return }
+      // Si el compañero no existía, construir nombre completo desde el mini-form
+      const j2NombreCompleto = dniLookup.status === 'not_found'
+        ? `${jugador2Nombre.trim()} ${jugador2Apellido.trim()}`.trim()
+        : jugador2.trim()
+
+      data = {
+        jugador1,
+        jugador1Dni: jugador1Dni ?? '',
+        jugador2: sinCompanero ? 'Por definir' : j2NombreCompleto,
+        jugador2Dni: sinCompanero ? '' : jugador2Dni.trim(),
+        // Solo se envían cuando el compañero no está en DB (para crear el pre-registro)
+        ...(dniLookup.status === 'not_found' && !sinCompanero && {
+          jugador2Nombre: jugador2Nombre.trim(),
+          jugador2Apellido: jugador2Apellido.trim(),
+        }),
+        categoria,
+        fecha: new Date().toISOString().split('T')[0],
+        disponibilidad: slots,
+        prefiereMismoDia,
+        sinCompanero,
+      }
+      // Estimación local de "va a espera" (fallback para el mensaje; el backend manda el estado real)
+      const cupoMax     = torneo.cupoLibre ? null : (torneo.cuposPorCategoria?.[categoria] ?? null)
+      const confirmados = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado !== 'espera').length
+      const enEsperaCat = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado === 'espera').length
+      const cupoEsperaCat = (torneo.cupoEsperaPorCategoria ?? {})[categoria] ?? 0
+      vaAEsperaLocal    = cupoMax !== null && confirmados >= cupoMax && enEsperaCat < cupoEsperaCat
     }
-    // Calcular si va a espera para mostrar el mensaje correcto
-    const cupoMax     = torneo.cupoLibre ? null : (torneo.cuposPorCategoria?.[categoria] ?? null)
-    const confirmados = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado !== 'espera').length
-    const enEsperaCat = torneo.inscriptos.filter((i) => i.categoria === categoria && i.estado === 'espera').length
-    const cupoEsperaCat = (torneo.cupoEsperaPorCategoria ?? {})[categoria] ?? 0
-    const vaAEspera   = cupoMax !== null && confirmados >= cupoMax && enEsperaCat < cupoEsperaCat
-    setExito({ data, vaAEspera })
+
+    // Guardar DE VERDAD (await). La pantalla de éxito se muestra recién si la API confirmó.
+    setSubmitting(true)
+    try {
+      const res = await onConfirmar(data)
+      if (res?.ok === false) {
+        setErrors({ general: res.error ?? 'No se pudo guardar. Intentá de nuevo.' })
+        return
+      }
+      setExito({ data, vaAEspera: res?.vaAEspera ?? vaAEsperaLocal })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -1719,9 +1737,9 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                 </div>
               )}
 
-              {/* Botón Listo */}
+              {/* Botón Listo — ya está guardado, solo cierra */}
               <button
-                onClick={() => onConfirmar(exito.data)}
+                onClick={onClose}
                 style={{ animation: 'fadeUp 0.4s ease-out 0.85s both' }}
                 className={`w-full py-3 rounded-xl text-sm font-bold transition-all ${
                   exito.vaAEspera
@@ -2167,9 +2185,10 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
             </button>
             <button
               onClick={handleConfirmar}
-              className="px-5 py-2 text-xs font-bold bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117] rounded-xl transition-all"
+              disabled={submitting}
+              className="px-5 py-2 text-xs font-bold bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117] rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {soloDisponibilidad ? 'Guardar disponibilidad' : isEdit ? 'Guardar cambios' : 'Confirmar inscripción'}
+              {submitting ? 'Guardando…' : soloDisponibilidad ? 'Guardar disponibilidad' : isEdit ? 'Guardar cambios' : 'Confirmar inscripción'}
             </button>
           </div>
         )}
@@ -2273,8 +2292,11 @@ const PlayerTournamentsPage = () => {
 
   const isBackendTorneo = (t) => typeof t?.id === 'string'
 
+  // Devuelve { ok, vaAEspera } o { ok:false, error }. NO cierra el modal: lo cierra el propio
+  // modal (vía onClose) recién después de mostrar la pantalla de éxito. Así el guardado no
+  // depende del botón "Listo" (si se cierra por el fondo, igual quedó guardado).
   const handleConfirmarInscripcion = async (pareja) => {
-    if (!modalTorneo) return
+    if (!modalTorneo) return { ok: false }
     const cat         = pareja.categoria
     const cupoMax     = modalTorneo.cupoLibre ? null : (modalTorneo.cuposPorCategoria?.[cat] ?? null)
     const confirmados = modalTorneo.inscriptos.filter((i) => i.categoria === cat && i.estado !== 'espera').length
@@ -2294,23 +2316,21 @@ const PlayerTournamentsPage = () => {
           sinCompanero: p.sinCompanero ?? false,
           disponibilidad: p.disponibilidad ?? [], prefiereMismoDia: p.prefiereMismoDia ?? false,
         })
+        const enEspera = p.estado === 'espera'
         nuevaInscripcionTorneo({
           jugador1: pareja.jugador1, jugador2: pareja.jugador2,
           categoria: cat, torneoNombre: modalTorneo.nombre,
-          torneoId: modalTorneo.id, vaAEspera,
+          torneoId: modalTorneo.id, vaAEspera: enEspera,
         })
-        if (vaAEspera) {
+        if (enEspera) {
           addInscripcionEnEspera({ torneoNombre: modalTorneo.nombre, categoria: cat })
           setToastEspera(modalTorneo.nombre)
         }
-        setModalTorneo(null)
-        return
+        return { ok: true, vaAEspera: enEspera }
       } catch (err) {
-        // 409 = conflicto de negocio — NO caer al store local
+        // 409 = conflicto de negocio — NO caer al store local; el modal muestra el error
         if (err?.status === 409 || err?.message?.includes('ya está inscripto')) {
-          setModalTorneo(null)
-          setToastError(err.message ?? 'Uno de los jugadores ya está inscripto en este torneo.')
-          return
+          return { ok: false, error: err.message ?? 'Uno de los jugadores ya está inscripto en este torneo.' }
         }
         // Red/server error → fallback local (comportamiento offline)
       }
@@ -2325,17 +2345,24 @@ const PlayerTournamentsPage = () => {
       addInscripcionEnEspera({ torneoNombre: modalTorneo.nombre, categoria: cat })
       setToastEspera(modalTorneo.nombre)
     }
-    setModalTorneo(null)
+    return { ok: true, vaAEspera }
   }
 
+  // Devuelve { ok } o { ok:false, error }. NO cierra el modal (lo cierra el modal tras el éxito).
   const handleConfirmarEdicion = async ({ jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia, sinCompanero }) => {
-    if (!modalEdicion) return
+    if (!modalEdicion) return { ok: false }
     const { torneo: t, pareja, soloDisponibilidad } = modalEdicion
     const changes = soloDisponibilidad
       ? { disponibilidad, prefiereMismoDia }
       : { jugador2, jugador2Dni, categoria, disponibilidad, prefiereMismoDia, sinCompanero }
     if (isBackendTorneo(t) && typeof pareja.id === 'string' && playerToken) {
-      api.patch(`/torneos/${t.id}/inscribir/${pareja.id}`, changes, authH).catch(() => {})
+      try {
+        await api.patch(`/torneos/${t.id}/inscribir/${pareja.id}`, changes, authH)
+      } catch (err) {
+        // Conflicto de negocio (ej: compañero ya inscripto) → mostrar error, no guardar local
+        if (err?.status === 409) return { ok: false, error: err.message ?? 'No se pudo actualizar la inscripción.' }
+        // Red/server → seguimos con la actualización local (comportamiento offline)
+      }
     }
     updatePareja(t.id, pareja.id, changes)
     if (!soloDisponibilidad) {
@@ -2346,7 +2373,7 @@ const PlayerTournamentsPage = () => {
         actualizacionTorneo({ jugador1: pareja.jugador1, jugador2, categoria, torneoNombre: t.nombre, torneoId: t.id })
       }
     }
-    setModalEdicion(null)
+    return { ok: true }
   }
 
   const handleCancelarInscripcion = (torneo, pareja) => {

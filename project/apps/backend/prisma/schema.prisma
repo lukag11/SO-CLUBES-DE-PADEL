@@ -240,6 +240,9 @@ model Cargo {
   club    Club    @relation(fields: [clubId], references: [id])
   jugador Jugador @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
 
+  // Evita deudas duplicadas de inscripción (mismo jugador+pareja+tipo). Para tipo torneo
+  // parejaId es non-null; los cargos manuales/cancelación tienen parejaId null (NULLs distintos en PG → no chocan).
+  @@unique([parejaId, jugadorId, tipo])
   @@map("cargos")
 }
 

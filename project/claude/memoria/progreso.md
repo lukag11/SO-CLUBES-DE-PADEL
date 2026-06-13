@@ -1,6 +1,30 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-13 — Inscripciones a torneo con deuda + modo por torneo + dev en Postgres local
+**Última actualización:** 2026-06-13 — Integridad del libro de deudas de inscripción (reconciliador) + fix UX commit timing
+
+---
+
+## Integridad deudas de inscripción + fix UX (2026-06-13 · tarde)
+
+Auditoría con lente de integridad de ledger sobre el agregado Pareja+Cargo. **Invariante:** una deuda pendiente `tipo:'torneo'` existe SII su jugador es miembro actual de una pareja `inscripto` de un torneo que cobra; los **pagados** nunca se borran (ingreso real).
+
+### Reconciliador de deudas (`sincronizarDeudaInscripcion` reescrito)
+- Antes solo **agregaba**; ahora **reconcilia**: borra pendientes de ex-miembros (cambio de compañero), agrega faltantes, limpia todas si la pareja no está `inscripto`. La remoción se basa en miembros actuales (`jugador1Id/jugador2Id`), nunca en `guardar_cupo` (no borra la deuda legítima del compañero aún no cargado).
+- **Índice único** `@@unique([parejaId, jugadorId, tipo])` + `upsert` → mata el doble cobro por doble-submit a nivel DB. (parejaId null en manual/cancelación → NULLs distintos en PG, no chocan).
+- Llamado en **todos** los caminos: admin POST/PATCH/DELETE, jugador POST/PATCH/DELETE, y las 3 promociones de espera. Antes faltaba en jugador PATCH (no sincronizaba) y jugador DELETE (no limpiaba ni promovía deuda).
+- Fix `sinCompanero=true` → nullea `jugador2Id/jugador2Dni` (admin + jugador).
+
+### Fix UX — commit timing (ModalInscripcion, PlayerTournamentsPage)
+- **Bug:** la pantalla "¡Cambios guardados!" se mostraba ANTES de guardar; el guardado real estaba atado al botón "Listo". Cerrar por el fondo/X se saltaba el guardado.
+- **Fix (Opción A):** el submit guarda de verdad (await API) y recién después muestra la pantalla de éxito; "Listo"/X/fondo solo cierran. Guard de doble-submit (`submitting`). Los handlers del padre devuelven `{ok, vaAEspera}` y ya no cierran el modal.
+- **Auditoría:** el anti-patrón estaba aislado en este modal. El resto (PlayerReservasPage, PlayerProfilePage, ModalCancelar, modales admin de TorneoDetallePage) commitea en la acción correctamente.
+
+### Validado (matriz de prueba)
+B1/B2 (cambio compañero), C1 (sin compañero), D1/D2 (bajas), F1 (doble cobro), G1 (inmutabilidad del pagado) — todos OK en admin y jugador.
+
+### Pendiente (decisión del usuario, no son bugs)
+- I1: ¿precio del torneo retroactivo a deudas existentes? (recomendado: no).
+- I2: bloquear baja de jugador con deuda (ya estaba en cola).
 
 ---
 

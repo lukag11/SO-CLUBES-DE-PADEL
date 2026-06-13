@@ -5,26 +5,42 @@ import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 
 const router = Router()
 
-// Genera las deudas de inscripción que falten para una pareja (idempotente, no duplica).
-// soloJ1=true → solo cobra al que inscribe (modo guardar_cupo al inscribir).
+// Reconcilia las deudas de inscripción de una pareja con su estado actual (idempotente).
+// Invariante: una deuda pendiente tipo 'torneo' existe SII su jugador es miembro actual de
+// una pareja 'inscripto' de un torneo que cobra (precio>0). Los cargos PAGADOS nunca se tocan
+// (son ingreso real). soloJ1=true (solo en la inscripción inicial modo guardar_cupo) cobra
+// únicamente al que reserva; en ediciones se llama sin soloJ1 → completa a ambos.
 const sincronizarDeudaInscripcion = async (torneo, pareja, { soloJ1 = false } = {}) => {
+  const miembros = [pareja.jugador1Id, pareja.jugador2Id].filter(Boolean)
   const precio = torneo.precioInscripcion
-  if (!precio || precio <= 0) return
-  if (pareja.estado !== 'inscripto') return // espera/suplente no generan deuda
 
-  const ids = []
-  if (pareja.jugador1Id) ids.push(pareja.jugador1Id)
-  if (!soloJ1 && pareja.jugador2Id) ids.push(pareja.jugador2Id)
+  // 1) Limpiar deudas PENDIENTES de ex-miembros (ej: cambio de compañero). Las pagadas quedan.
+  await prisma.cargo.deleteMany({
+    where: {
+      parejaId: pareja.id, tipo: 'torneo', estado: 'pendiente',
+      ...(miembros.length > 0 ? { jugadorId: { notIn: miembros } } : {}),
+    },
+  })
 
-  for (const jugadorId of ids) {
-    const existe = await prisma.cargo.count({ where: { parejaId: pareja.id, jugadorId, tipo: 'torneo' } })
-    if (existe > 0) continue
-    await prisma.cargo.create({
-      data: {
+  // 2) Sin cobro o pareja no inscripta (espera/suplente) → no debe haber deudas pendientes.
+  if (!precio || precio <= 0 || pareja.estado !== 'inscripto') {
+    await prisma.cargo.deleteMany({ where: { parejaId: pareja.id, tipo: 'torneo', estado: 'pendiente' } })
+    return
+  }
+
+  // 3) Agregar las que falten (upsert idempotente; el índice único evita duplicados y race de doble submit).
+  const aCobrar = []
+  if (pareja.jugador1Id) aCobrar.push(pareja.jugador1Id)
+  if (!soloJ1 && pareja.jugador2Id) aCobrar.push(pareja.jugador2Id)
+  for (const jugadorId of aCobrar) {
+    await prisma.cargo.upsert({
+      where: { parejaId_jugadorId_tipo: { parejaId: pareja.id, jugadorId, tipo: 'torneo' } },
+      create: {
         clubId: torneo.clubId, jugadorId, parejaId: pareja.id,
         tipo: 'torneo', estado: 'pendiente', monto: precio,
         concepto: `Inscripción ${torneo.nombre} — ${pareja.categoria}`,
       },
+      update: {}, // ya existe (pendiente o pagada) → no tocar (precio no es retroactivo)
     }).catch(() => {})
   }
 }
@@ -574,6 +590,8 @@ router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req,
         ...(categoria        !== undefined && { categoria }),
         ...(disponibilidad   !== undefined && { disponibilidad }),
         ...(prefiereMismoDia !== undefined && { prefiereMismoDia: !!prefiereMismoDia }),
+        // Si pasa a "sin compañero", desvincular al j2 (evita deuda colgada + datos inconsistentes)
+        ...(sinCompanero === true && { jugador2Id: null, jugador2Dni: null }),
       },
     })
 
@@ -584,13 +602,9 @@ router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req,
       if (updated.jugador2Id) notificarJugador(updated.jugador2Id, torneo.clubId, 'torneo_promovido_espera', notifData)
     }
 
-    // Deuda de inscripción: si quedó inscripto, generar la que falte (incluye la de j2 al cargarse / promoción).
-    // Si pasó a espera/suplente, quitar las deudas de inscripción pendientes.
-    if (updated.estado === 'inscripto') {
-      await sincronizarDeudaInscripcion(torneo, updated)
-    } else {
-      await prisma.cargo.deleteMany({ where: { parejaId: pid, tipo: 'torneo', estado: 'pendiente' } })
-    }
+    // Reconciliar deudas de inscripción con el nuevo estado de la pareja (agrega faltantes,
+    // borra las de ex-miembros / espera). El reconciliador es la única fuente de verdad.
+    await sincronizarDeudaInscripcion(torneo, updated)
 
     res.json(updated)
   } catch (err) {
@@ -811,10 +825,11 @@ router.patch('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), require
       if (conflicto) return res.status(409).json({ error: 'Este jugador ya está inscripto en otra pareja del torneo.' })
     }
 
+    const torneo = await prisma.torneo.findUnique({ where: { id: torneoId } })
+
     // Re-linkear jugador2 si cambia el DNI y deja de ser sinCompanero
     let newJ2Id = undefined
     if (jugador2Dni !== undefined && !sinCompanero) {
-      const torneo = await prisma.torneo.findUnique({ where: { id: torneoId } })
       newJ2Id = await findJugadorByDni(torneo.clubId, jugador2Dni)
     }
 
@@ -828,8 +843,14 @@ router.patch('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), require
         ...(categoria        !== undefined && { categoria }),
         ...(disponibilidad   !== undefined && { disponibilidad }),
         ...(prefiereMismoDia !== undefined && { prefiereMismoDia: !!prefiereMismoDia }),
+        // Si pasa a "sin compañero", desvincular al j2 (evita deuda colgada + datos inconsistentes)
+        ...(sinCompanero === true && { jugador2Id: null, jugador2Dni: null }),
       },
     })
+
+    // Reconciliar deudas: si cambió el compañero, borra la del viejo y crea la del nuevo.
+    await sincronizarDeudaInscripcion(torneo, updated)
+
     res.json(updated)
   } catch (err) {
     console.error(err)
@@ -845,6 +866,9 @@ router.delete('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), requir
     const pareja = await prisma.pareja.findUnique({ where: { id: pid } })
     if (!pareja || pareja.torneoId !== torneoId) return res.status(404).json({ error: 'Pareja no encontrada' })
     if (pareja.jugador1Id !== req.user.id) return res.status(403).json({ error: 'Sin permisos' })
+
+    // Borrar deudas de inscripción PENDIENTES de la pareja (las pagadas quedan como ingreso)
+    await prisma.cargo.deleteMany({ where: { parejaId: pid, tipo: 'torneo', estado: 'pendiente' } })
 
     await prisma.pareja.delete({ where: { id: pid } })
 
@@ -882,6 +906,8 @@ router.delete('/:id/inscribir/:pid', requireAuth, requireRole('jugador'), requir
         })
         if (primerEspera) {
           await prisma.pareja.update({ where: { id: primerEspera.id }, data: { estado: 'inscripto' } })
+          // Al promoverse, genera la deuda de inscripción que corresponda
+          await sincronizarDeudaInscripcion(torneo, { ...primerEspera, estado: 'inscripto' })
           const notifPromocion = {
             torneoId, torneoNombre: torneo.nombre,
             categoria: primerEspera.categoria,

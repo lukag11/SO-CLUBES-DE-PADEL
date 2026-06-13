@@ -22,9 +22,9 @@ Auditoría con lente de integridad de ledger sobre el agregado Pareja+Cargo. **I
 ### Validado (matriz de prueba)
 B1/B2 (cambio compañero), C1 (sin compañero), D1/D2 (bajas), F1 (doble cobro), G1 (inmutabilidad del pagado) — todos OK en admin y jugador.
 
-### Pendiente (decisión del usuario, no son bugs)
-- I1: ¿precio del torneo retroactivo a deudas existentes? (recomendado: no).
-- I2: bloquear baja de jugador con deuda (ya estaba en cola).
+### Decisiones cerradas
+- **I1** — precio del torneo NO retroactivo: ya era el comportamiento (upsert `update:{}` no toca deudas existentes; solo las nuevas usan el precio nuevo). Sin código.
+- **I2** — baja/eliminación de jugador bloqueada por deuda: ya estaba para cargos; se **extendió** para incluir turnos impagos. Nuevo `lib/deudas.js` con `turnosImpagosDeuda` (compartido entre `cargos.js` y `jugadores.js`); helper `contarDeudaPendiente` (cargos + turnos). "Deuda" significa lo mismo en Cobranzas y en el bloqueo de baja.
 
 ---
 

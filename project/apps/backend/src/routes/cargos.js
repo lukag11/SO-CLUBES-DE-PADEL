@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
-import { inicioMesArg, hoyArgStr, ahoraArgHHMM } from '../lib/tiempo.js'
+import { inicioMesArg } from '../lib/tiempo.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
+import { turnosImpagosDeuda } from '../lib/deudas.js'
 
 const router = Router()
 
@@ -24,28 +25,7 @@ const cargoADeuda = (c) => ({
   metodoPago: c.metodoPago, pagadoAt: c.pagadoAt, fecha: c.createdAt,
 })
 
-// Devuelve los turnos impagos pasados (deuda) como lista normalizada.
-// where: filtro extra (ej: { jugadorId }). Un turno es deuda si: confirmado, sin pagar,
-// no omitido, con precio > 0, y el turno ya terminó (hora ARG).
-const turnosImpagosDeuda = async (clubId, where = {}) => {
-  const hoyStr = hoyArgStr()
-  const ahora = ahoraArgHHMM()
-  const reservas = await prisma.reserva.findMany({
-    where: { clubId, estado: 'confirmada', pagado: false, cobroOmitido: false, jugadorId: { not: null }, ...where },
-    include: { jugador: SEL_JUGADOR, cancha: { select: { nombre: true } } },
-  })
-  return reservas
-    .filter((r) => (r.fecha < hoyStr || (r.fecha === hoyStr && r.horaFin <= ahora)) && (r.precio ?? 0) > 0)
-    .map((r) => ({
-      id: `reserva_${r.id}`, refId: r.id, origen: 'reserva',
-      jugador: r.jugador,
-      concepto: `Turno ${r.cancha?.nombre ?? ''} · ${r.fecha} ${r.horaInicio}`.trim(),
-      monto: r.precio ?? 0,
-      tipo: 'reserva', estado: 'pendiente',
-      vencimiento: null, vencido: true, // un turno que ya pasó está vencido por naturaleza
-      metodoPago: null, fecha: r.fecha,
-    }))
-}
+// turnosImpagosDeuda ahora vive en ../lib/deudas.js (compartido con jugadores.js)
 
 // GET /api/cargos/me — jugador ve su cuenta: cargos + turnos impagos (deuda unificada)
 router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {

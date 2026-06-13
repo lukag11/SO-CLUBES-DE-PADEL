@@ -28,6 +28,7 @@ model Club {
   cargos         Cargo[]
   profesores     Profesor[]
   sponsors       Sponsor[]
+  productos      Producto[]
 
   @@map("clubs")
 }
@@ -244,6 +245,23 @@ model Cargo {
   // parejaId es non-null; los cargos manuales/cancelación tienen parejaId null (NULLs distintos en PG → no chocan).
   @@unique([parejaId, jugadorId, tipo])
   @@map("cargos")
+}
+
+// Catálogo de productos vendibles del club (tubo de pelotas, grip, bebidas…). Solo lista de
+// precios — sin control de stock en v1. Una venta genera un Cargo tipo 'producto'.
+model Producto {
+  id        String   @id @default(cuid())
+  clubId    String
+  nombre    String
+  precio    Int
+  categoria String?
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@map("productos")
 }
 
 model Notificacion {

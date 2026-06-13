@@ -179,6 +179,42 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
   }
 })
 
+// POST /api/cargos/cobrar-cuenta — cobra varias deudas de un jugador de una (checkout).
+// Body: { jugadorId, items: [{ origen:'cargo'|'reserva', refId }], metodoPago }
+router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), async (req, res) => {
+  const { jugadorId, items, metodoPago } = req.body
+  const clubId = req.user.clubId
+  if (!jugadorId || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'datos_incompletos', message: 'Elegí un jugador y al menos una deuda' })
+  }
+  const metodo = normalizarMetodo(metodoPago)
+  const cargoIds = items.filter((i) => i.origen === 'cargo').map((i) => i.refId)
+  const reservaIds = items.filter((i) => i.origen === 'reserva').map((i) => i.refId)
+
+  try {
+    const jugador = await prisma.jugador.findUnique({ where: { id: jugadorId }, select: { clubId: true } })
+    if (!jugador || jugador.clubId !== clubId) {
+      return res.status(404).json({ error: 'Jugador no encontrado en este club' })
+    }
+    const now = new Date()
+    // updateMany scopeado por clubId+jugadorId+pendiente: no cobra nada que no corresponda
+    await prisma.$transaction([
+      ...(cargoIds.length ? [prisma.cargo.updateMany({
+        where: { id: { in: cargoIds }, clubId, jugadorId, estado: 'pendiente' },
+        data: { estado: 'pagado', pagadoAt: now, metodoPago: metodo },
+      })] : []),
+      ...(reservaIds.length ? [prisma.reserva.updateMany({
+        where: { id: { in: reservaIds }, clubId, jugadorId, pagado: false },
+        data: { pagado: true, pagadoAt: now, metodoPago: metodo },
+      })] : []),
+    ])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al cobrar la cuenta' })
+  }
+})
+
 // DELETE /api/cargos/:id — admin elimina un cargo (ej: decide no cobrar una multa)
 router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params

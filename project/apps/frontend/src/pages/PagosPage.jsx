@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   DollarSign, AlertTriangle, TrendingUp, Search, Plus, X,
-  CheckCircle, Trash2, Clock, Settings, Check,
+  CheckCircle, Trash2, Clock, Settings, Check, ShoppingCart, Package, Pencil, Minus,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
@@ -23,6 +23,7 @@ const TIPO_LABEL = {
   manual: 'Manual',
   reserva: 'Turno',
   torneo: 'Torneo',
+  producto: 'Producto',
 }
 
 const FILTROS = [
@@ -250,6 +251,331 @@ const ModalNuevoCargo = ({ jugadores, onCreate, onClose, saving }) => {
   )
 }
 
+// ── Modal: catálogo de productos (ABM) ───────────────────────────────────────
+const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onClose, saving }) => {
+  const [nuevo, setNuevo] = useState({ nombre: '', precio: '', categoria: '' })
+  const [editId, setEditId] = useState(null)
+  const [editForm, setEditForm] = useState({ nombre: '', precio: '', categoria: '' })
+  const [error, setError] = useState('')
+
+  const agregar = () => {
+    if (!nuevo.nombre.trim()) return setError('Ingresá un nombre')
+    if (!(Number(nuevo.precio) > 0)) return setError('El precio debe ser mayor a 0')
+    setError('')
+    onCreate({ nombre: nuevo.nombre.trim(), precio: Number(nuevo.precio), categoria: nuevo.categoria.trim() || null })
+    setNuevo({ nombre: '', precio: '', categoria: '' })
+  }
+  const empezarEdit = (p) => { setEditId(p.id); setEditForm({ nombre: p.nombre, precio: String(p.precio), categoria: p.categoria ?? '' }) }
+  const guardarEdit = () => {
+    if (!editForm.nombre.trim() || !(Number(editForm.precio) > 0)) return setError('Datos inválidos')
+    setError('')
+    onUpdate(editId, { nombre: editForm.nombre.trim(), precio: Number(editForm.precio), categoria: editForm.categoria.trim() || null })
+    setEditId(null)
+  }
+
+  const inputCls = 'bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-slate-800 font-bold">Catálogo de productos</p>
+            <p className="text-slate-400 text-xs mt-0.5">Tubo de pelotas, grip, bebidas… lo que vende tu club</p>
+          </div>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
+        </div>
+
+        {/* Alta */}
+        <div className="px-6 py-4 border-b border-slate-100 shrink-0">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="block text-slate-500 text-[11px] font-medium mb-1">Producto</label>
+              <input value={nuevo.nombre} onChange={(e) => setNuevo((f) => ({ ...f, nombre: e.target.value }))} placeholder="Tubo de pelotas" className={`w-full ${inputCls}`} />
+            </div>
+            <div className="w-24">
+              <label className="block text-slate-500 text-[11px] font-medium mb-1">Precio</label>
+              <input type="number" value={nuevo.precio} onChange={(e) => setNuevo((f) => ({ ...f, precio: e.target.value }))} placeholder="0" className={`w-full ${inputCls}`} />
+            </div>
+            <div className="w-28">
+              <label className="block text-slate-500 text-[11px] font-medium mb-1">Categoría</label>
+              <input value={nuevo.categoria} onChange={(e) => setNuevo((f) => ({ ...f, categoria: e.target.value }))} placeholder="Opcional" className={`w-full ${inputCls}`} />
+            </div>
+            <button onClick={agregar} disabled={saving} className="px-3 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors disabled:opacity-50 shrink-0">
+              <Plus size={16} />
+            </button>
+          </div>
+          {error && <p className="text-rose-500 text-xs mt-2">{error}</p>}
+        </div>
+
+        {/* Lista */}
+        <div className="overflow-y-auto px-6 py-3 flex flex-col gap-1.5">
+          {productos.length === 0 ? (
+            <p className="text-slate-400 text-sm text-center py-6">Todavía no cargaste productos.</p>
+          ) : productos.map((p) => (
+            <div key={p.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${p.activo ? 'border-slate-100' : 'border-slate-100 bg-slate-50/60 opacity-60'}`}>
+              {editId === p.id ? (
+                <>
+                  <input value={editForm.nombre} onChange={(e) => setEditForm((f) => ({ ...f, nombre: e.target.value }))} className={`flex-1 ${inputCls}`} />
+                  <input type="number" value={editForm.precio} onChange={(e) => setEditForm((f) => ({ ...f, precio: e.target.value }))} className={`w-20 ${inputCls}`} />
+                  <input value={editForm.categoria} onChange={(e) => setEditForm((f) => ({ ...f, categoria: e.target.value }))} placeholder="Cat." className={`w-24 ${inputCls}`} />
+                  <button onClick={guardarEdit} disabled={saving} className="px-2 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold disabled:opacity-50">Guardar</button>
+                  <button onClick={() => setEditId(null)} className="px-2 py-1.5 rounded-lg text-slate-400 hover:text-slate-700 text-xs">✕</button>
+                </>
+              ) : (
+                <>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700 truncate">{p.nombre}</p>
+                    {p.categoria && <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{p.categoria}</span>}
+                  </div>
+                  <p className="text-sm font-semibold text-slate-700 shrink-0">{money(p.precio)}</p>
+                  <button onClick={() => onUpdate(p.id, { activo: !p.activo })} title={p.activo ? 'Desactivar' : 'Activar'} className={`text-[10px] font-medium px-2 py-1 rounded-lg shrink-0 ${p.activo ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-100'}`}>
+                    {p.activo ? 'Activo' : 'Inactivo'}
+                  </button>
+                  <button onClick={() => empezarEdit(p)} className="text-slate-300 hover:text-brand-500 p-1 shrink-0"><Pencil size={14} /></button>
+                  <button onClick={() => onDelete(p.id)} className="text-slate-300 hover:text-rose-500 p-1 shrink-0"><Trash2 size={14} /></button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Modal: vender / cargar consumo a un jugador ──────────────────────────────
+const ModalVenta = ({ jugadores, productos, metodos, onSubmit, onClose, saving }) => {
+  const [jugadorId, setJugadorId] = useState('')
+  const [carrito, setCarrito] = useState([])   // [{ id, nombre, precio, cantidad }]
+  const [sel, setSel] = useState('')           // producto seleccionado a agregar
+  const [cobrar, setCobrar] = useState(false)  // false = anotar a cuenta, true = cobrar ahora
+  const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
+  const [error, setError] = useState('')
+
+  const activos = productos.filter((p) => p.activo)
+  const total = carrito.reduce((s, l) => s + l.precio * l.cantidad, 0)
+
+  const agregar = () => {
+    const p = activos.find((x) => x.id === sel)
+    if (!p) return
+    setCarrito((prev) => {
+      const ex = prev.find((l) => l.id === p.id)
+      if (ex) return prev.map((l) => l.id === p.id ? { ...l, cantidad: l.cantidad + 1 } : l)
+      return [...prev, { id: p.id, nombre: p.nombre, precio: p.precio, cantidad: 1 }]
+    })
+    setSel('')
+  }
+  const cambiarCant = (id, delta) => setCarrito((prev) => prev
+    .map((l) => l.id === id ? { ...l, cantidad: Math.max(1, l.cantidad + delta) } : l))
+  const quitar = (id) => setCarrito((prev) => prev.filter((l) => l.id !== id))
+
+  const submit = () => {
+    if (!jugadorId) return setError('Elegí un jugador')
+    if (carrito.length === 0) return setError('Agregá al menos un producto')
+    if (cobrar && !metodoPago) return setError('Elegí el método de cobro')
+    setError('')
+    onSubmit({
+      jugadorId,
+      items: carrito.map((l) => ({ nombre: l.nombre, precio: l.precio, cantidad: l.cantidad })),
+      cobrar,
+      metodoPago: cobrar ? metodoPago : null,
+    })
+  }
+
+  const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-400'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <p className="text-slate-800 font-bold">Vender / cargar consumo</p>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
+        </div>
+        <div className="overflow-y-auto p-6 flex flex-col gap-4">
+          {/* Jugador */}
+          <div>
+            <label className="block text-slate-500 text-xs font-medium mb-1.5">Jugador</label>
+            <select value={jugadorId} onChange={(e) => setJugadorId(e.target.value)} className={`w-full ${inputCls}`}>
+              <option value="">Seleccioná un jugador…</option>
+              {jugadores.map((j) => <option key={j.id} value={j.id}>{j.nombre} {j.apellido} — DNI {j.dni}</option>)}
+            </select>
+          </div>
+
+          {/* Agregar producto */}
+          <div>
+            <label className="block text-slate-500 text-xs font-medium mb-1.5">Producto</label>
+            {activos.length === 0 ? (
+              <p className="text-slate-400 text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">No hay productos activos. Cargá tu catálogo primero.</p>
+            ) : (
+              <div className="flex gap-2">
+                <select value={sel} onChange={(e) => setSel(e.target.value)} className={`flex-1 ${inputCls}`}>
+                  <option value="">Elegí un producto…</option>
+                  {activos.map((p) => <option key={p.id} value={p.id}>{p.nombre} — {money(p.precio)}</option>)}
+                </select>
+                <button onClick={agregar} disabled={!sel} className="px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold transition-colors disabled:opacity-40"><Plus size={16} /></button>
+              </div>
+            )}
+          </div>
+
+          {/* Carrito */}
+          {carrito.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              {carrito.map((l) => (
+                <div key={l.id} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100">
+                  <p className="flex-1 min-w-0 text-sm text-slate-700 truncate">{l.nombre}</p>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button onClick={() => cambiarCant(l.id, -1)} className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center"><Minus size={12} /></button>
+                    <span className="text-sm font-medium text-slate-700 w-5 text-center">{l.cantidad}</span>
+                    <button onClick={() => cambiarCant(l.id, +1)} className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center"><Plus size={12} /></button>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-700 w-20 text-right shrink-0">{money(l.precio * l.cantidad)}</p>
+                  <button onClick={() => quitar(l.id)} className="text-slate-300 hover:text-rose-500 shrink-0"><X size={14} /></button>
+                </div>
+              ))}
+              <div className="flex items-center justify-between px-3 pt-2 border-t border-slate-100 mt-1">
+                <span className="text-sm font-medium text-slate-500">Total</span>
+                <span className="text-lg font-bold text-slate-800">{money(total)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Cómo se registra */}
+          <div className="flex flex-col gap-2">
+            <button onClick={() => setCobrar(false)} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border text-left transition-all ${!cobrar ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+              <div className={`w-4 h-4 rounded-full border-2 shrink-0 ${!cobrar ? 'border-brand-500 bg-brand-500' : 'border-slate-300'}`} />
+              <div><p className="text-sm font-medium text-slate-700">Anotar a la cuenta</p><p className="text-[11px] text-slate-400">Queda como deuda pendiente</p></div>
+            </button>
+            <button onClick={() => setCobrar(true)} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border text-left transition-all ${cobrar ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+              <div className={`w-4 h-4 rounded-full border-2 shrink-0 ${cobrar ? 'border-brand-500 bg-brand-500' : 'border-slate-300'}`} />
+              <div><p className="text-sm font-medium text-slate-700">Cobrar ahora</p><p className="text-[11px] text-slate-400">Entra a caja al instante</p></div>
+            </button>
+            {cobrar && (
+              <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className={`w-full ${inputCls}`}>
+                {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
+              </select>
+            )}
+          </div>
+
+          {error && <p className="text-rose-500 text-xs">{error}</p>}
+          <button onClick={submit} disabled={saving} className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
+            {saving ? 'Registrando…' : cobrar ? `Cobrar ${money(total)}` : `Anotar ${money(total)} a la cuenta`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Modal: cobrar la cuenta de un jugador (turno + productos + cargos juntos) ──
+const ModalCobrarCuenta = ({ jugadores, metodos, token, onSubmit, onClose, saving }) => {
+  const [jugadorId, setJugadorId] = useState('')
+  const [items, setItems] = useState([])
+  const [sel, setSel] = useState({})
+  const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!jugadorId) { setItems([]); setSel({}); return }
+    setLoading(true)
+    api.get(`/cargos/cobranzas?jugadorId=${jugadorId}`, { Authorization: `Bearer ${token}` })
+      .then((data) => {
+        const pend = (data?.deudas ?? []).filter((d) => d.estado === 'pendiente')
+        setItems(pend)
+        setSel(Object.fromEntries(pend.map((d) => [d.id, true])))
+      })
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false))
+  }, [jugadorId, token])
+
+  const seleccionadas = items.filter((d) => sel[d.id])
+  const total = seleccionadas.reduce((s, d) => s + d.monto, 0)
+
+  const submit = () => {
+    if (!jugadorId) return setError('Elegí un jugador')
+    if (seleccionadas.length === 0) return setError('Seleccioná al menos una deuda')
+    setError('')
+    onSubmit({ jugadorId, items: seleccionadas.map((d) => ({ origen: d.origen, refId: d.refId })), metodoPago })
+  }
+
+  const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-400'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-slate-800 font-bold">Cobrar cuenta</p>
+            <p className="text-slate-400 text-xs mt-0.5">Cobrá turno + productos + cargos de una</p>
+          </div>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
+        </div>
+        <div className="overflow-y-auto p-6 flex flex-col gap-4">
+          <div>
+            <label className="block text-slate-500 text-xs font-medium mb-1.5">Jugador</label>
+            <select value={jugadorId} onChange={(e) => setJugadorId(e.target.value)} className={`w-full ${inputCls}`}>
+              <option value="">Seleccioná un jugador…</option>
+              {jugadores.map((j) => <option key={j.id} value={j.id}>{j.nombre} {j.apellido} — DNI {j.dni}</option>)}
+            </select>
+          </div>
+
+          {jugadorId && (loading ? (
+            <p className="text-slate-400 text-sm text-center py-4">Cargando cuenta…</p>
+          ) : items.length === 0 ? (
+            <p className="text-slate-400 text-sm text-center py-4 bg-emerald-50/50 rounded-xl">Este jugador está al día 🎉</p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {items.map((d) => (
+                <button
+                  key={d.id} onClick={() => setSel((p) => ({ ...p, [d.id]: !p[d.id] }))}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${sel[d.id] ? 'border-brand-300 bg-brand-50/60' : 'border-slate-100 hover:bg-slate-50'}`}
+                >
+                  <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${sel[d.id] ? 'bg-brand-500' : 'border border-slate-300'}`}>
+                    {sel[d.id] && <Check size={13} className="text-white" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{TIPO_LABEL[d.tipo] ?? d.tipo}</span>
+                      {d.vencido && <span className="text-[10px] font-bold text-rose-600">Vencido</span>}
+                    </div>
+                    <p className="text-xs text-slate-600 truncate mt-0.5">{d.concepto}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-700 shrink-0">{money(d.monto)}</p>
+                </button>
+              ))}
+              <div className="flex items-center justify-between px-3 pt-2 border-t border-slate-100 mt-1">
+                <span className="text-sm font-medium text-slate-500">A cobrar ({seleccionadas.length})</span>
+                <span className="text-lg font-bold text-slate-800">{money(total)}</span>
+              </div>
+            </div>
+          ))}
+
+          {jugadorId && items.length > 0 && (
+            <div>
+              <label className="block text-slate-500 text-xs font-medium mb-1.5">Método de cobro</label>
+              <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className={`w-full ${inputCls}`}>
+                {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
+              </select>
+            </div>
+          )}
+
+          {error && <p className="text-rose-500 text-xs">{error}</p>}
+          <button
+            onClick={submit} disabled={saving || seleccionadas.length === 0}
+            className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Cobrando…' : `Cobrar ${money(total)}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Página ────────────────────────────────────────────────────────────────────
 const PagosPage = () => {
   const token = useAuthStore((s) => s.token)
@@ -270,6 +596,10 @@ const PagosPage = () => {
   const [eliminando, setEliminando] = useState(null) // cargo a eliminar
   const [nuevoCargo, setNuevoCargo] = useState(false)
   const [configMetodos, setConfigMetodos] = useState(false)
+  const [catalogoOpen, setCatalogoOpen] = useState(false)
+  const [ventaOpen, setVentaOpen] = useState(false)
+  const [cobrarCuentaOpen, setCobrarCuentaOpen] = useState(false)
+  const [productos, setProductos] = useState([])
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
 
@@ -290,13 +620,26 @@ const PagosPage = () => {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // Jugadores para el selector del modal (lazy, al abrir)
+  // Jugadores para el selector de los modales (lazy, al abrir cargo/venta)
   useEffect(() => {
-    if (!nuevoCargo || jugadores.length > 0 || !token) return
+    if (!(nuevoCargo || ventaOpen || cobrarCuentaOpen) || jugadores.length > 0 || !token) return
     api.get('/jugadores', { Authorization: `Bearer ${token}` })
       .then((data) => setJugadores(Array.isArray(data) ? data : []))
       .catch(() => {})
-  }, [nuevoCargo, jugadores.length, token])
+  }, [nuevoCargo, ventaOpen, cobrarCuentaOpen, jugadores.length, token])
+
+  // Catálogo de productos (lazy, al abrir catálogo o venta)
+  const fetchProductos = useCallback(async () => {
+    if (!token) return
+    try {
+      const data = await api.get('/productos', { Authorization: `Bearer ${token}` })
+      setProductos(Array.isArray(data) ? data : [])
+    } catch { /* silencioso */ }
+  }, [token])
+
+  useEffect(() => {
+    if (catalogoOpen || ventaOpen) fetchProductos()
+  }, [catalogoOpen, ventaOpen, fetchProductos])
 
   const visibles = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -371,6 +714,57 @@ const PagosPage = () => {
     } finally { setSaving(false) }
   }
 
+  // ── Productos ──
+  const crearProducto = async (data) => {
+    setSaving(true)
+    try {
+      await api.post('/productos', data, { Authorization: `Bearer ${token}` })
+      await fetchProductos()
+    } catch (err) {
+      showToast('error', err?.message || 'No se pudo crear el producto')
+    } finally { setSaving(false) }
+  }
+  const actualizarProducto = async (id, data) => {
+    setSaving(true)
+    try {
+      await api.patch(`/productos/${id}`, data, { Authorization: `Bearer ${token}` })
+      await fetchProductos()
+    } catch (err) {
+      showToast('error', err?.message || 'No se pudo actualizar el producto')
+    } finally { setSaving(false) }
+  }
+  const eliminarProducto = async (id) => {
+    setSaving(true)
+    try {
+      await api.delete(`/productos/${id}`, { Authorization: `Bearer ${token}` })
+      await fetchProductos()
+    } catch (err) {
+      showToast('error', err?.message || 'No se pudo eliminar el producto')
+    } finally { setSaving(false) }
+  }
+  const registrarVenta = async (data) => {
+    setSaving(true)
+    try {
+      await api.post('/productos/venta', data, { Authorization: `Bearer ${token}` })
+      setVentaOpen(false)
+      showToast('exito', data.cobrar ? 'Venta cobrada' : 'Venta anotada a la cuenta')
+      fetchData()
+    } catch (err) {
+      showToast('error', err?.message || 'No se pudo registrar la venta')
+    } finally { setSaving(false) }
+  }
+  const cobrarCuenta = async (data) => {
+    setSaving(true)
+    try {
+      await api.post('/cargos/cobrar-cuenta', data, { Authorization: `Bearer ${token}` })
+      setCobrarCuentaOpen(false)
+      showToast('exito', 'Cuenta cobrada')
+      fetchData()
+    } catch (err) {
+      showToast('error', err?.message || 'No se pudo cobrar la cuenta')
+    } finally { setSaving(false) }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
@@ -379,12 +773,30 @@ const PagosPage = () => {
           <h2 className="text-xl md:text-2xl font-bold text-slate-800">Cobranzas</h2>
           <p className="text-sm text-slate-400 mt-1">Deudas, cobros y estado de cuenta de tus jugadores</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setCatalogoOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium text-sm hover:bg-slate-50 transition-colors"
+          >
+            <Package size={15} /> Productos
+          </button>
           <button
             onClick={() => setConfigMetodos(true)}
             className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium text-sm hover:bg-slate-50 transition-colors"
           >
             <Settings size={15} /> Métodos de cobro
+          </button>
+          <button
+            onClick={() => setVentaOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 font-semibold text-sm transition-colors"
+          >
+            <ShoppingCart size={16} /> Vender
+          </button>
+          <button
+            onClick={() => setCobrarCuentaOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors shadow-sm"
+          >
+            <CheckCircle size={16} /> Cobrar cuenta
           </button>
           <button
             onClick={() => setNuevoCargo(true)}
@@ -526,6 +938,9 @@ const PagosPage = () => {
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}
       {nuevoCargo && <ModalNuevoCargo jugadores={jugadores} onCreate={crearCargo} onClose={() => setNuevoCargo(false)} saving={saving} />}
       {configMetodos && <ModalMetodos seleccion={metodosHabilitados} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
+      {catalogoOpen && <ModalCatalogoProductos productos={productos} onCreate={crearProducto} onUpdate={actualizarProducto} onDelete={eliminarProducto} onClose={() => setCatalogoOpen(false)} saving={saving} />}
+      {ventaOpen && <ModalVenta jugadores={jugadores} productos={productos} metodos={metodosHabilitados} onSubmit={registrarVenta} onClose={() => setVentaOpen(false)} saving={saving} />}
+      {cobrarCuentaOpen && <ModalCobrarCuenta jugadores={jugadores} metodos={metodosHabilitados} token={token} onSubmit={cobrarCuenta} onClose={() => setCobrarCuentaOpen(false)} saving={saving} />}
 
       {toast && (
         <Toast

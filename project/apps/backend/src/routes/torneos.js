@@ -5,6 +5,30 @@ import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 
 const router = Router()
 
+// Genera las deudas de inscripción que falten para una pareja (idempotente, no duplica).
+// soloJ1=true → solo cobra al que inscribe (modo guardar_cupo al inscribir).
+const sincronizarDeudaInscripcion = async (torneo, pareja, { soloJ1 = false } = {}) => {
+  const precio = torneo.precioInscripcion
+  if (!precio || precio <= 0) return
+  if (pareja.estado !== 'inscripto') return // espera/suplente no generan deuda
+
+  const ids = []
+  if (pareja.jugador1Id) ids.push(pareja.jugador1Id)
+  if (!soloJ1 && pareja.jugador2Id) ids.push(pareja.jugador2Id)
+
+  for (const jugadorId of ids) {
+    const existe = await prisma.cargo.count({ where: { parejaId: pareja.id, jugadorId, tipo: 'torneo' } })
+    if (existe > 0) continue
+    await prisma.cargo.create({
+      data: {
+        clubId: torneo.clubId, jugadorId, parejaId: pareja.id,
+        tipo: 'torneo', estado: 'pendiente', monto: precio,
+        concepto: `Inscripción ${torneo.nombre} — ${pareja.categoria}`,
+      },
+    }).catch(() => {})
+  }
+}
+
 const ESTADOS_VALIDOS = ['draft', 'open', 'closed', 'in_progress', 'finished']
 
 const TRANSICIONES_VALIDAS = {
@@ -89,11 +113,14 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
     canchasAsignadas, fechaInicio, fechaFin, fechaLimiteInscripcion,
     diaInicioEliminatoria, horaInicioEliminatoria,
     fechaInicioEliminatoria, fechaInicioQF, horaInicioQF,
-    puntosPorVictoria, descripcion,
+    puntosPorVictoria, descripcion, precioInscripcion, modoInscripcion,
   } = req.body
   const clubId = req.user.clubId
 
   if (!nombre) return res.status(400).json({ error: 'nombre requerido' })
+  if (!(Number(precioInscripcion) > 0)) {
+    return res.status(400).json({ error: 'El precio de inscripción es obligatorio y debe ser mayor a 0' })
+  }
 
   if (fechaInicio && fechaFin && fechaFin < fechaInicio) {
     return res.status(400).json({ error: 'La fecha de fin no puede ser anterior a la fecha de inicio' })
@@ -115,6 +142,8 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         genero: genero ?? 'Masculino',
         estado: 'draft',
         cupoLibre: !!cupoLibre,
+        precioInscripcion: Number(precioInscripcion) > 0 ? Math.round(Number(precioInscripcion)) : null,
+        modoInscripcion: modoInscripcion === 'guardar_cupo' ? 'guardar_cupo' : 'abierta',
         cuposPorCategoria: cuposPorCategoria ?? {},
         cupoEspera: cupoEspera ?? 5,
         cupoEsperaPorCategoria: cupoEsperaPorCategoria ?? {},
@@ -150,13 +179,17 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
     canchasAsignadas, fechaInicio, fechaFin, fechaLimiteInscripcion,
     diaInicioEliminatoria, horaInicioEliminatoria,
     fechaInicioEliminatoria, fechaInicioQF, horaInicioQF,
-    puntosPorVictoria, descripcion,
+    puntosPorVictoria, descripcion, precioInscripcion, modoInscripcion,
   } = req.body
 
   try {
     const torneo = await prisma.torneo.findUnique({ where: { id } })
     if (!torneo) return res.status(404).json({ error: 'Torneo no encontrado' })
     if (torneo.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
+
+    if (precioInscripcion !== undefined && !(Number(precioInscripcion) > 0)) {
+      return res.status(400).json({ error: 'El precio de inscripción debe ser mayor a 0' })
+    }
 
     const fi = fechaInicio ?? torneo.fechaInicio
     const ff = fechaFin    ?? torneo.fechaFin
@@ -185,6 +218,8 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
         ...(formato                !== undefined && { formato }),
         ...(genero                 !== undefined && { genero }),
         ...(cupoLibre              !== undefined && { cupoLibre: !!cupoLibre }),
+        ...(precioInscripcion      !== undefined && { precioInscripcion: Number(precioInscripcion) > 0 ? Math.round(Number(precioInscripcion)) : null }),
+        ...(modoInscripcion        !== undefined && { modoInscripcion: modoInscripcion === 'guardar_cupo' ? 'guardar_cupo' : 'abierta' }),
         ...(cuposPorCategoria      !== undefined && { cuposPorCategoria }),
         ...(cupoEspera             !== undefined && { cupoEspera }),
         ...(cupoEsperaPorCategoria !== undefined && { cupoEsperaPorCategoria }),
@@ -382,6 +417,15 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
       return res.status(400).json({ error: 'Solo se puede eliminar torneos en draft u open' })
     }
 
+    // Limpiar deudas de inscripción PENDIENTES de las parejas del torneo (las pagadas quedan como ingreso).
+    // Cargo.parejaId es un String suelto (sin FK), así que no se borra en cascada: hay que hacerlo a mano.
+    const parejas = await prisma.pareja.findMany({ where: { torneoId: id }, select: { id: true } })
+    if (parejas.length > 0) {
+      await prisma.cargo.deleteMany({
+        where: { parejaId: { in: parejas.map((p) => p.id) }, tipo: 'torneo', estado: 'pendiente' },
+      })
+    }
+
     await prisma.torneo.delete({ where: { id } })
     res.json({ ok: true })
   } catch (err) {
@@ -465,6 +509,9 @@ router.post('/:id/parejas', requireAuth, requireRole('admin'), async (req, res) 
     if (j1Id) notificarJugador(j1Id, torneo.clubId, 'torneo_alta_admin', notifDataAlta)
     if (j2Id) notificarJugador(j2Id, torneo.clubId, 'torneo_alta_admin', notifDataAlta)
 
+    // Deuda de inscripción según modalidad del torneo
+    await sincronizarDeudaInscripcion(torneo, pareja, { soloJ1: torneo.modoInscripcion === 'guardar_cupo' })
+
     res.status(201).json(pareja)
   } catch (err) {
     if (err.httpStatus) return res.status(err.httpStatus).json({ error: err.message })
@@ -537,6 +584,14 @@ router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req,
       if (updated.jugador2Id) notificarJugador(updated.jugador2Id, torneo.clubId, 'torneo_promovido_espera', notifData)
     }
 
+    // Deuda de inscripción: si quedó inscripto, generar la que falte (incluye la de j2 al cargarse / promoción).
+    // Si pasó a espera/suplente, quitar las deudas de inscripción pendientes.
+    if (updated.estado === 'inscripto') {
+      await sincronizarDeudaInscripcion(torneo, updated)
+    } else {
+      await prisma.cargo.deleteMany({ where: { parejaId: pid, tipo: 'torneo', estado: 'pendiente' } })
+    }
+
     res.json(updated)
   } catch (err) {
     console.error(err)
@@ -555,6 +610,9 @@ router.delete('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req
     const torneo = await prisma.torneo.findUnique({ where: { id: torneoId } })
     if (torneo.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
 
+    // Borrar deudas de inscripción PENDIENTES de la pareja (las pagadas quedan como ingreso)
+    await prisma.cargo.deleteMany({ where: { parejaId: pid, tipo: 'torneo', estado: 'pendiente' } })
+
     await prisma.pareja.delete({ where: { id: pid } })
 
     // Notificar a j1 y j2 si tienen cuenta activa (admin los dio de baja)
@@ -570,6 +628,8 @@ router.delete('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req
       })
       if (primerEspera) {
         await prisma.pareja.update({ where: { id: primerEspera.id }, data: { estado: 'inscripto' } })
+        // Al promoverse, genera la deuda de inscripción que corresponda
+        await sincronizarDeudaInscripcion(torneo, { ...primerEspera, estado: 'inscripto' })
         const notifPromocion = {
           torneoId, torneoNombre: torneo.nombre,
           categoria: primerEspera.categoria,
@@ -715,6 +775,9 @@ router.post('/:id/inscribir', requireAuth, requireRole('jugador'), requireActive
         jugador1, jugador2, estado: pareja.estado,
       })
     }
+
+    // Deuda de inscripción según modalidad del torneo
+    await sincronizarDeudaInscripcion(torneo, pareja, { soloJ1: torneo.modoInscripcion === 'guardar_cupo' })
 
     res.status(201).json(pareja)
   } catch (err) {

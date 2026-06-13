@@ -32,6 +32,15 @@ const FILTROS = [
   { id: 'todos', label: 'Todos' },
 ]
 
+const TIPOS_FILTRO = [
+  { id: 'todos', label: 'Todos los tipos' },
+  { id: 'reserva', label: 'Turnos' },
+  { id: 'cancelacion', label: 'Cancelaciones' },
+  { id: 'manual', label: 'Manuales' },
+  { id: 'torneo', label: 'Torneos' },
+  { id: 'producto', label: 'Productos' },
+]
+
 // ── Tarjeta de total ──────────────────────────────────────────────────────────
 const TotalCard = ({ label, value, sub, icon: Icon, color, bg }) => (
   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-start gap-4">
@@ -254,6 +263,7 @@ const PagosPage = () => {
   const [jugadores, setJugadores] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('pendiente')
+  const [tipoFiltro, setTipoFiltro] = useState('todos')
   const [metodoFiltro, setMetodoFiltro] = useState('todos')
   const [search, setSearch] = useState('')
   const [cobrando, setCobrando] = useState(null)   // cargo en proceso de cobro
@@ -294,6 +304,7 @@ const PagosPage = () => {
       if (filtro === 'vencido' && !c.vencido) return false
       if (filtro === 'pendiente' && c.estado !== 'pendiente') return false
       if (filtro === 'pagado' && c.estado !== 'pagado') return false
+      if (tipoFiltro !== 'todos' && c.tipo !== tipoFiltro) return false
       if (metodoFiltro !== 'todos' && c.metodoPago !== metodoFiltro) return false
       if (q) {
         const nombre = `${c.jugador?.nombre ?? ''} ${c.jugador?.apellido ?? ''} ${c.jugador?.dni ?? ''}`.toLowerCase()
@@ -301,7 +312,7 @@ const PagosPage = () => {
       }
       return true
     })
-  }, [deudas, filtro, metodoFiltro, search])
+  }, [deudas, filtro, tipoFiltro, metodoFiltro, search])
 
   const guardarMetodos = async (ids) => {
     setSaving(true)
@@ -415,6 +426,12 @@ const PagosPage = () => {
             </button>
           ))}
         </div>
+        <select
+          value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-600 outline-none focus:border-brand-400"
+        >
+          {TIPOS_FILTRO.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
         {(filtro === 'pagado' || filtro === 'todos') && (
           <select
             value={metodoFiltro} onChange={(e) => setMetodoFiltro(e.target.value)}

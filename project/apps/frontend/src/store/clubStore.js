@@ -65,6 +65,7 @@ const INITIAL_CLUB = {
   modoCobro: 'libre', // 'libre' (paga en mostrador) | 'sena' | 'total'
   // Métodos de cobro que acepta el club (del catálogo en lib/metodosPago). Cada club tilda los suyos.
   metodosPago: ['efectivo', 'transferencia'],
+  // Nota: la modalidad de inscripción ('abierta' | 'guardar_cupo') vive por torneo (Torneo.modoInscripcion), no en el club.
   canchas: [
     { id: 1, nombre: 'Cancha 1', tipo: 'Cristal', indoor: true,  activa: true, precioTurno: 12000, recargoPico: 20 },
     { id: 2, nombre: 'Cancha 2', tipo: 'Cristal', indoor: true,  activa: true, precioTurno: 12000, recargoPico: 20 },

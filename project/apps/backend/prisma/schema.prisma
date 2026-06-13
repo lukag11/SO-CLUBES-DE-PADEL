@@ -190,6 +190,8 @@ model Torneo {
   genero                 String   @default("Masculino")
   estado                 String   @default("draft")
   cupoLibre              Boolean  @default(false)
+  precioInscripcion      Int?     // precio de inscripción por jugador (mismo para todas las categorías)
+  modoInscripcion        String   @default("abierta") // 'abierta' (deuda a j1+j2) | 'guardar_cupo' (deuda a j1 al inscribir, j2 al cargarse)
   cuposPorCategoria      Json     @default("{}")
   cupoEspera             Int      @default(5)
   cupoEsperaPorCategoria Json     @default("{}")
@@ -225,6 +227,7 @@ model Cargo {
   clubId      String
   jugadorId   String
   reservaId   String?
+  parejaId    String?   // si el cargo viene de una inscripción a torneo (para limpiar al cancelar)
   concepto    String
   monto       Int
   estado      String    @default("pendiente") // pendiente | pagado | condonado

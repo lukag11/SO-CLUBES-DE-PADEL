@@ -1,6 +1,30 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-12 — Pagos: cuenta por jugador ("Mis pagos" jugador + mini-saldo drawer admin + badges de método)
+**Última actualización:** 2026-06-13 — Inscripciones a torneo con deuda + modo por torneo + dev en Postgres local
+
+---
+
+## Dev local + Inscripciones a torneo (2026-06-13)
+
+### Infra: testing en Postgres local (Supabase pausado)
+- Para ahorrar egress en etapa de testing, el dev corre en **Postgres local** (`localhost:5432`, base `postgres`). El `.env` del backend tiene las líneas del cloud comentadas y las locales activas.
+- Proyecto Supabase **PadelOSwlArk pausado** (2026-06-13, reanudable <90d, ~11 sep). Se liberó egress para el otro proyecto (AgrowlAR, con clientes).
+- Data del cloud copiada a local con `backend/scripts/copiar-cloud-a-local.mjs` (lee la URL del cloud desde la línea comentada del `.env`, copia todas las tablas con los mismos IDs). Local y cloud son **bases separadas, sin sync**. Deploy = descomentar `.env` + `db push`.
+
+### Inscripciones a torneo → deuda (2 modos, por torneo)
+- `Torneo.modoInscripcion` ('abierta' | 'guardar_cupo'), default 'abierta'. **Decisión por torneo** (antes era config del club → se movió; `modoInscripcionTorneo` del clubStore eliminado).
+- **Abierta**: al inscribir, deuda a ambos jugadores. **Guardar cupo**: al inscribir, deuda solo al que reserva; la del compañero se genera al cargarlo.
+- Hoy (Fase 0, sin MP) los dos modos son casi idénticos: solo cambia *cuándo* se genera la deuda del compañero. El flujo de **pago obligatorio al inscribirse** (dash jugador, "tenés que pagar para reservar el cupo") es **Fase 2 / Mercado Pago** — ahí el modo "Guardar cupo" cobra sentido real.
+- `precioInscripcion` ahora **obligatorio (>0)**, validado en front (form + submit) y back (POST y PATCH).
+- Helper `sincronizarDeudaInscripcion` (idempotente, no duplica; espera/suplente sin deuda). Cargos `tipo:'torneo'`, caen en Cobranzas con filtro "Torneos".
+- **Fix**: borrar un torneo ahora limpia las deudas de inscripción **pendientes** de sus parejas (antes quedaban huérfanas porque `Cargo.parejaId` es String sin FK). Las pagadas quedan como ingreso.
+- **Fix latente**: `mapBackendTorneo` no traía `precioInscripcion` → al editar no se pre-cargaba. Ahora trae precio + modo.
+
+### Filtros en Pagos
+- PagosPage: filtro por **tipo** (Torneos/Reservas/Manuales/etc.) además de estado y método.
+
+### Archivos
+- Schema: `Torneo.modoInscripcion`. Tocados: `backend/src/routes/torneos.js`, `frontend/src/pages/TorneosPage.jsx`, `frontend/src/pages/PagosPage.jsx`, `frontend/src/store/clubStore.js`. Nuevo: `backend/scripts/copiar-cloud-a-local.mjs`.
 
 ---
 

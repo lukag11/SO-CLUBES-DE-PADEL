@@ -295,6 +295,8 @@ const EMPTY_FORM = {
   categorias: [],
   genero: 'Masculino',
   cupoLibre: false,
+  precioInscripcion: '',
+  modoInscripcion: 'abierta',
   cuposPorCategoria: {},
   cupoEsperaPorCategoria: {},
   generoPorCategoria: {},
@@ -783,6 +785,8 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
     categorias: torneoEditar.categorias,
     genero: torneoEditar.genero ?? 'Masculino',
     cupoLibre: torneoEditar.cupoLibre,
+    precioInscripcion: torneoEditar.precioInscripcion ?? '',
+    modoInscripcion: torneoEditar.modoInscripcion ?? 'abierta',
     cuposPorCategoria: torneoEditar.cuposPorCategoria ?? {},
     cupoEsperaPorCategoria: Object.fromEntries(
       (torneoEditar.categorias ?? []).map((cat) => [
@@ -871,6 +875,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
     const e = {}
     const hoy = new Date().toISOString().split('T')[0]
     if (!form.nombre.trim())         e.nombre      = 'Requerido'
+    if (!(Number(form.precioInscripcion) > 0)) e.precioInscripcion = 'Ingresá un precio de inscripción mayor a 0'
     if (form.categorias.length === 0) e.categorias  = 'Seleccioná al menos una categoría'
     if (!form.fechaInicio)                              e.fechaInicio = 'Requerido'
     else if (!esEdicion && form.fechaInicio < hoy)      e.fechaInicio = 'La fecha de inicio no puede ser en el pasado'
@@ -1060,6 +1065,44 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Precio de inscripción — obligatorio, mayor a 0 */}
+          <div data-field="precioInscripcion">
+            <label className="text-xs font-medium text-slate-600 block mb-2">
+              Precio de inscripción (por jugador) <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+              <input
+                type="number" min="1" value={form.precioInscripcion}
+                onChange={(e) => set('precioInscripcion', e.target.value)}
+                placeholder="Ej: 30000"
+                required
+                className={`w-full bg-slate-50 border rounded-xl pl-7 pr-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400 ${errors.precioInscripcion ? 'border-red-400' : 'border-slate-200'}`}
+              />
+            </div>
+            {errors.precioInscripcion
+              ? <p className="text-red-500 text-xs mt-1">{errors.precioInscripcion}</p>
+              : <p className="text-[11px] text-slate-400 mt-1">Monto que paga cada jugador para inscribirse. Cada inscripción genera la deuda en Cobranzas.</p>}
+          </div>
+
+          {/* Modalidad de inscripción */}
+          <div>
+            <label className="text-xs font-medium text-slate-600 block mb-2">Modalidad de inscripción</label>
+            <select
+              value={form.modoInscripcion}
+              onChange={(e) => set('modoInscripcion', e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-400"
+            >
+              <option value="abierta">Abierta — anotarse no requiere pago previo</option>
+              <option value="guardar_cupo">Guardar cupo — se paga 1 inscripción para reservar el lugar</option>
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {form.modoInscripcion === 'guardar_cupo'
+                ? 'Se abona una inscripción para asegurar el lugar en el torneo. El sistema genera y gestiona la deuda solo.'
+                : 'Los jugadores pueden anotarse sin pagar primero. El sistema genera la deuda de inscripción automáticamente.'}
+            </p>
           </div>
 
           {/* Cupo */}
@@ -1659,6 +1702,8 @@ const mapBackendTorneo = (t) => ({
   genero: t.genero,
   estado: t.estado,
   cupoLibre: t.cupoLibre,
+  precioInscripcion: t.precioInscripcion ?? '',
+  modoInscripcion: t.modoInscripcion ?? 'abierta',
   cuposPorCategoria: t.cuposPorCategoria ?? {},
   cupoEsperaPorCategoria: t.cupoEsperaPorCategoria ?? {},
   generoPorCategoria: t.generoPorCategoria ?? {},
@@ -1961,13 +2006,15 @@ const TorneosPage = () => {
           <h1 className="text-slate-800 text-xl md:text-2xl font-bold">Torneos</h1>
           <p className="text-slate-400 text-sm mt-0.5">Gestión y organización de torneos del club</p>
         </div>
-        <button
-          onClick={() => setModalNuevo(true)}
-          className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm shadow-brand-500/20 w-fit"
-        >
-          <Plus size={16} />
-          Nuevo torneo
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setModalNuevo(true)}
+            className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm shadow-brand-500/20 w-fit self-end"
+          >
+            <Plus size={16} />
+            Nuevo torneo
+          </button>
+        </div>
       </div>
 
       {/* Franja de inscripción vigente */}

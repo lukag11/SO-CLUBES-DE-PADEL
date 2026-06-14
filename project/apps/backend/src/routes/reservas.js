@@ -878,6 +878,87 @@ router.patch('/:id/pago', requireAuth, requireRole('admin'), async (req, res) =>
   }
 })
 
+// POST /api/reservas/:id/cobrar — checkout del turno (Fase 1: un pagador para todo el ticket).
+// Cobra/anota el turno + las consumiciones juntas. El turno vive en la reserva; las
+// consumiciones van como cargos atados a jugadorId (o null=casual) + reservaId.
+// Body: { jugadorId|null, metodoPago|null (null=a cuenta), cobrarTurno:bool, consumos:[{concepto,monto}] }
+router.post('/:id/cobrar', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params
+  const { jugadorId = null, metodoPago = null, cobrarTurno = true, consumos = [] } = req.body
+  const clubId = req.user.clubId
+  const esACuenta = !metodoPago
+
+  try {
+    const reserva = await prisma.reserva.findUnique({ where: { id } })
+    if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
+    if (reserva.clubId !== clubId) return res.status(403).json({ error: 'Sin permisos' })
+
+    // Un casual (sin jugador) no puede quedar a cuenta: tiene que pagar
+    if (!jugadorId && esACuenta) {
+      return res.status(400).json({ error: 'Un consumidor final debe pagar al contado (no puede quedar a cuenta)' })
+    }
+    // El jugador a cargar debe pertenecer al club
+    if (jugadorId) {
+      const j = await prisma.jugador.findUnique({ where: { id: jugadorId }, select: { clubId: true } })
+      if (!j || j.clubId !== clubId) return res.status(404).json({ error: 'Jugador no encontrado en este club' })
+    }
+
+    const lineas = (consumos || []).map((c) => ({ concepto: String(c.concepto || '').trim(), monto: Math.round(Number(c.monto)) }))
+    if (lineas.some((l) => !l.concepto || !(l.monto > 0))) {
+      return res.status(400).json({ error: 'Hay una consumición con datos inválidos' })
+    }
+
+    const metodo = esACuenta ? null : normalizarMetodo(metodoPago)
+    const now = new Date()
+
+    // TURNO
+    if (cobrarTurno && (reserva.precio ?? 0) > 0) {
+      // ¿El turno ya tenía una deuda explícita (de un "a cuenta" previo)?
+      const turnoCargoPend = await prisma.cargo.findFirst({ where: { reservaId: id, tipo: 'reserva', estado: 'pendiente' } })
+      if (!esACuenta) {
+        if (turnoCargoPend) {
+          // Saldar la deuda previa del turno (no tocar la reserva, evita doble conteo)
+          await prisma.cargo.update({ where: { id: turnoCargoPend.id }, data: { estado: 'pagado', metodoPago: metodo, pagadoAt: now } })
+        } else {
+          // Fresco → cobrado en la reserva (aparece en Caja + grilla "Pagado")
+          await prisma.reserva.update({ where: { id }, data: { pagado: true, pagadoAt: now, metodoPago: metodo } })
+        }
+      } else {
+        // A cuenta → deuda EXPLÍCITA del turno (cargo pendiente), igual que las consumiciones.
+        if (!turnoCargoPend) {
+          const cancha = await prisma.cancha.findUnique({ where: { id: reserva.canchaId }, select: { nombre: true } })
+          await prisma.cargo.create({
+            data: {
+              clubId, jugadorId, reservaId: id,
+              concepto: `Turno ${cancha?.nombre ?? ''} · ${reserva.fecha} ${reserva.horaInicio}`.trim(),
+              monto: reserva.precio, tipo: 'reserva', estado: 'pendiente',
+            },
+          })
+        }
+        // Neutralizo la reserva para que el turno no se cuente DOBLE con turnos-impagos
+        await prisma.reserva.update({ where: { id }, data: { cobroOmitido: true } })
+      }
+    }
+
+    // CONSUMICIONES → cargos (atados al jugador + reserva). Pagadas o a cuenta según el ticket.
+    for (const l of lineas) {
+      await prisma.cargo.create({
+        data: {
+          clubId, jugadorId, reservaId: id,
+          concepto: l.concepto, monto: l.monto, tipo: 'producto',
+          estado: esACuenta ? 'pendiente' : 'pagado',
+          ...(esACuenta ? {} : { metodoPago: metodo, pagadoAt: now }),
+        },
+      })
+    }
+
+    res.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al cobrar el turno' })
+  }
+})
+
 // PATCH /api/reservas/:id/cobro-omitido — admin marca/desmarca un turno como "no se cobra"
 // (sale de cobranzas sin contar como ingreso; la reserva queda en el historial)
 router.patch('/:id/cobro-omitido', requireAuth, requireRole('admin'), async (req, res) => {

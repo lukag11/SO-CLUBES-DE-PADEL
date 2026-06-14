@@ -227,20 +227,20 @@ model Torneo {
 model Cargo {
   id          String    @id @default(cuid())
   clubId      String
-  jugadorId   String
+  jugadorId   String?   // null = venta a consumidor final / casual (sin ficha). Siempre pagado en ese caso.
   reservaId   String?
   parejaId    String?   // si el cargo viene de una inscripción a torneo (para limpiar al cancelar)
   concepto    String
   monto       Int
   estado      String    @default("pendiente") // pendiente | pagado | condonado
-  tipo        String    @default("manual")    // cancelacion | manual | reserva | torneo
+  tipo        String    @default("manual")    // cancelacion | manual | reserva | torneo | producto
   vencimiento DateTime?                        // null = no vence; vencido = pendiente && vencimiento < hoy
   metodoPago  String?                          // efectivo | transferencia | mercadopago
   pagadoAt    DateTime?
   createdAt   DateTime  @default(now())
 
-  club    Club    @relation(fields: [clubId], references: [id])
-  jugador Jugador @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
+  club    Club     @relation(fields: [clubId], references: [id])
+  jugador Jugador? @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
 
   // Evita deudas duplicadas de inscripción (mismo jugador+pareja+tipo). Para tipo torneo
   // parejaId es non-null; los cargos manuales/cancelación tienen parejaId null (NULLs distintos en PG → no chocan).

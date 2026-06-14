@@ -10,8 +10,15 @@
 - **ModalCuentaJugador** (PagosPage): elegís jugador → ves "Lo que debe" (checks) + "Agregar consumo/cargo" (desplegable productos + opción "✏️ Otro (escribir monto)", sin pestañas) → "Anotar a cuenta" o "Cobrar". `POST /cargos` extendido para aceptar `cobrar`+`metodoPago` (cargo manual cobrable en el acto). Se eliminaron ModalCargar/ModalVenta/ModalNuevoCargo/ModalCobrarCuenta (código muerto).
 - **Ayuda reutilizable:** `components/ui/AyudaPanel.jsx` (botón ⓘ → slide-over con guía + `AyudaSeccion`). Es el patrón para replicar en otras secciones y el lugar donde a futuro vive el **asistente IA** (premium, `useFeature`). + empty state de Cobranzas que enseña.
 
-### EN CURSO — Checkout de cobro en la grilla (split por persona)
-Diseño aprobado (investigado vs Playtomic/MatchPoint/DeporWeb): cobrar el turno **desde la grilla** (no ir a Pagos). Modelo "cuenta + líneas de pago": ítems **compartidos** (se dividen) vs **individuales** (a una persona); cada persona paga método o "a cuenta". **Cada persona = jugador registrado** (efectivo o a cuenta → su ficha en Mis pagos), **casual = excepción anónima** (cargo sin jugador, contado). El cobro se registra en el **libro** (`Cargo` por persona, atado a `reservaId`+`jugadorId`) → llena Mis pagos + Caja + Cobranzas. Fase 1: un pagador identificado. Fase 2: split + ítems individuales.
+### Checkout de cobro en la grilla — FASE 1 (2026-06-14)
+Cobrar el turno **desde la grilla** (no ir a Pagos). Diseño investigado vs Playtomic/MatchPoint/DeporWeb.
+- **Backend:** `Cargo.jugadorId` opcional (casual/consumidor final). `POST /reservas/:id/cobrar` { jugadorId|null, metodoPago|null, cobrarTurno, consumos[] }: turno cobrado→`reserva.pagado`; turno a cuenta→**cargo explícito** tipo 'reserva' pendiente + `cobroOmitido=true` (neutraliza, evita doble conteo con turnos-impagos); si ya existía cargo pendiente del turno y se cobra→lo salda (no duplica). Consumos→cargos `tipo:'producto'` atados a `reservaId`+`jugadorId`. `GET /cargos/me` ahora incluye turnos pagados (historial en Mis pagos).
+- **Frontend:** `features/pagos/CheckoutTurno.jsx` (modal: turno + consumos + pagador titular/casual + cobrar ahora/a cuenta). Botón "Cobrar turno" en el detalle (DetalleReserva), reemplaza los chips de cobro rápido (una sola vía).
+- **Estados de pago auditados (fuente única `mapBackendReserva`):** `pagado` 🟢 | `en_cuenta` 🔵 (cobroOmitido) | `debe` 🔴 (confirmada+impago+vencido por horaFin) | `pendiente` 🟡. Celdas, detalle, leyenda, totales y tooltip leen de ahí. "Por cobrar" = pendiente+en_cuenta+debe. "Debe" dejó de ser estado fantasma. Turno "Debe" entra solo a Cobranzas como Vencido (turnosImpagosDeuda, sin cron).
+
+### Pendiente del checkout
+- **Fase 2:** split por persona (ítems compartidos vs individuales, métodos mixtos, varias personas).
+- Venta de mostrador / consumidor final (sin turno) en Pagos.
 
 ---
 

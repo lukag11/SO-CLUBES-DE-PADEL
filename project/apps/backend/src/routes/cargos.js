@@ -30,14 +30,29 @@ const cargoADeuda = (c) => ({
 // GET /api/cargos/me — jugador ve su cuenta: cargos + turnos impagos (deuda unificada)
 router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req, res) => {
   try {
-    const [cargos, turnos] = await Promise.all([
+    const [cargos, turnos, turnosPagados] = await Promise.all([
       prisma.cargo.findMany({
         where: { jugadorId: req.user.id, clubId: req.user.clubId },
         orderBy: { createdAt: 'desc' },
       }),
       turnosImpagosDeuda(req.user.clubId, { jugadorId: req.user.id }),
+      // Turnos ya pagados → historial en "Mis pagos"
+      prisma.reserva.findMany({
+        where: { clubId: req.user.clubId, jugadorId: req.user.id, pagado: true },
+        include: { cancha: { select: { nombre: true } } },
+        orderBy: { fecha: 'desc' },
+      }),
     ])
-    res.json([...turnos, ...cargos.map(cargoADeuda)])
+    const turnosPagadosDeuda = turnosPagados
+      .filter((r) => (r.precio ?? 0) > 0)
+      .map((r) => ({
+        id: `reserva_${r.id}`, refId: r.id, origen: 'reserva',
+        concepto: `Turno ${r.cancha?.nombre ?? ''} · ${r.fecha} ${r.horaInicio}`.trim(),
+        monto: r.precio ?? 0, tipo: 'reserva', estado: 'pagado',
+        vencimiento: null, vencido: false,
+        metodoPago: r.metodoPago, pagadoAt: r.pagadoAt, fecha: r.fecha,
+      }))
+    res.json([...turnos, ...turnosPagadosDeuda, ...cargos.map(cargoADeuda)])
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al obtener cargos' })

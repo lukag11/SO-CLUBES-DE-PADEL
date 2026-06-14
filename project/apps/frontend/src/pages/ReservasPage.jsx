@@ -16,11 +16,12 @@ import useReservasAdminStore from '../store/reservasAdminStore'
 import useProfesoresStore from '../store/profesoresStore'
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
-import { METODO_MAP, metodosDelClub } from '../lib/metodosPago'
+import { METODO_MAP } from '../lib/metodosPago'
 import { api } from '../lib/api'
 import { overlaps, toMin, toTime } from '../utils/timeUtils'
 import InfoBlock from '../components/InfoBlock'
 import TabClasesProfesor from '../features/admin/TabClasesProfesor'
+import CheckoutTurno from '../features/pagos/CheckoutTurno'
 
 // ─── Hook: hint de campo (mensaje amber que desaparece en 2s) ───────────────
 const useFieldHint = () => {
@@ -91,9 +92,10 @@ const TIPO_CONFIG = {
 }
 
 const PAGO_CONFIG = {
-  pagado:   { label: 'Pagado',   cls: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
-  pendiente:{ label: 'Pendiente',cls: 'text-amber-600  bg-amber-50  border-amber-200'  },
-  debe:     { label: 'Debe',     cls: 'text-red-600    bg-red-50    border-red-200'    },
+  pagado:    { label: 'Pagado',    cls: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+  en_cuenta: { label: 'En cuenta', cls: 'text-blue-600   bg-blue-50   border-blue-200'   },
+  pendiente: { label: 'Pendiente', cls: 'text-amber-600  bg-amber-50  border-amber-200'  },
+  debe:      { label: 'Debe',      cls: 'text-red-600    bg-red-50    border-red-200'    },
 }
 
 const ESTADO_CONFIG = {
@@ -169,7 +171,8 @@ const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos, canchasCount, fran
   // Solo tipos con valor económico para los cálculos de cobro
   const conPago = reservasDia.filter((r) => r.tipo !== 'bloqueado' && r.tipo !== 'clase')
   const ingresados = conPago.filter((r) => r.pago === 'pagado').reduce((s, r) => s + (r.monto || 0), 0)
-  const pendientes = conPago.filter((r) => r.pago === 'pendiente').reduce((s, r) => s + (r.monto || 0), 0)
+  // "Por cobrar" = todo lo adeudado del día: pendiente + en cuenta + vencido
+  const pendientes = conPago.filter((r) => ['pendiente', 'en_cuenta', 'debe'].includes(r.pago)).reduce((s, r) => s + (r.monto || 0), 0)
 
   // Turnos fijos: total de activos para el día de semana (sin descontar ausencias puntuales)
   const fijos = totalTurnosFijos + (clasesDia?.length || 0)
@@ -1328,11 +1331,10 @@ const FormBloqueo = ({ franja, cancha, franjas = [], onSave, onCancel }) => {
 
 // ─── Panel lateral — Detalle reserva ─────────────────────────────────────────
 
-const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => {
+const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar, onCheckout }) => {
   const tipoCfg = TIPO_CONFIG[reserva.tipo]
   const pagoCfg = reserva.pago ? PAGO_CONFIG[reserva.pago] : null
   const estadoCfg = ESTADO_CONFIG[reserva.estado]
-  const metodosCobro = metodosDelClub(useClubStore((s) => s.club))
   // Turno ya terminó: bloquear acciones destructivas para preservar historial y cargos
   const yaTermino = reserva.fecha && reserva.fin ? esPasado(reserva.fecha, reserva.fin) : false
 
@@ -1472,40 +1474,23 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
               Aprobar reserva
             </button>
           )}
-          {reserva.estado === 'confirmada' && (
-            <div className="rounded-xl border border-slate-200 p-3">
-              <p className="text-slate-500 text-xs font-medium mb-2">
-                {reserva.pago === 'pagado' ? 'Pagado — corregir método' : 'Marcar como pagado — ¿cómo cobró?'}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {metodosCobro.map((id) => {
-                  const m = METODO_MAP[id]
-                  if (!m) return null
-                  const Icon = m.icon
-                  const activo = reserva.pago === 'pagado' && reserva.metodoPago === id
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => onPago(reserva.id, id)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
-                        activo
-                          ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
-                          : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 text-slate-700'
-                      }`}
-                    >
-                      <Icon size={14} className={activo ? 'text-emerald-500' : 'text-slate-400'} /> {m.label}
-                    </button>
-                  )
-                })}
-              </div>
-              {reserva.pago === 'pagado' && (
-                <button
-                  onClick={() => onPago(reserva.id, null)}
-                  className="mt-2.5 text-xs text-slate-400 hover:text-rose-500 transition-colors"
-                >
-                  Marcar como impago
-                </button>
-              )}
+          {reserva._backendId && reserva.estado === 'confirmada' && onCheckout && (
+            <button
+              onClick={() => onCheckout(reserva)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors"
+            >
+              <DollarSign size={14} /> {reserva.pago === 'pagado' ? 'Agregar consumo' : 'Cobrar turno'}
+            </button>
+          )}
+          {/* Turno ya pagado: estado + corrección (marcar impago). El cobro se hace SOLO con el botón de arriba. */}
+          {reserva.estado === 'confirmada' && reserva.pago === 'pagado' && (
+            <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-emerald-50 border border-emerald-100">
+              <span className="text-xs font-medium text-emerald-700 flex items-center gap-1.5">
+                <CheckCircle size={13} /> Turno pagado{reserva.metodoPago ? ` · ${METODO_MAP[reserva.metodoPago]?.label ?? reserva.metodoPago}` : ''}
+              </span>
+              <button onClick={() => onPago(reserva.id, null)} className="text-[11px] text-slate-400 hover:text-rose-500 transition-colors">
+                Marcar impago
+              </button>
             </div>
           )}
           <button
@@ -1565,7 +1550,7 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar }) => 
 
 // ─── Panel lateral contenedor ─────────────────────────────────────────────────
 
-const PanelContent = ({ seleccion, fecha, franjas = [], onSave, onBloquear, onCancelar, onPago, onClose }) => {
+const PanelContent = ({ seleccion, fecha, franjas = [], onSave, onBloquear, onCancelar, onPago, onClose, onCheckout }) => {
   const [modo, setModo] = useState('reserva')
 
   if (!seleccion) return null
@@ -1575,7 +1560,7 @@ const PanelContent = ({ seleccion, fecha, franjas = [], onSave, onBloquear, onCa
   const handleSaveBloqueo = (data) => { onBloquear({ id: Date.now(), fecha, canchaNombre: cancha.nombre, ...data }) }
 
   if (tipo === 'detalle') {
-    return <DetalleReserva reserva={reserva} onCancelar={onCancelar} onPago={onPago} onClose={onClose} />
+    return <DetalleReserva reserva={reserva} onCancelar={onCancelar} onPago={onPago} onClose={onClose} onCheckout={onCheckout} />
   }
 
   return (
@@ -1647,7 +1632,8 @@ const EditarReserva = ({ reserva, onSave, onCancel }) => {
   const adminToken = useAuthStore((s) => s.token)
   const [form, setForm] = useState({
     monto: reserva.monto ?? 0,
-    pago: reserva.pago ?? 'pendiente',
+    // El form solo edita pagado/pendiente; 'en_cuenta'/'debe' son estados derivados → normalizar
+    pago: reserva.pago === 'pagado' ? 'pagado' : 'pendiente',
     metodoPago: reserva.metodoPago ?? 'Efectivo',
     notas: reserva.notas ?? '',
   })
@@ -2907,6 +2893,7 @@ const ReservasPage = () => {
   const [fecha, setFecha] = useState(todayISO())
   const [clases, setClases] = useState(CLASES_PROFESOR)
   const [seleccion, setSeleccion] = useState(null)
+  const [checkoutReserva, setCheckoutReserva] = useState(null)
   const [editando, setEditando] = useState(null)
   const [tabActiva, setTabActiva] = useState(() => location.state?.tab ?? 'grilla')
   const [toast, setToast] = useState(null) // { tipo: 'reserva'|'bloqueo'|'cancelada', msg: '' }
@@ -3052,9 +3039,20 @@ const ReservasPage = () => {
     fin: r.horaFin,
     tipo: r.tipo || 'online',
     jugadores: r.jugador ? [`${r.jugador.nombre} ${r.jugador.apellido}`] : [],
+    jugadorId: r.jugador?.id ?? r.jugadorId ?? null,
     profesor: r.profesor || null,
     estado: r.estado,
-    pago: r.pagado ? 'pagado' : (r.estado === 'confirmada' ? 'pendiente' : null),
+    // Fuente única del estado de pago del turno (lo leen celdas, detalle, leyenda y totales)
+    pago: r.pagado
+      ? 'pagado'
+      : r.estado !== 'confirmada'
+        ? null
+        : r.cobroOmitido
+          ? 'en_cuenta'                                   // anotado a la cuenta de un jugador
+          : esPasado(r.fecha, r.horaFin)
+            ? 'debe'                                      // impago y el turno ya terminó (vencido)
+            : 'pendiente',                                // impago, aún por jugarse
+    cobroOmitido: r.cobroOmitido ?? false,
     metodoPago: r.metodoPago ?? null,
     monto: r.precio || 0,
     notas: r.notas || '',
@@ -3460,21 +3458,26 @@ const ReservasPage = () => {
           {/* Estado de pago */}
           <div className="pt-4 border-t border-slate-100">
             <p className="text-xs font-semibold text-slate-600 mb-2.5">Estado de pago</p>
-            <div className="flex flex-wrap gap-2">
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 w-fit">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 <span className="text-xs font-medium text-emerald-700">Pagado</span>
-                <span className="text-xs text-emerald-500">— ya abonó</span>
+                <span className="text-xs text-emerald-500">— ya se cobró (entró a la caja)</span>
               </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200">
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-200 w-fit">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                <span className="text-xs font-medium text-blue-700">En cuenta</span>
+                <span className="text-xs text-blue-500">— anotado a la cuenta de un jugador (deuda)</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 w-fit">
                 <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 <span className="text-xs font-medium text-amber-700">Pendiente</span>
-                <span className="text-xs text-amber-500">— sin confirmar</span>
+                <span className="text-xs text-amber-500">— por jugarse, aún sin cobrar</span>
               </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 border border-red-200">
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 border border-red-200 w-fit">
                 <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
                 <span className="text-xs font-medium text-red-700">Debe</span>
-                <span className="text-xs text-red-400">— deuda pendiente</span>
+                <span className="text-xs text-red-400">— turno jugado e impago (vencido)</span>
               </div>
             </div>
           </div>
@@ -3516,7 +3519,7 @@ const ReservasPage = () => {
                   <EditarReserva reserva={editando} onSave={handleGuardarEdicion} onCancel={() => setEditando(null)} />
                 ) : seleccion.tipo === 'detalle' ? (
                   <div className="flex flex-col">
-                    <DetalleReserva reserva={seleccion.reserva} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} onAprobar={handleAprobarBackend} />
+                    <DetalleReserva reserva={seleccion.reserva} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} onAprobar={handleAprobarBackend} onCheckout={(r) => { setSeleccion(null); setCheckoutReserva(r) }} />
                     {seleccion.reserva.tipo !== 'bloqueado' && seleccion.reserva.tipo !== 'clase' && seleccion.reserva.estado !== 'cancelada' && (
                       <div className="px-5 pb-4">
                         <button onClick={() => handleEditar(seleccion.reserva)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 transition-colors">
@@ -3526,10 +3529,19 @@ const ReservasPage = () => {
                     )}
                   </div>
                 ) : (
-                  <PanelContent seleccion={seleccion} fecha={fecha} franjas={franjasMainGrilla} onSave={handleSave} onBloquear={handleSave} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} />
+                  <PanelContent seleccion={seleccion} fecha={fecha} franjas={franjasMainGrilla} onSave={handleSave} onBloquear={handleSave} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} onCheckout={(r) => { setSeleccion(null); setCheckoutReserva(r) }} />
                 )}
               </div>
             </div>
+          )}
+
+          {checkoutReserva && (
+            <CheckoutTurno
+              reserva={checkoutReserva}
+              token={adminToken}
+              onClose={() => setCheckoutReserva(null)}
+              onDone={(cobrado) => { setCheckoutReserva(null); fetchReservasBackend(fecha); showToast('reserva', cobrado ? 'Cobro registrado' : 'Anotado a la cuenta') }}
+            />
           )}
 
           {/* Vista mobile: todas las canchas en orden */}

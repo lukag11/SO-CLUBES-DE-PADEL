@@ -1,6 +1,31 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-13 — Integridad del libro de deudas de inscripción (reconciliador) + fix UX commit timing
+**Última actualización:** 2026-06-14 — Módulo Finanzas: POS (productos) + Gastos/Egresos + Caja del día
+
+---
+
+## Módulo Finanzas — POS + Gastos + Caja (2026-06-14)
+
+PagosPage pasó de "Cobranzas" a un hub financiero con tabs: **Cobranzas | Gastos | Caja del día**. Lente POS/ledger + Payments LATAM.
+
+### Bloque A — POS / Productos (commit 4cdb09e)
+- Modelo `Producto` (catálogo: nombre, precio Int, categoria?, activo). **Sin stock** en v1 (lista de precios).
+- `/productos` CRUD. `POST /productos/venta` { jugadorId, items[], cobrar, metodoPago } → genera **UN** cargo `tipo:'producto'` (concepto compuesto "Venta: 2× Tubo, 1× Grip"). cobrar=true → pagado (caja); false → pendiente (deuda a cuenta).
+- `POST /cargos/cobrar-cuenta` { jugadorId, items[{origen,refId}], metodoPago } → **checkout**: cobra turno+productos+cargos en una transacción (scopeado club+jugador+pendiente). NO reagrupa la lista plana (respeta decisión previa).
+- PagosPage: modales Catálogo, Vender, Cobrar cuenta + filtro tipo "Productos". **NOTA: el checkout (Cobrar cuenta) el usuario lo va a revisar — tiene dudas, quedó para el final.**
+
+### Bloque B — Gastos / Egresos (factura de proveedor)
+- Modelo `Gasto` **OCR-ready**: `{ proveedor, concepto, monto, categoria?, fecha, metodoPago?, pagado, pagadoAt, numeroFactura?, imagenUrl?, fuente:'manual'|'ocr' }`. Los campos coinciden con lo que extraería un lector de facturas por foto → el futuro asistente IA pre-llena el mismo form (hoy fuente='manual').
+- Egresos viven **aparte de los cargos** (no contaminan el libro de deudas de jugadores).
+- `/gastos` CRUD + `/gastos/resumen` (gastadoMes, aPagar). Alta con "Ya pagado"(+método) o "A pagar"; foto de factura sube a Storage (uploadImage, folder 'facturas').
+- Frontend: `features/pagos/GastosTab.jsx` (autocontenido: lista, alta/edición, marcar pagado, eliminar).
+
+### Bloque C — Caja del día (arqueo)
+- `GET /caja?fecha=YYYY-MM-DD` → ingresos (reservas+cargos pagados) − egresos (gastos pagados) **por método**, del día (pagadoAt en hora ARG via nuevo helper `rangoDiaArg`). Solo movimientos pagados (deudas pendientes NO son caja).
+- Frontend: `features/pagos/CajaTab.jsx` (selector de día ◄►, 3 tarjetas Ingresos/Egresos/Neto, desglose por método).
+
+### Pendiente del módulo
+- Bloque D: recibo/comprobante imprimible. Bloque E: exportación CSV + hint ámbar en monto de reserva. Checkout (Cobrar cuenta): revisar con el usuario (tiene dudas).
 
 ---
 

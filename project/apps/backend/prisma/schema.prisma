@@ -29,6 +29,7 @@ model Club {
   profesores     Profesor[]
   sponsors       Sponsor[]
   productos      Producto[]
+  gastos         Gasto[]
 
   @@map("clubs")
 }
@@ -262,6 +263,31 @@ model Producto {
   club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
   @@map("productos")
+}
+
+// Egreso / factura de proveedor (gasto del club). Diseñado "OCR-ready": los campos coinciden
+// con lo que un lector de facturas por foto extraería, para que un asistente IA pre-llene el
+// mismo formulario en el futuro (fuente: 'manual' hoy, 'ocr' después).
+model Gasto {
+  id            String    @id @default(cuid())
+  clubId        String
+  proveedor     String?
+  concepto      String
+  monto         Int
+  categoria     String?
+  fecha         String    // YYYY-MM-DD — fecha de la factura/gasto
+  metodoPago    String?
+  pagado        Boolean   @default(true)
+  pagadoAt      DateTime?
+  numeroFactura String?
+  imagenUrl     String?
+  fuente        String    @default("manual") // 'manual' | 'ocr'
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@map("gastos")
 }
 
 model Notificacion {

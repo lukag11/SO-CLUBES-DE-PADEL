@@ -8,6 +8,8 @@ import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
 import Toast from '../components/ui/Toast'
 import { METODOS_CATALOGO, METODO_MAP, metodosDelClub, MetodoBadge } from '../lib/metodosPago'
+import GastosTab from '../features/pagos/GastosTab'
+import CajaTab from '../features/pagos/CajaTab'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 
@@ -584,6 +586,7 @@ const PagosPage = () => {
   const saveConfig = useClubStore((s) => s.saveConfig)
   const metodosHabilitados = metodosDelClub(club)
 
+  const [tab, setTab] = useState('cobranzas') // cobranzas | gastos
   const [resumen, setResumen] = useState(null)
   const [deudas, setDeudas] = useState([])
   const [jugadores, setJugadores] = useState([])
@@ -770,9 +773,10 @@ const PagosPage = () => {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-800">Cobranzas</h2>
-          <p className="text-sm text-slate-400 mt-1">Deudas, cobros y estado de cuenta de tus jugadores</p>
+          <h2 className="text-xl md:text-2xl font-bold text-slate-800">Finanzas</h2>
+          <p className="text-sm text-slate-400 mt-1">Cobranzas y gastos del club</p>
         </div>
+        {tab === 'cobranzas' && (
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setCatalogoOpen(true)}
@@ -805,8 +809,25 @@ const PagosPage = () => {
             <Plus size={16} /> Nuevo cargo
           </button>
         </div>
+        )}
       </div>
 
+      {/* Tabs Cobranzas / Gastos */}
+      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit">
+        {[{ id: 'cobranzas', label: 'Cobranzas' }, { id: 'gastos', label: 'Gastos' }, { id: 'caja', label: 'Caja del día' }].map(({ id, label }) => (
+          <button
+            key={id} onClick={() => setTab(id)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'gastos' && <GastosTab token={token} metodos={metodosHabilitados} />}
+      {tab === 'caja' && <CajaTab token={token} />}
+
+      {tab === 'cobranzas' && (<>
       {/* Totales */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <TotalCard
@@ -933,6 +954,7 @@ const PagosPage = () => {
           </div>
         )}
       </div>
+      </>)}
 
       {cobrando && <ModalCobro cargo={cobrando} metodos={metodosHabilitados} onConfirm={cobrar} onClose={() => setCobrando(null)} saving={saving} />}
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}

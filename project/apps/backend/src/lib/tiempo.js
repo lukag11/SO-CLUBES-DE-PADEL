@@ -26,6 +26,16 @@ export const hoyArgStr = () => {
   return `${a.getUTCFullYear()}-${String(a.getUTCMonth() + 1).padStart(2, '0')}-${String(a.getUTCDate()).padStart(2, '0')}`
 }
 
+// Rango UTC [desde, hasta) que cubre un día argentino dado ('YYYY-MM-DD').
+// Ej: '2026-06-14' → desde 2026-06-14T03:00Z hasta 2026-06-15T03:00Z.
+export const rangoDiaArg = (fechaStr) => {
+  const [y, m, d] = String(fechaStr).split('-').map(Number)
+  return {
+    desde: new Date(Date.UTC(y, m - 1, d, 3, 0, 0)),
+    hasta: new Date(Date.UTC(y, m - 1, d + 1, 3, 0, 0)),
+  }
+}
+
 // Hora actual en Argentina en formato 'HH:MM' (para saber qué turno está en curso).
 export const ahoraArgHHMM = () => {
   const a = ahoraArg()

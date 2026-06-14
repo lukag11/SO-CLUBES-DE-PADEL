@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   DollarSign, AlertTriangle, TrendingUp, Search, Plus, X,
-  CheckCircle, Trash2, Clock, Settings, Check, ShoppingCart, Package, Pencil, Minus, Printer, Download, FileText,
+  CheckCircle, Trash2, Clock, Settings, Check, Package, Pencil, Minus, Printer, Download, FileText, Wallet,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
@@ -11,6 +11,7 @@ import { METODOS_CATALOGO, METODO_MAP, metodosDelClub, MetodoBadge } from '../li
 import GastosTab from '../features/pagos/GastosTab'
 import CajaTab from '../features/pagos/CajaTab'
 import { imprimirRecibo, exportarCobranzasCSV, generarReporteCobranzas } from '../features/pagos/comprobantes'
+import AyudaPanel, { AyudaSeccion } from '../components/ui/AyudaPanel'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 
@@ -177,83 +178,6 @@ const ModalEliminar = ({ cargo, onConfirm, onClose, saving }) => (
   </div>
 )
 
-// ── Modal: nuevo cargo manual ─────────────────────────────────────────────────
-const ModalNuevoCargo = ({ jugadores, onCreate, onClose, saving }) => {
-  const [form, setForm] = useState({ jugadorId: '', concepto: '', monto: '', vencimiento: '' })
-  const [error, setError] = useState('')
-
-  const submit = () => {
-    if (!form.jugadorId) return setError('Elegí un jugador')
-    if (!form.concepto.trim()) return setError('Ingresá un concepto')
-    const monto = Number(form.monto)
-    if (!Number.isFinite(monto) || monto <= 0) return setError('El monto debe ser mayor a cero')
-    setError('')
-    onCreate({ ...form, monto })
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-          <p className="text-slate-800 font-bold">Nuevo cargo manual</p>
-          <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
-        </div>
-        <div className="p-6 flex flex-col gap-4">
-          <div>
-            <label className="block text-slate-500 text-xs font-medium mb-1.5">Jugador</label>
-            <select
-              value={form.jugadorId}
-              onChange={(e) => setForm((f) => ({ ...f, jugadorId: e.target.value }))}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-400"
-            >
-              <option value="">Seleccioná un jugador…</option>
-              {jugadores.map((j) => (
-                <option key={j.id} value={j.id}>{j.nombre} {j.apellido} — DNI {j.dni}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-slate-500 text-xs font-medium mb-1.5">Concepto</label>
-            <input
-              type="text" value={form.concepto}
-              onChange={(e) => setForm((f) => ({ ...f, concepto: e.target.value }))}
-              placeholder="Ej: Alquiler de paletas, multa, etc."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-slate-500 text-xs font-medium mb-1.5">Monto</label>
-              <input
-                type="number" value={form.monto}
-                onChange={(e) => setForm((f) => ({ ...f, monto: e.target.value }))}
-                placeholder="0"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-500 text-xs font-medium mb-1.5">Vence (opcional)</label>
-              <input
-                type="date" value={form.vencimiento}
-                onChange={(e) => setForm((f) => ({ ...f, vencimiento: e.target.value }))}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-400"
-              />
-            </div>
-          </div>
-          {error && <p className="text-rose-500 text-xs">{error}</p>}
-          <button
-            onClick={submit} disabled={saving}
-            className="mt-1 w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors disabled:opacity-50"
-          >
-            {saving ? 'Creando…' : 'Crear cargo'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Modal: catálogo de productos (ABM) ───────────────────────────────────────
 const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onClose, saving }) => {
   const [nuevo, setNuevo] = useState({ nombre: '', precio: '', categoria: '' })
@@ -348,56 +272,98 @@ const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onClo
   )
 }
 
-// ── Modal: vender / cargar consumo a un jugador ──────────────────────────────
-const ModalVenta = ({ jugadores, productos, metodos, onSubmit, onClose, saving }) => {
+// ── Modal: CUENTA DE JUGADOR (unificado) — ver lo que debe + cobrar + agregar consumos/cargos ──
+const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onRefresh, showToast }) => {
   const [jugadorId, setJugadorId] = useState('')
-  const [carrito, setCarrito] = useState([])   // [{ id, nombre, precio, cantidad }]
-  const [sel, setSel] = useState('')           // producto seleccionado a agregar
-  const [cobrar, setCobrar] = useState(false)  // false = anotar a cuenta, true = cobrar ahora
+  const [deudas, setDeudas] = useState([])
+  const [selDeuda, setSelDeuda] = useState({})
+  const [loadingDeudas, setLoadingDeudas] = useState(false)
+  const [lineas, setLineas] = useState([])      // nuevos consumos: [{ id, tipo, nombre, precio, cantidad }]
+  const [sel, setSel] = useState('')             // valor del desplegable: productId | '__otro__' | ''
+  const [otroConcepto, setOtroConcepto] = useState('')
+  const [otroPrecio, setOtroPrecio] = useState('')
   const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  const auth = { Authorization: `Bearer ${token}` }
   const activos = productos.filter((p) => p.activo)
-  const total = carrito.reduce((s, l) => s + l.precio * l.cantidad, 0)
 
-  const agregar = () => {
-    const p = activos.find((x) => x.id === sel)
-    if (!p) return
-    setCarrito((prev) => {
-      const ex = prev.find((l) => l.id === p.id)
-      if (ex) return prev.map((l) => l.id === p.id ? { ...l, cantidad: l.cantidad + 1 } : l)
-      return [...prev, { id: p.id, nombre: p.nombre, precio: p.precio, cantidad: 1 }]
+  const fetchDeudas = async (jid) => {
+    if (!jid) { setDeudas([]); setSelDeuda({}); return }
+    setLoadingDeudas(true)
+    try {
+      const data = await api.get(`/cargos/cobranzas?jugadorId=${jid}`, auth)
+      const pend = (data?.deudas ?? []).filter((d) => d.estado === 'pendiente')
+      setDeudas(pend)
+      setSelDeuda(Object.fromEntries(pend.map((d) => [d.id, true])))
+    } catch { setDeudas([]) } finally { setLoadingDeudas(false) }
+  }
+  useEffect(() => { fetchDeudas(jugadorId) }, [jugadorId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const agregarLinea = () => {
+    if (sel === '__otro__') {
+      if (!otroConcepto.trim() || !(Number(otroPrecio) > 0)) return setError('Completá concepto y monto')
+      setLineas((p) => [...p, { id: `o-${Date.now()}`, tipo: 'otro', nombre: otroConcepto.trim(), precio: Number(otroPrecio), cantidad: 1 }])
+      setOtroConcepto(''); setOtroPrecio(''); setSel(''); setError('')
+      return
+    }
+    const prod = activos.find((x) => x.id === sel)
+    if (!prod) return
+    setLineas((p) => {
+      const ex = p.find((l) => l.tipo === 'producto' && l.id === prod.id)
+      if (ex) return p.map((l) => l === ex ? { ...l, cantidad: l.cantidad + 1 } : l)
+      return [...p, { id: prod.id, tipo: 'producto', nombre: prod.nombre, precio: prod.precio, cantidad: 1 }]
     })
     setSel('')
   }
-  const cambiarCant = (id, delta) => setCarrito((prev) => prev
-    .map((l) => l.id === id ? { ...l, cantidad: Math.max(1, l.cantidad + delta) } : l))
-  const quitar = (id) => setCarrito((prev) => prev.filter((l) => l.id !== id))
+  const cambiarCant = (id, d) => setLineas((p) => p.map((l) => l.id === id ? { ...l, cantidad: Math.max(1, l.cantidad + d) } : l))
+  const quitarLinea = (id) => setLineas((p) => p.filter((l) => l.id !== id))
 
-  const submit = () => {
-    if (!jugadorId) return setError('Elegí un jugador')
-    if (carrito.length === 0) return setError('Agregá al menos un producto')
-    if (cobrar && !metodoPago) return setError('Elegí el método de cobro')
-    setError('')
-    onSubmit({
-      jugadorId,
-      items: carrito.map((l) => ({ nombre: l.nombre, precio: l.precio, cantidad: l.cantidad })),
-      cobrar,
-      metodoPago: cobrar ? metodoPago : null,
-    })
+  const totalNuevo = lineas.reduce((s, l) => s + l.precio * l.cantidad, 0)
+  const deudaSel = deudas.filter((d) => selDeuda[d.id])
+  const totalDeudaSel = deudaSel.reduce((s, d) => s + d.monto, 0)
+  const totalCobrar = totalNuevo + totalDeudaSel
+
+  // Crea las líneas nuevas (productos → venta; otros → cargo), pagadas o a cuenta
+  const crearNuevas = async (cobrar) => {
+    const items = lineas.filter((l) => l.tipo === 'producto').map((l) => ({ nombre: l.nombre, precio: l.precio, cantidad: l.cantidad }))
+    const otros = lineas.filter((l) => l.tipo === 'otro')
+    if (items.length) await api.post('/productos/venta', { jugadorId, items, cobrar, metodoPago }, auth)
+    for (const o of otros) {
+      await api.post('/cargos', { jugadorId, concepto: o.cantidad > 1 ? `${o.cantidad}× ${o.nombre}` : o.nombre, monto: o.precio * o.cantidad, cobrar, metodoPago }, auth)
+    }
   }
 
-  const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-400'
+  const anotarACuenta = async () => {
+    if (lineas.length === 0) return setError('Agregá al menos un consumo')
+    setSaving(true); setError('')
+    try {
+      await crearNuevas(false)
+      setLineas([]); showToast('exito', 'Anotado a la cuenta'); await fetchDeudas(jugadorId); onRefresh()
+    } catch (e) { showToast('error', e?.message || 'No se pudo anotar') } finally { setSaving(false) }
+  }
+  const cobrarTodo = async () => {
+    if (lineas.length === 0 && deudaSel.length === 0) return setError('Agregá un consumo o seleccioná una deuda')
+    setSaving(true); setError('')
+    try {
+      if (lineas.length) await crearNuevas(true)
+      if (deudaSel.length) await api.post('/cargos/cobrar-cuenta', { jugadorId, items: deudaSel.map((d) => ({ origen: d.origen, refId: d.refId })), metodoPago }, auth)
+      setLineas([]); showToast('exito', 'Cobro registrado'); await fetchDeudas(jugadorId); onRefresh()
+    } catch (e) { showToast('error', e?.message || 'No se pudo cobrar') } finally { setSaving(false) }
+  }
+
+  const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <p className="text-slate-800 font-bold">Vender / cargar consumo</p>
+          <p className="text-slate-800 font-bold">Cuenta de jugador</p>
           <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
         </div>
-        <div className="overflow-y-auto p-6 flex flex-col gap-4">
+        <div className="overflow-y-auto p-6 flex flex-col gap-5">
           {/* Jugador */}
           <div>
             <label className="block text-slate-500 text-xs font-medium mb-1.5">Jugador</label>
@@ -407,172 +373,86 @@ const ModalVenta = ({ jugadores, productos, metodos, onSubmit, onClose, saving }
             </select>
           </div>
 
-          {/* Agregar producto */}
-          <div>
-            <label className="block text-slate-500 text-xs font-medium mb-1.5">Producto</label>
-            {activos.length === 0 ? (
-              <p className="text-slate-400 text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">No hay productos activos. Cargá tu catálogo primero.</p>
-            ) : (
+          {jugadorId && (<>
+            {/* ── Lo que debe ── */}
+            <div>
+              <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Lo que debe</p>
+              {loadingDeudas ? (
+                <p className="text-slate-400 text-sm py-2">Cargando…</p>
+              ) : deudas.length === 0 ? (
+                <p className="text-slate-400 text-sm py-2 bg-emerald-50/50 rounded-xl px-3">Está al día 🎉</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {deudas.map((d) => (
+                    <button key={d.id} onClick={() => setSelDeuda((p) => ({ ...p, [d.id]: !p[d.id] }))} className={`flex items-center gap-3 px-3 py-2 rounded-xl border text-left transition-all ${selDeuda[d.id] ? 'border-brand-300 bg-brand-50/60' : 'border-slate-100 hover:bg-slate-50'}`}>
+                      <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${selDeuda[d.id] ? 'bg-brand-500' : 'border border-slate-300'}`}>{selDeuda[d.id] && <Check size={13} className="text-white" />}</div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{TIPO_LABEL[d.tipo] ?? d.tipo}</span>
+                        <p className="text-xs text-slate-600 truncate mt-0.5">{d.concepto}</p>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-700 shrink-0">{money(d.monto)}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── Agregar consumo / cargo ── */}
+            <div>
+              <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Agregar consumo / cargo</p>
               <div className="flex gap-2">
                 <select value={sel} onChange={(e) => setSel(e.target.value)} className={`flex-1 ${inputCls}`}>
-                  <option value="">Elegí un producto…</option>
+                  <option value="">Elegí…</option>
                   {activos.map((p) => <option key={p.id} value={p.id}>{p.nombre} — {money(p.precio)}</option>)}
+                  {activos.length > 0 && <option disabled>──────────</option>}
+                  <option value="__otro__">✏️ Otro (escribir monto)</option>
                 </select>
-                <button onClick={agregar} disabled={!sel} className="px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold transition-colors disabled:opacity-40"><Plus size={16} /></button>
+                {sel !== '__otro__' && <button onClick={agregarLinea} disabled={!sel} className="px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold transition-colors disabled:opacity-40"><Plus size={16} /></button>}
               </div>
-            )}
-          </div>
-
-          {/* Carrito */}
-          {carrito.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              {carrito.map((l) => (
-                <div key={l.id} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100">
-                  <p className="flex-1 min-w-0 text-sm text-slate-700 truncate">{l.nombre}</p>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button onClick={() => cambiarCant(l.id, -1)} className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center"><Minus size={12} /></button>
-                    <span className="text-sm font-medium text-slate-700 w-5 text-center">{l.cantidad}</span>
-                    <button onClick={() => cambiarCant(l.id, +1)} className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center"><Plus size={12} /></button>
-                  </div>
-                  <p className="text-sm font-semibold text-slate-700 w-20 text-right shrink-0">{money(l.precio * l.cantidad)}</p>
-                  <button onClick={() => quitar(l.id)} className="text-slate-300 hover:text-rose-500 shrink-0"><X size={14} /></button>
+              {sel === '__otro__' && (
+                <div className="flex gap-2 mt-2">
+                  <input value={otroConcepto} onChange={(e) => setOtroConcepto(e.target.value)} placeholder="Concepto (ej: multa)" className={`flex-1 ${inputCls}`} />
+                  <input type="number" value={otroPrecio} onChange={(e) => setOtroPrecio(e.target.value)} placeholder="$" className={`w-24 ${inputCls}`} />
+                  <button onClick={agregarLinea} className="px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold"><Plus size={16} /></button>
                 </div>
-              ))}
-              <div className="flex items-center justify-between px-3 pt-2 border-t border-slate-100 mt-1">
-                <span className="text-sm font-medium text-slate-500">Total</span>
-                <span className="text-lg font-bold text-slate-800">{money(total)}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Cómo se registra */}
-          <div className="flex flex-col gap-2">
-            <button onClick={() => setCobrar(false)} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border text-left transition-all ${!cobrar ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-              <div className={`w-4 h-4 rounded-full border-2 shrink-0 ${!cobrar ? 'border-brand-500 bg-brand-500' : 'border-slate-300'}`} />
-              <div><p className="text-sm font-medium text-slate-700">Anotar a la cuenta</p><p className="text-[11px] text-slate-400">Queda como deuda pendiente</p></div>
-            </button>
-            <button onClick={() => setCobrar(true)} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border text-left transition-all ${cobrar ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-              <div className={`w-4 h-4 rounded-full border-2 shrink-0 ${cobrar ? 'border-brand-500 bg-brand-500' : 'border-slate-300'}`} />
-              <div><p className="text-sm font-medium text-slate-700">Cobrar ahora</p><p className="text-[11px] text-slate-400">Entra a caja al instante</p></div>
-            </button>
-            {cobrar && (
-              <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className={`w-full ${inputCls}`}>
-                {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
-              </select>
-            )}
-          </div>
-
-          {error && <p className="text-rose-500 text-xs">{error}</p>}
-          <button onClick={submit} disabled={saving} className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
-            {saving ? 'Registrando…' : cobrar ? `Cobrar ${money(total)}` : `Anotar ${money(total)} a la cuenta`}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Modal: cobrar la cuenta de un jugador (turno + productos + cargos juntos) ──
-const ModalCobrarCuenta = ({ jugadores, metodos, token, onSubmit, onClose, saving }) => {
-  const [jugadorId, setJugadorId] = useState('')
-  const [items, setItems] = useState([])
-  const [sel, setSel] = useState({})
-  const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (!jugadorId) { setItems([]); setSel({}); return }
-    setLoading(true)
-    api.get(`/cargos/cobranzas?jugadorId=${jugadorId}`, { Authorization: `Bearer ${token}` })
-      .then((data) => {
-        const pend = (data?.deudas ?? []).filter((d) => d.estado === 'pendiente')
-        setItems(pend)
-        setSel(Object.fromEntries(pend.map((d) => [d.id, true])))
-      })
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false))
-  }, [jugadorId, token])
-
-  const seleccionadas = items.filter((d) => sel[d.id])
-  const total = seleccionadas.reduce((s, d) => s + d.monto, 0)
-
-  const submit = () => {
-    if (!jugadorId) return setError('Elegí un jugador')
-    if (seleccionadas.length === 0) return setError('Seleccioná al menos una deuda')
-    setError('')
-    onSubmit({ jugadorId, items: seleccionadas.map((d) => ({ origen: d.origen, refId: d.refId })), metodoPago })
-  }
-
-  const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-400'
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <div>
-            <p className="text-slate-800 font-bold">Cobrar cuenta</p>
-            <p className="text-slate-400 text-xs mt-0.5">Cobrá turno + productos + cargos de una</p>
-          </div>
-          <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
-        </div>
-        <div className="overflow-y-auto p-6 flex flex-col gap-4">
-          <div>
-            <label className="block text-slate-500 text-xs font-medium mb-1.5">Jugador</label>
-            <select value={jugadorId} onChange={(e) => setJugadorId(e.target.value)} className={`w-full ${inputCls}`}>
-              <option value="">Seleccioná un jugador…</option>
-              {jugadores.map((j) => <option key={j.id} value={j.id}>{j.nombre} {j.apellido} — DNI {j.dni}</option>)}
-            </select>
-          </div>
-
-          {jugadorId && (loading ? (
-            <p className="text-slate-400 text-sm text-center py-4">Cargando cuenta…</p>
-          ) : items.length === 0 ? (
-            <p className="text-slate-400 text-sm text-center py-4 bg-emerald-50/50 rounded-xl">Este jugador está al día 🎉</p>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {items.map((d) => (
-                <button
-                  key={d.id} onClick={() => setSel((p) => ({ ...p, [d.id]: !p[d.id] }))}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${sel[d.id] ? 'border-brand-300 bg-brand-50/60' : 'border-slate-100 hover:bg-slate-50'}`}
-                >
-                  <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${sel[d.id] ? 'bg-brand-500' : 'border border-slate-300'}`}>
-                    {sel[d.id] && <Check size={13} className="text-white" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{TIPO_LABEL[d.tipo] ?? d.tipo}</span>
-                      {d.vencido && <span className="text-[10px] font-bold text-rose-600">Vencido</span>}
+              )}
+              {lineas.length > 0 && (
+                <div className="flex flex-col gap-1.5 mt-2">
+                  {lineas.map((l) => (
+                    <div key={l.id} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100">
+                      <p className="flex-1 min-w-0 text-sm text-slate-700 truncate">{l.nombre}</p>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={() => cambiarCant(l.id, -1)} className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center"><Minus size={12} /></button>
+                        <span className="text-sm font-medium text-slate-700 w-5 text-center">{l.cantidad}</span>
+                        <button onClick={() => cambiarCant(l.id, +1)} className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center"><Plus size={12} /></button>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-700 w-20 text-right shrink-0">{money(l.precio * l.cantidad)}</p>
+                      <button onClick={() => quitarLinea(l.id)} className="text-slate-300 hover:text-rose-500 shrink-0"><X size={14} /></button>
                     </div>
-                    <p className="text-xs text-slate-600 truncate mt-0.5">{d.concepto}</p>
-                  </div>
-                  <p className="text-sm font-semibold text-slate-700 shrink-0">{money(d.monto)}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Método + acciones */}
+            <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-slate-500 font-medium">Método (al cobrar)</label>
+                <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400">
+                  {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
+                </select>
+              </div>
+              {error && <p className="text-rose-500 text-xs">{error}</p>}
+              <div className="flex gap-2">
+                <button onClick={anotarACuenta} disabled={saving || lineas.length === 0} title="Suma los consumos nuevos como deuda pendiente" className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors disabled:opacity-40">
+                  Anotar a cuenta{totalNuevo > 0 ? ` ${money(totalNuevo)}` : ''}
                 </button>
-              ))}
-              <div className="flex items-center justify-between px-3 pt-2 border-t border-slate-100 mt-1">
-                <span className="text-sm font-medium text-slate-500">A cobrar ({seleccionadas.length})</span>
-                <span className="text-lg font-bold text-slate-800">{money(total)}</span>
+                <button onClick={cobrarTodo} disabled={saving || totalCobrar === 0} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
+                  {saving ? 'Procesando…' : `Cobrar ${money(totalCobrar)}`}
+                </button>
               </div>
             </div>
-          ))}
-
-          {jugadorId && items.length > 0 && (
-            <div>
-              <label className="block text-slate-500 text-xs font-medium mb-1.5">Método de cobro</label>
-              <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className={`w-full ${inputCls}`}>
-                {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
-              </select>
-            </div>
-          )}
-
-          {error && <p className="text-rose-500 text-xs">{error}</p>}
-          <button
-            onClick={submit} disabled={saving || seleccionadas.length === 0}
-            className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50"
-          >
-            {saving ? 'Cobrando…' : `Cobrar ${money(total)}`}
-          </button>
+          </>)}
         </div>
       </div>
     </div>
@@ -598,11 +478,10 @@ const PagosPage = () => {
   const [search, setSearch] = useState('')
   const [cobrando, setCobrando] = useState(null)   // cargo en proceso de cobro
   const [eliminando, setEliminando] = useState(null) // cargo a eliminar
-  const [nuevoCargo, setNuevoCargo] = useState(false)
+  const [cuentaOpen, setCuentaOpen] = useState(false)
   const [configMetodos, setConfigMetodos] = useState(false)
   const [catalogoOpen, setCatalogoOpen] = useState(false)
-  const [ventaOpen, setVentaOpen] = useState(false)
-  const [cobrarCuentaOpen, setCobrarCuentaOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [productos, setProductos] = useState([])
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
@@ -624,15 +503,15 @@ const PagosPage = () => {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // Jugadores para el selector de los modales (lazy, al abrir cargo/venta)
+  // Jugadores para el selector de los modales (lazy, al abrir cargar/cobrar cuenta)
   useEffect(() => {
-    if (!(nuevoCargo || ventaOpen || cobrarCuentaOpen) || jugadores.length > 0 || !token) return
+    if (!cuentaOpen || jugadores.length > 0 || !token) return
     api.get('/jugadores', { Authorization: `Bearer ${token}` })
       .then((data) => setJugadores(Array.isArray(data) ? data : []))
       .catch(() => {})
-  }, [nuevoCargo, ventaOpen, cobrarCuentaOpen, jugadores.length, token])
+  }, [cuentaOpen, jugadores.length, token])
 
-  // Catálogo de productos (lazy, al abrir catálogo o venta)
+  // Catálogo de productos (lazy, al abrir el catálogo o el modal de cargar)
   const fetchProductos = useCallback(async () => {
     if (!token) return
     try {
@@ -642,8 +521,8 @@ const PagosPage = () => {
   }, [token])
 
   useEffect(() => {
-    if (catalogoOpen || ventaOpen) fetchProductos()
-  }, [catalogoOpen, ventaOpen, fetchProductos])
+    if (catalogoOpen || cuentaOpen) fetchProductos()
+  }, [catalogoOpen, cuentaOpen, fetchProductos])
 
   const visibles = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -706,18 +585,6 @@ const PagosPage = () => {
     } finally { setSaving(false) }
   }
 
-  const crearCargo = async (data) => {
-    setSaving(true)
-    try {
-      await api.post('/cargos', data, { Authorization: `Bearer ${token}` })
-      setNuevoCargo(false)
-      showToast('exito', 'Cargo creado')
-      fetchData()
-    } catch (err) {
-      showToast('error', err?.message || 'No se pudo crear el cargo')
-    } finally { setSaving(false) }
-  }
-
   // ── Productos ──
   const crearProducto = async (data) => {
     setSaving(true)
@@ -746,29 +613,6 @@ const PagosPage = () => {
       showToast('error', err?.message || 'No se pudo eliminar el producto')
     } finally { setSaving(false) }
   }
-  const registrarVenta = async (data) => {
-    setSaving(true)
-    try {
-      await api.post('/productos/venta', data, { Authorization: `Bearer ${token}` })
-      setVentaOpen(false)
-      showToast('exito', data.cobrar ? 'Venta cobrada' : 'Venta anotada a la cuenta')
-      fetchData()
-    } catch (err) {
-      showToast('error', err?.message || 'No se pudo registrar la venta')
-    } finally { setSaving(false) }
-  }
-  const cobrarCuenta = async (data) => {
-    setSaving(true)
-    try {
-      await api.post('/cargos/cobrar-cuenta', data, { Authorization: `Bearer ${token}` })
-      setCobrarCuentaOpen(false)
-      showToast('exito', 'Cuenta cobrada')
-      fetchData()
-    } catch (err) {
-      showToast('error', err?.message || 'No se pudo cobrar la cuenta')
-    } finally { setSaving(false) }
-  }
-
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
@@ -777,40 +621,60 @@ const PagosPage = () => {
           <h2 className="text-xl md:text-2xl font-bold text-slate-800">Finanzas</h2>
           <p className="text-sm text-slate-400 mt-1">Cobranzas y gastos del club</p>
         </div>
-        {tab === 'cobranzas' && (
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <AyudaPanel titulo="Cómo funciona Finanzas">
+            <AyudaSeccion titulo="¿Qué es esta sección?">
+              <p>Acá manejás toda la plata del club: lo que te deben (<b>Cobranzas</b>), lo que gastás (<b>Gastos</b>) y el resumen diario (<b>Caja del día</b>).</p>
+            </AyudaSeccion>
+            <AyudaSeccion icon={Wallet} titulo="Cuenta de jugador">
+              <p>El botón principal. Elegís un jugador y ahí ves <b>lo que debe</b> (turnos impagos, productos, cargos) y podés <b>agregarle consumos</b> (un tubo, una bebida) o un cargo suelto (una multa).</p>
+              <p>Al final elegís: <b>Anotar a la cuenta</b> (queda como deuda) o <b>Cobrar</b> (entra a la caja al instante, con su método).</p>
+            </AyudaSeccion>
+            <AyudaSeccion icon={Package} titulo="Productos (en ⚙️)">
+              <p>Cargá tu catálogo (tubo de pelotas, grip, bebida…) para venderlos rápido desde la cuenta del jugador.</p>
+            </AyudaSeccion>
+            <AyudaSeccion icon={TrendingUp} titulo="Gastos">
+              <p>Registrá las facturas de proveedor (compras, alquiler, servicios). Podés adjuntar la foto de la factura.</p>
+            </AyudaSeccion>
+            <AyudaSeccion icon={DollarSign} titulo="Caja del día">
+              <p>El arqueo: cuánta plata entró y salió cada día, separado por método. Solo cuenta lo cobrado/pagado — las deudas pendientes no son caja.</p>
+            </AyudaSeccion>
+            <AyudaSeccion icon={Printer} titulo="Recibos y reportes">
+              <p>En cada cobro podés imprimir un <b>recibo</b>. Con el botón <b>Reporte</b> generás un PDF con la marca del club.</p>
+            </AyudaSeccion>
+          </AyudaPanel>
+          {tab === 'cobranzas' && (<>
+          {/* Configuración (catálogo + métodos) */}
+          <div className="relative">
+            <button
+              onClick={() => setSettingsOpen((o) => !o)}
+              title="Configuración"
+              className="flex items-center justify-center w-10 h-10 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+            >
+              <Settings size={16} />
+            </button>
+            {settingsOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setSettingsOpen(false)} />
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden py-1">
+                  <button onClick={() => { setCatalogoOpen(true); setSettingsOpen(false) }} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                    <Package size={15} className="text-slate-400" /> Catálogo de productos
+                  </button>
+                  <button onClick={() => { setConfigMetodos(true); setSettingsOpen(false) }} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                    <DollarSign size={15} className="text-slate-400" /> Métodos de cobro
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <button
-            onClick={() => setCatalogoOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium text-sm hover:bg-slate-50 transition-colors"
-          >
-            <Package size={15} /> Productos
-          </button>
-          <button
-            onClick={() => setConfigMetodos(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium text-sm hover:bg-slate-50 transition-colors"
-          >
-            <Settings size={15} /> Métodos de cobro
-          </button>
-          <button
-            onClick={() => setVentaOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 font-semibold text-sm transition-colors"
-          >
-            <ShoppingCart size={16} /> Vender
-          </button>
-          <button
-            onClick={() => setCobrarCuentaOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors shadow-sm"
-          >
-            <CheckCircle size={16} /> Cobrar cuenta
-          </button>
-          <button
-            onClick={() => setNuevoCargo(true)}
+            onClick={() => setCuentaOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm"
           >
-            <Plus size={16} /> Nuevo cargo
+            <Wallet size={16} /> Cuenta de jugador
           </button>
+          </>)}
         </div>
-        )}
       </div>
 
       {/* Tabs Cobranzas / Gastos */}
@@ -911,11 +775,16 @@ const PagosPage = () => {
             <span className="text-sm">Cargando cobranzas…</span>
           </div>
         ) : visibles.length === 0 ? (
-          <div className="p-12 flex flex-col items-center gap-3 text-center">
+          <div className="p-12 flex flex-col items-center gap-2 text-center max-w-md mx-auto">
             <CheckCircle size={24} className="text-slate-200" />
-            <p className="text-slate-400 text-sm">
+            <p className="text-slate-500 text-sm font-medium">
               {filtro === 'pendiente' ? 'No hay deudas pendientes 🎉' : 'Sin resultados para este filtro'}
             </p>
+            {filtro === 'pendiente' && (
+              <p className="text-slate-400 text-xs leading-relaxed">
+                Acá aparece lo que te deben los jugadores. Las deudas se generan solas (un turno que quedó impago, una inscripción a torneo) o las cargás vos con <b className="text-slate-500">Cuenta de jugador</b>.
+              </p>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-slate-50">
@@ -978,11 +847,9 @@ const PagosPage = () => {
 
       {cobrando && <ModalCobro cargo={cobrando} metodos={metodosHabilitados} onConfirm={cobrar} onClose={() => setCobrando(null)} saving={saving} />}
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}
-      {nuevoCargo && <ModalNuevoCargo jugadores={jugadores} onCreate={crearCargo} onClose={() => setNuevoCargo(false)} saving={saving} />}
+      {cuentaOpen && <ModalCuentaJugador jugadores={jugadores} productos={productos} metodos={metodosHabilitados} token={token} onClose={() => setCuentaOpen(false)} onRefresh={fetchData} showToast={showToast} />}
       {configMetodos && <ModalMetodos seleccion={metodosHabilitados} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
       {catalogoOpen && <ModalCatalogoProductos productos={productos} onCreate={crearProducto} onUpdate={actualizarProducto} onDelete={eliminarProducto} onClose={() => setCatalogoOpen(false)} saving={saving} />}
-      {ventaOpen && <ModalVenta jugadores={jugadores} productos={productos} metodos={metodosHabilitados} onSubmit={registrarVenta} onClose={() => setVentaOpen(false)} saving={saving} />}
-      {cobrarCuentaOpen && <ModalCobrarCuenta jugadores={jugadores} metodos={metodosHabilitados} token={token} onSubmit={cobrarCuenta} onClose={() => setCobrarCuentaOpen(false)} saving={saving} />}
 
       {toast && (
         <Toast

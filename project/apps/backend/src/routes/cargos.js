@@ -142,7 +142,7 @@ router.get('/cobranzas', requireAuth, requireRole('admin'), async (req, res) => 
 
 // POST /api/cargos — admin crea un cargo manual
 router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
-  const { jugadorId, concepto, monto, vencimiento } = req.body
+  const { jugadorId, concepto, monto, vencimiento, cobrar, metodoPago } = req.body
   const clubId = req.user.clubId
 
   if (!jugadorId || !concepto?.trim() || monto == null) {
@@ -167,8 +167,11 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         concepto: concepto.trim(),
         monto: montoNum,
         tipo: 'manual',
-        estado: 'pendiente',
-        vencimiento: vencimiento ? new Date(vencimiento) : null,
+        estado: cobrar ? 'pagado' : 'pendiente',
+        // Si se cobra en el acto: pagado + método; el vencimiento solo aplica si queda pendiente
+        ...(cobrar
+          ? { pagadoAt: new Date(), metodoPago: normalizarMetodo(metodoPago) }
+          : { vencimiento: vencimiento ? new Date(vencimiento) : null }),
       },
       include: { jugador: { select: { id: true, nombre: true, apellido: true, dni: true } } },
     })

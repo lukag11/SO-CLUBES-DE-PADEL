@@ -1,6 +1,19 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-14 — Módulo Finanzas: POS (productos) + Gastos/Egresos + Caja del día
+**Última actualización:** 2026-06-14 — Finanzas: "Cuenta de jugador" unificada + panel de ayuda + (en curso) checkout de cobro en grilla
+
+---
+
+## Cuenta de jugador unificada + Ayuda (2026-06-14)
+
+- **Unificación UX:** se reemplazaron los botones "Vender" + "Cobrar cuenta" + "Nuevo cargo" por **uno solo: "Cuenta de jugador"** (confundían — dos decían "Cobrar"). Productos + Métodos de cobro se movieron a un menú **⚙️**. Header limpio: `[ⓘ] [⚙️] [Cuenta de jugador]`.
+- **ModalCuentaJugador** (PagosPage): elegís jugador → ves "Lo que debe" (checks) + "Agregar consumo/cargo" (desplegable productos + opción "✏️ Otro (escribir monto)", sin pestañas) → "Anotar a cuenta" o "Cobrar". `POST /cargos` extendido para aceptar `cobrar`+`metodoPago` (cargo manual cobrable en el acto). Se eliminaron ModalCargar/ModalVenta/ModalNuevoCargo/ModalCobrarCuenta (código muerto).
+- **Ayuda reutilizable:** `components/ui/AyudaPanel.jsx` (botón ⓘ → slide-over con guía + `AyudaSeccion`). Es el patrón para replicar en otras secciones y el lugar donde a futuro vive el **asistente IA** (premium, `useFeature`). + empty state de Cobranzas que enseña.
+
+### EN CURSO — Checkout de cobro en la grilla (split por persona)
+Diseño aprobado (investigado vs Playtomic/MatchPoint/DeporWeb): cobrar el turno **desde la grilla** (no ir a Pagos). Modelo "cuenta + líneas de pago": ítems **compartidos** (se dividen) vs **individuales** (a una persona); cada persona paga método o "a cuenta". **Cada persona = jugador registrado** (efectivo o a cuenta → su ficha en Mis pagos), **casual = excepción anónima** (cargo sin jugador, contado). El cobro se registra en el **libro** (`Cargo` por persona, atado a `reservaId`+`jugadorId`) → llena Mis pagos + Caja + Cobranzas. Fase 1: un pagador identificado. Fase 2: split + ítems individuales.
+
+---
 
 ---
 

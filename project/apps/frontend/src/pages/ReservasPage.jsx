@@ -1171,12 +1171,19 @@ const FormNuevaReserva = ({ franja, cancha, onSave, onCancel }) => {
         {/* Monto + pago (no aplica a clases) */}
         {form.tipo !== 'clase' && (
           <>
-            <Input
-              label="Monto (ARS)"
-              type="number"
-              value={form.monto}
-              onChange={(e) => set('monto', e.target.value)}
-            />
+            <div>
+              <Input
+                label="Monto (ARS)"
+                type="number"
+                value={form.monto}
+                onChange={(e) => set('monto', e.target.value)}
+              />
+              {Number(form.monto) !== (cancha.precioTurno ?? 0) && (
+                <p className="mt-1.5 text-xs text-amber-600 px-1 font-medium">
+                  ⚠️ Distinto al precio de la cancha (${(cancha.precioTurno ?? 0).toLocaleString('es-AR')})
+                </p>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <Select label="Estado de pago" value={form.pago} onChange={(e) => set('pago', e.target.value)}>
                 <option value="pagado">Pagado</option>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   DollarSign, AlertTriangle, TrendingUp, Search, Plus, X,
-  CheckCircle, Trash2, Clock, Settings, Check, ShoppingCart, Package, Pencil, Minus,
+  CheckCircle, Trash2, Clock, Settings, Check, ShoppingCart, Package, Pencil, Minus, Printer, Download, FileText,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
@@ -10,6 +10,7 @@ import Toast from '../components/ui/Toast'
 import { METODOS_CATALOGO, METODO_MAP, metodosDelClub, MetodoBadge } from '../lib/metodosPago'
 import GastosTab from '../features/pagos/GastosTab'
 import CajaTab from '../features/pagos/CajaTab'
+import { imprimirRecibo, exportarCobranzasCSV, generarReporteCobranzas } from '../features/pagos/comprobantes'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 
@@ -884,6 +885,22 @@ const PagosPage = () => {
             className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400"
           />
         </div>
+        <button
+          onClick={() => generarReporteCobranzas(visibles, club, `${FILTROS.find((f) => f.id === filtro)?.label ?? ''}${tipoFiltro !== 'todos' ? ' · ' + (TIPOS_FILTRO.find((t) => t.id === tipoFiltro)?.label ?? '') : ''}`)}
+          disabled={visibles.length === 0}
+          title="Generar reporte PDF"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-medium text-xs transition-colors disabled:opacity-40"
+        >
+          <FileText size={14} /> Reporte
+        </button>
+        <button
+          onClick={() => exportarCobranzasCSV(visibles)}
+          disabled={visibles.length === 0}
+          title="Exportar a CSV (para el contador)"
+          className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-slate-500 font-medium text-xs hover:bg-slate-50 transition-colors disabled:opacity-40"
+        >
+          <Download size={14} /> CSV
+        </button>
       </div>
 
       {/* Lista */}
@@ -946,6 +963,9 @@ const PagosPage = () => {
                       <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
                         <CheckCircle size={12} /> Pagado
                       </span>
+                      <button onClick={() => imprimirRecibo(c, club)} title="Imprimir recibo" className="text-slate-300 hover:text-brand-500 p-1">
+                        <Printer size={14} />
+                      </button>
                     </div>
                   )}
                 </div>

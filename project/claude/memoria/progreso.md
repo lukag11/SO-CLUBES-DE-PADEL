@@ -24,8 +24,13 @@ PagosPage pasó de "Cobranzas" a un hub financiero con tabs: **Cobranzas | Gasto
 - `GET /caja?fecha=YYYY-MM-DD` → ingresos (reservas+cargos pagados) − egresos (gastos pagados) **por método**, del día (pagadoAt en hora ARG via nuevo helper `rangoDiaArg`). Solo movimientos pagados (deudas pendientes NO son caja).
 - Frontend: `features/pagos/CajaTab.jsx` (selector de día ◄►, 3 tarjetas Ingresos/Egresos/Neto, desglose por método).
 
+### Bloque D — Recibo + Bloque E — Reporte/Export + hint
+- `features/pagos/comprobantes.js` (cliente, sin deps): `imprimirRecibo(deuda, club)` (constancia interna de pago, branded), `generarReporteCobranzas(deudas, club, filtroLabel)` (reporte **PDF branded** vía print: logo+color del club, chips resumen, tabla por estado/método — respeta el filtro), `exportarCobranzasCSV` (secundario, para el contador).
+- PagosPage: botón impresora 🖨️ en filas pagadas (recibo); toolbar con "Reporte" (PDF, principal) + "CSV" (secundario).
+- Hint ámbar en monto de reserva nueva (ReservasPage, FormNuevaReserva): avisa si el monto difiere de `cancha.precioTurno`. Cambio quirúrgico, no se refactorizó el archivo frágil.
+
 ### Pendiente del módulo
-- Bloque D: recibo/comprobante imprimible. Bloque E: exportación CSV + hint ámbar en monto de reserva. Checkout (Cobrar cuenta): revisar con el usuario (tiene dudas).
+- Checkout (Cobrar cuenta): el usuario lo va a revisar (tiene dudas).
 
 ---
 

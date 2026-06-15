@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   DollarSign, AlertTriangle, TrendingUp, Search, Plus, X,
-  CheckCircle, Trash2, Clock, Settings, Check, Package, Pencil, Minus, Printer, Download, FileText, Wallet,
+  CheckCircle, Trash2, Clock, Settings, Check, Package, Pencil, Minus, Printer, Download, FileText, Wallet, RotateCcw,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
@@ -61,13 +61,13 @@ const TotalCard = ({ label, value, sub, icon: Icon, color, bg }) => (
 )
 
 // ── Modal: registrar cobro (elegir método entre los habilitados) ─────────────
-const ModalCobro = ({ cargo, metodos, onConfirm, onClose, saving }) => (
+const ModalCobro = ({ cargo, metodos, onConfirm, onClose, saving, titulo = 'Registrar cobro' }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
     <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
     <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
       <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
         <div>
-          <p className="text-slate-800 font-bold">Registrar cobro</p>
+          <p className="text-slate-800 font-bold">{titulo}</p>
           <p className="text-slate-400 text-xs mt-0.5">{cargo.concepto} · {money(cargo.monto)}</p>
         </div>
         <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
@@ -171,6 +171,37 @@ const ModalEliminar = ({ cargo, onConfirm, onClose, saving }) => (
           </button>
           <button onClick={onConfirm} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
             {saving ? 'Guardando…' : (cargo.origen === 'reserva' ? 'Sí, quitar' : 'Sí, eliminar')}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)
+
+// ── Modal: confirmar anulación de un cobro (corrección del momento) ───────────
+const ModalAnular = ({ cargo, onConfirm, onClose, saving }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+    <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="p-6 flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+            <RotateCcw size={18} className="text-amber-500" />
+          </div>
+          <div>
+            <p className="text-slate-800 font-bold">Anular cobro</p>
+            <p className="text-slate-400 text-xs mt-0.5">{cargo.concepto} · {money(cargo.monto)}</p>
+          </div>
+        </div>
+        <p className="text-slate-500 text-sm leading-relaxed">
+          Este cobro vuelve a <span className="font-semibold text-slate-700">pendiente</span> y <span className="font-semibold text-slate-700">sale de la caja del día</span>. Usalo para corregir un cobro recién hecho por error.
+        </p>
+        <div className="flex gap-2 mt-1">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium text-sm hover:bg-slate-50 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={onConfirm} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
+            {saving ? 'Anulando…' : 'Sí, anular'}
           </button>
         </div>
       </div>
@@ -478,6 +509,8 @@ const PagosPage = () => {
   const [search, setSearch] = useState('')
   const [cobrando, setCobrando] = useState(null)   // cargo en proceso de cobro
   const [eliminando, setEliminando] = useState(null) // cargo a eliminar
+  const [anulando, setAnulando] = useState(null)   // cobro pagado a revertir a pendiente
+  const [cambiandoMetodo, setCambiandoMetodo] = useState(null) // cobro pagado al que se le corrige el método
   const [cuentaOpen, setCuentaOpen] = useState(false)
   const [configMetodos, setConfigMetodos] = useState(false)
   const [catalogoOpen, setCatalogoOpen] = useState(false)
@@ -582,6 +615,40 @@ const PagosPage = () => {
       fetchData()
     } catch (err) {
       showToast('error', err?.message || 'No se pudo eliminar')
+    } finally { setSaving(false) }
+  }
+
+  // Anula un cobro recién hecho por error → vuelve a pendiente (sale de la caja)
+  const anular = async () => {
+    setSaving(true)
+    try {
+      if (anulando.origen === 'reserva') {
+        await api.patch(`/reservas/${anulando.refId}/pago`, { pagado: false, metodoPago: null }, { Authorization: `Bearer ${token}` })
+      } else {
+        await api.patch(`/cargos/${anulando.refId}/estado`, { estado: 'pendiente' }, { Authorization: `Bearer ${token}` })
+      }
+      setAnulando(null)
+      showToast('exito', 'Cobro anulado · volvió a pendiente')
+      fetchData()
+    } catch (err) {
+      showToast('error', err?.message || 'No se pudo anular el cobro')
+    } finally { setSaving(false) }
+  }
+
+  // Corrige el método de un cobro ya pagado (ej: cobró efectivo pero era QR)
+  const cambiarMetodo = async (metodoPago) => {
+    setSaving(true)
+    try {
+      if (cambiandoMetodo.origen === 'reserva') {
+        await api.patch(`/reservas/${cambiandoMetodo.refId}/pago`, { pagado: true, metodoPago }, { Authorization: `Bearer ${token}` })
+      } else {
+        await api.patch(`/cargos/${cambiandoMetodo.refId}/estado`, { estado: 'pagado', metodoPago }, { Authorization: `Bearer ${token}` })
+      }
+      setCambiandoMetodo(null)
+      showToast('exito', 'Método actualizado')
+      fetchData()
+    } catch (err) {
+      showToast('error', err?.message || 'No se pudo cambiar el método')
     } finally { setSaving(false) }
   }
 
@@ -808,9 +875,9 @@ const PagosPage = () => {
                   </p>
                 </div>
 
-                <p className="text-slate-800 font-bold text-sm shrink-0">{money(c.monto)}</p>
+                <p className="text-slate-800 font-bold text-sm shrink-0 w-20 text-right">{money(c.monto)}</p>
 
-                <div className="shrink-0 w-[180px] flex items-center justify-end gap-2">
+                <div className="shrink-0 flex items-center justify-end gap-1.5">
                   {c.estado === 'pendiente' ? (
                     <>
                       <button
@@ -828,12 +895,17 @@ const PagosPage = () => {
                     </>
                   ) : (
                     <div className="flex items-center gap-1.5">
-                      <MetodoBadge metodo={c.metodoPago} />
+                      <button onClick={() => setCambiandoMetodo(c)} title="Cambiar método" className="hover:opacity-70 transition-opacity">
+                        <MetodoBadge metodo={c.metodoPago} />
+                      </button>
                       <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
                         <CheckCircle size={12} /> Pagado
                       </span>
                       <button onClick={() => imprimirRecibo(c, club)} title="Imprimir recibo" className="text-slate-300 hover:text-brand-500 p-1">
                         <Printer size={14} />
+                      </button>
+                      <button onClick={() => setAnulando(c)} title="Anular cobro (vuelve a pendiente)" className="text-slate-300 hover:text-amber-500 p-1">
+                        <RotateCcw size={14} />
                       </button>
                     </div>
                   )}
@@ -846,6 +918,8 @@ const PagosPage = () => {
       </>)}
 
       {cobrando && <ModalCobro cargo={cobrando} metodos={metodosHabilitados} onConfirm={cobrar} onClose={() => setCobrando(null)} saving={saving} />}
+      {cambiandoMetodo && <ModalCobro cargo={cambiandoMetodo} metodos={metodosHabilitados} onConfirm={cambiarMetodo} onClose={() => setCambiandoMetodo(null)} saving={saving} titulo="Cambiar método" />}
+      {anulando && <ModalAnular cargo={anulando} onConfirm={anular} onClose={() => setAnulando(null)} saving={saving} />}
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}
       {cuentaOpen && <ModalCuentaJugador jugadores={jugadores} productos={productos} metodos={metodosHabilitados} token={token} onClose={() => setCuentaOpen(false)} onRefresh={fetchData} showToast={showToast} />}
       {configMetodos && <ModalMetodos seleccion={metodosHabilitados} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}

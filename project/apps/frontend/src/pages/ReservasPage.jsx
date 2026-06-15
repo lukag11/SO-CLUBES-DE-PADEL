@@ -3578,7 +3578,7 @@ const ReservasPage = () => {
             <CheckoutTurno
               reserva={checkoutReserva}
               token={adminToken}
-              onClose={() => setCheckoutReserva(null)}
+              onClose={() => { setCheckoutReserva(null); fetchReservasBackend(fecha) }}
               onDone={(cobrado) => { setCheckoutReserva(null); fetchReservasBackend(fecha); showToast('reserva', cobrado ? 'Cobro registrado' : 'Anotado a la cuenta') }}
             />
           )}

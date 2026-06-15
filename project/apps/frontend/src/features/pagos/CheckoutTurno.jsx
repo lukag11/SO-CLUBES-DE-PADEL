@@ -27,15 +27,19 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   const metodoDefault = metodos[0] ?? 'efectivo'
 
   const precio = reserva.monto || 0
-  const pagadoTurno = reserva.pagadoTurno || 0
-  const aCuentaTurno = reserva.aCuentaTurno || 0
-  // Monto del turno que todavía se puede asignar/cobrar acá (descuenta lo cobrado y lo ya a cuenta)
-  const saldoTurno = reserva.restanteTurno ?? Math.max(0, precio - pagadoTurno)
   const titularNombre = reserva.jugadores?.[0] || 'Titular'
   const hayTitular = !!reserva.jugadorId
-  // Lo que ya está registrado en esta cuenta (porciones + consumos de cobros anteriores)
-  const yaEnCuenta = Array.isArray(reserva.cargosCuenta) ? reserva.cargosCuenta : []
-  const turnoSaldado = (reserva.restanteTurno ?? (precio - pagadoTurno)) <= 0 && (pagadoTurno + aCuentaTurno) > 0
+
+  // Líneas ya registradas del turno (porciones + consumos) en estado LOCAL → el ticket se
+  // corrige (anular/cobrar/quitar) sin cerrar el modal y los totales se recalculan en vivo.
+  const [cuenta, setCuenta] = useState(Array.isArray(reserva.cargosCuenta) ? reserva.cargosCuenta : [])
+  const cargosTurno = cuenta.filter((c) => c.tipo === 'reserva')
+  const pagadoTurno = (reserva.pagadoSimple ? precio : 0) + cargosTurno.filter((c) => c.estado === 'pagado').reduce((s, c) => s + c.monto, 0)
+  const aCuentaTurno = cargosTurno.filter((c) => c.estado === 'pendiente').reduce((s, c) => s + c.monto, 0)
+  // Monto del turno que todavía se puede asignar/cobrar acá (descuenta lo cobrado y lo ya a cuenta)
+  const saldoTurno = Math.max(0, precio - pagadoTurno - aCuentaTurno)
+  const turnoSaldado = saldoTurno <= 0 && (pagadoTurno + aCuentaTurno) > 0
+  const yaEnCuenta = cuenta
 
   const [productos, setProductos] = useState([])
   const [mode, setMode] = useState('simple')        // 'simple' | 'split'
@@ -112,6 +116,26 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   const cambiarCant = (lid, d, setter) => setter((prev) => prev.map((l) => l.id === lid ? { ...l, cantidad: Math.max(1, l.cantidad + d) } : l))
   const quitarLinea = (lid, setter) => setter((prev) => prev.filter((l) => l.id !== lid))
 
+  // ── Acciones del ticket (corregir líneas ya registradas) ──
+  const accionTicket = async (req, optimista) => {
+    setError(''); setSaving(true)
+    try { await req(); optimista() }
+    catch (e) { setError(e?.message || 'No se pudo aplicar el cambio') }
+    finally { setSaving(false) }
+  }
+  const anularLinea = (c) => accionTicket(
+    () => api.patch(`/cargos/${c.id}/estado`, { estado: 'pendiente' }, auth),
+    () => setCuenta((prev) => prev.map((x) => x.id === c.id ? { ...x, estado: 'pendiente', metodoPago: null } : x)),
+  )
+  const cobrarLinea = (c, metodo) => accionTicket(
+    () => api.patch(`/cargos/${c.id}/estado`, { estado: 'pagado', metodoPago: metodo }, auth),
+    () => setCuenta((prev) => prev.map((x) => x.id === c.id ? { ...x, estado: 'pagado', metodoPago: metodo } : x)),
+  )
+  const eliminarLineaTicket = (c) => accionTicket(
+    () => api.delete(`/cargos/${c.id}`, auth),
+    () => setCuenta((prev) => prev.filter((x) => x.id !== c.id)),
+  )
+
   // ── Submit ──
   const submit = async () => {
     setError('')
@@ -175,19 +199,12 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
               : <span className="text-slate-400">sin cobrar</span>}
           </div>
 
-          {/* Desglose de lo ya registrado (reapertura) */}
+          {/* Ticket de lo ya registrado (reapertura) — accionable: anular / cobrar / quitar */}
           {yaEnCuenta.length > 0 && (
-            <div className="mt-2 rounded-xl border border-slate-100 divide-y divide-slate-50">
-              <p className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Ya en la cuenta</p>
+            <div className="mt-2 rounded-xl border border-slate-100 divide-y divide-slate-50 max-h-52 overflow-y-auto">
+              <p className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wide bg-white sticky top-0 z-10">Ya en la cuenta</p>
               {yaEnCuenta.map((c) => (
-                <div key={c.id} className="flex items-center gap-2 px-3 py-1.5 text-xs">
-                  <span className="text-slate-500 w-28 truncate shrink-0">{c.jugador ? `${c.jugador.nombre} ${c.jugador.apellido}` : 'Casual'}</span>
-                  <span className="flex-1 text-slate-600 truncate">{c.tipo === 'reserva' ? 'Turno' : c.concepto}</span>
-                  {c.estado === 'pagado'
-                    ? <span className="text-emerald-600 shrink-0">{METODO_MAP[c.metodoPago]?.label ?? 'cobrado'}</span>
-                    : <span className="text-blue-600 shrink-0">a cuenta</span>}
-                  <span className="text-slate-700 font-medium w-16 text-right shrink-0">{money(c.monto)}</span>
-                </div>
+                <TicketLinea key={c.id} c={c} metodos={metodos} saving={saving} onAnular={anularLinea} onCobrar={cobrarLinea} onQuitar={eliminarLineaTicket} />
               ))}
             </div>
           )}
@@ -233,6 +250,44 @@ const esACuenta = (pagador, cobrar) => pagador === 'titular' && !cobrar
 const serializarLinea = (l) => ({ concepto: l.cantidad > 1 ? `${l.cantidad}× ${l.nombre}` : l.nombre, monto: l.precio * l.cantidad })
 
 // ─── Adder de consumiciones reutilizable ───────────────────────────────────────
+// ─── Línea del ticket (ya registrada) con acciones: anular / cobrar / quitar / cambiar método ──
+const TicketLinea = ({ c, metodos, saving, onAnular, onCobrar, onQuitar }) => {
+  const [picker, setPicker] = useState(null) // null | 'cobrar' | 'metodo'
+  const nombre = c.jugador ? `${c.jugador.nombre} ${c.jugador.apellido}` : 'Casual'
+  return (
+    <div className="px-3 py-1.5 text-xs">
+      <div className="flex items-center gap-2">
+        <span className="text-slate-500 w-24 truncate shrink-0">{nombre}</span>
+        <span className="flex-1 text-slate-600 truncate">{c.tipo === 'reserva' ? 'Turno' : c.concepto}</span>
+        <span className="text-slate-700 font-medium shrink-0">{money(c.monto)}</span>
+      </div>
+      <div className="flex items-center gap-2.5 mt-1 justify-end">
+        {c.estado === 'pagado' ? (
+          <>
+            <button onClick={() => setPicker(picker === 'metodo' ? null : 'metodo')} disabled={saving} className="text-emerald-600 hover:underline">{METODO_MAP[c.metodoPago]?.label ?? 'cobrado'} ✎</button>
+            <button onClick={() => onAnular(c)} disabled={saving} className="text-amber-600 hover:underline">Anular</button>
+          </>
+        ) : (
+          <>
+            <span className="text-blue-600">a cuenta</span>
+            <button onClick={() => setPicker(picker === 'cobrar' ? null : 'cobrar')} disabled={saving} className="text-emerald-600 hover:underline">Cobrar</button>
+            <button onClick={() => onQuitar(c)} disabled={saving} className="text-rose-500 hover:underline">Quitar</button>
+          </>
+        )}
+      </div>
+      {picker && (
+        <div className="flex flex-wrap gap-1.5 mt-1 justify-end">
+          {metodos.map((id) => (
+            <button key={id} onClick={() => { onCobrar(c, id); setPicker(null) }} disabled={saving} className="px-2 py-0.5 rounded-md border border-slate-200 text-slate-600 hover:border-brand-400 hover:bg-brand-50">
+              {METODO_MAP[id]?.label ?? id}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const ConsumoAdder = ({ activos, onAdd, onAddOtro }) => {
   const [sel, setSel] = useState('')
   const [otroNombre, setOtroNombre] = useState('')

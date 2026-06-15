@@ -1,6 +1,23 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-15 — Checkout en grilla FASE 2 (split por persona) + margen de gracia + estado "Parcial/En cuenta"
+**Última actualización:** 2026-06-15 — Anular/editar cobro + ticket por turno accionable (corrección del momento)
+
+---
+
+## Anular/editar cobro + ticket por turno (2026-06-15)
+
+Corrección de cobros y gestión de la cuenta del turno desde un solo lugar (sin sección nueva). Regla acordada: corregir es **solo del momento/hoy** ("no viene un cliente días pasados a decir che me cobraste mal").
+
+### Anular / cambiar método en Cobranzas (PagosPage)
+- Pestaña **Pagados**: cada cobro tiene 🔄 **Anular** (`ModalAnular` confirma → vuelve a pendiente, sale de caja; backend `PATCH /cargos/:id/estado {estado:'pendiente'}` o `/reservas/:id/pago {pagado:false}`) + **cambiar método** (clic en el badge → `ModalCobro` con `titulo="Cambiar método"`). Estados `anulando`/`cambiandoMetodo`, funciones `anular()`/`cambiarMetodo()`.
+- Cubre todos los cargos (consumos, productos, porciones de split, torneos, manuales). Un turno pagado en **simple** no figura en Cobranzas → se corrige desde la grilla ("Marcar impago").
+- **Fix grilla cortada:** la fila pagada tenía ancho fijo `w-[180px]` que con el botón Anular desbordaba y tapaba el monto → monto `w-20 text-right`, acciones de ancho automático.
+
+### Ticket por turno accionable (CheckoutTurno)
+- El bloque **"Ya en la cuenta"** dejó de ser read-only: `cuenta` en estado LOCAL (init de `reserva.cargosCuenta`), los totales (pagado/aCuenta/saldo) se derivan de ahí y se recalculan **en vivo**.
+- `TicketLinea` por línea: pagada → **Anular** + cambiar método (selector inline); a cuenta → **Cobrar** (selector método inline) + **Quitar** (delete cargo). Handlers `anularLinea`/`cobrarLinea`/`eliminarLineaTicket` (optimistas + `PATCH/DELETE /cargos`).
+- **Cerveza olvidada:** "Agregar consumo" funciona aunque el turno esté pagado/cerrado (suma línea nueva sin tocar lo cobrado).
+- Scroll propio en "Ya en la cuenta" (`max-h-52 overflow-y-auto`, título sticky) para no romper el layout del modal. Al cerrar el checkout, la grilla refetchea (refleja correcciones).
 
 ---
 

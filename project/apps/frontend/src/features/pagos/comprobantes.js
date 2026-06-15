@@ -158,6 +158,87 @@ export const generarReporteCobranzas = (deudas, club, filtroLabel = 'Todas') => 
   win.document.close()
 }
 
+// ── Reporte y CSV de GASTOS ──────────────────────────────────────────────────
+// gastos: lista filtrada; club: branding; filtroLabel: descripción del filtro.
+export const generarReporteGastos = (gastos, club, filtroLabel = 'Todos') => {
+  const color = club?.colorPrimario || '#afca0b'
+  const hoy = new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const logo = club?.logo ? `<img src="${esc(club.logo)}" style="max-height:46px;max-width:150px;object-fit:contain" />` : ''
+  const fmt = (d) => d ? new Date(d + (String(d).length === 10 ? 'T00:00:00' : '')).toLocaleDateString('es-AR') : ''
+
+  const pagados = gastos.filter((g) => g.pagado)
+  const pendientes = gastos.filter((g) => !g.pagado)
+  const totalPag = pagados.reduce((s, g) => s + (g.monto ?? 0), 0)
+  const totalPend = pendientes.reduce((s, g) => s + (g.monto ?? 0), 0)
+
+  const filas = gastos.map((g, i) => `<tr style="background:${i % 2 ? '#f8fafc' : '#fff'}">
+    <td>${esc(fmt(g.fecha))}</td>
+    <td>${esc(g.concepto)}</td>
+    <td>${esc(g.proveedor || '—')}</td>
+    <td>${esc(g.categoria || '—')}</td>
+    <td>${g.pagado ? '<span style="color:#059669;font-weight:600">Pagado</span>' : '<span style="color:#d97706;font-weight:600">A pagar</span>'}</td>
+    <td>${esc(g.pagado ? (METODO_MAP[g.metodoPago]?.label ?? '—') : '—')}</td>
+    <td style="text-align:right;font-weight:600">${esc(money(g.monto))}</td>
+  </tr>`).join('')
+
+  const win = window.open('', '_blank', 'width=900,height=700')
+  if (!win) return
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Reporte de gastos</title>
+  <style>
+    *{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,sans-serif}
+    body{margin:0;padding:32px;color:#1e293b;font-size:13px}
+    .head{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid ${color};padding-bottom:16px;margin-bottom:20px}
+    .club{font-size:20px;font-weight:800}
+    .meta{text-align:right;font-size:12px;color:#64748b}
+    h1{font-size:16px;margin:0 0 4px}
+    .chips{display:flex;gap:12px;margin:18px 0}
+    .chip{flex:1;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px}
+    .chip .l{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+    .chip .v{font-size:20px;font-weight:800;margin-top:2px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8;border-bottom:2px solid #e2e8f0;padding:8px 10px}
+    th:last-child{text-align:right}
+    td{padding:8px 10px;border-bottom:1px solid #f1f5f9}
+    .foot{margin-top:18px;text-align:center;font-size:11px;color:#94a3b8}
+    @media print{body{padding:14px} tr{break-inside:avoid}}
+  </style></head><body>
+    <div class="head">
+      <div>${logo}<div class="club">${esc(club?.nombre || 'Club de Pádel')}</div></div>
+      <div class="meta"><h1>Reporte de gastos</h1>Filtro: ${esc(filtroLabel)}<br/>Generado: ${esc(hoy)}</div>
+    </div>
+    <div class="chips">
+      <div class="chip"><div class="l">Registros</div><div class="v">${gastos.length}</div></div>
+      <div class="chip"><div class="l">A pagar</div><div class="v" style="color:#d97706">${esc(money(totalPend))}</div></div>
+      <div class="chip"><div class="l">Pagado</div><div class="v" style="color:#059669">${esc(money(totalPag))}</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Fecha</th><th>Concepto</th><th>Proveedor</th><th>Categoría</th><th>Estado</th><th>Método</th><th>Monto</th></tr></thead>
+      <tbody>${filas || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px">Sin registros</td></tr>'}</tbody>
+    </table>
+    <div class="foot">${esc(club?.nombre || '')} · Reporte interno de gastos</div>
+    <script>window.onload=function(){window.print()}</script>
+  </body></html>`)
+  win.document.close()
+}
+
+export const exportarGastosCSV = (gastos, nombreArchivo = 'gastos') => {
+  const cols = ['Fecha', 'Concepto', 'Proveedor', 'Categoría', 'Monto', 'Estado', 'Método', 'N° factura', 'Pagado el']
+  const celda = (v) => { const s = String(v ?? ''); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+  const fmt = (d) => d ? new Date(d).toLocaleDateString('es-AR') : ''
+  const filas = gastos.map((g) => [
+    fmt(g.fecha), g.concepto, g.proveedor ?? '', g.categoria ?? '', g.monto,
+    g.pagado ? 'Pagado' : 'A pagar', METODO_MAP[g.metodoPago]?.label ?? '', g.numeroFactura ?? '', fmt(g.pagadoAt),
+  ].map(celda).join(';'))
+  const csv = '﻿' + [cols.join(';'), ...filas].join('\r\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${nombreArchivo}-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 // Descarga un CSV (compatible Excel es-AR) con las cobranzas dadas.
 export const exportarCobranzasCSV = (deudas, nombreArchivo = 'cobranzas') => {
   const cols = ['Fecha', 'Jugador', 'DNI', 'Concepto', 'Tipo', 'Monto', 'Estado', 'Método', 'Pagado el']

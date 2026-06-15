@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { TrendingDown, AlertTriangle, Plus, X, Trash2, CheckCircle, Pencil, Camera, Loader2, FileText } from 'lucide-react'
+import { TrendingDown, AlertTriangle, Plus, X, Trash2, CheckCircle, Pencil, Camera, Loader2, FileText, Download } from 'lucide-react'
 import { api, uploadImage } from '../../lib/api'
 import Toast from '../../components/ui/Toast'
 import { METODO_MAP, MetodoBadge } from '../../lib/metodosPago'
+import { generarReporteGastos, exportarGastosCSV } from './comprobantes'
+import useClubStore from '../../store/clubStore'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
@@ -180,6 +182,7 @@ const ModalPagarGasto = ({ gasto, metodos, onConfirm, onClose, saving }) => (
 
 // ── Tab de Gastos / Egresos ──────────────────────────────────────────────────
 const GastosTab = ({ token, metodos }) => {
+  const club = useClubStore((s) => s.club)
   const [gastos, setGastos] = useState([])
   const [resumen, setResumen] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -282,6 +285,14 @@ const GastosTab = ({ token, metodos }) => {
             {categoriasGasto.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
+        <div className="flex items-center gap-2 ml-auto">
+          <button onClick={() => generarReporteGastos(visibles, club, `${filtro === 'todos' ? 'Todos' : filtro === 'pagado' ? 'Pagados' : 'A pagar'}${catFiltro !== 'todas' ? ` · ${catFiltro}` : ''}`)} disabled={visibles.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition-colors disabled:opacity-40">
+            <FileText size={14} /> Reporte
+          </button>
+          <button onClick={() => exportarGastosCSV(visibles)} disabled={visibles.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors disabled:opacity-40">
+            <Download size={14} /> CSV
+          </button>
+        </div>
       </div>
 
       {/* Lista */}

@@ -1,6 +1,20 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-15 — Venta de mostrador (Nivel 1) + (próximo) reorganización IA de Pagos + comanda abierta
+**Última actualización:** 2026-06-15 — Pagos reorganizado en 4 tabs (Ventas/Cobranzas/Gastos/Caja) + buscador de deudores
+
+---
+
+## Reorganización IA de Pagos — 4 tabs + buscador (2026-06-15)
+
+Pagos pasó a **4 tabs** para separar actividades (antes era "un bollo"). Criterio: **vender = acción** (Ventas), **deuda = estado** (Cobranzas).
+- **Ventas (POS)** [default] — vender productos: a visitante (mostrador, contado) o a jugador (a cuenta/cobrado). Botón "Nueva venta". Acá vivirá la comanda abierta.
+- **Cobranzas** — solo deudas: lista + cobrar. Botón "Cobrar cuenta".
+- **Gastos** · **Caja del día** — igual.
+- `ModalCuentaJugador` ahora tiene prop `modo` ('venta' | 'cobro'): venta muestra toggle Jugador/Mostrador + productos; cobro muestra deudas del jugador. Mismo componente, secciones gateadas. Fix: en venta no se traen/cobran las deudas del jugador (efecto fetchDeudas solo en cobro).
+- **`JugadorPicker`** (reemplaza el `<select>` feo): en cobro muestra la **lista de deudores con avatar + total + nº deudas** (de entrada, buscable por nombre/DNI); en venta autocompleta sobre todos los jugadores. `deudores` se computa en PagosPage agrupando `deudas` pendientes por jugador. `AvatarJ` (iniciales + color por hash).
+
+### Próximo: Comanda abierta (Nivel 2)
+Mesa/tab de visitante que acumula ítems y se paga junta al cerrar, con historial. Modelo `Comanda` + `Cargo.comandaId`. Vive en la tab **Ventas** ("Mesas abiertas" + "Nueva mesa").
 
 ---
 

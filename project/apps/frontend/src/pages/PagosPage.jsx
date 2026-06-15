@@ -304,9 +304,80 @@ const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onClo
 }
 
 // ── Modal: CUENTA DE JUGADOR (unificado) — ver lo que debe + cobrar + agregar consumos/cargos ──
-const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onRefresh, showToast, initialMostrador = false }) => {
+// Avatar con iniciales y color derivado del nombre (consistente por jugador)
+const AvatarJ = ({ nombre = '', apellido = '' }) => {
+  const ini = `${nombre[0] ?? ''}${apellido[0] ?? ''}`.toUpperCase()
+  const hue = [...`${nombre}${apellido}`].reduce((a, c) => a + c.charCodeAt(0), 0) * 37 % 360
+  return (
+    <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+      style={{ background: `hsl(${hue} 70% 92%)`, color: `hsl(${hue} 55% 35%)` }}>
+      {ini || '?'}
+    </div>
+  )
+}
+
+// Buscador de jugador. Modo cobro (deudores != null): muestra de entrada la lista de
+// deudores con avatar + total adeudado, buscable. Modo venta: autocompleta sobre todos.
+const JugadorPicker = ({ jugadores, deudores = null, value, onChange, placeholder }) => {
+  const [q, setQ] = useState('')
+  const esCobro = deudores !== null
+  const sel = (deudores ?? jugadores).find((j) => j.id === value) || jugadores.find((j) => j.id === value)
+  const inputCls = 'w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
+
+  if (sel) {
+    return (
+      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-brand-200 bg-brand-50/50">
+        <AvatarJ nombre={sel.nombre} apellido={sel.apellido} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-700 truncate">{sel.nombre} {sel.apellido}</p>
+          <p className="text-[11px] text-slate-400">DNI {sel.dni}{sel.total ? ` · debe ${money(sel.total)}` : ''}</p>
+        </div>
+        <button onClick={() => { onChange(''); setQ('') }} className="text-xs text-slate-400 hover:text-rose-500 font-medium shrink-0">Cambiar</button>
+      </div>
+    )
+  }
+
+  const term = q.trim().toLowerCase()
+  const matches = (j) => `${j.nombre} ${j.apellido} ${j.dni ?? ''}`.toLowerCase().includes(term)
+  // Cobro: mostrar deudores de entrada (sin tipear). Venta: solo al tipear.
+  const lista = esCobro
+    ? (term ? deudores.filter(matches) : deudores)
+    : (term ? jugadores.filter(matches).slice(0, 8) : [])
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder ?? (esCobro ? 'Buscar deudor por nombre o DNI…' : 'Buscar jugador por nombre o DNI…')} className={inputCls} autoFocus />
+      </div>
+      {esCobro && deudores.length === 0 ? (
+        <p className="text-sm text-slate-400 bg-emerald-50/50 rounded-xl px-3 py-2.5">Nadie tiene deudas pendientes 🎉</p>
+      ) : (
+        <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+          {lista.length === 0
+            ? <p className="px-1 py-2 text-xs text-slate-400">{term ? 'Sin resultados' : 'Escribí para buscar…'}</p>
+            : lista.map((j) => (
+              <button key={j.id} onClick={() => { onChange(j.id); setQ('') }} className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-xl hover:bg-slate-50 text-left transition-colors">
+                <AvatarJ nombre={j.nombre} apellido={j.apellido} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-700 truncate">{j.nombre} {j.apellido}</p>
+                  <p className="text-[11px] text-slate-400">DNI {j.dni}{j.count ? ` · ${j.count} deuda${j.count !== 1 ? 's' : ''}` : ''}</p>
+                </div>
+                {j.total ? <span className="text-sm font-bold text-amber-600 shrink-0">{money(j.total)}</span> : null}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// modo: 'venta' (vender productos a jugador/mostrador) | 'cobro' (cobrar deudas de un jugador)
+const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, token, onClose, onRefresh, showToast, modo = 'cobro', initialMostrador = false }) => {
+  const esVenta = modo === 'venta'
+  const esCobro = modo === 'cobro'
   const [jugadorId, setJugadorId] = useState('')
-  const [mostrador, setMostrador] = useState(initialMostrador) // venta a visitante sin ficha (contado)
+  const [mostrador, setMostrador] = useState(esVenta && initialMostrador) // venta a visitante sin ficha (contado)
   const [deudas, setDeudas] = useState([])
   const [selDeuda, setSelDeuda] = useState({})
   const [loadingDeudas, setLoadingDeudas] = useState(false)
@@ -331,7 +402,7 @@ const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onR
       setSelDeuda(Object.fromEntries(pend.map((d) => [d.id, true])))
     } catch { setDeudas([]) } finally { setLoadingDeudas(false) }
   }
-  useEffect(() => { fetchDeudas(jugadorId) }, [jugadorId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (esCobro) fetchDeudas(jugadorId) }, [jugadorId, esCobro]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const agregarLinea = () => {
     if (sel === '__otro__') {
@@ -393,29 +464,26 @@ const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onR
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
       <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <p className="text-slate-800 font-bold">{mostrador ? 'Venta de mostrador' : 'Cuenta de jugador'}</p>
+          <p className="text-slate-800 font-bold">{esCobro ? 'Cobrar cuenta' : mostrador ? 'Venta de mostrador' : 'Nueva venta'}</p>
           <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
         </div>
         <div className="overflow-y-auto p-6 flex flex-col gap-5">
-          {/* ¿A quién? Jugador con ficha o venta de mostrador (sin ficha, contado) */}
+          {/* ¿A quién? En venta: toggle Jugador/Mostrador. En cobro: siempre un jugador. */}
           <div>
-            <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 mb-2">
-              <button onClick={() => setMostrador(false)} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${!mostrador ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Jugador</button>
-              <button onClick={() => { setMostrador(true); setJugadorId('') }} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${mostrador ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Mostrador / casual</button>
-            </div>
+            {esVenta && (
+              <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 mb-2">
+                <button onClick={() => setMostrador(false)} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${!mostrador ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Jugador</button>
+                <button onClick={() => { setMostrador(true); setJugadorId('') }} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${mostrador ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Mostrador / casual</button>
+              </div>
+            )}
             {mostrador
               ? <p className="text-[11px] text-slate-400">Venta a un visitante sin ficha. Se cobra al contado (no queda a cuenta).</p>
-              : (
-                <select value={jugadorId} onChange={(e) => setJugadorId(e.target.value)} className={`w-full ${inputCls}`}>
-                  <option value="">Seleccioná un jugador…</option>
-                  {jugadores.map((j) => <option key={j.id} value={j.id}>{j.nombre} {j.apellido} — DNI {j.dni}</option>)}
-                </select>
-              )}
+              : <JugadorPicker jugadores={jugadores} deudores={esCobro ? deudores : null} value={jugadorId} onChange={setJugadorId} />}
           </div>
 
           {(mostrador || jugadorId) && (<>
-            {/* ── Lo que debe (solo para jugador con ficha) ── */}
-            {!mostrador && (
+            {/* ── Lo que debe (solo en modo cobro) ── */}
+            {esCobro && (
             <div>
               <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Lo que debe</p>
               {loadingDeudas ? (
@@ -439,7 +507,8 @@ const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onR
             </div>
             )}
 
-            {/* ── Agregar consumo / cargo ── */}
+            {/* ── Productos / consumos (solo en modo venta) ── */}
+            {esVenta && (
             <div>
               <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">{mostrador ? 'Productos' : 'Agregar consumo / cargo'}</p>
               <div className="flex gap-2">
@@ -475,6 +544,7 @@ const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onR
                 </div>
               )}
             </div>
+            )}
 
             {/* Método + acciones */}
             <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
@@ -486,7 +556,7 @@ const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onR
               </div>
               {error && <p className="text-rose-500 text-xs">{error}</p>}
               <div className="flex gap-2">
-                {!mostrador && (
+                {esVenta && !mostrador && (
                   <button onClick={anotarACuenta} disabled={saving || lineas.length === 0} title="Suma los consumos nuevos como deuda pendiente" className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors disabled:opacity-40">
                     Anotar a cuenta{totalNuevo > 0 ? ` ${money(totalNuevo)}` : ''}
                   </button>
@@ -511,7 +581,7 @@ const PagosPage = () => {
   const saveConfig = useClubStore((s) => s.saveConfig)
   const metodosHabilitados = metodosDelClub(club)
 
-  const [tab, setTab] = useState('cobranzas') // cobranzas | gastos
+  const [tab, setTab] = useState('ventas') // ventas | cobranzas | gastos | caja
   const [resumen, setResumen] = useState(null)
   const [deudas, setDeudas] = useState([])
   const [jugadores, setJugadores] = useState([])
@@ -524,7 +594,8 @@ const PagosPage = () => {
   const [eliminando, setEliminando] = useState(null) // cargo a eliminar
   const [anulando, setAnulando] = useState(null)   // cobro pagado a revertir a pendiente
   const [cambiandoMetodo, setCambiandoMetodo] = useState(null) // cobro pagado al que se le corrige el método
-  const [cuentaOpen, setCuentaOpen] = useState(false)
+  const [modalModo, setModalModo] = useState(null)   // null | 'venta' | 'cobro'
+  const cuentaOpen = modalModo !== null
   const [configMetodos, setConfigMetodos] = useState(false)
   const [catalogoOpen, setCatalogoOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -585,6 +656,18 @@ const PagosPage = () => {
       return true
     })
   }, [deudas, filtro, tipoFiltro, metodoFiltro, search])
+
+  // Deudores (jugadores con deuda pendiente) + su total, para el buscador de "Cobrar cuenta"
+  const deudores = useMemo(() => {
+    const map = {}
+    for (const d of deudas) {
+      if (d.estado !== 'pendiente' || !d.jugador) continue
+      const j = d.jugador
+      const e = (map[j.id] ??= { id: j.id, nombre: j.nombre, apellido: j.apellido, dni: j.dni, total: 0, count: 0 })
+      e.total += d.monto; e.count += 1
+    }
+    return Object.values(map).sort((a, b) => b.total - a.total)
+  }, [deudas])
 
   const guardarMetodos = async (ids) => {
     setSaving(true)
@@ -726,7 +809,7 @@ const PagosPage = () => {
               <p>En cada cobro podés imprimir un <b>recibo</b>. Con el botón <b>Reporte</b> generás un PDF con la marca del club.</p>
             </AyudaSeccion>
           </AyudaPanel>
-          {tab === 'cobranzas' && (<>
+          {(tab === 'cobranzas' || tab === 'ventas') && (<>
           {/* Configuración (catálogo + métodos) */}
           <div className="relative">
             <button
@@ -750,19 +833,20 @@ const PagosPage = () => {
               </>
             )}
           </div>
-          <button
-            onClick={() => setCuentaOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm"
-          >
-            <Wallet size={16} /> Cobrar / Vender
-          </button>
+          {tab === 'ventas'
+            ? <button onClick={() => setModalModo('venta')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm">
+                <ShoppingCart size={16} /> Nueva venta
+              </button>
+            : <button onClick={() => setModalModo('cobro')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm">
+                <Wallet size={16} /> Cobrar cuenta
+              </button>}
           </>)}
         </div>
       </div>
 
-      {/* Tabs Cobranzas / Gastos */}
+      {/* Tabs: Ventas (POS) · Cobranzas (deudas) · Gastos · Caja */}
       <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit">
-        {[{ id: 'cobranzas', label: 'Cobranzas' }, { id: 'gastos', label: 'Gastos' }, { id: 'caja', label: 'Caja del día' }].map(({ id, label }) => (
+        {[{ id: 'ventas', label: 'Ventas' }, { id: 'cobranzas', label: 'Cobranzas' }, { id: 'gastos', label: 'Gastos' }, { id: 'caja', label: 'Caja del día' }].map(({ id, label }) => (
           <button
             key={id} onClick={() => setTab(id)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:text-slate-800'}`}
@@ -772,6 +856,18 @@ const PagosPage = () => {
         ))}
       </div>
 
+      {tab === 'ventas' && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 flex flex-col items-center text-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center"><ShoppingCart size={22} className="text-brand-500" /></div>
+          <div>
+            <p className="text-slate-700 font-semibold">Punto de venta</p>
+            <p className="text-sm text-slate-400 mt-1 max-w-md">Vendé productos del bar/tienda: a un <b>visitante</b> (mostrador, al contado) o a un <b>jugador</b> (a su cuenta o cobrado). Usá <b>Nueva venta</b> arriba.</p>
+          </div>
+          <button onClick={() => setModalModo('venta')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm">
+            <ShoppingCart size={16} /> Nueva venta
+          </button>
+        </div>
+      )}
       {tab === 'gastos' && <GastosTab token={token} metodos={metodosHabilitados} />}
       {tab === 'caja' && <CajaTab token={token} />}
 
@@ -937,7 +1033,7 @@ const PagosPage = () => {
       {cambiandoMetodo && <ModalCobro cargo={cambiandoMetodo} metodos={metodosHabilitados} onConfirm={cambiarMetodo} onClose={() => setCambiandoMetodo(null)} saving={saving} titulo="Cambiar método" />}
       {anulando && <ModalAnular cargo={anulando} onConfirm={anular} onClose={() => setAnulando(null)} saving={saving} />}
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}
-      {cuentaOpen && <ModalCuentaJugador jugadores={jugadores} productos={productos} metodos={metodosHabilitados} token={token} onClose={() => setCuentaOpen(false)} onRefresh={fetchData} showToast={showToast} />}
+      {cuentaOpen && <ModalCuentaJugador modo={modalModo} jugadores={jugadores} deudores={deudores} productos={productos} metodos={metodosHabilitados} token={token} onClose={() => setModalModo(null)} onRefresh={fetchData} showToast={showToast} />}
       {configMetodos && <ModalMetodos seleccion={metodosHabilitados} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
       {catalogoOpen && <ModalCatalogoProductos productos={productos} onCreate={crearProducto} onUpdate={actualizarProducto} onDelete={eliminarProducto} onClose={() => setCatalogoOpen(false)} saving={saving} />}
 

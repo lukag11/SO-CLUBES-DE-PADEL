@@ -95,6 +95,19 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   }
 })
 
+// GET /api/productos/:id/movimientos — historial de stock del producto
+router.get('/:id/movimientos', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const p = await prisma.producto.findUnique({ where: { id: req.params.id }, select: { clubId: true } })
+    if (!p || p.clubId !== req.user.clubId) return res.status(404).json({ error: 'Producto no encontrado' })
+    const movs = await prisma.movimientoStock.findMany({ where: { productoId: req.params.id }, orderBy: { createdAt: 'desc' }, take: 50 })
+    res.json(movs)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener movimientos' })
+  }
+})
+
 // POST /api/productos/:id/ajuste — ajuste manual de stock. Body: { stock } (valor final) | { delta }
 router.post('/:id/ajuste', requireAuth, requireRole('admin'), async (req, res) => {
   const clubId = req.user.clubId

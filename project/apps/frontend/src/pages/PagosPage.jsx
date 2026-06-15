@@ -10,6 +10,7 @@ import Toast from '../components/ui/Toast'
 import { METODOS_CATALOGO, METODO_MAP, metodosDelClub, MetodoBadge } from '../lib/metodosPago'
 import GastosTab from '../features/pagos/GastosTab'
 import VentasTab from '../features/pagos/VentasTab'
+import StockTab from '../features/pagos/StockTab'
 import CajaTab from '../features/pagos/CajaTab'
 import { imprimirRecibo, exportarCobranzasCSV, generarReporteCobranzas } from '../features/pagos/comprobantes'
 import AyudaPanel, { AyudaSeccion } from '../components/ui/AyudaPanel'
@@ -885,9 +886,6 @@ const PagosPage = () => {
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setSettingsOpen(false)} />
                 <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden py-1">
-                  <button onClick={() => { setCatalogoOpen(true); setSettingsOpen(false) }} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                    <Package size={15} className="text-slate-400" /> Catálogo de productos
-                  </button>
                   <button onClick={() => { setConfigMetodos(true); setSettingsOpen(false) }} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
                     <DollarSign size={15} className="text-slate-400" /> Métodos de cobro
                   </button>
@@ -908,7 +906,7 @@ const PagosPage = () => {
 
       {/* Tabs: Ventas (POS) · Cobranzas (deudas) · Gastos · Caja */}
       <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit">
-        {[{ id: 'ventas', label: 'Ventas' }, { id: 'cobranzas', label: 'Cobranzas' }, { id: 'gastos', label: 'Gastos' }, { id: 'caja', label: 'Caja / Reportes' }].map(({ id, label }) => (
+        {[{ id: 'ventas', label: 'Ventas' }, { id: 'stock', label: 'Stock' }, { id: 'cobranzas', label: 'Cobranzas' }, { id: 'gastos', label: 'Gastos' }, { id: 'caja', label: 'Caja / Reportes' }].map(({ id, label }) => (
           <button
             key={id} onClick={() => setTab(id)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:text-slate-800'}`}
@@ -919,6 +917,7 @@ const PagosPage = () => {
       </div>
 
       {tab === 'ventas' && <VentasTab token={token} metodos={metodosHabilitados} showToast={showToast} />}
+      {tab === 'stock' && <StockTab token={token} showToast={showToast} onIngresarCompra={() => setTab('gastos')} />}
       {tab === 'gastos' && <GastosTab token={token} metodos={metodosHabilitados} />}
       {tab === 'caja' && <CajaTab token={token} />}
 
@@ -1086,7 +1085,6 @@ const PagosPage = () => {
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}
       {cuentaOpen && <ModalCuentaJugador modo={modalModo} jugadores={jugadores} deudores={deudores} productos={productos} metodos={metodosHabilitados} token={token} onClose={() => setModalModo(null)} onRefresh={fetchData} showToast={showToast} />}
       {configMetodos && <ModalMetodos seleccion={metodosHabilitados} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
-      {catalogoOpen && <ModalCatalogoProductos productos={productos} onCreate={crearProducto} onUpdate={actualizarProducto} onDelete={eliminarProducto} onAjuste={ajustarStock} onClose={() => setCatalogoOpen(false)} saving={saving} />}
 
       {toast && (
         <Toast

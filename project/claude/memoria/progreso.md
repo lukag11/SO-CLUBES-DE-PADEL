@@ -12,7 +12,12 @@
 - **F4 alertas:** badge en catálogo (rojo sin stock / ámbar ≤ stockMin / gris ok) + ajuste rápido (prompt → /ajuste), **banner de bajo stock** en Ventas, y **notificación al admin** (tipo `stock_bajo`, creada en `descontarStock` al cruzar el umbral, deduplicada por producto sin leer; render en `Navbar.formatNotif` + `normBackend`).
 - **F5 OCR (premium):** `POST /gastos` con `lineasStock` es el target estructurado. **UI lista:** en `GastosTab` el alta de gasto tiene sección "Ingresar productos a stock" (líneas nombre+cantidad+costo, matchea por nombre/datalist, "usar total del detalle") + placeholder "Próximamente: cargar de la foto (IA, premium)". El OCR/IA solo pre-llenará esas líneas; lo demás ya funciona manual.
 
-**Módulo Finanzas COMPLETO** (Cobranzas + Ventas/POS + comandas + Gastos + Caja/Reportes + Stock). Pendiente real solo: conectar el modelo OCR/IA (cuando se arme el asistente) + gating de planes.
+**Módulo Finanzas COMPLETO** (Ventas/POS + comandas + Stock + Cobranzas + Gastos + Caja/Reportes). Pendiente real solo: conectar el modelo OCR/IA (cuando se arme el asistente) + gating de planes.
+
+### Tab Stock dedicada (2026-06-15)
+- 5 tabs: **Ventas · Stock · Cobranzas · Gastos · Caja/Reportes**. El ABM de productos salió de ⚙️ (que ahora solo tiene Métodos) y vive en **`features/pagos/StockTab.jsx`**: tarjetas (valor de inventario = Σ stock×costo, # bajo stock, # productos), alerta de reposición, buscador, form alta/edición (pricing costo/precio/% + control de stock), lista por categoría con badge de stock (ajuste por prompt), **ver movimientos** (`GET /productos/:id/movimientos`), y botón "Ingresar compra" → cambia a tab Gastos.
+- La **compra/factura** sigue en Gastos (es egreso) con la sección de líneas que repone stock = punto de entrada del OCR/IA. Al guardar, escribe en Gastos + Stock (Producto + MovimientoStock).
+- Nota: en PagosPage quedó `ModalCatalogoProductos` + handlers como código muerto (reemplazado por StockTab) — limpiar en un pase futuro.
 
 ---
 

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
+import { snapshotProductos } from '../lib/productos.js'
 
 const router = Router()
 
@@ -1000,7 +1001,7 @@ router.post('/:id/cuenta', requireAuth, requireRole('admin'), async (req, res) =
       const metodoPago = p.metodoPago || null
       const esACuenta = !metodoPago
       const turnoMonto = Math.max(0, Math.round(Number(p.turnoMonto) || 0))
-      const consumos = (p.consumos || []).map((c) => ({ concepto: String(c.concepto || '').trim(), monto: Math.round(Number(c.monto)) }))
+      const consumos = (p.consumos || []).map((c) => ({ concepto: String(c.concepto || '').trim(), monto: Math.round(Number(c.monto)), productoId: c.productoId || null, cantidad: Math.max(1, Math.round(Number(c.cantidad) || 1)) }))
 
       if (consumos.some((l) => !l.concepto || !(l.monto > 0))) {
         return res.status(400).json({ error: 'Hay una consumición con datos inválidos' })
@@ -1038,6 +1039,8 @@ router.post('/:id/cuenta', requireAuth, requireRole('admin'), async (req, res) =
     const now = new Date()
     const cancha = nuevoTurno > 0 ? await prisma.cancha.findUnique({ where: { id: reserva.canchaId }, select: { nombre: true } }) : null
     const conceptoTurno = `Turno ${cancha?.nombre ?? ''} · ${reserva.fecha} ${reserva.horaInicio}`.trim()
+    // Snapshot de categoría/costo de los productos consumidos (para reportes/margen)
+    const snap = await snapshotProductos(clubId, items.flatMap((i) => i.consumos.map((c) => c.productoId)))
 
     await prisma.$transaction(async (tx) => {
       for (const it of items) {
@@ -1053,8 +1056,13 @@ router.post('/:id/cuenta', requireAuth, requireRole('admin'), async (req, res) =
         }
         // Consumos de esta persona
         for (const c of it.consumos) {
+          const costoUnit = snap[c.productoId]?.costo
           await tx.cargo.create({
-            data: { clubId, jugadorId: it.jugadorId, reservaId: id, concepto: c.concepto, monto: c.monto, tipo: 'producto', estado, ...pagoData },
+            data: {
+              clubId, jugadorId: it.jugadorId, reservaId: id, concepto: c.concepto, monto: c.monto, tipo: 'producto', estado,
+              productoId: c.productoId, categoria: snap[c.productoId]?.categoria ?? null, costo: costoUnit != null ? costoUnit * c.cantidad : null,
+              ...pagoData,
+            },
           })
         }
       }

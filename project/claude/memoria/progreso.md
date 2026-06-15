@@ -1,6 +1,22 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-15 — Comanda abierta (mesas de bar) + (próximo) categorías de productos + reportes + margen
+**Última actualización:** 2026-06-15 — Finanzas completo: categorías + detalle por ítem + Reportes + margen/pricing. Próximo: stock + OCR
+
+---
+
+## Finanzas completo — Categorías + Reportes + Margen (A+B+C+D) (2026-06-15)
+
+- **A Categorías:** `Producto.categoria` (Bebidas/Comidas/Golosinas/Insumos/Otros) + `Producto.costo`. Catálogo (⚙️) con form único alta/edición (el lápiz carga arriba), pricing **Costo · Precio venta · % ganancia** bidireccional (markup sobre costo: `calcPct`/`precioDesdePct`). Lista agrupada por categoría.
+- **B Detalle por ítem:** cada venta de producto guarda `categoria`/`productoId`/`costo` (snapshot). `lib/productos.js#snapshotProductos`. Un cargo POR ítem (se des-bundleó `/productos/venta`). Aplica a comanda, venta rápida y consumos del turno (`/reservas/:id/cuenta`).
+- **C Reportes:** `GET /caja/reporte?desde&hasta` → ingresos/egresos/neto, por método, por tipo (turnos/bar/torneos/otros), por categoría, top productos, margen del bar. `CajaTab` renombrada **"Caja / Reportes"** con período Hoy/Semana/Mes/Personalizado.
+- **D Margen:** `Producto.costo` + `Cargo.costo` (costo×cantidad snapshot) → margen por categoría y total en el reporte.
+
+### Próximo bloque: Stock + OCR de facturas (acordado)
+- **F1** modelo: `Producto.stock/stockMin/controlaStock` (opt-in) + `MovimientoStock` (entrada/salida/ajuste, cantidad, costoUnit, motivo, ref).
+- **F2** descuento auto de stock en ventas (anular/quitar repone) — solo si controlaStock.
+- **F3** ingreso de stock: ajuste manual + factura de proveedor con líneas (suma stock + actualiza costo + crea Gasto).
+- **F4** alertas bajo stock: badge en catálogo/POS + notificación al admin (reusa `notificaciones`).
+- **F5 (premium, estructurada)** OCR/IA: `POST /gastos/factura-ocr` recibe líneas parseadas → aplica F3 auto. Hoy el form manual lo hace; la IA pre-llena. Gate por plan ([[project_feature_gating]]).
 
 ---
 

@@ -236,6 +236,10 @@ model Cargo {
   monto       Int
   estado      String    @default("pendiente") // pendiente | pagado | condonado
   tipo        String    @default("manual")    // cancelacion | manual | reserva | torneo | producto
+  // Para reportes de bar/tienda (solo tipo 'producto'): snapshot de categoría/producto/costo al vender
+  categoria   String?                          // categoría del producto al momento de la venta
+  productoId  String?                          // referencia opcional al producto del catálogo
+  costo       Int?                             // costo unitario × cantidad (para margen)
   vencimiento DateTime?                        // null = no vence; vencido = pendiente && vencimiento < hoy
   metodoPago  String?                          // efectivo | transferencia | mercadopago
   pagadoAt    DateTime?
@@ -274,7 +278,8 @@ model Producto {
   clubId    String
   nombre    String
   precio    Int
-  categoria String?
+  costo     Int?     // costo de reposición (opcional) — para margen/rentabilidad
+  categoria String?  // Bebidas | Comidas | Golosinas | Insumos | Otros | (libre)
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -210,27 +210,36 @@ const ModalAnular = ({ cargo, onConfirm, onClose, saving }) => (
   </div>
 )
 
+// Categorías sugeridas para el bar/tienda (para reportes por rubro)
+const CATEGORIAS_PRODUCTO = ['Bebidas', 'Comidas', 'Golosinas', 'Insumos', 'Otros']
+
+// Pricing: % de ganancia = markup sobre el costo. Bidireccional con el precio de venta.
+const calcPct = (costo, precio) => (Number(costo) > 0 && precio !== '' && precio != null) ? Math.round((Number(precio) - Number(costo)) / Number(costo) * 100) : ''
+const precioDesdePct = (costo, pct) => (Number(costo) > 0 && pct !== '') ? String(Math.round(Number(costo) * (1 + Number(pct) / 100))) : ''
+
 // ── Modal: catálogo de productos (ABM) ───────────────────────────────────────
 const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onClose, saving }) => {
-  const [nuevo, setNuevo] = useState({ nombre: '', precio: '', categoria: '' })
+  // Form único: alta (editId null) o edición (editId set). El lápiz carga el producto acá arriba.
+  const [form, setForm] = useState({ nombre: '', precio: '', costo: '', categoria: 'Bebidas' })
   const [editId, setEditId] = useState(null)
-  const [editForm, setEditForm] = useState({ nombre: '', precio: '', categoria: '' })
   const [error, setError] = useState('')
 
-  const agregar = () => {
-    if (!nuevo.nombre.trim()) return setError('Ingresá un nombre')
-    if (!(Number(nuevo.precio) > 0)) return setError('El precio debe ser mayor a 0')
+  const resetForm = () => { setForm((f) => ({ nombre: '', precio: '', costo: '', categoria: f.categoria })); setEditId(null); setError('') }
+  const guardar = () => {
+    if (!form.nombre.trim()) return setError('Ingresá un nombre')
+    if (!(Number(form.precio) > 0)) return setError('El precio debe ser mayor a 0')
     setError('')
-    onCreate({ nombre: nuevo.nombre.trim(), precio: Number(nuevo.precio), categoria: nuevo.categoria.trim() || null })
-    setNuevo({ nombre: '', precio: '', categoria: '' })
+    const payload = { nombre: form.nombre.trim(), precio: Number(form.precio), costo: form.costo === '' ? null : Number(form.costo), categoria: form.categoria || null }
+    if (editId) onUpdate(editId, payload); else onCreate(payload)
+    resetForm()
   }
-  const empezarEdit = (p) => { setEditId(p.id); setEditForm({ nombre: p.nombre, precio: String(p.precio), categoria: p.categoria ?? '' }) }
-  const guardarEdit = () => {
-    if (!editForm.nombre.trim() || !(Number(editForm.precio) > 0)) return setError('Datos inválidos')
-    setError('')
-    onUpdate(editId, { nombre: editForm.nombre.trim(), precio: Number(editForm.precio), categoria: editForm.categoria.trim() || null })
-    setEditId(null)
-  }
+  const empezarEdit = (p) => { setEditId(p.id); setError(''); setForm({ nombre: p.nombre, precio: String(p.precio), costo: p.costo != null ? String(p.costo) : '', categoria: p.categoria ?? 'Otros' }) }
+  // Agrupar productos por categoría para la lista
+  const grupos = CATEGORIAS_PRODUCTO
+    .map((cat) => ({ cat, items: productos.filter((p) => (p.categoria || 'Otros') === cat) }))
+    .filter((g) => g.items.length > 0)
+  const sinCat = productos.filter((p) => p.categoria && !CATEGORIAS_PRODUCTO.includes(p.categoria))
+  if (sinCat.length) grupos.push({ cat: 'Otras', items: sinCat })
 
   const inputCls = 'bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
 
@@ -246,56 +255,61 @@ const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onClo
           <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
         </div>
 
-        {/* Alta */}
-        <div className="px-6 py-4 border-b border-slate-100 shrink-0">
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <label className="block text-slate-500 text-[11px] font-medium mb-1">Producto</label>
-              <input value={nuevo.nombre} onChange={(e) => setNuevo((f) => ({ ...f, nombre: e.target.value }))} placeholder="Tubo de pelotas" className={`w-full ${inputCls}`} />
+        {/* Form alta/edición */}
+        <div className={`px-6 py-4 border-b border-slate-100 shrink-0 flex flex-col gap-2.5 ${editId ? 'bg-brand-50/40' : ''}`}>
+          {editId && <p className="text-[11px] font-semibold text-brand-600 -mb-0.5">Editando producto</p>}
+          <input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Nombre (ej: Coca Cola 1L)" className={`w-full ${inputCls}`} />
+          <div>
+            <label className="block text-slate-500 text-[11px] font-medium mb-1">Categoría</label>
+            <select value={form.categoria} onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))} className={`w-full ${inputCls}`}>
+              {CATEGORIAS_PRODUCTO.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="block text-slate-500 text-[11px] font-medium mb-1">Costo</label>
+              <input type="number" value={form.costo} onChange={(e) => setForm((f) => ({ ...f, costo: e.target.value }))} placeholder="opc." className={`w-full ${inputCls}`} />
             </div>
-            <div className="w-24">
-              <label className="block text-slate-500 text-[11px] font-medium mb-1">Precio</label>
-              <input type="number" value={nuevo.precio} onChange={(e) => setNuevo((f) => ({ ...f, precio: e.target.value }))} placeholder="0" className={`w-full ${inputCls}`} />
+            <div>
+              <label className="block text-slate-500 text-[11px] font-medium mb-1">Precio venta</label>
+              <input type="number" value={form.precio} onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))} placeholder="0" className={`w-full ${inputCls}`} />
             </div>
-            <div className="w-28">
-              <label className="block text-slate-500 text-[11px] font-medium mb-1">Categoría</label>
-              <input value={nuevo.categoria} onChange={(e) => setNuevo((f) => ({ ...f, categoria: e.target.value }))} placeholder="Opcional" className={`w-full ${inputCls}`} />
+            <div>
+              <label className="block text-slate-500 text-[11px] font-medium mb-1">% ganancia</label>
+              <input type="number" value={calcPct(form.costo, form.precio)} onChange={(e) => setForm((f) => ({ ...f, precio: precioDesdePct(f.costo, e.target.value) }))} disabled={!(Number(form.costo) > 0)} placeholder={Number(form.costo) > 0 ? '%' : '—'} title={Number(form.costo) > 0 ? 'Markup sobre el costo' : 'Cargá el costo primero'} className={`w-full ${inputCls} disabled:opacity-50`} />
             </div>
-            <button onClick={agregar} disabled={saving} className="px-3 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors disabled:opacity-50 shrink-0">
-              <Plus size={16} />
+          </div>
+          <div className="flex gap-2">
+            {editId && <button onClick={resetForm} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50">Cancelar</button>}
+            <button onClick={guardar} disabled={saving} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+              {editId ? 'Guardar cambios' : <><Plus size={16} /> Agregar producto</>}
             </button>
           </div>
-          {error && <p className="text-rose-500 text-xs mt-2">{error}</p>}
+          {!editId && <p className="text-[10px] text-slate-400">El <b>costo</b> es opcional; con él se calcula el <b>% de ganancia</b> y el margen en los reportes.</p>}
+          {error && <p className="text-rose-500 text-xs">{error}</p>}
         </div>
 
-        {/* Lista */}
-        <div className="overflow-y-auto px-6 py-3 flex flex-col gap-1.5">
+        {/* Lista agrupada por categoría */}
+        <div className="overflow-y-auto px-6 py-3 flex flex-col gap-3">
           {productos.length === 0 ? (
             <p className="text-slate-400 text-sm text-center py-6">Todavía no cargaste productos.</p>
-          ) : productos.map((p) => (
-            <div key={p.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${p.activo ? 'border-slate-100' : 'border-slate-100 bg-slate-50/60 opacity-60'}`}>
-              {editId === p.id ? (
-                <>
-                  <input value={editForm.nombre} onChange={(e) => setEditForm((f) => ({ ...f, nombre: e.target.value }))} className={`flex-1 ${inputCls}`} />
-                  <input type="number" value={editForm.precio} onChange={(e) => setEditForm((f) => ({ ...f, precio: e.target.value }))} className={`w-20 ${inputCls}`} />
-                  <input value={editForm.categoria} onChange={(e) => setEditForm((f) => ({ ...f, categoria: e.target.value }))} placeholder="Cat." className={`w-24 ${inputCls}`} />
-                  <button onClick={guardarEdit} disabled={saving} className="px-2 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold disabled:opacity-50">Guardar</button>
-                  <button onClick={() => setEditId(null)} className="px-2 py-1.5 rounded-lg text-slate-400 hover:text-slate-700 text-xs">✕</button>
-                </>
-              ) : (
-                <>
+          ) : grupos.map(({ cat, items }) => (
+            <div key={cat} className="flex flex-col gap-1.5">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{cat} <span className="font-normal">· {items.length}</span></p>
+              {items.map((p) => (
+                <div key={p.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${editId === p.id ? 'border-brand-300 bg-brand-50/40' : p.activo ? 'border-slate-100' : 'border-slate-100 bg-slate-50/60 opacity-60'}`}>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-700 truncate">{p.nombre}</p>
-                    {p.categoria && <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{p.categoria}</span>}
+                    {p.costo != null && <span className="text-[10px] text-slate-400">costo {money(p.costo)} · margen {money(p.precio - p.costo)}{p.costo > 0 ? ` (${calcPct(p.costo, p.precio)}%)` : ''}</span>}
                   </div>
                   <p className="text-sm font-semibold text-slate-700 shrink-0">{money(p.precio)}</p>
                   <button onClick={() => onUpdate(p.id, { activo: !p.activo })} title={p.activo ? 'Desactivar' : 'Activar'} className={`text-[10px] font-medium px-2 py-1 rounded-lg shrink-0 ${p.activo ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-100'}`}>
                     {p.activo ? 'Activo' : 'Inactivo'}
                   </button>
-                  <button onClick={() => empezarEdit(p)} className="text-slate-300 hover:text-brand-500 p-1 shrink-0"><Pencil size={14} /></button>
-                  <button onClick={() => onDelete(p.id)} className="text-slate-300 hover:text-rose-500 p-1 shrink-0"><Trash2 size={14} /></button>
-                </>
-              )}
+                  <button onClick={() => empezarEdit(p)} title="Editar" className="text-slate-300 hover:text-brand-500 p-1 shrink-0"><Pencil size={14} /></button>
+                  <button onClick={() => onDelete(p.id)} title="Eliminar" className="text-slate-300 hover:text-rose-500 p-1 shrink-0"><Trash2 size={14} /></button>
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -432,7 +446,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   // Crea las líneas nuevas (productos → venta; otros → cargo), pagadas o a cuenta
   const crearNuevas = async (cobrar) => {
     const jid = mostrador ? null : jugadorId   // mostrador = venta sin ficha
-    const items = lineas.filter((l) => l.tipo === 'producto').map((l) => ({ nombre: l.nombre, precio: l.precio, cantidad: l.cantidad }))
+    const items = lineas.filter((l) => l.tipo === 'producto').map((l) => ({ nombre: l.nombre, precio: l.precio, cantidad: l.cantidad, productoId: l.id }))
     const otros = lineas.filter((l) => l.tipo === 'otro')
     if (items.length) await api.post('/productos/venta', { jugadorId: jid, items, cobrar, metodoPago }, auth)
     for (const o of otros) {
@@ -847,7 +861,7 @@ const PagosPage = () => {
 
       {/* Tabs: Ventas (POS) · Cobranzas (deudas) · Gastos · Caja */}
       <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit">
-        {[{ id: 'ventas', label: 'Ventas' }, { id: 'cobranzas', label: 'Cobranzas' }, { id: 'gastos', label: 'Gastos' }, { id: 'caja', label: 'Caja del día' }].map(({ id, label }) => (
+        {[{ id: 'ventas', label: 'Ventas' }, { id: 'cobranzas', label: 'Cobranzas' }, { id: 'gastos', label: 'Gastos' }, { id: 'caja', label: 'Caja / Reportes' }].map(({ id, label }) => (
           <button
             key={id} onClick={() => setTab(id)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:text-slate-800'}`}

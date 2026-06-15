@@ -247,7 +247,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
 
 // Helpers de serialización compartidos
 const esACuenta = (pagador, cobrar) => pagador === 'titular' && !cobrar
-const serializarLinea = (l) => ({ concepto: l.cantidad > 1 ? `${l.cantidad}× ${l.nombre}` : l.nombre, monto: l.precio * l.cantidad })
+const serializarLinea = (l) => ({ concepto: l.cantidad > 1 ? `${l.cantidad}× ${l.nombre}` : l.nombre, monto: l.precio * l.cantidad, productoId: l.prodId ?? null, cantidad: l.cantidad })
 
 // ─── Adder de consumiciones reutilizable ───────────────────────────────────────
 // ─── Línea del ticket (ya registrada) con acciones: anular / cobrar / quitar / cambiar método ──

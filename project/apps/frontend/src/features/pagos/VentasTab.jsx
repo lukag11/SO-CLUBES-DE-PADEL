@@ -137,14 +137,14 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
     onChange?.()
   }
 
-  const agregar = async (concepto, monto) => {
+  const agregar = async (concepto, monto, productoId = null) => {
     setError(''); setSaving(true)
     try {
-      const m = await api.post(`/comandas/${mesa.id}/items`, { items: [{ concepto, monto }] }, auth)
+      const m = await api.post(`/comandas/${mesa.id}/items`, { items: [{ concepto, monto, productoId }] }, auth)
       setItems(m.cargos ?? []); onChange?.()
     } catch (e) { setError(e?.message || 'No se pudo agregar') } finally { setSaving(false) }
   }
-  const agregarProducto = () => { const p = activos.find((x) => x.id === sel); if (!p) return; agregar(p.nombre, p.precio); setSel('') }
+  const agregarProducto = () => { const p = activos.find((x) => x.id === sel); if (!p) return; agregar(p.nombre, p.precio, p.id); setSel('') }
   const agregarOtro = () => {
     if (!otroNombre.trim() || !(Number(otroPrecio) > 0)) return setError('Completá concepto y monto')
     agregar(otroNombre.trim(), Number(otroPrecio)); setOtroNombre(''); setOtroPrecio(''); setSel('')

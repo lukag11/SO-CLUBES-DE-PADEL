@@ -32,6 +32,15 @@ Auditoría de IA/UX del módulo. Cambios:
 
 ---
 
+## Comprobantes Finanzas — ticket/WhatsApp/cierre (2026-06-15)
+- `comprobantes.js`: `imprimirTicket` + `ticketTexto` + `enviarWhatsApp` (wa.me), `generarReporteGastos`/`exportarGastosCSV`, `imprimirCierreCaja` (arqueo Z del período).
+- **Mesa** (VentasTab): al cobrar y cerrar → pantalla Imprimir ticket / WhatsApp / Listo.
+- **Venta rápida** (ModalCuentaJugador venta): al cobrar → overlay con ticket / WhatsApp (tel del jugador si tiene).
+- **Cobranzas**: botón WhatsApp junto al recibo (Pagados). **Gastos**: Reporte PDF + CSV (alineados a la derecha, igual que Cobranzas).
+- **Caja / Reportes**: botón "Imprimir cierre" (PDF branded: ingresos/egresos/neto + por método/tipo/categoría).
+- Todos los comprobantes aclaran **"no fiscal"**. Factura AFIP = fuera de scope (integración futura).
+- Fix visual: el monto no se corta con los badges (Cobranzas y Gastos: monto `w-24` + acciones auto). Top bar "Pagos"→"Finanzas".
+
 ## Finanzas completo — Categorías + Reportes + Margen (A+B+C+D) (2026-06-15)
 
 - **A Categorías:** `Producto.categoria` (Bebidas/Comidas/Golosinas/Insumos/Otros) + `Producto.costo`. Catálogo (⚙️) con form único alta/edición (el lápiz carga arriba), pricing **Costo · Precio venta · % ganancia** bidireccional (markup sobre costo: `calcPct`/`precioDesdePct`). Lista agrupada por categoría.

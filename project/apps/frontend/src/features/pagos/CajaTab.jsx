@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { TrendingUp, TrendingDown, Wallet, Percent } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, Percent, FileText } from 'lucide-react'
 import { api } from '../../lib/api'
 import { METODO_MAP } from '../../lib/metodosPago'
+import { imprimirCierreCaja } from './comprobantes'
+import useClubStore from '../../store/clubStore'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 const hoyStr = () => {
@@ -19,6 +21,7 @@ const TIPO_LABEL = { turnos: 'Turnos', bar: 'Bar / tienda', torneos: 'Torneos', 
 const TIPO_COLOR = { turnos: 'bg-brand-500', bar: 'bg-amber-500', torneos: 'bg-violet-500', otros: 'bg-slate-400' }
 
 const CajaTab = ({ token }) => {
+  const club = useClubStore((s) => s.club)
   const [periodo, setPeriodo] = useState('hoy') // hoy | semana | mes | custom
   const [desde, setDesde] = useState(hoyStr())
   const [hasta, setHasta] = useState(hoyStr())
@@ -68,6 +71,9 @@ const CajaTab = ({ token }) => {
             <input type="date" value={hasta} max={hoyStr()} min={desde} onChange={(e) => setHasta(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 outline-none focus:border-brand-400" />
           </div>
         )}
+        <button onClick={() => imprimirCierreCaja(data, club, rango.desde === rango.hasta ? rango.desde : `${rango.desde} a ${rango.hasta}`)} disabled={!data || (data.cantMovimientos ?? 0) === 0} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition-colors disabled:opacity-40 ml-auto">
+          <FileText size={14} /> Imprimir cierre
+        </button>
       </div>
 
       {loading ? (

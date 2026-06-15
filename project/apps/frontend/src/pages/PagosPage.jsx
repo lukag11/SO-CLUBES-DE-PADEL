@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   DollarSign, AlertTriangle, TrendingUp, Search, Plus, X,
-  CheckCircle, Trash2, Clock, Settings, Check, Package, Pencil, Minus, Printer, Download, FileText, Wallet, RotateCcw, ShoppingCart, Boxes, Camera, TrendingDown,
+  CheckCircle, Trash2, Clock, Settings, Check, Package, Pencil, Minus, Printer, Download, FileText, Wallet, RotateCcw, ShoppingCart, Boxes, Camera, TrendingDown, MessageCircle,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
@@ -12,7 +12,7 @@ import GastosTab from '../features/pagos/GastosTab'
 import VentasTab from '../features/pagos/VentasTab'
 import StockTab from '../features/pagos/StockTab'
 import CajaTab from '../features/pagos/CajaTab'
-import { imprimirRecibo, exportarCobranzasCSV, generarReporteCobranzas } from '../features/pagos/comprobantes'
+import { imprimirRecibo, exportarCobranzasCSV, generarReporteCobranzas, imprimirTicket, ticketTexto, enviarWhatsApp } from '../features/pagos/comprobantes'
 import AyudaPanel, { AyudaSeccion } from '../components/ui/AyudaPanel'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
@@ -282,10 +282,11 @@ const JugadorPicker = ({ jugadores, deudores = null, value, onChange, placeholde
 }
 
 // modo: 'venta' (vender productos a jugador/mostrador) | 'cobro' (cobrar deudas de un jugador)
-const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, token, onClose, onRefresh, showToast, modo = 'cobro', initialMostrador = false, initialJugadorId = null, initialDeudaId = null }) => {
+const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, token, club, onClose, onRefresh, showToast, modo = 'cobro', initialMostrador = false, initialJugadorId = null, initialDeudaId = null }) => {
   const esVenta = modo === 'venta'
   const esCobro = modo === 'cobro'
   const [jugadorId, setJugadorId] = useState(initialJugadorId || '')
+  const [ticketVenta, setTicketVenta] = useState(null) // comprobante tras una venta cobrada
   const [mostrador, setMostrador] = useState(esVenta && initialMostrador) // venta a visitante sin ficha (contado)
   const [deudas, setDeudas] = useState([])
   const [selDeuda, setSelDeuda] = useState({})
@@ -364,7 +365,19 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     try {
       if (lineas.length) await crearNuevas(true)
       if (deudaSel.length) await api.post('/cargos/cobrar-cuenta', { jugadorId, items: deudaSel.map((d) => ({ origen: d.origen, refId: d.refId })), metodoPago }, auth)
-      setLineas([]); showToast('exito', 'Cobro registrado'); await fetchDeudas(jugadorId); onRefresh()
+      onRefresh()
+      // Venta cobrada → ofrecer ticket / WhatsApp
+      if (esVenta && lineas.length) {
+        const jug = jugadores.find((j) => j.id === jugadorId)
+        setTicketVenta({
+          etiqueta: mostrador ? 'Mostrador' : (jug ? `${jug.nombre} ${jug.apellido}` : ''),
+          items: lineas.map((l) => ({ nombre: l.nombre, cantidad: l.cantidad, monto: l.precio * l.cantidad })),
+          total: totalNuevo, metodoLabel: METODO_MAP[metodoPago]?.label ?? metodoPago, fecha: new Date(), tel: jug?.celular || '',
+        })
+        setLineas([])
+      } else {
+        setLineas([]); showToast('exito', 'Cobro registrado'); await fetchDeudas(jugadorId)
+      }
     } catch (e) { showToast('error', e?.message || 'No se pudo cobrar') } finally { setSaving(false) }
   }
 
@@ -374,6 +387,20 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
       <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        {ticketVenta && (
+          <div className="absolute inset-0 z-10 bg-white flex flex-col items-center justify-center text-center gap-4 p-8">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">✓</div>
+            <div>
+              <p className="text-slate-800 font-bold">Cobrado {money(ticketVenta.total)}</p>
+              <p className="text-slate-400 text-xs mt-0.5">{ticketVenta.etiqueta} · {ticketVenta.metodoLabel}</p>
+            </div>
+            <div className="flex gap-2 w-full">
+              <button onClick={() => imprimirTicket(ticketVenta, club)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm"><FileText size={15} /> Imprimir ticket</button>
+              <button onClick={() => enviarWhatsApp(ticketTexto(ticketVenta, club), ticketVenta.tel)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#25D366] hover:brightness-95 text-white font-semibold text-sm">WhatsApp</button>
+            </div>
+            <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
+          </div>
+        )}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <p className="text-slate-800 font-bold">{esCobro ? 'Cobrar cuenta' : mostrador ? 'Venta de mostrador' : 'Nueva venta'}</p>
           <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
@@ -873,6 +900,9 @@ const PagosPage = () => {
                       <button onClick={() => imprimirRecibo(c, club)} title="Imprimir recibo" className="text-slate-300 hover:text-brand-500 p-1">
                         <Printer size={14} />
                       </button>
+                      <button onClick={() => enviarWhatsApp(ticketTexto({ etiqueta: `${c.jugador?.nombre ?? ''} ${c.jugador?.apellido ?? ''}`.trim(), items: [{ nombre: c.concepto, cantidad: 1, monto: c.monto }], total: c.monto, metodoLabel: METODO_MAP[c.metodoPago]?.label ?? c.metodoPago }, club), c.jugador?.celular)} title="Enviar recibo por WhatsApp" className="text-slate-300 hover:text-[#25D366] p-1">
+                        <MessageCircle size={14} />
+                      </button>
                       <button onClick={() => setAnulando(c)} title="Anular cobro (vuelve a pendiente)" className="text-slate-300 hover:text-amber-500 p-1">
                         <RotateCcw size={14} />
                       </button>
@@ -889,7 +919,7 @@ const PagosPage = () => {
       {cambiandoMetodo && <ModalCobro cargo={cambiandoMetodo} metodos={metodosHabilitados} onConfirm={cambiarMetodo} onClose={() => setCambiandoMetodo(null)} saving={saving} titulo="Cambiar método" />}
       {anulando && <ModalAnular cargo={anulando} onConfirm={anular} onClose={() => setAnulando(null)} saving={saving} />}
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}
-      {cuentaOpen && <ModalCuentaJugador modo={modalModo} jugadores={jugadores} deudores={deudores} productos={productos} metodos={metodosHabilitados} token={token} initialJugadorId={cobroPreset?.jugadorId} initialDeudaId={cobroPreset?.deudaId} onClose={() => { setModalModo(null); setCobroPreset(null) }} onRefresh={fetchData} showToast={showToast} />}
+      {cuentaOpen && <ModalCuentaJugador modo={modalModo} jugadores={jugadores} deudores={deudores} productos={productos} metodos={metodosHabilitados} token={token} club={club} initialJugadorId={cobroPreset?.jugadorId} initialDeudaId={cobroPreset?.deudaId} onClose={() => { setModalModo(null); setCobroPreset(null) }} onRefresh={fetchData} showToast={showToast} />}
       {configMetodos && <ModalMetodos seleccion={metodosHabilitados} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
 
       {toast && (

@@ -158,6 +158,55 @@ export const generarReporteCobranzas = (deudas, club, filtroLabel = 'Todas') => 
   win.document.close()
 }
 
+// ── Cierre de caja / arqueo (período) ───────────────────────────────────────
+// data: respuesta de /caja/reporte; periodoLabel: ej "Hoy 15/06/2026"
+export const imprimirCierreCaja = (data, club, periodoLabel = '') => {
+  const color = club?.colorPrimario || '#afca0b'
+  const hoy = new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const logo = club?.logo ? `<img src="${esc(club.logo)}" style="max-height:46px;max-width:150px;object-fit:contain" />` : ''
+  const TIPO = { turnos: 'Turnos', bar: 'Bar / tienda', torneos: 'Torneos', otros: 'Otros' }
+  const filaMetodo = Object.entries(data?.porMetodo ?? {}).filter(([, v]) => v.ingreso > 0 || v.egreso > 0)
+    .map(([m, v]) => `<tr><td>${esc(METODO_MAP[m]?.label ?? m)}</td><td style="text-align:right;color:#059669">${esc(money(v.ingreso))}</td><td style="text-align:right;color:#e11d48">${esc(money(v.egreso))}</td><td style="text-align:right;font-weight:600">${esc(money(v.ingreso - v.egreso))}</td></tr>`).join('')
+  const filaTipo = Object.entries(data?.porTipo ?? {}).filter(([, v]) => v > 0)
+    .map(([t, v]) => `<tr><td>${esc(TIPO[t] ?? t)}</td><td style="text-align:right;font-weight:600">${esc(money(v))}</td></tr>`).join('')
+  const filaCat = Object.entries(data?.porCategoria ?? {}).sort((a, b) => b[1].monto - a[1].monto)
+    .map(([c, v]) => `<tr><td>${esc(c)}</td><td style="text-align:right">${esc(money(v.monto))}</td><td style="text-align:right;color:#059669">${v.costo > 0 ? esc(money(v.monto - v.costo)) : '—'}</td></tr>`).join('')
+
+  const win = window.open('', '_blank', 'width=800,height=760')
+  if (!win) return
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Cierre de caja</title>
+  <style>
+    *{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,sans-serif}
+    body{margin:0;padding:32px;color:#1e293b;font-size:13px}
+    .head{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid ${color};padding-bottom:16px;margin-bottom:18px}
+    .club{font-size:20px;font-weight:800} .meta{text-align:right;font-size:12px;color:#64748b} h1{font-size:16px;margin:0 0 4px}
+    .chips{display:flex;gap:12px;margin:16px 0}
+    .chip{flex:1;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px}
+    .chip .l{font-size:11px;color:#64748b;text-transform:uppercase} .chip .v{font-size:20px;font-weight:800;margin-top:2px}
+    h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin:20px 0 6px}
+    table{width:100%;border-collapse:collapse} th{text-align:left;font-size:11px;color:#94a3b8;border-bottom:2px solid #e2e8f0;padding:6px 8px} th:not(:first-child){text-align:right}
+    td{padding:6px 8px;border-bottom:1px solid #f1f5f9}
+    .foot{margin-top:20px;text-align:center;font-size:11px;color:#94a3b8}
+    @media print{body{padding:14px}}
+  </style></head><body>
+    <div class="head"><div>${logo}<div class="club">${esc(club?.nombre || 'Club de Pádel')}</div></div>
+      <div class="meta"><h1>Cierre de caja</h1>${esc(periodoLabel)}<br/>Generado: ${esc(hoy)}</div></div>
+    <div class="chips">
+      <div class="chip"><div class="l">Ingresos</div><div class="v" style="color:#059669">${esc(money(data?.ingresos))}</div></div>
+      <div class="chip"><div class="l">Egresos</div><div class="v" style="color:#e11d48">${esc(money(data?.egresos))}</div></div>
+      <div class="chip"><div class="l">Neto</div><div class="v">${esc(money(data?.neto))}</div></div>
+    </div>
+    <h2>Por método</h2>
+    <table><thead><tr><th>Método</th><th>Ingresos</th><th>Egresos</th><th>Neto</th></tr></thead><tbody>${filaMetodo || '<tr><td colspan="4" style="color:#94a3b8;text-align:center;padding:14px">Sin movimientos</td></tr>'}</tbody></table>
+    <h2>Ingresos por tipo</h2>
+    <table><tbody>${filaTipo || '<tr><td style="color:#94a3b8;padding:8px">Sin ingresos</td></tr>'}</tbody></table>
+    ${filaCat ? `<h2>Bar por categoría</h2><table><thead><tr><th>Categoría</th><th>Venta</th><th>Margen</th></tr></thead><tbody>${filaCat}</tbody></table>` : ''}
+    <div class="foot">${esc(club?.nombre || '')} · Cierre interno de caja (no fiscal)</div>
+    <script>window.onload=function(){window.print()}</script>
+  </body></html>`)
+  win.document.close()
+}
+
 // ── Reporte y CSV de GASTOS ──────────────────────────────────────────────────
 // gastos: lista filtrada; club: branding; filtroLabel: descripción del filtro.
 export const generarReporteGastos = (gastos, club, filtroLabel = 'Todos') => {

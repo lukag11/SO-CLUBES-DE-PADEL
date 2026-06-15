@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Package, AlertTriangle, Boxes, History, Camera, Loader2, FileText, Truck } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Package, AlertTriangle, Boxes, History, Camera, Loader2, FileText, Truck, Tags } from 'lucide-react'
 import { api, uploadImage } from '../../lib/api'
 import { METODO_MAP } from '../../lib/metodosPago'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
-const CATEGORIAS = ['Bebidas', 'Comidas', 'Golosinas', 'Insumos', 'Otros']
 const calcPct = (costo, precio) => (Number(costo) > 0 && precio !== '' && precio != null) ? Math.round((Number(precio) - Number(costo)) / Number(costo) * 100) : ''
 const precioDesdePct = (costo, pct) => (Number(costo) > 0 && pct !== '') ? String(Math.round(Number(costo) * (1 + Number(pct) / 100))) : ''
 const MOVTIPO = { entrada: { t: 'Entrada', c: 'text-emerald-600' }, salida: { t: 'Salida', c: 'text-rose-600' }, ajuste: { t: 'Ajuste', c: 'text-amber-600' } }
@@ -14,16 +13,23 @@ const fmtFecha = (s) => { const d = new Date(s); return `${d.getDate()}/${d.getM
 const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
   const auth = { Authorization: `Bearer ${token}` }
   const [productos, setProductos] = useState([])
+  const [categorias, setCategorias] = useState([]) // [{id, nombre}]
   const [compraOpen, setCompraOpen] = useState(false)
+  const [catsOpen, setCatsOpen] = useState(false)
   const [prodModal, setProdModal] = useState(null) // null | { producto } (producto null = nuevo)
   const [movsOpen, setMovsOpen] = useState(null) // productoId
   const [movs, setMovs] = useState([])
   const [q, setQ] = useState('')
 
   const fetchData = useCallback(async () => {
-    try { setProductos(await api.get('/productos', auth)) } catch { /* */ }
+    try {
+      const [p, c] = await Promise.all([api.get('/productos', auth), api.get('/categorias', auth)])
+      setProductos(Array.isArray(p) ? p : [])
+      setCategorias(Array.isArray(c) ? c : [])
+    } catch { /* */ }
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData() }, [fetchData])
+  const catNames = categorias.map((c) => c.nombre)
 
   const editar = (p) => setProdModal({ producto: p })
   const eliminar = async (p) => {
@@ -42,9 +48,9 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
 
   const term = q.trim().toLowerCase()
   const filtrados = term ? productos.filter((p) => `${p.nombre} ${p.categoria ?? ''}`.toLowerCase().includes(term)) : productos
-  const grupos = CATEGORIAS.map((cat) => ({ cat, items: filtrados.filter((p) => (p.categoria || 'Otros') === cat) })).filter((g) => g.items.length > 0)
-  const otras = filtrados.filter((p) => p.categoria && !CATEGORIAS.includes(p.categoria))
-  if (otras.length) grupos.push({ cat: 'Otras', items: otras })
+  const grupos = catNames.map((cat) => ({ cat, items: filtrados.filter((p) => (p.categoria || 'Otros') === cat) })).filter((g) => g.items.length > 0)
+  const otras = filtrados.filter((p) => !catNames.includes(p.categoria || 'Otros'))
+  if (otras.length) grupos.push({ cat: 'Sin categoría', items: otras })
 
   const estadoBadge = (p) => {
     if (!p.controlaStock) return null
@@ -81,6 +87,7 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
       {/* Acciones */}
       <div className="flex items-center gap-2 flex-wrap">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto…" className={`flex-1 min-w-[180px] ${inputCls}`} />
+        <button onClick={() => setCatsOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm"><Tags size={16} /> Categorías</button>
         <button onClick={() => setCompraOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm"><Truck size={16} /> Ingresar compra</button>
         <button onClick={() => setProdModal({ producto: null })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm shadow-sm"><Plus size={16} /> Nuevo producto</button>
       </div>
@@ -122,22 +129,32 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
         ))}
       </div>
 
-      {prodModal && <ModalProducto producto={prodModal.producto} token={token} onClose={() => setProdModal(null)} onDone={(msg) => { setProdModal(null); fetchData(); showToast?.('exito', msg) }} />}
+      {prodModal && <ModalProducto producto={prodModal.producto} categorias={catNames} token={token} onClose={() => setProdModal(null)} onDone={(msg) => { setProdModal(null); fetchData(); showToast?.('exito', msg) }} />}
+      {catsOpen && <ModalCategorias categorias={categorias} productos={productos} token={token} onClose={() => setCatsOpen(false)} onChange={fetchData} showToast={showToast} />}
       {compraOpen && <ModalCompra productos={productos} metodos={metodos} token={token} onClose={() => setCompraOpen(false)} onDone={() => { setCompraOpen(false); fetchData(); showToast?.('exito', 'Compra registrada · stock actualizado') }} />}
     </div>
   )
 }
 
 // ─── Modal Producto: alta/edición de la ficha del producto (no carga stock) ─────
-const ModalProducto = ({ producto, token, onClose, onDone }) => {
+const ModalProducto = ({ producto, categorias = [], token, onClose, onDone }) => {
   const auth = { Authorization: `Bearer ${token}` }
   const editing = !!producto
+  const [cats, setCats] = useState(categorias)
+  const [nuevaCat, setNuevaCat] = useState('') // input inline de nueva categoría
   const [form, setForm] = useState({
     nombre: producto?.nombre ?? '', precio: producto?.precio != null ? String(producto.precio) : '',
-    costo: producto?.costo != null ? String(producto.costo) : '', categoria: producto?.categoria ?? 'Bebidas',
+    costo: producto?.costo != null ? String(producto.costo) : '', categoria: producto?.categoria ?? categorias[0] ?? 'Bebidas',
     controlaStock: producto ? !!producto.controlaStock : true,
     stock: producto ? String(producto.stock) : '', stockMin: producto?.stockMin ? String(producto.stockMin) : '',
   })
+  const crearCategoria = async () => {
+    const nombre = nuevaCat.trim(); if (!nombre) return
+    try {
+      await api.post('/categorias', { nombre }, auth)
+      setCats((c) => [...new Set([...c, nombre])]); setForm((f) => ({ ...f, categoria: nombre })); setNuevaCat('')
+    } catch (e) { setError(e?.message || 'No se pudo crear la categoría') }
+  }
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
@@ -145,6 +162,7 @@ const ModalProducto = ({ producto, token, onClose, onDone }) => {
   const submit = async () => {
     if (!form.nombre.trim()) return setError('Ingresá un nombre')
     if (!(Number(form.precio) > 0)) return setError('El precio de venta debe ser mayor a 0')
+    if (form.categoria === '__nueva__') return setError('Creá la categoría nueva o elegí una')
     setError(''); setSaving(true)
     const stockNum = form.stock === '' ? 0 : Math.max(0, Math.round(Number(form.stock)))
     const payload = {
@@ -180,7 +198,20 @@ const ModalProducto = ({ producto, token, onClose, onDone }) => {
 
         <div className="overflow-y-auto p-6 flex flex-col gap-3">
           <div><label className="block text-slate-500 text-xs font-medium mb-1.5">Nombre</label><input value={form.nombre} onChange={(e) => set('nombre', e.target.value)} placeholder="Ej: Coca Cola 1L" className={`w-full ${inputCls}`} /></div>
-          <div><label className="block text-slate-500 text-xs font-medium mb-1.5">Categoría</label><select value={form.categoria} onChange={(e) => set('categoria', e.target.value)} className={`w-full ${inputCls}`}>{CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+          <div>
+            <label className="block text-slate-500 text-xs font-medium mb-1.5">Categoría</label>
+            <select value={form.categoria} onChange={(e) => e.target.value === '__nueva__' ? set('categoria', '__nueva__') : set('categoria', e.target.value)} className={`w-full ${inputCls}`}>
+              {cats.map((c) => <option key={c} value={c}>{c}</option>)}
+              {cats.length > 0 && <option disabled>──────────</option>}
+              <option value="__nueva__">➕ Nueva categoría…</option>
+            </select>
+            {form.categoria === '__nueva__' && (
+              <div className="flex gap-2 mt-2">
+                <input autoFocus value={nuevaCat} onChange={(e) => setNuevaCat(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && crearCategoria()} placeholder="Nombre de la categoría" className={`flex-1 ${inputCls}`} />
+                <button onClick={crearCategoria} className="px-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold"><Plus size={16} /></button>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-3 gap-2">
             <div><label className="block text-slate-500 text-[11px] font-medium mb-1">Costo</label><input type="number" value={form.costo} onChange={(e) => set('costo', e.target.value)} placeholder="opc." className={`w-full ${inputCls}`} /></div>
             <div><label className="block text-slate-500 text-[11px] font-medium mb-1">Precio venta</label><input type="number" value={form.precio} onChange={(e) => set('precio', e.target.value)} placeholder="0" className={`w-full ${inputCls}`} /></div>
@@ -213,6 +244,75 @@ const ModalProducto = ({ producto, token, onClose, onDone }) => {
 
         <div className="px-6 py-4 border-t border-slate-100 shrink-0">
           <button onClick={submit} disabled={saving} className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm disabled:opacity-50">{saving ? 'Guardando…' : editing ? 'Guardar cambios' : 'Agregar producto'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Modal Categorías: alta / renombrar / borrar (con validación de uso) ────────
+const ModalCategorias = ({ categorias, productos, token, onClose, onChange, showToast }) => {
+  const auth = { Authorization: `Bearer ${token}` }
+  const [lista, setLista] = useState(categorias)
+  const [nueva, setNueva] = useState('')
+  const [editId, setEditId] = useState(null)
+  const [editVal, setEditVal] = useState('')
+  const [error, setError] = useState('')
+  const cuenta = (nombre) => productos.filter((p) => (p.categoria || 'Otros') === nombre).length
+
+  const refrescar = async () => { try { setLista(await api.get('/categorias', auth)) } catch { /* */ } onChange?.() }
+  const agregar = async () => {
+    const nombre = nueva.trim(); if (!nombre) return
+    setError('')
+    try { await api.post('/categorias', { nombre }, auth); setNueva(''); refrescar() } catch (e) { setError(e?.message || 'No se pudo agregar') }
+  }
+  const guardarNombre = async (c) => {
+    const nombre = editVal.trim(); if (!nombre) return
+    setError('')
+    try { await api.patch(`/categorias/${c.id}`, { nombre }, auth); setEditId(null); refrescar() } catch (e) { setError(e?.message || 'No se pudo renombrar') }
+  }
+  const borrar = async (c) => {
+    setError('')
+    try { await api.delete(`/categorias/${c.id}`, auth); refrescar(); showToast?.('exito', 'Categoría eliminada') }
+    catch (e) { setError(e?.message || 'No se pudo borrar') }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <p className="text-slate-800 font-bold">Categorías</p>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <div className="px-6 py-4 border-b border-slate-100 shrink-0 flex gap-2">
+          <input value={nueva} onChange={(e) => setNueva(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && agregar()} placeholder="Nueva categoría (ej: Cafetería)" className={`flex-1 ${inputCls}`} />
+          <button onClick={agregar} disabled={!nueva.trim()} className="px-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold disabled:opacity-40"><Plus size={16} /></button>
+        </div>
+        <div className="overflow-y-auto px-6 py-3 flex flex-col gap-1.5">
+          {error && <p className="text-rose-500 text-xs mb-1">{error}</p>}
+          {lista.length === 0 ? <p className="text-slate-400 text-sm py-4 text-center">Sin categorías.</p> : lista.map((c) => {
+            const n = cuenta(c.nombre)
+            return (
+              <div key={c.id} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100">
+                {editId === c.id ? (
+                  <>
+                    <input autoFocus value={editVal} onChange={(e) => setEditVal(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && guardarNombre(c)} className={`flex-1 ${inputCls} py-1.5`} />
+                    <button onClick={() => guardarNombre(c)} className="text-emerald-600 text-xs font-semibold px-2">✓</button>
+                    <button onClick={() => setEditId(null)} className="text-slate-400 text-xs px-1">✕</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm text-slate-700">{c.nombre}</span>
+                    <span className="text-[11px] text-slate-400">{n} prod.</span>
+                    <button onClick={() => { setEditId(c.id); setEditVal(c.nombre); setError('') }} className="text-slate-300 hover:text-brand-500 p-1"><Pencil size={13} /></button>
+                    <button onClick={() => borrar(c)} title={n > 0 ? 'Tiene productos' : 'Borrar'} className="text-slate-300 hover:text-rose-500 p-1"><Trash2 size={13} /></button>
+                  </>
+                )}
+              </div>
+            )
+          })}
+          <p className="text-[10px] text-slate-400 mt-1">No se puede borrar una categoría con productos. Renombrar actualiza todos sus productos.</p>
         </div>
       </div>
     </div>

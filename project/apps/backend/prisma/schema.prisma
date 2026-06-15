@@ -32,6 +32,7 @@ model Club {
   gastos         Gasto[]
   comandas       Comanda[]
   movimientosStock MovimientoStock[]
+  categorias     Categoria[]
 
   @@map("clubs")
 }
@@ -271,6 +272,19 @@ model Comanda {
   cargos Cargo[]
 
   @@map("comandas")
+}
+
+// Categorías de productos del club (administrables: Bebidas, Comidas, Cafetería…).
+model Categoria {
+  id        String   @id @default(cuid())
+  clubId    String
+  nombre    String
+  createdAt DateTime @default(now())
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@unique([clubId, nombre])
+  @@map("categorias")
 }
 
 // Catálogo de productos vendibles del club (tubo de pelotas, grip, bebidas…). Solo lista de

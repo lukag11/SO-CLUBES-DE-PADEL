@@ -26,6 +26,10 @@ Auditoría de IA/UX del módulo. Cambios:
 - **Copy en Ventas** aclarando venta rápida (pago al toque) vs mesa (cuenta abierta).
 - **Limpieza:** se borró `ModalCatalogoProductos` + handlers + `catalogoOpen` + helpers de pricing de PagosPage (ya viven en StockTab). ⚙️ quedó solo con Métodos.
 
+### Producto como modal + categorías administrables (2026-06-15)
+- **Nuevo producto/Editar** es un modal (`ModalProducto`), con el **stock dentro de la ficha** (stock inicial en alta / stock actual editable en edición → `/productos/:id/ajuste`). Se quitó el mini-modal de ajuste suelto; el badge de stock abre el modal.
+- **Categorías administrables:** modelo `Categoria` (`@@unique([clubId, nombre])`) + `routes/categorias.js` (GET con seed de 5 defaults, POST, PATCH=renombrar propaga a productos via updateMany, DELETE bloqueado si hay productos → 409 con conteo). StockTab trae `/categorias`, agrupa por ellas, botón **"Categorías"** (`ModalCategorias`: alta/renombrar/borrar con validación + conteo por categoría) y en `ModalProducto` el select tiene **"➕ Nueva categoría"** inline. Se eliminó la constante hardcodeada `CATEGORIAS`.
+
 ---
 
 ## Finanzas completo — Categorías + Reportes + Margen (A+B+C+D) (2026-06-15)

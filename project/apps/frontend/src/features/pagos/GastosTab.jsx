@@ -315,8 +315,8 @@ const GastosTab = ({ token, metodos }) => {
                     {g.proveedor ? `${g.proveedor} · ` : ''}{fmtFecha(g.fecha)}{g.numeroFactura ? ` · Fac. ${g.numeroFactura}` : ''}
                   </p>
                 </div>
-                <p className="text-slate-800 font-bold text-sm shrink-0">{money(g.monto)}</p>
-                <div className="shrink-0 w-[190px] flex items-center justify-end gap-2">
+                <p className="text-slate-800 font-bold text-sm shrink-0 w-24 text-right">{money(g.monto)}</p>
+                <div className="shrink-0 flex items-center justify-end gap-1.5">
                   {g.pagado ? (
                     <div className="flex items-center gap-1.5">
                       <MetodoBadge metodo={g.metodoPago} />

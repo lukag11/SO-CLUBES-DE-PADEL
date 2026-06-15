@@ -4,6 +4,7 @@ import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 import { inicioMesArg } from '../lib/tiempo.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
+import { reponerStock } from '../lib/stock.js'
 
 const router = Router()
 
@@ -247,7 +248,13 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
     const cargo = await prisma.cargo.findUnique({ where: { id } })
     if (!cargo) return res.status(404).json({ error: 'Cargo no encontrado' })
     if (cargo.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
-    await prisma.cargo.delete({ where: { id } })
+    await prisma.$transaction(async (tx) => {
+      await tx.cargo.delete({ where: { id } })
+      // Si era una venta de producto del catálogo, repongo el stock
+      if (cargo.tipo === 'producto' && cargo.productoId) {
+        await reponerStock(tx, cargo.clubId, [{ productoId: cargo.productoId, cantidad: cargo.cantidad ?? 1 }], { tipo: 'cargo', id, motivo: 'Cargo eliminado' })
+      }
+    })
     res.json({ ok: true })
   } catch (err) {
     console.error(err)

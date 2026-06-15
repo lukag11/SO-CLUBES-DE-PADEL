@@ -31,6 +31,7 @@ model Club {
   productos      Producto[]
   gastos         Gasto[]
   comandas       Comanda[]
+  movimientosStock MovimientoStock[]
 
   @@map("clubs")
 }
@@ -240,6 +241,7 @@ model Cargo {
   categoria   String?                          // categoría del producto al momento de la venta
   productoId  String?                          // referencia opcional al producto del catálogo
   costo       Int?                             // costo unitario × cantidad (para margen)
+  cantidad    Int?                             // unidades vendidas (para descontar/reponer stock)
   vencimiento DateTime?                        // null = no vence; vencido = pendiente && vencimiento < hoy
   metodoPago  String?                          // efectivo | transferencia | mercadopago
   pagadoAt    DateTime?
@@ -274,19 +276,42 @@ model Comanda {
 // Catálogo de productos vendibles del club (tubo de pelotas, grip, bebidas…). Solo lista de
 // precios — sin control de stock en v1. Una venta genera un Cargo tipo 'producto'.
 model Producto {
-  id        String   @id @default(cuid())
-  clubId    String
-  nombre    String
-  precio    Int
-  costo     Int?     // costo de reposición (opcional) — para margen/rentabilidad
-  categoria String?  // Bebidas | Comidas | Golosinas | Insumos | Otros | (libre)
-  activo    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  clubId        String
+  nombre        String
+  precio        Int
+  costo         Int?     // costo de reposición (opcional) — para margen/rentabilidad
+  categoria     String?  // Bebidas | Comidas | Golosinas | Insumos | Otros | (libre)
+  activo        Boolean  @default(true)
+  controlaStock Boolean  @default(false) // opt-in: solo se controla stock si está activo
+  stock         Int      @default(0)     // unidades actuales (si controlaStock)
+  stockMin      Int      @default(0)     // umbral de alerta de bajo stock
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  club        Club              @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  movimientos MovimientoStock[]
 
   @@map("productos")
+}
+
+// Libro de movimientos de stock (trazabilidad): entrada (compra), salida (venta), ajuste.
+model MovimientoStock {
+  id         String   @id @default(cuid())
+  clubId     String
+  productoId String
+  tipo       String   // entrada | salida | ajuste
+  cantidad   Int      // +entra / -sale (firmado)
+  costoUnit  Int?     // costo unitario al ingresar (compra)
+  motivo     String?  // "Venta", "Compra factura #123", "Ajuste manual", "Anulación"…
+  refTipo    String?  // gasto | cargo | comanda | manual
+  refId      String?
+  createdAt  DateTime @default(now())
+
+  club     Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  producto Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@map("movimientos_stock")
 }
 
 // Egreso / factura de proveedor (gasto del club). Diseñado "OCR-ready": los campos coinciden

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Minus, X, ShoppingCart, Clock, Trash2, Users } from 'lucide-react'
+import { Plus, Minus, X, ShoppingCart, Clock, Trash2, Users, AlertTriangle } from 'lucide-react'
 import { api } from '../../lib/api'
 import { METODO_MAP } from '../../lib/metodosPago'
 
@@ -52,8 +52,21 @@ const VentasTab = ({ token, metodos, showToast }) => {
 
   const onCerrada = () => { setMesaSel(null); fetchMesas(); if (historial !== null) verHistorial() }
 
+  const bajoStock = productos.filter((p) => p.controlaStock && p.stock <= (p.stockMin || 0))
+
   return (
     <div className="flex flex-col gap-5">
+      {/* Alerta de bajo stock */}
+      {bajoStock.length > 0 && (
+        <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="text-amber-800 font-medium">Bajo stock ({bajoStock.length})</p>
+            <p className="text-amber-700 text-xs mt-0.5">{bajoStock.map((p) => `${p.nombre} (${p.stock})`).join(' · ')}</p>
+          </div>
+        </div>
+      )}
+
       {/* Encabezado mesas */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm font-semibold text-slate-700">Mesas abiertas {mesas.length > 0 && <span className="text-slate-400 font-normal">· {mesas.length}</span>}</p>

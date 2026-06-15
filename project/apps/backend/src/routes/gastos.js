@@ -3,6 +3,7 @@ import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { inicioMesArg } from '../lib/tiempo.js'
+import { ingresarStock } from '../lib/stock.js'
 
 const router = Router()
 
@@ -41,29 +42,61 @@ router.get('/resumen', requireAuth, requireRole('admin'), async (req, res) => {
   }
 })
 
-// POST /api/gastos — alta de gasto/factura (manual hoy; mismo shape que produciría el OCR)
+// POST /api/gastos — alta de gasto/factura (manual hoy; mismo shape que produciría el OCR).
+// Opcional: lineasStock [{ productoId?|nombre?, categoria?, cantidad, costoUnit, precio? }] →
+// ingresa stock (crea/matchea productos, suma stock, actualiza costo). Esto es el target del OCR (F5).
 router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
-  const { proveedor, concepto, monto, categoria, fecha, metodoPago, pagado, numeroFactura, imagenUrl, fuente } = req.body
+  const { proveedor, concepto, monto, categoria, fecha, metodoPago, pagado, numeroFactura, imagenUrl, fuente, lineasStock } = req.body
+  const clubId = req.user.clubId
   if (!concepto?.trim()) return res.status(400).json({ error: 'El concepto es requerido' })
   const montoNum = Math.round(Number(monto))
   if (!Number.isFinite(montoNum) || montoNum <= 0) return res.status(400).json({ error: 'El monto debe ser mayor a 0' })
 
   const estaPagado = pagado !== false // default true
   try {
-    const gasto = await prisma.gasto.create({
-      data: {
-        clubId: req.user.clubId,
-        proveedor: proveedor?.trim() || null,
-        concepto: concepto.trim(),
-        monto: montoNum,
-        categoria: categoria?.trim() || null,
-        fecha: fecha || new Date().toISOString().slice(0, 10),
-        pagado: estaPagado,
-        ...(estaPagado && { pagadoAt: new Date(), metodoPago: normalizarMetodo(metodoPago) }),
-        numeroFactura: numeroFactura?.trim() || null,
-        imagenUrl: imagenUrl || null,
-        fuente: fuente === 'ocr' ? 'ocr' : 'manual',
-      },
+    const gasto = await prisma.$transaction(async (tx) => {
+      const g = await tx.gasto.create({
+        data: {
+          clubId,
+          proveedor: proveedor?.trim() || null,
+          concepto: concepto.trim(),
+          monto: montoNum,
+          categoria: categoria?.trim() || null,
+          fecha: fecha || new Date().toISOString().slice(0, 10),
+          pagado: estaPagado,
+          ...(estaPagado && { pagadoAt: new Date(), metodoPago: normalizarMetodo(metodoPago) }),
+          numeroFactura: numeroFactura?.trim() || null,
+          imagenUrl: imagenUrl || null,
+          fuente: fuente === 'ocr' ? 'ocr' : 'manual',
+        },
+      })
+
+      // Ingreso de stock desde las líneas de la factura (si se enviaron)
+      if (Array.isArray(lineasStock) && lineasStock.length) {
+        const resueltas = []
+        for (const l of lineasStock) {
+          const cantidad = Math.max(1, Math.round(Number(l.cantidad) || 1))
+          const costoUnit = l.costoUnit != null && l.costoUnit !== '' ? Math.round(Number(l.costoUnit)) : null
+          let pid = l.productoId || null
+          if (!pid && l.nombre?.trim()) {
+            const ex = await tx.producto.findFirst({ where: { clubId, nombre: { equals: l.nombre.trim(), mode: 'insensitive' } }, select: { id: true } })
+            if (ex) pid = ex.id
+            else {
+              const np = await tx.producto.create({
+                data: {
+                  clubId, nombre: l.nombre.trim(), categoria: l.categoria?.trim() || null,
+                  precio: Math.round(Number(l.precio) || costoUnit || 1) || 1,
+                  costo: costoUnit, controlaStock: true, stock: 0,
+                },
+              })
+              pid = np.id
+            }
+          }
+          if (pid) resueltas.push({ productoId: pid, cantidad, costoUnit })
+        }
+        await ingresarStock(tx, clubId, resueltas, { tipo: 'gasto', id: g.id, motivo: `Compra${g.numeroFactura ? ` #${g.numeroFactura}` : ''}` })
+      }
+      return g
     })
     res.status(201).json(gasto)
   } catch (err) {

@@ -3,6 +3,7 @@ import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { snapshotProductos } from '../lib/productos.js'
+import { descontarStock } from '../lib/stock.js'
 
 const router = Router()
 
@@ -1060,12 +1061,14 @@ router.post('/:id/cuenta', requireAuth, requireRole('admin'), async (req, res) =
           await tx.cargo.create({
             data: {
               clubId, jugadorId: it.jugadorId, reservaId: id, concepto: c.concepto, monto: c.monto, tipo: 'producto', estado,
-              productoId: c.productoId, categoria: snap[c.productoId]?.categoria ?? null, costo: costoUnit != null ? costoUnit * c.cantidad : null,
+              productoId: c.productoId, cantidad: c.cantidad, categoria: snap[c.productoId]?.categoria ?? null, costo: costoUnit != null ? costoUnit * c.cantidad : null,
               ...pagoData,
             },
           })
         }
       }
+      // Descontar stock de los consumos (productos del catálogo)
+      await descontarStock(tx, clubId, items.flatMap((it) => it.consumos.map((c) => ({ productoId: c.productoId, cantidad: c.cantidad }))), { tipo: 'reserva', id, motivo: 'Consumo en turno' })
       // El turno pasa a representarse por cargos → neutralizo la reserva para no contar doble
       if (nuevoTurno > 0 && !reserva.cobroOmitido) {
         await tx.reserva.update({ where: { id }, data: { cobroOmitido: true } })

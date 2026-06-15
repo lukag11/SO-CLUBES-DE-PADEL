@@ -3,6 +3,7 @@ import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { snapshotProductos } from '../lib/productos.js'
+import { descontarStock } from '../lib/stock.js'
 
 const router = Router()
 
@@ -22,7 +23,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
 
 // POST /api/productos — alta de producto
 router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
-  const { nombre, precio, categoria, costo } = req.body
+  const { nombre, precio, categoria, costo, controlaStock, stock, stockMin } = req.body
   if (!nombre?.trim()) return res.status(400).json({ error: 'El nombre es requerido' })
   const precioNum = Math.round(Number(precio))
   if (!Number.isFinite(precioNum) || precioNum <= 0) {
@@ -37,6 +38,9 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         precio: precioNum,
         costo: Number.isFinite(costoNum) && costoNum >= 0 ? costoNum : null,
         categoria: categoria?.trim() || null,
+        controlaStock: !!controlaStock,
+        stock: controlaStock && Number(stock) > 0 ? Math.round(Number(stock)) : 0,
+        stockMin: Number(stockMin) > 0 ? Math.round(Number(stockMin)) : 0,
       },
     })
     res.status(201).json(producto)
@@ -48,7 +52,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
 
 // PATCH /api/productos/:id — editar producto (nombre, precio, categoría, activo)
 router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
-  const { nombre, precio, categoria, activo, costo } = req.body
+  const { nombre, precio, categoria, activo, costo, controlaStock, stockMin } = req.body
   try {
     const producto = await prisma.producto.findUnique({ where: { id: req.params.id } })
     if (!producto || producto.clubId !== req.user.clubId) {
@@ -65,6 +69,8 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
         ...(costo !== undefined && { costo: costo === '' || costo == null ? null : Math.round(Number(costo)) }),
         ...(categoria !== undefined && { categoria: categoria?.trim() || null }),
         ...(activo !== undefined && { activo: !!activo }),
+        ...(controlaStock !== undefined && { controlaStock: !!controlaStock }),
+        ...(stockMin !== undefined && { stockMin: Math.max(0, Math.round(Number(stockMin) || 0)) }),
       },
     })
     res.json(updated)
@@ -86,6 +92,27 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al eliminar producto' })
+  }
+})
+
+// POST /api/productos/:id/ajuste — ajuste manual de stock. Body: { stock } (valor final) | { delta }
+router.post('/:id/ajuste', requireAuth, requireRole('admin'), async (req, res) => {
+  const clubId = req.user.clubId
+  const { id } = req.params
+  try {
+    const p = await prisma.producto.findUnique({ where: { id } })
+    if (!p || p.clubId !== clubId) return res.status(404).json({ error: 'Producto no encontrado' })
+    const nuevo = req.body.stock != null ? Math.max(0, Math.round(Number(req.body.stock))) : p.stock + Math.round(Number(req.body.delta) || 0)
+    const delta = nuevo - p.stock
+    await prisma.$transaction(async (tx) => {
+      await tx.producto.update({ where: { id }, data: { stock: Math.max(0, nuevo), ...(p.controlaStock ? {} : { controlaStock: true }) } })
+      if (delta !== 0) await tx.movimientoStock.create({ data: { clubId, productoId: id, tipo: 'ajuste', cantidad: delta, motivo: req.body.motivo || 'Ajuste manual', refTipo: 'manual' } })
+    })
+    const actualizado = await prisma.producto.findUnique({ where: { id } })
+    res.json(actualizado)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al ajustar el stock' })
   }
 })
 
@@ -127,20 +154,23 @@ router.post('/venta', requireAuth, requireRole('admin'), async (req, res) => {
     const now = new Date()
     const estado = cobrar ? 'pagado' : 'pendiente'
     const pagoData = cobrar ? { pagadoAt: now, metodoPago: normalizarMetodo(metodoPago) } : {}
-    // Un cargo por línea (para reporting por producto/categoría)
-    await prisma.cargo.createMany({
-      data: lineas.map((l) => {
-        const costoUnit = snap[l.productoId]?.costo
-        return {
-          clubId, jugadorId, tipo: 'producto', estado,
-          concepto: l.cantidad > 1 ? `${l.cantidad}× ${l.nombre}` : l.nombre,
-          monto: l.precio * l.cantidad,
-          productoId: l.productoId,
-          categoria: snap[l.productoId]?.categoria ?? null,
-          costo: costoUnit != null ? costoUnit * l.cantidad : null,
-          ...pagoData,
-        }
-      }),
+    // Un cargo por línea (para reporting por producto/categoría) + descuento de stock
+    await prisma.$transaction(async (tx) => {
+      await tx.cargo.createMany({
+        data: lineas.map((l) => {
+          const costoUnit = snap[l.productoId]?.costo
+          return {
+            clubId, jugadorId, tipo: 'producto', estado,
+            concepto: l.cantidad > 1 ? `${l.cantidad}× ${l.nombre}` : l.nombre,
+            monto: l.precio * l.cantidad,
+            productoId: l.productoId, cantidad: l.cantidad,
+            categoria: snap[l.productoId]?.categoria ?? null,
+            costo: costoUnit != null ? costoUnit * l.cantidad : null,
+            ...pagoData,
+          }
+        }),
+      })
+      await descontarStock(tx, clubId, lineas.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad })), { tipo: 'cargo', motivo: 'Venta' })
     })
     res.status(201).json({ ok: true })
   } catch (err) {

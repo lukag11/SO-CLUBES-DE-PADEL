@@ -218,22 +218,26 @@ const calcPct = (costo, precio) => (Number(costo) > 0 && precio !== '' && precio
 const precioDesdePct = (costo, pct) => (Number(costo) > 0 && pct !== '') ? String(Math.round(Number(costo) * (1 + Number(pct) / 100))) : ''
 
 // ── Modal: catálogo de productos (ABM) ───────────────────────────────────────
-const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onClose, saving }) => {
+const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onAjuste, onClose, saving }) => {
   // Form único: alta (editId null) o edición (editId set). El lápiz carga el producto acá arriba.
-  const [form, setForm] = useState({ nombre: '', precio: '', costo: '', categoria: 'Bebidas' })
+  const [form, setForm] = useState({ nombre: '', precio: '', costo: '', categoria: 'Bebidas', controlaStock: false, stock: '', stockMin: '' })
   const [editId, setEditId] = useState(null)
   const [error, setError] = useState('')
 
-  const resetForm = () => { setForm((f) => ({ nombre: '', precio: '', costo: '', categoria: f.categoria })); setEditId(null); setError('') }
+  const resetForm = () => { setForm((f) => ({ nombre: '', precio: '', costo: '', categoria: f.categoria, controlaStock: false, stock: '', stockMin: '' })); setEditId(null); setError('') }
   const guardar = () => {
     if (!form.nombre.trim()) return setError('Ingresá un nombre')
     if (!(Number(form.precio) > 0)) return setError('El precio debe ser mayor a 0')
     setError('')
-    const payload = { nombre: form.nombre.trim(), precio: Number(form.precio), costo: form.costo === '' ? null : Number(form.costo), categoria: form.categoria || null }
+    const payload = {
+      nombre: form.nombre.trim(), precio: Number(form.precio), costo: form.costo === '' ? null : Number(form.costo), categoria: form.categoria || null,
+      controlaStock: form.controlaStock, stockMin: form.stockMin === '' ? 0 : Number(form.stockMin),
+      ...(editId ? {} : { stock: form.stock === '' ? 0 : Number(form.stock) }), // stock inicial solo en alta
+    }
     if (editId) onUpdate(editId, payload); else onCreate(payload)
     resetForm()
   }
-  const empezarEdit = (p) => { setEditId(p.id); setError(''); setForm({ nombre: p.nombre, precio: String(p.precio), costo: p.costo != null ? String(p.costo) : '', categoria: p.categoria ?? 'Otros' }) }
+  const empezarEdit = (p) => { setEditId(p.id); setError(''); setForm({ nombre: p.nombre, precio: String(p.precio), costo: p.costo != null ? String(p.costo) : '', categoria: p.categoria ?? 'Otros', controlaStock: !!p.controlaStock, stock: '', stockMin: p.stockMin ? String(p.stockMin) : '' }) }
   // Agrupar productos por categoría para la lista
   const grupos = CATEGORIAS_PRODUCTO
     .map((cat) => ({ cat, items: productos.filter((p) => (p.categoria || 'Otros') === cat) }))
@@ -279,6 +283,30 @@ const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onClo
               <input type="number" value={calcPct(form.costo, form.precio)} onChange={(e) => setForm((f) => ({ ...f, precio: precioDesdePct(f.costo, e.target.value) }))} disabled={!(Number(form.costo) > 0)} placeholder={Number(form.costo) > 0 ? '%' : '—'} title={Number(form.costo) > 0 ? 'Markup sobre el costo' : 'Cargá el costo primero'} className={`w-full ${inputCls} disabled:opacity-50`} />
             </div>
           </div>
+          {/* Control de stock (opt-in) */}
+          <div className="rounded-xl border border-slate-100 p-2.5">
+            <button onClick={() => setForm((f) => ({ ...f, controlaStock: !f.controlaStock }))} className="flex items-center gap-2 w-full text-left">
+              <div className={`w-9 h-5 rounded-full transition-colors shrink-0 relative ${form.controlaStock ? 'bg-brand-500' : 'bg-slate-200'}`}>
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${form.controlaStock ? 'left-4' : 'left-0.5'}`} />
+              </div>
+              <span className="text-sm text-slate-700 font-medium">Controlar stock</span>
+            </button>
+            {form.controlaStock && (
+              <div className="grid grid-cols-2 gap-2 mt-2.5">
+                {!editId && (
+                  <div>
+                    <label className="block text-slate-500 text-[11px] font-medium mb-1">Stock inicial</label>
+                    <input type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} placeholder="0" className={`w-full ${inputCls}`} />
+                  </div>
+                )}
+                <div className={editId ? 'col-span-2' : ''}>
+                  <label className="block text-slate-500 text-[11px] font-medium mb-1">Avisar cuando queden ≤</label>
+                  <input type="number" value={form.stockMin} onChange={(e) => setForm((f) => ({ ...f, stockMin: e.target.value }))} placeholder="ej: 5" className={`w-full ${inputCls}`} />
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2">
             {editId && <button onClick={resetForm} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50">Cancelar</button>}
             <button onClick={guardar} disabled={saving} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
@@ -302,6 +330,15 @@ const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onClo
                     <p className="text-sm font-medium text-slate-700 truncate">{p.nombre}</p>
                     {p.costo != null && <span className="text-[10px] text-slate-400">costo {money(p.costo)} · margen {money(p.precio - p.costo)}{p.costo > 0 ? ` (${calcPct(p.costo, p.precio)}%)` : ''}</span>}
                   </div>
+                  {p.controlaStock && (
+                    <button
+                      onClick={() => { const v = window.prompt(`Stock de "${p.nombre}" (unidades reales):`, String(p.stock)); if (v !== null && v.trim() !== '' && !isNaN(Number(v))) onAjuste(p.id, Math.max(0, Math.round(Number(v)))) }}
+                      title="Ajustar stock"
+                      className={`text-[10px] font-semibold px-2 py-1 rounded-lg shrink-0 ${p.stock <= 0 ? 'text-rose-600 bg-rose-50' : p.stock <= (p.stockMin || 0) ? 'text-amber-600 bg-amber-50' : 'text-slate-500 bg-slate-100'}`}
+                    >
+                      {p.stock <= 0 ? 'Sin stock' : `Stock ${p.stock}`}
+                    </button>
+                  )}
                   <p className="text-sm font-semibold text-slate-700 shrink-0">{money(p.precio)}</p>
                   <button onClick={() => onUpdate(p.id, { activo: !p.activo })} title={p.activo ? 'Desactivar' : 'Activar'} className={`text-[10px] font-medium px-2 py-1 rounded-lg shrink-0 ${p.activo ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-100'}`}>
                     {p.activo ? 'Activo' : 'Inactivo'}
@@ -791,6 +828,16 @@ const PagosPage = () => {
       showToast('error', err?.message || 'No se pudo eliminar el producto')
     } finally { setSaving(false) }
   }
+  const ajustarStock = async (id, stock) => {
+    setSaving(true)
+    try {
+      await api.post(`/productos/${id}/ajuste`, { stock }, { Authorization: `Bearer ${token}` })
+      await fetchProductos()
+      showToast('exito', 'Stock actualizado')
+    } catch (err) {
+      showToast('error', err?.message || 'No se pudo ajustar el stock')
+    } finally { setSaving(false) }
+  }
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
@@ -1039,7 +1086,7 @@ const PagosPage = () => {
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}
       {cuentaOpen && <ModalCuentaJugador modo={modalModo} jugadores={jugadores} deudores={deudores} productos={productos} metodos={metodosHabilitados} token={token} onClose={() => setModalModo(null)} onRefresh={fetchData} showToast={showToast} />}
       {configMetodos && <ModalMetodos seleccion={metodosHabilitados} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
-      {catalogoOpen && <ModalCatalogoProductos productos={productos} onCreate={crearProducto} onUpdate={actualizarProducto} onDelete={eliminarProducto} onClose={() => setCatalogoOpen(false)} saving={saving} />}
+      {catalogoOpen && <ModalCatalogoProductos productos={productos} onCreate={crearProducto} onUpdate={actualizarProducto} onDelete={eliminarProducto} onAjuste={ajustarStock} onClose={() => setCatalogoOpen(false)} saving={saving} />}
 
       {toast && (
         <Toast

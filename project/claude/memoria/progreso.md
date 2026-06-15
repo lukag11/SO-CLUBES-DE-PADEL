@@ -1,6 +1,20 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-15 — Finanzas completo: categorías + detalle por ítem + Reportes + margen/pricing. Próximo: stock + OCR
+**Última actualización:** 2026-06-15 — Stock de productos: control opt-in, descuento en ventas, ingreso por compra, alertas. OCR estructurado
+
+---
+
+## Stock de productos + alertas + OCR-ready (2026-06-15)
+
+- **Schema:** `Producto.controlaStock/stock/stockMin` (opt-in), `Cargo.cantidad`, modelo `MovimientoStock` (entrada/salida/ajuste, cantidad firmada, costoUnit, motivo, ref). `lib/stock.js`: `descontarStock`/`reponerStock`/`ingresarStock` (solo afectan productos con controlaStock).
+- **F2 descuento en ventas:** comanda `/items`, `/productos/venta` (des-bundleado, un cargo+cantidad por ítem), consumos de turno `/reservas/:id/cuenta` → descuentan stock. Reponen al **quitar ítem de mesa**, **descartar mesa**, **eliminar cargo** (DELETE /cargos/:id). Anular cobro NO repone (el consumo igual ocurrió).
+- **F3 ingreso:** ajuste manual `POST /productos/:id/ajuste` ({stock} final → movimiento ajuste). Compra: `POST /gastos` acepta `lineasStock [{productoId?|nombre?, categoria?, cantidad, costoUnit, precio?}]` → crea/matchea productos, suma stock, actualiza costo (`ingresarStock`). Productos POST/PATCH aceptan controlaStock/stock/stockMin.
+- **F4 alertas (visual):** badge de stock en catálogo (rojo sin stock / ámbar ≤ stockMin / gris ok) con ajuste rápido (prompt → /ajuste), y **banner de bajo stock** en la tab Ventas. **PENDIENTE:** notificación push al admin (reusar `notificaciones`).
+- **F5 OCR (premium):** el endpoint `POST /gastos` con `lineasStock` ES el target estructurado del OCR/IA. **PENDIENTE frontend:** form de "factura de proveedor con líneas" en GastosTab (que la IA pre-llenará) + gating por plan.
+
+### Pendiente para cerrar stock
+1. Notificación al admin al cruzar bajo stock (push, no solo visual).
+2. UI de factura-con-líneas en GastosTab (carga manual de compra que repone stock) — y sobre eso, el pre-llenado por OCR/IA (premium).
 
 ---
 

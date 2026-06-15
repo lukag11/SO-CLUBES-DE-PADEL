@@ -2,6 +2,8 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
+import { snapshotProductos } from '../lib/productos.js'
+import { descontarStock, reponerStock } from '../lib/stock.js'
 
 const router = Router()
 
@@ -44,7 +46,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
 router.post('/:id/items', requireAuth, requireRole('admin'), async (req, res) => {
   const clubId = req.user.clubId
   const { id } = req.params
-  const items = (req.body.items || []).map((it) => ({ concepto: String(it.concepto || '').trim(), monto: Math.round(Number(it.monto)) }))
+  const items = (req.body.items || []).map((it) => ({ concepto: String(it.concepto || '').trim(), monto: Math.round(Number(it.monto)), productoId: it.productoId || null }))
   if (items.length === 0 || items.some((l) => !l.concepto || !(l.monto > 0))) {
     return res.status(400).json({ error: 'Hay un ítem con datos inválidos' })
   }
@@ -52,8 +54,16 @@ router.post('/:id/items', requireAuth, requireRole('admin'), async (req, res) =>
     const comanda = await prisma.comanda.findUnique({ where: { id } })
     if (!comanda || comanda.clubId !== clubId) return res.status(404).json({ error: 'Comanda no encontrada' })
     if (comanda.estado !== 'abierta') return res.status(400).json({ error: 'La comanda ya está cerrada' })
-    await prisma.cargo.createMany({
-      data: items.map((l) => ({ clubId, comandaId: id, concepto: l.concepto, monto: l.monto, tipo: 'producto', estado: 'pendiente' })),
+    const snap = await snapshotProductos(clubId, items.map((l) => l.productoId))
+    await prisma.$transaction(async (tx) => {
+      await tx.cargo.createMany({
+        data: items.map((l) => ({
+          clubId, comandaId: id, concepto: l.concepto, monto: l.monto, tipo: 'producto', estado: 'pendiente', cantidad: 1,
+          productoId: l.productoId, categoria: snap[l.productoId]?.categoria ?? null, costo: snap[l.productoId]?.costo ?? null,
+        })),
+      })
+      // Descontar stock de los productos del catálogo (qty 1 por ítem)
+      await descontarStock(tx, clubId, items.map((l) => ({ productoId: l.productoId, cantidad: 1 })), { tipo: 'comanda', id, motivo: `Mesa ${comanda.etiqueta}` })
     })
     const actual = await prisma.comanda.findUnique({ where: { id }, include: { cargos: { ...SEL_CARGO, orderBy: { createdAt: 'asc' } } } })
     res.status(201).json(conTotal(actual))
@@ -71,7 +81,10 @@ router.delete('/:id/items/:cargoId', requireAuth, requireRole('admin'), async (r
     const cargo = await prisma.cargo.findUnique({ where: { id: cargoId } })
     if (!cargo || cargo.clubId !== clubId || cargo.comandaId !== id) return res.status(404).json({ error: 'Ítem no encontrado' })
     if (cargo.estado === 'pagado') return res.status(400).json({ error: 'No se puede quitar un ítem ya cobrado' })
-    await prisma.cargo.delete({ where: { id: cargoId } })
+    await prisma.$transaction(async (tx) => {
+      await tx.cargo.delete({ where: { id: cargoId } })
+      await reponerStock(tx, clubId, [{ productoId: cargo.productoId, cantidad: cargo.cantidad ?? 1 }], { tipo: 'comanda', id, motivo: 'Quitado de mesa' })
+    })
     res.json({ ok: true })
   } catch (err) {
     console.error(err)
@@ -109,10 +122,11 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
     const comanda = await prisma.comanda.findUnique({ where: { id }, include: { cargos: true } })
     if (!comanda || comanda.clubId !== clubId) return res.status(404).json({ error: 'Comanda no encontrada' })
     if (comanda.cargos.some((c) => c.estado === 'pagado')) return res.status(400).json({ error: 'No se puede eliminar: tiene ítems ya cobrados' })
-    await prisma.$transaction([
-      prisma.cargo.deleteMany({ where: { comandaId: id } }),
-      prisma.comanda.delete({ where: { id } }),
-    ])
+    await prisma.$transaction(async (tx) => {
+      await reponerStock(tx, clubId, comanda.cargos.map((c) => ({ productoId: c.productoId, cantidad: c.cantidad ?? 1 })), { tipo: 'comanda', id, motivo: 'Mesa descartada' })
+      await tx.cargo.deleteMany({ where: { comandaId: id } })
+      await tx.comanda.delete({ where: { id } })
+    })
     res.json({ ok: true })
   } catch (err) {
     console.error(err)

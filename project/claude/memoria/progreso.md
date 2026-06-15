@@ -17,7 +17,14 @@
 ### Tab Stock dedicada (2026-06-15)
 - 5 tabs: **Ventas · Stock · Cobranzas · Gastos · Caja/Reportes**. El ABM de productos salió de ⚙️ (que ahora solo tiene Métodos) y vive en **`features/pagos/StockTab.jsx`**: tarjetas (valor de inventario = Σ stock×costo, # bajo stock, # productos), alerta de reposición, buscador, form alta/edición (pricing costo/precio/% + control de stock), lista por categoría con badge de stock (ajuste por prompt), **ver movimientos** (`GET /productos/:id/movimientos`), y botón "Ingresar compra" → cambia a tab Gastos.
 - La **compra/factura** sigue en Gastos (es egreso) con la sección de líneas que repone stock = punto de entrada del OCR/IA. Al guardar, escribe en Gastos + Stock (Producto + MovimientoStock).
-- Nota: en PagosPage quedó `ModalCatalogoProductos` + handlers como código muerto (reemplazado por StockTab) — limpiar en un pase futuro.
+### Auditoría + pulido de Finanzas (2026-06-15)
+Auditoría de IA/UX del módulo. Cambios:
+- **Compra dedicada:** `ModalCompra` en StockTab (botón "Ingresar compra") — proveedor, foto (IA-ready), líneas de productos → suma stock + actualiza costo + crea Gasto (categoría "Mercadería"). Se **sacaron las líneas de stock de "Nuevo gasto"** (Gastos = egreso general; nota que apunta a Stock→Ingresar compra).
+- **Sidebar "Pagos" → "Finanzas"**.
+- **Ayuda (ⓘ) reescrita** a la estructura real (Ventas/Stock/Cobranzas/Gastos/Caja + Asistente IA próximo).
+- **Ajuste de stock con mini-modal** (se sacó el `window.prompt`).
+- **Copy en Ventas** aclarando venta rápida (pago al toque) vs mesa (cuenta abierta).
+- **Limpieza:** se borró `ModalCatalogoProductos` + handlers + `catalogoOpen` + helpers de pricing de PagosPage (ya viven en StockTab). ⚙️ quedó solo con Métodos.
 
 ---
 

@@ -33,18 +33,6 @@ const ModalGasto = ({ gasto, metodos, token, onSave, onClose, saving }) => {
   const [error, setError] = useState('')
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
-  // Ingreso a stock (solo en alta): líneas de la factura {nombre, cantidad, costoUnit}
-  const [stockOpen, setStockOpen] = useState(false)
-  const [lineas, setLineas] = useState([])
-  const [prods, setProds] = useState([])
-  useEffect(() => {
-    if (editing) return
-    api.get('/productos', { Authorization: `Bearer ${token}` }).then((d) => setProds(Array.isArray(d) ? d : [])).catch(() => {})
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  const addLinea = () => setLineas((l) => [...l, { id: Date.now() + Math.random(), nombre: '', cantidad: '1', costoUnit: '' }])
-  const setLinea = (id, k, v) => setLineas((l) => l.map((x) => x.id === id ? { ...x, [k]: v } : x))
-  const delLinea = (id) => setLineas((l) => l.filter((x) => x.id !== id))
-  const totalLineas = lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.costoUnit) || 0), 0)
 
   const subirFoto = async (file) => {
     if (!file) return
@@ -61,12 +49,6 @@ const ModalGasto = ({ gasto, metodos, token, onSave, onClose, saving }) => {
     if (!form.concepto.trim()) return setError('Ingresá un concepto')
     if (!(Number(form.monto) > 0)) return setError('El monto debe ser mayor a 0')
     setError('')
-    const lineasStock = !editing
-      ? lineas.filter((l) => l.nombre.trim() && Number(l.cantidad) > 0).map((l) => {
-          const ex = prods.find((p) => p.nombre.trim().toLowerCase() === l.nombre.trim().toLowerCase())
-          return { productoId: ex?.id || null, nombre: l.nombre.trim(), cantidad: Number(l.cantidad), costoUnit: l.costoUnit === '' ? null : Number(l.costoUnit) }
-        })
-      : []
     onSave({
       proveedor: form.proveedor.trim() || null,
       concepto: form.concepto.trim(),
@@ -77,7 +59,6 @@ const ModalGasto = ({ gasto, metodos, token, onSave, onClose, saving }) => {
       metodoPago: form.pagado ? form.metodoPago : null,
       numeroFactura: form.numeroFactura.trim() || null,
       imagenUrl: form.imagenUrl || null,
-      ...(lineasStock.length ? { lineasStock } : {}),
     })
   }
 
@@ -154,37 +135,8 @@ const ModalGasto = ({ gasto, metodos, token, onSave, onClose, saving }) => {
             )}
           </div>
 
-          {/* Ingreso a stock desde la factura (solo en alta) */}
           {!editing && (
-            <div className="rounded-xl border border-slate-100 p-3">
-              {!stockOpen ? (
-                <button onClick={() => { setStockOpen(true); if (lineas.length === 0) addLinea() }} className="flex items-center gap-2 text-sm text-brand-600 hover:text-brand-700 font-medium">
-                  <Plus size={15} /> Ingresar productos a stock
-                </button>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Productos de la factura</p>
-                    <button onClick={() => { setStockOpen(false); setLineas([]) }} className="text-slate-300 hover:text-slate-600"><X size={15} /></button>
-                  </div>
-                  <datalist id="prods-stock">{prods.map((p) => <option key={p.id} value={p.nombre} />)}</datalist>
-                  {lineas.map((l) => (
-                    <div key={l.id} className="flex gap-1.5">
-                      <input list="prods-stock" value={l.nombre} onChange={(e) => setLinea(l.id, 'nombre', e.target.value)} placeholder="Producto" className={`flex-1 ${inputCls} py-2`} />
-                      <input type="number" value={l.cantidad} onChange={(e) => setLinea(l.id, 'cantidad', e.target.value)} placeholder="cant." title="Cantidad" className={`w-16 ${inputCls} py-2`} />
-                      <input type="number" value={l.costoUnit} onChange={(e) => setLinea(l.id, 'costoUnit', e.target.value)} placeholder="$ c/u" title="Costo unitario" className={`w-20 ${inputCls} py-2`} />
-                      <button onClick={() => delLinea(l.id)} className="text-slate-300 hover:text-rose-500 px-1"><X size={14} /></button>
-                    </div>
-                  ))}
-                  <div className="flex items-center justify-between">
-                    <button onClick={addLinea} className="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1"><Plus size={13} /> Agregar línea</button>
-                    {totalLineas > 0 && <button onClick={() => set('monto', String(totalLineas))} className="text-[11px] text-slate-400 hover:text-slate-600">Usar total del detalle ({money(totalLineas)})</button>}
-                  </div>
-                  <p className="text-[10px] text-slate-400">Suma stock, crea los productos que no existan y actualiza el costo. Los que ya existen se matchean por nombre.</p>
-                </div>
-              )}
-              <p className="text-[10px] text-slate-300 mt-2 flex items-center gap-1"><Camera size={11} /> Próximamente: cargar el detalle automático desde la foto (IA · plan premium).</p>
-            </div>
+            <p className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-3 py-2">¿Es una <b>compra de mercadería</b> (productos para el bar)? Cargala desde <b>Stock → Ingresar compra</b>: suma stock y queda como egreso acá.</p>
           )}
 
           {error && <p className="text-rose-500 text-xs">{error}</p>}

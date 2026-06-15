@@ -69,7 +69,10 @@ const VentasTab = ({ token, metodos, showToast }) => {
 
       {/* Encabezado mesas */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-sm font-semibold text-slate-700">Mesas abiertas {mesas.length > 0 && <span className="text-slate-400 font-normal">· {mesas.length}</span>}</p>
+        <div>
+          <p className="text-sm font-semibold text-slate-700">Mesas abiertas {mesas.length > 0 && <span className="text-slate-400 font-normal">· {mesas.length}</span>}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5"><b>Nueva venta</b> (arriba) = pagás al toque · <b>Mesa</b> = cuenta abierta que se cobra al final.</p>
+        </div>
         <button onClick={() => setAbrirOpen((o) => !o)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm">
           <Plus size={16} /> Nueva mesa
         </button>

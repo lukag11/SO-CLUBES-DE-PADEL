@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   DollarSign, AlertTriangle, TrendingUp, Search, Plus, X,
-  CheckCircle, Trash2, Clock, Settings, Check, Package, Pencil, Minus, Printer, Download, FileText, Wallet, RotateCcw, ShoppingCart,
+  CheckCircle, Trash2, Clock, Settings, Check, Package, Pencil, Minus, Printer, Download, FileText, Wallet, RotateCcw, ShoppingCart, Boxes, Camera, TrendingDown,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
@@ -211,150 +211,6 @@ const ModalAnular = ({ cargo, onConfirm, onClose, saving }) => (
   </div>
 )
 
-// Categorías sugeridas para el bar/tienda (para reportes por rubro)
-const CATEGORIAS_PRODUCTO = ['Bebidas', 'Comidas', 'Golosinas', 'Insumos', 'Otros']
-
-// Pricing: % de ganancia = markup sobre el costo. Bidireccional con el precio de venta.
-const calcPct = (costo, precio) => (Number(costo) > 0 && precio !== '' && precio != null) ? Math.round((Number(precio) - Number(costo)) / Number(costo) * 100) : ''
-const precioDesdePct = (costo, pct) => (Number(costo) > 0 && pct !== '') ? String(Math.round(Number(costo) * (1 + Number(pct) / 100))) : ''
-
-// ── Modal: catálogo de productos (ABM) ───────────────────────────────────────
-const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onAjuste, onClose, saving }) => {
-  // Form único: alta (editId null) o edición (editId set). El lápiz carga el producto acá arriba.
-  const [form, setForm] = useState({ nombre: '', precio: '', costo: '', categoria: 'Bebidas', controlaStock: false, stock: '', stockMin: '' })
-  const [editId, setEditId] = useState(null)
-  const [error, setError] = useState('')
-
-  const resetForm = () => { setForm((f) => ({ nombre: '', precio: '', costo: '', categoria: f.categoria, controlaStock: false, stock: '', stockMin: '' })); setEditId(null); setError('') }
-  const guardar = () => {
-    if (!form.nombre.trim()) return setError('Ingresá un nombre')
-    if (!(Number(form.precio) > 0)) return setError('El precio debe ser mayor a 0')
-    setError('')
-    const payload = {
-      nombre: form.nombre.trim(), precio: Number(form.precio), costo: form.costo === '' ? null : Number(form.costo), categoria: form.categoria || null,
-      controlaStock: form.controlaStock, stockMin: form.stockMin === '' ? 0 : Number(form.stockMin),
-      ...(editId ? {} : { stock: form.stock === '' ? 0 : Number(form.stock) }), // stock inicial solo en alta
-    }
-    if (editId) onUpdate(editId, payload); else onCreate(payload)
-    resetForm()
-  }
-  const empezarEdit = (p) => { setEditId(p.id); setError(''); setForm({ nombre: p.nombre, precio: String(p.precio), costo: p.costo != null ? String(p.costo) : '', categoria: p.categoria ?? 'Otros', controlaStock: !!p.controlaStock, stock: '', stockMin: p.stockMin ? String(p.stockMin) : '' }) }
-  // Agrupar productos por categoría para la lista
-  const grupos = CATEGORIAS_PRODUCTO
-    .map((cat) => ({ cat, items: productos.filter((p) => (p.categoria || 'Otros') === cat) }))
-    .filter((g) => g.items.length > 0)
-  const sinCat = productos.filter((p) => p.categoria && !CATEGORIAS_PRODUCTO.includes(p.categoria))
-  if (sinCat.length) grupos.push({ cat: 'Otras', items: sinCat })
-
-  const inputCls = 'bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <div>
-            <p className="text-slate-800 font-bold">Catálogo de productos</p>
-            <p className="text-slate-400 text-xs mt-0.5">Tubo de pelotas, grip, bebidas… lo que vende tu club</p>
-          </div>
-          <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
-        </div>
-
-        {/* Form alta/edición */}
-        <div className={`px-6 py-4 border-b border-slate-100 shrink-0 flex flex-col gap-2.5 ${editId ? 'bg-brand-50/40' : ''}`}>
-          {editId && <p className="text-[11px] font-semibold text-brand-600 -mb-0.5">Editando producto</p>}
-          <input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Nombre (ej: Coca Cola 1L)" className={`w-full ${inputCls}`} />
-          <div>
-            <label className="block text-slate-500 text-[11px] font-medium mb-1">Categoría</label>
-            <select value={form.categoria} onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))} className={`w-full ${inputCls}`}>
-              {CATEGORIAS_PRODUCTO.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="block text-slate-500 text-[11px] font-medium mb-1">Costo</label>
-              <input type="number" value={form.costo} onChange={(e) => setForm((f) => ({ ...f, costo: e.target.value }))} placeholder="opc." className={`w-full ${inputCls}`} />
-            </div>
-            <div>
-              <label className="block text-slate-500 text-[11px] font-medium mb-1">Precio venta</label>
-              <input type="number" value={form.precio} onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))} placeholder="0" className={`w-full ${inputCls}`} />
-            </div>
-            <div>
-              <label className="block text-slate-500 text-[11px] font-medium mb-1">% ganancia</label>
-              <input type="number" value={calcPct(form.costo, form.precio)} onChange={(e) => setForm((f) => ({ ...f, precio: precioDesdePct(f.costo, e.target.value) }))} disabled={!(Number(form.costo) > 0)} placeholder={Number(form.costo) > 0 ? '%' : '—'} title={Number(form.costo) > 0 ? 'Markup sobre el costo' : 'Cargá el costo primero'} className={`w-full ${inputCls} disabled:opacity-50`} />
-            </div>
-          </div>
-          {/* Control de stock (opt-in) */}
-          <div className="rounded-xl border border-slate-100 p-2.5">
-            <button onClick={() => setForm((f) => ({ ...f, controlaStock: !f.controlaStock }))} className="flex items-center gap-2 w-full text-left">
-              <div className={`w-9 h-5 rounded-full transition-colors shrink-0 relative ${form.controlaStock ? 'bg-brand-500' : 'bg-slate-200'}`}>
-                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${form.controlaStock ? 'left-4' : 'left-0.5'}`} />
-              </div>
-              <span className="text-sm text-slate-700 font-medium">Controlar stock</span>
-            </button>
-            {form.controlaStock && (
-              <div className="grid grid-cols-2 gap-2 mt-2.5">
-                {!editId && (
-                  <div>
-                    <label className="block text-slate-500 text-[11px] font-medium mb-1">Stock inicial</label>
-                    <input type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} placeholder="0" className={`w-full ${inputCls}`} />
-                  </div>
-                )}
-                <div className={editId ? 'col-span-2' : ''}>
-                  <label className="block text-slate-500 text-[11px] font-medium mb-1">Avisar cuando queden ≤</label>
-                  <input type="number" value={form.stockMin} onChange={(e) => setForm((f) => ({ ...f, stockMin: e.target.value }))} placeholder="ej: 5" className={`w-full ${inputCls}`} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            {editId && <button onClick={resetForm} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50">Cancelar</button>}
-            <button onClick={guardar} disabled={saving} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-              {editId ? 'Guardar cambios' : <><Plus size={16} /> Agregar producto</>}
-            </button>
-          </div>
-          {!editId && <p className="text-[10px] text-slate-400">El <b>costo</b> es opcional; con él se calcula el <b>% de ganancia</b> y el margen en los reportes.</p>}
-          {error && <p className="text-rose-500 text-xs">{error}</p>}
-        </div>
-
-        {/* Lista agrupada por categoría */}
-        <div className="overflow-y-auto px-6 py-3 flex flex-col gap-3">
-          {productos.length === 0 ? (
-            <p className="text-slate-400 text-sm text-center py-6">Todavía no cargaste productos.</p>
-          ) : grupos.map(({ cat, items }) => (
-            <div key={cat} className="flex flex-col gap-1.5">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{cat} <span className="font-normal">· {items.length}</span></p>
-              {items.map((p) => (
-                <div key={p.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${editId === p.id ? 'border-brand-300 bg-brand-50/40' : p.activo ? 'border-slate-100' : 'border-slate-100 bg-slate-50/60 opacity-60'}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-700 truncate">{p.nombre}</p>
-                    {p.costo != null && <span className="text-[10px] text-slate-400">costo {money(p.costo)} · margen {money(p.precio - p.costo)}{p.costo > 0 ? ` (${calcPct(p.costo, p.precio)}%)` : ''}</span>}
-                  </div>
-                  {p.controlaStock && (
-                    <button
-                      onClick={() => { const v = window.prompt(`Stock de "${p.nombre}" (unidades reales):`, String(p.stock)); if (v !== null && v.trim() !== '' && !isNaN(Number(v))) onAjuste(p.id, Math.max(0, Math.round(Number(v)))) }}
-                      title="Ajustar stock"
-                      className={`text-[10px] font-semibold px-2 py-1 rounded-lg shrink-0 ${p.stock <= 0 ? 'text-rose-600 bg-rose-50' : p.stock <= (p.stockMin || 0) ? 'text-amber-600 bg-amber-50' : 'text-slate-500 bg-slate-100'}`}
-                    >
-                      {p.stock <= 0 ? 'Sin stock' : `Stock ${p.stock}`}
-                    </button>
-                  )}
-                  <p className="text-sm font-semibold text-slate-700 shrink-0">{money(p.precio)}</p>
-                  <button onClick={() => onUpdate(p.id, { activo: !p.activo })} title={p.activo ? 'Desactivar' : 'Activar'} className={`text-[10px] font-medium px-2 py-1 rounded-lg shrink-0 ${p.activo ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-100'}`}>
-                    {p.activo ? 'Activo' : 'Inactivo'}
-                  </button>
-                  <button onClick={() => empezarEdit(p)} title="Editar" className="text-slate-300 hover:text-brand-500 p-1 shrink-0"><Pencil size={14} /></button>
-                  <button onClick={() => onDelete(p.id)} title="Eliminar" className="text-slate-300 hover:text-rose-500 p-1 shrink-0"><Trash2 size={14} /></button>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ── Modal: CUENTA DE JUGADOR (unificado) — ver lo que debe + cobrar + agregar consumos/cargos ──
 // Avatar con iniciales y color derivado del nombre (consistente por jugador)
@@ -650,7 +506,6 @@ const PagosPage = () => {
   const [modalModo, setModalModo] = useState(null)   // null | 'venta' | 'cobro'
   const cuentaOpen = modalModo !== null
   const [configMetodos, setConfigMetodos] = useState(false)
-  const [catalogoOpen, setCatalogoOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [productos, setProductos] = useState([])
   const [saving, setSaving] = useState(false)
@@ -691,8 +546,8 @@ const PagosPage = () => {
   }, [token])
 
   useEffect(() => {
-    if (catalogoOpen || cuentaOpen) fetchProductos()
-  }, [catalogoOpen, cuentaOpen, fetchProductos])
+    if (cuentaOpen) fetchProductos()
+  }, [cuentaOpen, fetchProductos])
 
   const visibles = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -801,44 +656,6 @@ const PagosPage = () => {
     } finally { setSaving(false) }
   }
 
-  // ── Productos ──
-  const crearProducto = async (data) => {
-    setSaving(true)
-    try {
-      await api.post('/productos', data, { Authorization: `Bearer ${token}` })
-      await fetchProductos()
-    } catch (err) {
-      showToast('error', err?.message || 'No se pudo crear el producto')
-    } finally { setSaving(false) }
-  }
-  const actualizarProducto = async (id, data) => {
-    setSaving(true)
-    try {
-      await api.patch(`/productos/${id}`, data, { Authorization: `Bearer ${token}` })
-      await fetchProductos()
-    } catch (err) {
-      showToast('error', err?.message || 'No se pudo actualizar el producto')
-    } finally { setSaving(false) }
-  }
-  const eliminarProducto = async (id) => {
-    setSaving(true)
-    try {
-      await api.delete(`/productos/${id}`, { Authorization: `Bearer ${token}` })
-      await fetchProductos()
-    } catch (err) {
-      showToast('error', err?.message || 'No se pudo eliminar el producto')
-    } finally { setSaving(false) }
-  }
-  const ajustarStock = async (id, stock) => {
-    setSaving(true)
-    try {
-      await api.post(`/productos/${id}/ajuste`, { stock }, { Authorization: `Bearer ${token}` })
-      await fetchProductos()
-      showToast('exito', 'Stock actualizado')
-    } catch (err) {
-      showToast('error', err?.message || 'No se pudo ajustar el stock')
-    } finally { setSaving(false) }
-  }
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
@@ -850,26 +667,27 @@ const PagosPage = () => {
         <div className="flex items-center gap-2">
           <AyudaPanel titulo="Cómo funciona Finanzas">
             <AyudaSeccion titulo="¿Qué es esta sección?">
-              <p>Acá manejás toda la plata del club: lo que te deben (<b>Cobranzas</b>), lo que gastás (<b>Gastos</b>) y el resumen diario (<b>Caja del día</b>).</p>
+              <p>Toda la plata del club, en 5 partes: <b>Ventas</b> (bar/tienda), <b>Stock</b> (inventario), <b>Cobranzas</b> (deudas), <b>Gastos</b> (egresos) y <b>Caja / Reportes</b> (resumen).</p>
             </AyudaSeccion>
-            <AyudaSeccion icon={Wallet} titulo="Cuenta de jugador">
-              <p>El botón principal. Elegís un jugador y ahí ves <b>lo que debe</b> (turnos impagos, productos, cargos) y podés <b>agregarle consumos</b> (un tubo, una bebida) o un cargo suelto (una multa).</p>
-              <p>Al final elegís: <b>Anotar a la cuenta</b> (queda como deuda) o <b>Cobrar</b> (entra a la caja al instante, con su método).</p>
+            <AyudaSeccion icon={ShoppingCart} titulo="Ventas">
+              <p><b>Nueva venta</b>: vendés un producto a un <b>jugador</b> (a su cuenta o cobrado) o a un <b>visitante</b> (mostrador, al contado).</p>
+              <p><b>Mesas</b>: abrís una cuenta que se va sumando (gaseosa, comida) y la <b>cobrás junta</b> al final. Para el que se queda consumiendo.</p>
             </AyudaSeccion>
-            <AyudaSeccion icon={ShoppingCart} titulo="Venta de mostrador">
-              <p>Dentro de <b>Cobrar / Vender</b>, arriba tenés el toggle <b>Jugador / Mostrador</b>. Elegí <b>Mostrador</b> para venderle a un <b>visitante sin ficha</b> (una bebida, un grip): elegís productos y cobrás <b>al contado</b> — no queda a cuenta porque no hay a quién cobrarle después. Entra directo a la caja del día.</p>
+            <AyudaSeccion icon={Boxes} titulo="Stock">
+              <p>Tu <b>catálogo</b> de productos (precio, costo, % ganancia) y el <b>inventario</b>: cuánto queda de cada uno, valor de stock y avisos cuando queda poco. Las ventas descuentan stock solas.</p>
+              <p><b>Ingresar compra</b>: cargás la factura del proveedor con los productos → suma stock, actualiza costos y queda como gasto.</p>
             </AyudaSeccion>
-            <AyudaSeccion icon={Package} titulo="Productos (en ⚙️)">
-              <p>Cargá tu catálogo (tubo de pelotas, grip, bebida…) para venderlos rápido desde la cuenta del jugador.</p>
+            <AyudaSeccion icon={Wallet} titulo="Cobranzas">
+              <p>Lo que te deben (turnos impagos, productos a cuenta, inscripciones). <b>Cobrar cuenta</b>: buscás al jugador y saldás sus deudas. Cada cobro se puede <b>anular</b> si te equivocaste.</p>
             </AyudaSeccion>
-            <AyudaSeccion icon={TrendingUp} titulo="Gastos">
-              <p>Registrá las facturas de proveedor (compras, alquiler, servicios). Podés adjuntar la foto de la factura.</p>
+            <AyudaSeccion icon={TrendingDown} titulo="Gastos">
+              <p>Egresos generales (luz, alquiler, sueldos, mantenimiento). Podés adjuntar la foto de la factura. <i>(Las compras de mercadería se cargan desde Stock → Ingresar compra.)</i></p>
             </AyudaSeccion>
-            <AyudaSeccion icon={DollarSign} titulo="Caja del día">
-              <p>El arqueo: cuánta plata entró y salió cada día, separado por método. Solo cuenta lo cobrado/pagado — las deudas pendientes no son caja.</p>
+            <AyudaSeccion icon={DollarSign} titulo="Caja / Reportes">
+              <p>El resumen por período (día/semana/mes): ingresos por <b>método</b>, por <b>tipo</b> (turnos/bar/torneos), <b>ventas por categoría</b> con margen y <b>más vendidos</b>. Solo cuenta lo cobrado/pagado.</p>
             </AyudaSeccion>
-            <AyudaSeccion icon={Printer} titulo="Recibos y reportes">
-              <p>En cada cobro podés imprimir un <b>recibo</b>. Con el botón <b>Reporte</b> generás un PDF con la marca del club.</p>
+            <AyudaSeccion icon={Camera} titulo="Asistente IA (próximamente)">
+              <p>Vas a poder sacarle <b>foto a la factura</b> y que la IA cargue sola los productos, el stock y los costos. Plan premium.</p>
             </AyudaSeccion>
           </AyudaPanel>
           {(tab === 'cobranzas' || tab === 'ventas') && (<>
@@ -917,7 +735,7 @@ const PagosPage = () => {
       </div>
 
       {tab === 'ventas' && <VentasTab token={token} metodos={metodosHabilitados} showToast={showToast} />}
-      {tab === 'stock' && <StockTab token={token} showToast={showToast} onIngresarCompra={() => setTab('gastos')} />}
+      {tab === 'stock' && <StockTab token={token} metodos={metodosHabilitados} showToast={showToast} />}
       {tab === 'gastos' && <GastosTab token={token} metodos={metodosHabilitados} />}
       {tab === 'caja' && <CajaTab token={token} />}
 

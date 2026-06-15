@@ -12,7 +12,7 @@ const navItems = [
   { to: '/dashboardAdmin/clases',    label: 'Clases',    icon: GraduationCap },
   { to: '/dashboardAdmin/torneos',   label: 'Torneos',   icon: Trophy },
   { to: '/dashboardAdmin/sponsors',  label: 'Sponsors',  icon: Star },
-  { to: '/dashboardAdmin/pagos',     label: 'Pagos',     icon: CreditCard },
+  { to: '/dashboardAdmin/pagos',     label: 'Finanzas',  icon: CreditCard },
 ]
 
 const Sidebar = ({ mobileOpen, onMobileClose }) => {

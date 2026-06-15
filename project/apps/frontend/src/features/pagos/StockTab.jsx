@@ -15,47 +15,20 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
   const auth = { Authorization: `Bearer ${token}` }
   const [productos, setProductos] = useState([])
   const [compraOpen, setCompraOpen] = useState(false)
-  const [form, setForm] = useState({ nombre: '', precio: '', costo: '', categoria: 'Bebidas', controlaStock: true, stock: '', stockMin: '' })
-  const [editId, setEditId] = useState(null)
-  const [formOpen, setFormOpen] = useState(false)
-  const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [prodModal, setProdModal] = useState(null) // null | { producto } (producto null = nuevo)
   const [movsOpen, setMovsOpen] = useState(null) // productoId
   const [movs, setMovs] = useState([])
   const [q, setQ] = useState('')
-  const [ajusteProd, setAjusteProd] = useState(null) // producto en ajuste
-  const [ajusteVal, setAjusteVal] = useState('')
 
   const fetchData = useCallback(async () => {
     try { setProductos(await api.get('/productos', auth)) } catch { /* */ }
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData() }, [fetchData])
 
-  const resetForm = () => { setForm((f) => ({ nombre: '', precio: '', costo: '', categoria: f.categoria, controlaStock: true, stock: '', stockMin: '' })); setEditId(null); setError(''); setFormOpen(false) }
-  const guardar = async () => {
-    if (!form.nombre.trim()) return setError('Ingresá un nombre')
-    if (!(Number(form.precio) > 0)) return setError('El precio debe ser mayor a 0')
-    setError(''); setSaving(true)
-    const payload = {
-      nombre: form.nombre.trim(), precio: Number(form.precio), costo: form.costo === '' ? null : Number(form.costo), categoria: form.categoria || null,
-      controlaStock: form.controlaStock, stockMin: form.stockMin === '' ? 0 : Number(form.stockMin),
-      ...(editId ? {} : { stock: form.stock === '' ? 0 : Number(form.stock) }),
-    }
-    try {
-      if (editId) await api.patch(`/productos/${editId}`, payload, auth)
-      else await api.post('/productos', payload, auth)
-      resetForm(); fetchData(); showToast?.('exito', editId ? 'Producto actualizado' : 'Producto agregado')
-    } catch (e) { setError(e?.message || 'No se pudo guardar') } finally { setSaving(false) }
-  }
-  const editar = (p) => { setEditId(p.id); setFormOpen(true); setError(''); setForm({ nombre: p.nombre, precio: String(p.precio), costo: p.costo != null ? String(p.costo) : '', categoria: p.categoria ?? 'Otros', controlaStock: !!p.controlaStock, stock: '', stockMin: p.stockMin ? String(p.stockMin) : '' }) }
+  const editar = (p) => setProdModal({ producto: p })
   const eliminar = async (p) => {
     if (!window.confirm(`¿Eliminar "${p.nombre}" del catálogo?`)) return
     try { await api.delete(`/productos/${p.id}`, auth); fetchData(); showToast?.('exito', 'Producto eliminado') } catch (e) { showToast?.('error', e?.message || 'No se pudo eliminar') }
-  }
-  const ajustar = (p) => { setAjusteProd(p); setAjusteVal(String(p.stock)) }
-  const confirmarAjuste = async () => {
-    if (ajusteVal === '' || isNaN(Number(ajusteVal))) return
-    try { await api.post(`/productos/${ajusteProd.id}/ajuste`, { stock: Math.max(0, Math.round(Number(ajusteVal))) }, auth); setAjusteProd(null); fetchData(); showToast?.('exito', 'Stock actualizado') } catch (e) { showToast?.('error', e?.message || 'No se pudo ajustar') }
   }
   const verMovs = async (p) => {
     if (movsOpen === p.id) { setMovsOpen(null); return }
@@ -76,7 +49,7 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
   const estadoBadge = (p) => {
     if (!p.controlaStock) return null
     const cls = p.stock <= 0 ? 'text-rose-600 bg-rose-50' : p.stock <= (p.stockMin || 0) ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50'
-    return <button onClick={() => ajustar(p)} title="Ajustar stock" className={`text-[11px] font-semibold px-2 py-1 rounded-lg ${cls}`}>{p.stock <= 0 ? 'Sin stock' : `${p.stock} u.`}</button>
+    return <button onClick={() => editar(p)} title="Ver / ajustar stock" className={`text-[11px] font-semibold px-2 py-1 rounded-lg ${cls}`}>{p.stock <= 0 ? 'Sin stock' : `${p.stock} u.`}</button>
   }
 
   return (
@@ -109,42 +82,8 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
       <div className="flex items-center gap-2 flex-wrap">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto…" className={`flex-1 min-w-[180px] ${inputCls}`} />
         <button onClick={() => setCompraOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm"><Truck size={16} /> Ingresar compra</button>
-        <button onClick={() => { resetForm(); setFormOpen(true) }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm shadow-sm"><Plus size={16} /> Nuevo producto</button>
+        <button onClick={() => setProdModal({ producto: null })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm shadow-sm"><Plus size={16} /> Nuevo producto</button>
       </div>
-
-      {/* Form alta/edición */}
-      {formOpen && (
-        <div className={`rounded-2xl border p-4 flex flex-col gap-2.5 ${editId ? 'border-brand-300 bg-brand-50/40' : 'border-slate-200 bg-white'}`}>
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-700">{editId ? 'Editar producto' : 'Nuevo producto'}</p>
-            <button onClick={resetForm} className="text-slate-300 hover:text-slate-600"><X size={16} /></button>
-          </div>
-          <input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Nombre (ej: Coca Cola 1L)" className={`w-full ${inputCls}`} />
-          <div className="grid grid-cols-4 gap-2">
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-slate-500 text-[11px] font-medium mb-1">Categoría</label>
-              <select value={form.categoria} onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))} className={`w-full ${inputCls}`}>{CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}</select>
-            </div>
-            <div><label className="block text-slate-500 text-[11px] font-medium mb-1">Costo</label><input type="number" value={form.costo} onChange={(e) => setForm((f) => ({ ...f, costo: e.target.value }))} placeholder="opc." className={`w-full ${inputCls}`} /></div>
-            <div><label className="block text-slate-500 text-[11px] font-medium mb-1">Precio</label><input type="number" value={form.precio} onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))} placeholder="0" className={`w-full ${inputCls}`} /></div>
-            <div><label className="block text-slate-500 text-[11px] font-medium mb-1">% gan.</label><input type="number" value={calcPct(form.costo, form.precio)} onChange={(e) => setForm((f) => ({ ...f, precio: precioDesdePct(f.costo, e.target.value) }))} disabled={!(Number(form.costo) > 0)} placeholder={Number(form.costo) > 0 ? '%' : '—'} className={`w-full ${inputCls} disabled:opacity-50`} /></div>
-          </div>
-          <div className="rounded-xl border border-slate-100 p-2.5">
-            <button onClick={() => setForm((f) => ({ ...f, controlaStock: !f.controlaStock }))} className="flex items-center gap-2">
-              <div className={`w-9 h-5 rounded-full transition-colors shrink-0 relative ${form.controlaStock ? 'bg-brand-500' : 'bg-slate-200'}`}><div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${form.controlaStock ? 'left-4' : 'left-0.5'}`} /></div>
-              <span className="text-sm text-slate-700 font-medium">Controlar stock</span>
-            </button>
-            {form.controlaStock && (
-              <div className="grid grid-cols-2 gap-2 mt-2.5">
-                {!editId && <div><label className="block text-slate-500 text-[11px] font-medium mb-1">Stock inicial</label><input type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} placeholder="0" className={`w-full ${inputCls}`} /></div>}
-                <div className={editId ? 'col-span-2' : ''}><label className="block text-slate-500 text-[11px] font-medium mb-1">Avisar cuando queden ≤</label><input type="number" value={form.stockMin} onChange={(e) => setForm((f) => ({ ...f, stockMin: e.target.value }))} placeholder="ej: 5" className={`w-full ${inputCls}`} /></div>
-              </div>
-            )}
-          </div>
-          {error && <p className="text-rose-500 text-xs">{error}</p>}
-          <button onClick={guardar} disabled={saving} className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm disabled:opacity-50">{saving ? 'Guardando…' : editId ? 'Guardar cambios' : 'Agregar producto'}</button>
-        </div>
-      )}
 
       {/* Lista de inventario */}
       <div className="flex flex-col gap-3">
@@ -155,7 +94,7 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{cat} <span className="font-normal">· {items.length}</span></p>
             {items.map((p) => (
               <div key={p.id}>
-                <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border bg-white ${editId === p.id ? 'border-brand-300' : 'border-slate-100'}`}>
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-100 bg-white">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-700 truncate">{p.nombre}{!p.activo && <span className="text-[10px] text-slate-400 ml-1">(inactivo)</span>}</p>
                     <span className="text-[10px] text-slate-400">{money(p.precio)}{p.costo != null ? ` · costo ${money(p.costo)} · margen ${money(p.precio - p.costo)}${p.costo > 0 ? ` (${calcPct(p.costo, p.precio)}%)` : ''}` : ''}{p.controlaStock ? ` · valor ${money((p.costo || 0) * p.stock)}` : ''}</span>
@@ -183,25 +122,99 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
         ))}
       </div>
 
+      {prodModal && <ModalProducto producto={prodModal.producto} token={token} onClose={() => setProdModal(null)} onDone={(msg) => { setProdModal(null); fetchData(); showToast?.('exito', msg) }} />}
       {compraOpen && <ModalCompra productos={productos} metodos={metodos} token={token} onClose={() => setCompraOpen(false)} onDone={() => { setCompraOpen(false); fetchData(); showToast?.('exito', 'Compra registrada · stock actualizado') }} />}
+    </div>
+  )
+}
 
-      {ajusteProd && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => setAjusteProd(null)}>
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-          <div className="relative w-full max-w-xs bg-white rounded-3xl shadow-2xl p-6 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-            <p className="text-slate-800 font-bold">Ajustar stock</p>
-            <p className="text-slate-400 text-xs -mt-1">{ajusteProd.nombre} · actual {ajusteProd.stock} u.</p>
-            <div>
-              <label className="block text-slate-500 text-[11px] font-medium mb-1">Stock real (unidades)</label>
-              <input type="number" autoFocus value={ajusteVal} onChange={(e) => setAjusteVal(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmarAjuste()} className={`w-full ${inputCls}`} />
-            </div>
-            <div className="flex gap-2 mt-1">
-              <button onClick={() => setAjusteProd(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium text-sm hover:bg-slate-50">Cancelar</button>
-              <button onClick={confirmarAjuste} className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm">Guardar</button>
-            </div>
+// ─── Modal Producto: alta/edición de la ficha del producto (no carga stock) ─────
+const ModalProducto = ({ producto, token, onClose, onDone }) => {
+  const auth = { Authorization: `Bearer ${token}` }
+  const editing = !!producto
+  const [form, setForm] = useState({
+    nombre: producto?.nombre ?? '', precio: producto?.precio != null ? String(producto.precio) : '',
+    costo: producto?.costo != null ? String(producto.costo) : '', categoria: producto?.categoria ?? 'Bebidas',
+    controlaStock: producto ? !!producto.controlaStock : true,
+    stock: producto ? String(producto.stock) : '', stockMin: producto?.stockMin ? String(producto.stockMin) : '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+
+  const submit = async () => {
+    if (!form.nombre.trim()) return setError('Ingresá un nombre')
+    if (!(Number(form.precio) > 0)) return setError('El precio de venta debe ser mayor a 0')
+    setError(''); setSaving(true)
+    const stockNum = form.stock === '' ? 0 : Math.max(0, Math.round(Number(form.stock)))
+    const payload = {
+      nombre: form.nombre.trim(), precio: Number(form.precio), costo: form.costo === '' ? null : Number(form.costo),
+      categoria: form.categoria || null, controlaStock: form.controlaStock, stockMin: form.stockMin === '' ? 0 : Number(form.stockMin),
+      ...(editing ? {} : { stock: stockNum }), // alta: stock inicial
+    }
+    try {
+      if (editing) {
+        await api.patch(`/productos/${producto.id}`, payload, auth)
+        // Ajuste manual del stock desde la ficha (si cambió y controla stock)
+        if (form.controlaStock && stockNum !== producto.stock) {
+          await api.post(`/productos/${producto.id}/ajuste`, { stock: stockNum, motivo: 'Ajuste manual' }, auth)
+        }
+      } else {
+        await api.post('/productos', payload, auth)
+      }
+      onDone(editing ? 'Producto actualizado' : 'Producto agregado')
+    } catch (e) { setError(e?.message || 'No se pudo guardar'); setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-slate-800 font-bold">{editing ? 'Editar producto' : 'Nuevo producto'}</p>
+            <p className="text-slate-400 text-xs mt-0.5">Ficha del producto · acá cargás/ajustás su stock a mano</p>
           </div>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-600"><X size={18} /></button>
         </div>
-      )}
+
+        <div className="overflow-y-auto p-6 flex flex-col gap-3">
+          <div><label className="block text-slate-500 text-xs font-medium mb-1.5">Nombre</label><input value={form.nombre} onChange={(e) => set('nombre', e.target.value)} placeholder="Ej: Coca Cola 1L" className={`w-full ${inputCls}`} /></div>
+          <div><label className="block text-slate-500 text-xs font-medium mb-1.5">Categoría</label><select value={form.categoria} onChange={(e) => set('categoria', e.target.value)} className={`w-full ${inputCls}`}>{CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+          <div className="grid grid-cols-3 gap-2">
+            <div><label className="block text-slate-500 text-[11px] font-medium mb-1">Costo</label><input type="number" value={form.costo} onChange={(e) => set('costo', e.target.value)} placeholder="opc." className={`w-full ${inputCls}`} /></div>
+            <div><label className="block text-slate-500 text-[11px] font-medium mb-1">Precio venta</label><input type="number" value={form.precio} onChange={(e) => set('precio', e.target.value)} placeholder="0" className={`w-full ${inputCls}`} /></div>
+            <div><label className="block text-slate-500 text-[11px] font-medium mb-1">% ganancia</label><input type="number" value={calcPct(form.costo, form.precio)} onChange={(e) => set('precio', precioDesdePct(form.costo, e.target.value))} disabled={!(Number(form.costo) > 0)} placeholder={Number(form.costo) > 0 ? '%' : '—'} title={Number(form.costo) > 0 ? 'Markup sobre el costo' : 'Cargá el costo primero'} className={`w-full ${inputCls} disabled:opacity-50`} /></div>
+          </div>
+
+          <div className="rounded-xl border border-slate-100 p-3">
+            <button onClick={() => set('controlaStock', !form.controlaStock)} className="flex items-center gap-2.5 w-full text-left">
+              <div className={`w-9 h-5 rounded-full transition-colors shrink-0 relative ${form.controlaStock ? 'bg-brand-500' : 'bg-slate-200'}`}><div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${form.controlaStock ? 'left-4' : 'left-0.5'}`} /></div>
+              <span className="text-sm text-slate-700 font-medium">Controlar stock</span>
+            </button>
+            <p className="text-[10px] text-slate-400 mt-1.5">Si está activo, el sistema <b>cuenta unidades</b>, descuenta en cada venta y te avisa cuando queda poco. Desactivalo para servicios o cosas sin inventario.</p>
+            {form.controlaStock && (
+              <div className="grid grid-cols-2 gap-2 mt-2.5">
+                <div>
+                  <label className="block text-slate-500 text-[11px] font-medium mb-1">{editing ? 'Stock actual' : 'Stock inicial'}</label>
+                  <input type="number" value={form.stock} onChange={(e) => set('stock', e.target.value)} placeholder="0" className={`w-full ${inputCls}`} />
+                </div>
+                <div>
+                  <label className="block text-slate-500 text-[11px] font-medium mb-1">Avisar cuando queden ≤</label>
+                  <input type="number" value={form.stockMin} onChange={(e) => set('stockMin', e.target.value)} placeholder="ej: 5" className={`w-full ${inputCls}`} />
+                </div>
+                <p className="col-span-2 text-[10px] text-slate-400">{editing ? 'Editá el stock acá para corregirlo a mano. Las compras lo suman solas.' : 'Poné el stock que ya tenés. Las compras posteriores lo van sumando.'}</p>
+              </div>
+            )}
+          </div>
+
+          {error && <p className="text-rose-500 text-xs">{error}</p>}
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-100 shrink-0">
+          <button onClick={submit} disabled={saving} className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm disabled:opacity-50">{saving ? 'Guardando…' : editing ? 'Guardar cambios' : 'Agregar producto'}</button>
+        </div>
+      </div>
     </div>
   )
 }

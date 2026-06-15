@@ -9,6 +9,7 @@ import { api } from '../lib/api'
 import Toast from '../components/ui/Toast'
 import { METODOS_CATALOGO, METODO_MAP, metodosDelClub, MetodoBadge } from '../lib/metodosPago'
 import GastosTab from '../features/pagos/GastosTab'
+import VentasTab from '../features/pagos/VentasTab'
 import CajaTab from '../features/pagos/CajaTab'
 import { imprimirRecibo, exportarCobranzasCSV, generarReporteCobranzas } from '../features/pagos/comprobantes'
 import AyudaPanel, { AyudaSeccion } from '../components/ui/AyudaPanel'
@@ -856,18 +857,7 @@ const PagosPage = () => {
         ))}
       </div>
 
-      {tab === 'ventas' && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 flex flex-col items-center text-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center"><ShoppingCart size={22} className="text-brand-500" /></div>
-          <div>
-            <p className="text-slate-700 font-semibold">Punto de venta</p>
-            <p className="text-sm text-slate-400 mt-1 max-w-md">Vendé productos del bar/tienda: a un <b>visitante</b> (mostrador, al contado) o a un <b>jugador</b> (a su cuenta o cobrado). Usá <b>Nueva venta</b> arriba.</p>
-          </div>
-          <button onClick={() => setModalModo('venta')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm">
-            <ShoppingCart size={16} /> Nueva venta
-          </button>
-        </div>
-      )}
+      {tab === 'ventas' && <VentasTab token={token} metodos={metodosHabilitados} showToast={showToast} />}
       {tab === 'gastos' && <GastosTab token={token} metodos={metodosHabilitados} />}
       {tab === 'caja' && <CajaTab token={token} />}
 

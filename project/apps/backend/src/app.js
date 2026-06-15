@@ -12,6 +12,7 @@ import notificacionesRouter from './routes/notificaciones.js'
 import cargosRouter from './routes/cargos.js'
 import productosRouter from './routes/productos.js'
 import gastosRouter from './routes/gastos.js'
+import comandasRouter from './routes/comandas.js'
 import cajaRouter from './routes/caja.js'
 import profesoresRouter from './routes/profesores.js'
 import sponsorsRouter from './routes/sponsors.js'
@@ -51,6 +52,7 @@ app.use('/api/notificaciones', notificacionesRouter)
 app.use('/api/cargos', cargosRouter)
 app.use('/api/productos', productosRouter)
 app.use('/api/gastos', gastosRouter)
+app.use('/api/comandas', comandasRouter)
 app.use('/api/caja', cajaRouter)
 app.use('/api/profesores', profesoresRouter)
 app.use('/api/sponsors', sponsorsRouter)

@@ -64,7 +64,8 @@ router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req
 router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
   const { estado, jugadorId } = req.query
   try {
-    const where = { clubId: req.user.clubId }
+    // comandaId: null → excluye ítems de comandas/mesas del bar (no son deudas de jugadores)
+    const where = { clubId: req.user.clubId, comandaId: null }
     if (jugadorId) where.jugadorId = jugadorId
     if (estado === 'vencido') {
       where.estado = 'pendiente'
@@ -90,7 +91,7 @@ router.get('/resumen', requireAuth, requireRole('admin'), async (req, res) => {
   const clubId = req.user.clubId
   try {
     const pendientes = await prisma.cargo.findMany({
-      where: { clubId, estado: 'pendiente' },
+      where: { clubId, estado: 'pendiente', comandaId: null },
       select: { monto: true, vencimiento: true },
     })
     const ahora = new Date()
@@ -100,7 +101,7 @@ router.get('/resumen', requireAuth, requireRole('admin'), async (req, res) => {
       .reduce((s, c) => s + c.monto, 0)
 
     const pagadosMes = await prisma.cargo.findMany({
-      where: { clubId, estado: 'pagado', pagadoAt: { gte: inicioMesArg() } },
+      where: { clubId, estado: 'pagado', pagadoAt: { gte: inicioMesArg() }, comandaId: null },
       select: { monto: true },
     })
     const cobradoMes = pagadosMes.reduce((s, c) => s + c.monto, 0)
@@ -127,10 +128,10 @@ router.get('/cobranzas', requireAuth, requireRole('admin'), async (req, res) => 
   const filtroJ = jugadorId ? { jugadorId } : {}
   try {
     const [cargos, turnos, reservasPagadasMes, cargosPagadosMes] = await Promise.all([
-      prisma.cargo.findMany({ where: { clubId, ...filtroJ }, include: { jugador: SEL_JUGADOR }, orderBy: { createdAt: 'desc' } }),
+      prisma.cargo.findMany({ where: { clubId, comandaId: null, ...filtroJ }, include: { jugador: SEL_JUGADOR }, orderBy: { createdAt: 'desc' } }),
       turnosImpagosDeuda(clubId, filtroJ),
       prisma.reserva.findMany({ where: { clubId, ...filtroJ, pagado: true, pagadoAt: { gte: inicioMesArg() } }, select: { precio: true } }),
-      prisma.cargo.findMany({ where: { clubId, ...filtroJ, estado: 'pagado', pagadoAt: { gte: inicioMesArg() } }, select: { monto: true } }),
+      prisma.cargo.findMany({ where: { clubId, comandaId: null, ...filtroJ, estado: 'pagado', pagadoAt: { gte: inicioMesArg() } }, select: { monto: true } }),
     ])
 
     // Turnos primero (más urgentes), después cargos

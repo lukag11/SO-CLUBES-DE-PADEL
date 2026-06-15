@@ -30,6 +30,7 @@ model Club {
   sponsors       Sponsor[]
   productos      Producto[]
   gastos         Gasto[]
+  comandas       Comanda[]
 
   @@map("clubs")
 }
@@ -229,6 +230,7 @@ model Cargo {
   clubId      String
   jugadorId   String?   // null = venta a consumidor final / casual (sin ficha). Siempre pagado en ese caso.
   reservaId   String?
+  comandaId   String?   // si el cargo pertenece a una comanda/mesa abierta (bar)
   parejaId    String?   // si el cargo viene de una inscripción a torneo (para limpiar al cancelar)
   concepto    String
   monto       Int
@@ -241,11 +243,28 @@ model Cargo {
 
   club    Club     @relation(fields: [clubId], references: [id])
   jugador Jugador? @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
+  comanda Comanda? @relation(fields: [comandaId], references: [id], onDelete: SetNull)
 
   // Evita deudas duplicadas de inscripción (mismo jugador+pareja+tipo). Para tipo torneo
   // parejaId es non-null; los cargos manuales/cancelación tienen parejaId null (NULLs distintos en PG → no chocan).
   @@unique([parejaId, jugadorId, tipo])
   @@map("cargos")
+}
+
+// Comanda / mesa abierta del bar: acumula consumos (cargos) de un visitante sin ficha y se
+// paga junta al cerrar. Mientras está abierta sus cargos son pendientes (no entran a caja).
+model Comanda {
+  id        String    @id @default(cuid())
+  clubId    String
+  etiqueta  String                          // libre: "Mesa 3", "Remera roja", "Cumple Juan"…
+  estado    String    @default("abierta")    // abierta | cerrada
+  createdAt DateTime  @default(now())
+  closedAt  DateTime?
+
+  club   Club    @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  cargos Cargo[]
+
+  @@map("comandas")
 }
 
 // Catálogo de productos vendibles del club (tubo de pelotas, grip, bebidas…). Solo lista de

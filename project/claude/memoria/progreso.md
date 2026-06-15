@@ -1,6 +1,23 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-15 — Pagos reorganizado en 4 tabs (Ventas/Cobranzas/Gastos/Caja) + buscador de deudores
+**Última actualización:** 2026-06-15 — Comanda abierta (mesas de bar) + (próximo) categorías de productos + reportes + margen
+
+---
+
+## Comanda abierta / mesas de bar (Nivel 2) (2026-06-15)
+
+Mesa/tab de visitante que acumula consumos y se paga junta al cerrar, con historial. En la tab **Ventas**.
+- **Schema:** modelo `Comanda` (etiqueta libre, estado abierta|cerrada, closedAt) + `Cargo.comandaId` (relación, onDelete SetNull) + `Club.comandas`. `db push` aplicado (local).
+- **Backend `routes/comandas.js`:** `GET /comandas?estado=abierta|cerrada`, `POST /` (abrir), `POST /:id/items` (agregar, cargos pendientes), `DELETE /:id/items/:cargoId` (quitar), `POST /:id/cerrar` (cobra todo con método → cargos pagado + comanda cerrada → entra a Caja), `DELETE /:id` (descartar mesa sin cobrar). Registrado en app.js.
+- **Aislamiento:** los cargos de comanda (`comandaId != null`) se EXCLUYEN de Cobranzas/resumen (`comandaId: null` en cargos.js GET/resumen/cobranzas) — una mesa abierta no es deuda de nadie. Caja sí cuenta los pagados al cerrar.
+- **Frontend `features/pagos/VentasTab.jsx`:** mesas abiertas en tarjetas (etiqueta, total, hace cuánto), Nueva mesa (etiqueta libre), `ModalMesa` (ticket: agregar/quitar ítems, total, **dividir entre N** con stepper sin tope que muestra $/persona redondeado, método, Cobrar y cerrar, descartar). Historial de cerradas colapsable.
+- En Ventas conviven: **Nueva venta** (header, un tiro: mostrador/jugador) y **Mesas** (tab abierto).
+
+### Próximo: Reportes de finanzas (A+B+C+D)
+- **A** categorías de productos (Bebidas/Comidas/Golosinas/Insumos/Otros) en catálogo + agrupar en POS.
+- **B** capturar categoría (snapshot) en cada cargo de producto (un cargo por ítem) → habilita reporting.
+- **C** hub de reportes en "Caja / Reportes" (período día/sem/mes): ventas por categoría, top productos, por método, por tipo, egresos, neto.
+- **D** margen: `Producto.costo` → ganancia/margen por categoría.
 
 ---
 

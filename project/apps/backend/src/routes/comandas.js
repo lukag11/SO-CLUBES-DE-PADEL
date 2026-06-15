@@ -7,7 +7,8 @@ import { descontarStock, reponerStock } from '../lib/stock.js'
 
 const router = Router()
 
-const SEL_CARGO = { select: { id: true, concepto: true, monto: true, estado: true, metodoPago: true, createdAt: true } }
+const SEL_CARGO = { select: { id: true, concepto: true, monto: true, cantidad: true, productoId: true, estado: true, metodoPago: true, createdAt: true } }
+const nombreBase = (concepto) => String(concepto || '').replace(/^\d+×\s*/, '')
 const conTotal = (c) => ({ ...c, total: (c.cargos ?? []).reduce((s, x) => s + x.monto, 0) })
 
 // GET /api/comandas?estado=abierta|cerrada — mesas/comandas del club con sus ítems
@@ -46,8 +47,14 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
 router.post('/:id/items', requireAuth, requireRole('admin'), async (req, res) => {
   const clubId = req.user.clubId
   const { id } = req.params
-  const items = (req.body.items || []).map((it) => ({ concepto: String(it.concepto || '').trim(), monto: Math.round(Number(it.monto)), productoId: it.productoId || null }))
-  if (items.length === 0 || items.some((l) => !l.concepto || !(l.monto > 0))) {
+  // items: { nombre, precioUnit, cantidad, productoId? }
+  const items = (req.body.items || []).map((it) => ({
+    nombre: String(it.nombre || '').trim(),
+    precioUnit: Math.round(Number(it.precioUnit)),
+    cantidad: Math.max(1, Math.round(Number(it.cantidad) || 1)),
+    productoId: it.productoId || null,
+  }))
+  if (items.length === 0 || items.some((l) => !l.nombre || !(l.precioUnit > 0))) {
     return res.status(400).json({ error: 'Hay un ítem con datos inválidos' })
   }
   try {
@@ -56,20 +63,64 @@ router.post('/:id/items', requireAuth, requireRole('admin'), async (req, res) =>
     if (comanda.estado !== 'abierta') return res.status(400).json({ error: 'La comanda ya está cerrada' })
     const snap = await snapshotProductos(clubId, items.map((l) => l.productoId))
     await prisma.$transaction(async (tx) => {
-      await tx.cargo.createMany({
-        data: items.map((l) => ({
-          clubId, comandaId: id, concepto: l.concepto, monto: l.monto, tipo: 'producto', estado: 'pendiente', cantidad: 1,
-          productoId: l.productoId, categoria: snap[l.productoId]?.categoria ?? null, costo: snap[l.productoId]?.costo ?? null,
-        })),
-      })
-      // Descontar stock de los productos del catálogo (qty 1 por ítem)
-      await descontarStock(tx, clubId, items.map((l) => ({ productoId: l.productoId, cantidad: 1 })), { tipo: 'comanda', id, motivo: `Mesa ${comanda.etiqueta}` })
+      for (const l of items) {
+        const costoUnit = snap[l.productoId]?.costo ?? null
+        // Merge: si el producto ya está en la mesa (pendiente), sumo a esa línea
+        const existente = l.productoId
+          ? await tx.cargo.findFirst({ where: { comandaId: id, productoId: l.productoId, estado: 'pendiente' } })
+          : null
+        if (existente) {
+          const cant = existente.cantidad + l.cantidad
+          const unit = Math.round(existente.monto / existente.cantidad)
+          await tx.cargo.update({ where: { id: existente.id }, data: {
+            cantidad: cant, monto: unit * cant, concepto: `${cant}× ${nombreBase(existente.concepto)}`,
+            ...(costoUnit != null ? { costo: costoUnit * cant } : {}),
+          } })
+        } else {
+          await tx.cargo.create({ data: {
+            clubId, comandaId: id, tipo: 'producto', estado: 'pendiente',
+            concepto: l.cantidad > 1 ? `${l.cantidad}× ${l.nombre}` : l.nombre,
+            monto: l.precioUnit * l.cantidad, cantidad: l.cantidad,
+            productoId: l.productoId, categoria: snap[l.productoId]?.categoria ?? null, costo: costoUnit != null ? costoUnit * l.cantidad : null,
+          } })
+        }
+      }
+      await descontarStock(tx, clubId, items.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad })), { tipo: 'comanda', id, motivo: `Mesa ${comanda.etiqueta}` })
     })
     const actual = await prisma.comanda.findUnique({ where: { id }, include: { cargos: { ...SEL_CARGO, orderBy: { createdAt: 'asc' } } } })
     res.status(201).json(conTotal(actual))
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al agregar ítems' })
+  }
+})
+
+// PATCH /api/comandas/:id/items/:cargoId — cambiar la cantidad de una línea (ajusta stock por la diferencia)
+router.patch('/:id/items/:cargoId', requireAuth, requireRole('admin'), async (req, res) => {
+  const clubId = req.user.clubId
+  const { id, cargoId } = req.params
+  const nuevaCant = Math.max(1, Math.round(Number(req.body.cantidad) || 1))
+  try {
+    const cargo = await prisma.cargo.findUnique({ where: { id: cargoId } })
+    if (!cargo || cargo.clubId !== clubId || cargo.comandaId !== id) return res.status(404).json({ error: 'Ítem no encontrado' })
+    if (cargo.estado === 'pagado') return res.status(400).json({ error: 'No se puede modificar un ítem ya cobrado' })
+    const cantVieja = cargo.cantidad || 1
+    if (nuevaCant === cantVieja) return res.json({ ok: true })
+    const unit = Math.round(cargo.monto / cantVieja)
+    const unitCosto = cargo.costo != null ? Math.round(cargo.costo / cantVieja) : null
+    const delta = nuevaCant - cantVieja
+    await prisma.$transaction(async (tx) => {
+      await tx.cargo.update({ where: { id: cargoId }, data: {
+        cantidad: nuevaCant, monto: unit * nuevaCant, concepto: `${nuevaCant > 1 ? `${nuevaCant}× ` : ''}${nombreBase(cargo.concepto)}`,
+        ...(unitCosto != null ? { costo: unitCosto * nuevaCant } : {}),
+      } })
+      if (delta > 0) await descontarStock(tx, clubId, [{ productoId: cargo.productoId, cantidad: delta }], { tipo: 'comanda', id, motivo: 'Ajuste de cantidad en mesa' })
+      else await reponerStock(tx, clubId, [{ productoId: cargo.productoId, cantidad: -delta }], { tipo: 'comanda', id, motivo: 'Ajuste de cantidad en mesa' })
+    })
+    res.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al cambiar la cantidad' })
   }
 })
 

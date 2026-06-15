@@ -1,6 +1,14 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-15 — Anular/editar cobro + ticket por turno accionable (corrección del momento)
+**Última actualización:** 2026-06-15 — Venta de mostrador (Nivel 1) + (próximo) reorganización IA de Pagos + comanda abierta
+
+---
+
+## Venta de mostrador / casual (Nivel 1) (2026-06-15)
+
+- Venta a un **visitante sin ficha**, al contado. Backend: `/productos/venta` y `/cargos` aceptan `jugadorId: null` (rechazan "a cuenta" sin jugador → contado obligatorio). En Cobranzas figura como "Mostrador".
+- Frontend: en `ModalCuentaJugador` se agregó toggle **Jugador / Mostrador** (prop `initialMostrador`). Botón único del header **"Cobrar / Vender"** (se descartó un 2º botón "Venta rápida" por redundancia — abría el mismo modal). El modo mostrador oculta deudas y "anotar a cuenta" (solo Cobrar).
+- **PENDIENTE (próximo bloque):** (1) **Reorganización IA de Pagos** — el usuario siente que está todo junto ("un bollo"); separar POS/ventas de Cobranzas (ver análisis abajo / decisión a tomar). (2) **Comanda abierta Nivel 2** — mesa/tab de visitante que acumula ítems (gaseosa → comida) y se paga junta al cerrar, con historial. Requiere modelo `Comanda` + `Cargo.comandaId`. Vive en la sección de ventas/bar.
 
 ---
 

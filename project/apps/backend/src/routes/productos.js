@@ -85,14 +85,17 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   }
 })
 
-// POST /api/productos/venta — registra una venta a la cuenta de un jugador.
-// Body: { jugadorId, items: [{ nombre, precio, cantidad }], cobrar: bool, metodoPago? }
-// Genera UN cargo tipo 'producto'. Si cobrar=true → ya pagado (entra a caja); si no → pendiente (deuda).
+// POST /api/productos/venta — registra una venta a la cuenta de un jugador, o de mostrador.
+// Body: { jugadorId|null, items: [{ nombre, precio, cantidad }], cobrar: bool, metodoPago? }
+// jugadorId null = venta de mostrador / casual (debe ser al contado, no puede quedar a cuenta).
+// Genera UN cargo tipo 'producto'. cobrar=true → pagado (entra a caja); false → pendiente (deuda).
 router.post('/venta', requireAuth, requireRole('admin'), async (req, res) => {
-  const { jugadorId, items, cobrar, metodoPago } = req.body
+  const { jugadorId = null, items, cobrar, metodoPago } = req.body
   const clubId = req.user.clubId
 
-  if (!jugadorId) return res.status(400).json({ error: 'Elegí un jugador' })
+  if (!jugadorId && !cobrar) {
+    return res.status(400).json({ error: 'Una venta de mostrador debe cobrarse al contado (no puede quedar a cuenta)' })
+  }
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Agregá al menos un producto' })
   }
@@ -113,9 +116,11 @@ router.post('/venta', requireAuth, requireRole('admin'), async (req, res) => {
   const concepto = 'Venta: ' + lineas.map((l) => `${l.cantidad}× ${l.nombre}`).join(', ')
 
   try {
-    const jugador = await prisma.jugador.findUnique({ where: { id: jugadorId }, select: { clubId: true } })
-    if (!jugador || jugador.clubId !== clubId) {
-      return res.status(404).json({ error: 'Jugador no encontrado en este club' })
+    if (jugadorId) {
+      const jugador = await prisma.jugador.findUnique({ where: { id: jugadorId }, select: { clubId: true } })
+      if (!jugador || jugador.clubId !== clubId) {
+        return res.status(404).json({ error: 'Jugador no encontrado en este club' })
+      }
     }
 
     const cargo = await prisma.cargo.create({

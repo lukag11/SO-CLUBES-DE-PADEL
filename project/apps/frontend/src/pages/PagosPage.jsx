@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   DollarSign, AlertTriangle, TrendingUp, Search, Plus, X,
-  CheckCircle, Trash2, Clock, Settings, Check, Package, Pencil, Minus, Printer, Download, FileText, Wallet, RotateCcw,
+  CheckCircle, Trash2, Clock, Settings, Check, Package, Pencil, Minus, Printer, Download, FileText, Wallet, RotateCcw, ShoppingCart,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
@@ -304,8 +304,9 @@ const ModalCatalogoProductos = ({ productos, onCreate, onUpdate, onDelete, onClo
 }
 
 // ── Modal: CUENTA DE JUGADOR (unificado) — ver lo que debe + cobrar + agregar consumos/cargos ──
-const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onRefresh, showToast }) => {
+const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onRefresh, showToast, initialMostrador = false }) => {
   const [jugadorId, setJugadorId] = useState('')
+  const [mostrador, setMostrador] = useState(initialMostrador) // venta a visitante sin ficha (contado)
   const [deudas, setDeudas] = useState([])
   const [selDeuda, setSelDeuda] = useState({})
   const [loadingDeudas, setLoadingDeudas] = useState(false)
@@ -358,11 +359,12 @@ const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onR
 
   // Crea las líneas nuevas (productos → venta; otros → cargo), pagadas o a cuenta
   const crearNuevas = async (cobrar) => {
+    const jid = mostrador ? null : jugadorId   // mostrador = venta sin ficha
     const items = lineas.filter((l) => l.tipo === 'producto').map((l) => ({ nombre: l.nombre, precio: l.precio, cantidad: l.cantidad }))
     const otros = lineas.filter((l) => l.tipo === 'otro')
-    if (items.length) await api.post('/productos/venta', { jugadorId, items, cobrar, metodoPago }, auth)
+    if (items.length) await api.post('/productos/venta', { jugadorId: jid, items, cobrar, metodoPago }, auth)
     for (const o of otros) {
-      await api.post('/cargos', { jugadorId, concepto: o.cantidad > 1 ? `${o.cantidad}× ${o.nombre}` : o.nombre, monto: o.precio * o.cantidad, cobrar, metodoPago }, auth)
+      await api.post('/cargos', { jugadorId: jid, concepto: o.cantidad > 1 ? `${o.cantidad}× ${o.nombre}` : o.nombre, monto: o.precio * o.cantidad, cobrar, metodoPago }, auth)
     }
   }
 
@@ -391,21 +393,29 @@ const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onR
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
       <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <p className="text-slate-800 font-bold">Cuenta de jugador</p>
+          <p className="text-slate-800 font-bold">{mostrador ? 'Venta de mostrador' : 'Cuenta de jugador'}</p>
           <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
         </div>
         <div className="overflow-y-auto p-6 flex flex-col gap-5">
-          {/* Jugador */}
+          {/* ¿A quién? Jugador con ficha o venta de mostrador (sin ficha, contado) */}
           <div>
-            <label className="block text-slate-500 text-xs font-medium mb-1.5">Jugador</label>
-            <select value={jugadorId} onChange={(e) => setJugadorId(e.target.value)} className={`w-full ${inputCls}`}>
-              <option value="">Seleccioná un jugador…</option>
-              {jugadores.map((j) => <option key={j.id} value={j.id}>{j.nombre} {j.apellido} — DNI {j.dni}</option>)}
-            </select>
+            <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 mb-2">
+              <button onClick={() => setMostrador(false)} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${!mostrador ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Jugador</button>
+              <button onClick={() => { setMostrador(true); setJugadorId('') }} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${mostrador ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Mostrador / casual</button>
+            </div>
+            {mostrador
+              ? <p className="text-[11px] text-slate-400">Venta a un visitante sin ficha. Se cobra al contado (no queda a cuenta).</p>
+              : (
+                <select value={jugadorId} onChange={(e) => setJugadorId(e.target.value)} className={`w-full ${inputCls}`}>
+                  <option value="">Seleccioná un jugador…</option>
+                  {jugadores.map((j) => <option key={j.id} value={j.id}>{j.nombre} {j.apellido} — DNI {j.dni}</option>)}
+                </select>
+              )}
           </div>
 
-          {jugadorId && (<>
-            {/* ── Lo que debe ── */}
+          {(mostrador || jugadorId) && (<>
+            {/* ── Lo que debe (solo para jugador con ficha) ── */}
+            {!mostrador && (
             <div>
               <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Lo que debe</p>
               {loadingDeudas ? (
@@ -427,10 +437,11 @@ const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onR
                 </div>
               )}
             </div>
+            )}
 
             {/* ── Agregar consumo / cargo ── */}
             <div>
-              <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Agregar consumo / cargo</p>
+              <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">{mostrador ? 'Productos' : 'Agregar consumo / cargo'}</p>
               <div className="flex gap-2">
                 <select value={sel} onChange={(e) => setSel(e.target.value)} className={`flex-1 ${inputCls}`}>
                   <option value="">Elegí…</option>
@@ -475,9 +486,11 @@ const ModalCuentaJugador = ({ jugadores, productos, metodos, token, onClose, onR
               </div>
               {error && <p className="text-rose-500 text-xs">{error}</p>}
               <div className="flex gap-2">
-                <button onClick={anotarACuenta} disabled={saving || lineas.length === 0} title="Suma los consumos nuevos como deuda pendiente" className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors disabled:opacity-40">
-                  Anotar a cuenta{totalNuevo > 0 ? ` ${money(totalNuevo)}` : ''}
-                </button>
+                {!mostrador && (
+                  <button onClick={anotarACuenta} disabled={saving || lineas.length === 0} title="Suma los consumos nuevos como deuda pendiente" className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors disabled:opacity-40">
+                    Anotar a cuenta{totalNuevo > 0 ? ` ${money(totalNuevo)}` : ''}
+                  </button>
+                )}
                 <button onClick={cobrarTodo} disabled={saving || totalCobrar === 0} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
                   {saving ? 'Procesando…' : `Cobrar ${money(totalCobrar)}`}
                 </button>
@@ -697,6 +710,9 @@ const PagosPage = () => {
               <p>El botón principal. Elegís un jugador y ahí ves <b>lo que debe</b> (turnos impagos, productos, cargos) y podés <b>agregarle consumos</b> (un tubo, una bebida) o un cargo suelto (una multa).</p>
               <p>Al final elegís: <b>Anotar a la cuenta</b> (queda como deuda) o <b>Cobrar</b> (entra a la caja al instante, con su método).</p>
             </AyudaSeccion>
+            <AyudaSeccion icon={ShoppingCart} titulo="Venta de mostrador">
+              <p>Dentro de <b>Cobrar / Vender</b>, arriba tenés el toggle <b>Jugador / Mostrador</b>. Elegí <b>Mostrador</b> para venderle a un <b>visitante sin ficha</b> (una bebida, un grip): elegís productos y cobrás <b>al contado</b> — no queda a cuenta porque no hay a quién cobrarle después. Entra directo a la caja del día.</p>
+            </AyudaSeccion>
             <AyudaSeccion icon={Package} titulo="Productos (en ⚙️)">
               <p>Cargá tu catálogo (tubo de pelotas, grip, bebida…) para venderlos rápido desde la cuenta del jugador.</p>
             </AyudaSeccion>
@@ -738,7 +754,7 @@ const PagosPage = () => {
             onClick={() => setCuentaOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm"
           >
-            <Wallet size={16} /> Cuenta de jugador
+            <Wallet size={16} /> Cobrar / Vender
           </button>
           </>)}
         </div>
@@ -860,7 +876,7 @@ const PagosPage = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-slate-800 font-semibold text-sm truncate">
-                      {c.jugador?.nombre} {c.jugador?.apellido}
+                      {c.jugador ? `${c.jugador.nombre} ${c.jugador.apellido}` : 'Mostrador'}
                     </p>
                     <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{TIPO_LABEL[c.tipo] ?? c.tipo}</span>
                     {c.vencido && (

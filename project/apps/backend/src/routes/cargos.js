@@ -157,11 +157,15 @@ router.get('/cobranzas', requireAuth, requireRole('admin'), async (req, res) => 
 
 // POST /api/cargos — admin crea un cargo manual
 router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
-  const { jugadorId, concepto, monto, vencimiento, cobrar, metodoPago } = req.body
+  const { jugadorId = null, concepto, monto, vencimiento, cobrar, metodoPago } = req.body
   const clubId = req.user.clubId
 
-  if (!jugadorId || !concepto?.trim() || monto == null) {
-    return res.status(400).json({ error: 'datos_incompletos', message: 'Jugador, concepto y monto son requeridos' })
+  if (!concepto?.trim() || monto == null) {
+    return res.status(400).json({ error: 'datos_incompletos', message: 'Concepto y monto son requeridos' })
+  }
+  // jugadorId null = venta de mostrador / casual: debe cobrarse al contado (no puede quedar a cuenta)
+  if (!jugadorId && !cobrar) {
+    return res.status(400).json({ error: 'mostrador_a_cuenta', message: 'Una venta de mostrador debe cobrarse al contado' })
   }
   const montoNum = Math.round(Number(monto))
   if (!Number.isFinite(montoNum) || montoNum <= 0) {
@@ -169,10 +173,12 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
   }
 
   try {
-    // El jugador debe pertenecer al club del admin
-    const jugador = await prisma.jugador.findUnique({ where: { id: jugadorId }, select: { clubId: true } })
-    if (!jugador || jugador.clubId !== clubId) {
-      return res.status(404).json({ error: 'jugador_no_encontrado', message: 'Jugador no encontrado en este club' })
+    // Si hay jugador, debe pertenecer al club del admin
+    if (jugadorId) {
+      const jugador = await prisma.jugador.findUnique({ where: { id: jugadorId }, select: { clubId: true } })
+      if (!jugador || jugador.clubId !== clubId) {
+        return res.status(404).json({ error: 'jugador_no_encontrado', message: 'Jugador no encontrado en este club' })
+      }
     }
 
     const cargo = await prisma.cargo.create({

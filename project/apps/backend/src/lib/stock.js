@@ -9,10 +9,17 @@ const moverStock = async (db, clubId, lineas, signo, tipo, ref) => {
   const controla = new Set(prods.map((p) => p.id))
   for (const l of items) {
     if (!controla.has(l.productoId)) continue
-    await db.producto.update({ where: { id: l.productoId }, data: { stock: { increment: signo * l.cantidad } } })
+    const upd = await db.producto.update({ where: { id: l.productoId }, data: { stock: { increment: signo * l.cantidad } } })
     await db.movimientoStock.create({
       data: { clubId, productoId: l.productoId, tipo, cantidad: signo * l.cantidad, costoUnit: ref.costoUnit ?? null, motivo: ref.motivo ?? null, refTipo: ref.tipo ?? null, refId: ref.id ?? null },
     })
+    // Aviso al admin si una salida dejó el producto en bajo stock (deduplicado: una notif sin leer por producto)
+    if (signo < 0 && upd.stock <= upd.stockMin) {
+      const yaHay = await db.notificacion.findFirst({ where: { clubId, tipo: 'stock_bajo', leida: false, data: { path: ['productoId'], equals: l.productoId } } })
+      if (!yaHay) {
+        await db.notificacion.create({ data: { clubId, jugadorId: null, tipo: 'stock_bajo', data: { productoId: upd.id, nombre: upd.nombre, stock: upd.stock, stockMin: upd.stockMin } } })
+      }
+    }
   }
 }
 

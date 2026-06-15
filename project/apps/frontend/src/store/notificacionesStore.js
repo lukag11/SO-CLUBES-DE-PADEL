@@ -35,6 +35,9 @@ const normBackend = (n) => ({
   torneoId: n.data?.torneoId ?? null,
   categoria: n.data?.categoria ?? '',
   vaAEspera: n.data?.estado === 'espera',
+  // Campos de notificación de bajo stock
+  nombre: n.data?.nombre ?? '',
+  stock: n.data?.stock ?? null,
   leida: n.leida,
   timestamp: n.createdAt,
   _fromBackend: true,

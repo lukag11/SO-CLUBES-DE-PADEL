@@ -9,12 +9,10 @@
 - **Schema:** `Producto.controlaStock/stock/stockMin` (opt-in), `Cargo.cantidad`, modelo `MovimientoStock` (entrada/salida/ajuste, cantidad firmada, costoUnit, motivo, ref). `lib/stock.js`: `descontarStock`/`reponerStock`/`ingresarStock` (solo afectan productos con controlaStock).
 - **F2 descuento en ventas:** comanda `/items`, `/productos/venta` (des-bundleado, un cargo+cantidad por ítem), consumos de turno `/reservas/:id/cuenta` → descuentan stock. Reponen al **quitar ítem de mesa**, **descartar mesa**, **eliminar cargo** (DELETE /cargos/:id). Anular cobro NO repone (el consumo igual ocurrió).
 - **F3 ingreso:** ajuste manual `POST /productos/:id/ajuste` ({stock} final → movimiento ajuste). Compra: `POST /gastos` acepta `lineasStock [{productoId?|nombre?, categoria?, cantidad, costoUnit, precio?}]` → crea/matchea productos, suma stock, actualiza costo (`ingresarStock`). Productos POST/PATCH aceptan controlaStock/stock/stockMin.
-- **F4 alertas (visual):** badge de stock en catálogo (rojo sin stock / ámbar ≤ stockMin / gris ok) con ajuste rápido (prompt → /ajuste), y **banner de bajo stock** en la tab Ventas. **PENDIENTE:** notificación push al admin (reusar `notificaciones`).
-- **F5 OCR (premium):** el endpoint `POST /gastos` con `lineasStock` ES el target estructurado del OCR/IA. **PENDIENTE frontend:** form de "factura de proveedor con líneas" en GastosTab (que la IA pre-llenará) + gating por plan.
+- **F4 alertas:** badge en catálogo (rojo sin stock / ámbar ≤ stockMin / gris ok) + ajuste rápido (prompt → /ajuste), **banner de bajo stock** en Ventas, y **notificación al admin** (tipo `stock_bajo`, creada en `descontarStock` al cruzar el umbral, deduplicada por producto sin leer; render en `Navbar.formatNotif` + `normBackend`).
+- **F5 OCR (premium):** `POST /gastos` con `lineasStock` es el target estructurado. **UI lista:** en `GastosTab` el alta de gasto tiene sección "Ingresar productos a stock" (líneas nombre+cantidad+costo, matchea por nombre/datalist, "usar total del detalle") + placeholder "Próximamente: cargar de la foto (IA, premium)". El OCR/IA solo pre-llenará esas líneas; lo demás ya funciona manual.
 
-### Pendiente para cerrar stock
-1. Notificación al admin al cruzar bajo stock (push, no solo visual).
-2. UI de factura-con-líneas en GastosTab (carga manual de compra que repone stock) — y sobre eso, el pre-llenado por OCR/IA (premium).
+**Módulo Finanzas COMPLETO** (Cobranzas + Ventas/POS + comandas + Gastos + Caja/Reportes + Stock). Pendiente real solo: conectar el modelo OCR/IA (cuando se arme el asistente) + gating de planes.
 
 ---
 

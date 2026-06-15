@@ -18,6 +18,8 @@ const formatNotif = (n) => {
       return { title: 'Disponibilidad actualizada', body: n.profesorNombre ? `${n.profesorNombre} actualizó su disponibilidad semanal` : '' }
     case 'inscripcion_torneo':
       return { title: 'Inscripción torneo', body: [n.jugador1, n.jugador2, n.torneoNombre].filter(Boolean).join(' · ') }
+    case 'stock_bajo':
+      return { title: 'Bajo stock', body: [n.nombre, n.stock != null ? `quedan ${n.stock}` : ''].filter(Boolean).join(' · ') }
     default:
       return { title: n.tipo?.replace(/_/g, ' ') ?? 'Notificación', body: '' }
   }

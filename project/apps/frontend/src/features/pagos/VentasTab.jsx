@@ -135,19 +135,11 @@ const VentasTab = ({ token, metodos, showToast }) => {
 const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerrada, onChange }) => {
   const auth = { Authorization: `Bearer ${token}` }
   const [items, setItems] = useState(mesa.cargos ?? [])
-  const [q, setQ] = useState('')
-  const [catFiltro, setCatFiltro] = useState('Todos')
-  const [otroOpen, setOtroOpen] = useState(false)
-  const [otroNombre, setOtroNombre] = useState('')
-  const [otroPrecio, setOtroPrecio] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
   const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
   const [dividir, setDividir] = useState(1)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const activos = productos.filter((p) => p.activo)
-  const cats = ['Todos', ...new Set(activos.map((p) => p.categoria || 'Otros'))]
-  const term = q.trim().toLowerCase()
-  const visibles = activos.filter((p) => (catFiltro === 'Todos' || (p.categoria || 'Otros') === catFiltro) && (!term || p.nombre.toLowerCase().includes(term)))
   const total = items.reduce((s, c) => s + c.monto, 0)
 
   const refetch = async () => {
@@ -159,18 +151,6 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
     onChange?.()
   }
 
-  const agregar = async (nombre, precioUnit, productoId = null) => {
-    setError(''); setSaving(true)
-    try {
-      const m = await api.post(`/comandas/${mesa.id}/items`, { items: [{ nombre, precioUnit, cantidad: 1, productoId }] }, auth)
-      setItems(m.cargos ?? []); onChange?.()
-    } catch (e) { setError(e?.message || 'No se pudo agregar') } finally { setSaving(false) }
-  }
-  const agregarProducto = (p) => agregar(p.nombre, p.precio, p.id)
-  const agregarOtro = () => {
-    if (!otroNombre.trim() || !(Number(otroPrecio) > 0)) return setError('Completá concepto y monto')
-    agregar(otroNombre.trim(), Number(otroPrecio)); setOtroNombre(''); setOtroPrecio(''); setOtroOpen(false)
-  }
   const cambiarCant = async (c, nuevaCant) => {
     if (nuevaCant < 1) return quitar(c.id)
     setSaving(true)
@@ -211,52 +191,33 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
         </div>
 
         <div className="overflow-y-auto p-6 flex flex-col gap-4">
-          {/* Ítems en la mesa, con +/- de cantidad */}
-          {items.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              {items.map((c) => (
-                <div key={c.id} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100">
-                  <p className="flex-1 min-w-0 text-sm text-slate-700 truncate">{nombreBase(c.concepto)}</p>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => cambiarCant(c, (c.cantidad || 1) - 1)} disabled={saving} className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center"><Minus size={12} /></button>
-                    <span className="text-sm font-medium w-5 text-center">{c.cantidad || 1}</span>
-                    <button onClick={() => cambiarCant(c, (c.cantidad || 1) + 1)} disabled={saving} className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center"><Plus size={12} /></button>
-                  </div>
-                  <p className="text-sm font-semibold text-slate-700 w-20 text-right shrink-0">{money(c.monto)}</p>
-                  <button onClick={() => quitar(c.id)} disabled={saving} className="text-slate-300 hover:text-rose-500 shrink-0"><X size={14} /></button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Picker embebido: buscador + categorías + grilla */}
-          <div className="flex flex-col gap-2">
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto…" className={`w-full ${inputCls}`} />
-            <div className="flex gap-1.5 flex-wrap">
-              {cats.map((cat) => (
-                <button key={cat} onClick={() => setCatFiltro(cat)} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${catFiltro === cat ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{cat}</button>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto">
-              {visibles.length === 0 ? <p className="col-span-2 text-xs text-slate-400 py-2 text-center">Sin productos.</p> : visibles.map((p) => (
-                <button key={p.id} onClick={() => agregarProducto(p)} disabled={saving} className="flex flex-col items-start px-3 py-2 rounded-xl border border-slate-200 hover:border-brand-400 hover:bg-brand-50/50 text-left transition-all disabled:opacity-50">
-                  <span className="text-sm font-medium text-slate-700 truncate w-full">{p.nombre}</span>
-                  <span className="text-xs text-slate-400">{money(p.precio)}{p.controlaStock ? ` · ${p.stock} u.` : ''}</span>
-                </button>
-              ))}
-            </div>
-            {/* Otro (ítem manual) */}
-            {otroOpen ? (
-              <div className="flex gap-2">
-                <input autoFocus value={otroNombre} onChange={(e) => setOtroNombre(e.target.value)} placeholder="Concepto" className={`flex-1 ${inputCls}`} />
-                <input type="number" value={otroPrecio} onChange={(e) => setOtroPrecio(e.target.value)} placeholder="$" className={`w-24 ${inputCls}`} />
-                <button onClick={agregarOtro} disabled={saving} className="px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600"><Plus size={16} /></button>
-                <button onClick={() => setOtroOpen(false)} className="text-slate-300 hover:text-slate-600 px-1"><X size={16} /></button>
-              </div>
+          {/* ── En la mesa (lo cargado) ── */}
+          <div>
+            <p className="text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide flex items-center gap-1.5"><ShoppingCart size={13} className="text-brand-500" /> En la mesa</p>
+            {items.length === 0 ? (
+              <p className="text-xs text-slate-400 bg-slate-50 rounded-xl px-3 py-2.5">Todavía sin consumos. Agregá desde el menú de abajo 👇</p>
             ) : (
-              <button onClick={() => setOtroOpen(true)} className="text-xs text-brand-600 hover:text-brand-700 font-medium w-fit">✏️ Otro (ítem manual)</button>
+              <div className="flex flex-col gap-1.5">
+                {items.map((c) => (
+                  <div key={c.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-50/60 border border-brand-100">
+                    <p className="flex-1 min-w-0 text-sm font-medium text-slate-700 truncate">{nombreBase(c.concepto)}</p>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => cambiarCant(c, (c.cantidad || 1) - 1)} disabled={saving} className="w-6 h-6 rounded-md bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center"><Minus size={12} /></button>
+                      <span className="text-sm font-semibold w-5 text-center">{c.cantidad || 1}</span>
+                      <button onClick={() => cambiarCant(c, (c.cantidad || 1) + 1)} disabled={saving} className="w-6 h-6 rounded-md bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center"><Plus size={12} /></button>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700 w-20 text-right shrink-0">{money(c.monto)}</p>
+                    <button onClick={() => quitar(c.id)} disabled={saving} className="text-slate-300 hover:text-rose-500 shrink-0"><X size={14} /></button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
+
+          {/* Abrir el menú para agregar (pantalla aparte, estilo comanda) */}
+          <button onClick={() => setAddOpen(true)} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-brand-300 text-brand-600 hover:bg-brand-50/50 font-semibold text-sm transition-colors">
+            <Plus size={16} /> Agregar productos
+          </button>
 
           {error && <p className="text-rose-500 text-xs">{error}</p>}
         </div>
@@ -289,6 +250,115 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
               {saving ? 'Procesando…' : `Cobrar y cerrar ${money(total)}`}
             </button>
           </div>
+        </div>
+      </div>
+
+      {addOpen && <ModalAgregarProductos mesa={mesa} productos={productos} token={token}
+        onClose={() => setAddOpen(false)} onAgregado={() => { setAddOpen(false); refetch() }} />}
+    </div>
+  )
+}
+
+// ─── Pantalla de pedido (estilo comanda): armás varios ítems y entran juntos ────
+const ModalAgregarProductos = ({ mesa, productos, token, onClose, onAgregado }) => {
+  const auth = { Authorization: `Bearer ${token}` }
+  const [q, setQ] = useState('')
+  const [catFiltro, setCatFiltro] = useState('Todos')
+  const [cart, setCart] = useState([]) // [{ key, nombre, precio, productoId, cantidad }]
+  const [otroOpen, setOtroOpen] = useState(false)
+  const [otroNombre, setOtroNombre] = useState('')
+  const [otroPrecio, setOtroPrecio] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const activos = productos.filter((p) => p.activo)
+  const cats = ['Todos', ...new Set(activos.map((p) => p.categoria || 'Otros'))]
+  const term = q.trim().toLowerCase()
+  const visibles = activos.filter((p) => (catFiltro === 'Todos' || (p.categoria || 'Otros') === catFiltro) && (!term || p.nombre.toLowerCase().includes(term)))
+  const cantDe = (productoId) => cart.find((c) => c.productoId === productoId)?.cantidad || 0
+  const totalCart = cart.reduce((s, c) => s + c.precio * c.cantidad, 0)
+  const totalItems = cart.reduce((s, c) => s + c.cantidad, 0)
+
+  const addProd = (p) => setCart((c) => {
+    const ex = c.find((x) => x.productoId === p.id)
+    if (ex) return c.map((x) => x.productoId === p.id ? { ...x, cantidad: x.cantidad + 1 } : x)
+    return [...c, { key: p.id, nombre: p.nombre, precio: p.precio, productoId: p.id, cantidad: 1 }]
+  })
+  const cambiar = (key, d) => setCart((c) => c.flatMap((x) => x.key === key ? (x.cantidad + d <= 0 ? [] : [{ ...x, cantidad: x.cantidad + d }]) : [x]))
+  const addOtro = () => {
+    if (!otroNombre.trim() || !(Number(otroPrecio) > 0)) return setError('Completá concepto y monto')
+    setCart((c) => [...c, { key: `o-${Date.now()}`, nombre: otroNombre.trim(), precio: Number(otroPrecio), productoId: null, cantidad: 1 }])
+    setOtroNombre(''); setOtroPrecio(''); setOtroOpen(false); setError('')
+  }
+  const confirmar = async () => {
+    if (cart.length === 0) return onClose()
+    setSaving(true); setError('')
+    try {
+      await api.post(`/comandas/${mesa.id}/items`, { items: cart.map((c) => ({ nombre: c.nombre, precioUnit: c.precio, cantidad: c.cantidad, productoId: c.productoId })) }, auth)
+      onAgregado()
+    } catch (e) { setError(e?.message || 'No se pudo agregar el pedido'); setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div><p className="text-slate-800 font-bold">Agregar al pedido</p><p className="text-slate-400 text-xs mt-0.5">{mesa.etiqueta}</p></div>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-600"><X size={18} /></button>
+        </div>
+
+        <div className="px-6 pt-4 shrink-0 flex flex-col gap-2">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto…" className={`w-full ${inputCls}`} />
+          <div className="flex gap-1.5 flex-wrap">
+            {cats.map((cat) => (
+              <button key={cat} onClick={() => setCatFiltro(cat)} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${catFiltro === cat ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{cat}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="overflow-y-auto px-6 py-3 grid grid-cols-2 gap-2">
+          {visibles.length === 0 ? <p className="col-span-2 text-xs text-slate-400 py-2 text-center">Sin productos.</p> : visibles.map((p) => {
+            const n = cantDe(p.id)
+            return (
+              <button key={p.id} onClick={() => addProd(p)} className={`relative flex flex-col items-start px-3 py-2 rounded-xl border text-left transition-all ${n > 0 ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:border-brand-300'}`}>
+                <span className="text-sm font-medium text-slate-700 truncate w-full">{p.nombre}</span>
+                <span className="text-xs text-slate-400">{money(p.precio)}{p.controlaStock ? ` · ${p.stock} u.` : ''}</span>
+                {n > 0 && <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-brand-500 text-white text-[11px] font-bold flex items-center justify-center">{n}</span>}
+              </button>
+            )
+          })}
+          {otroOpen ? (
+            <div className="col-span-2 flex gap-2">
+              <input autoFocus value={otroNombre} onChange={(e) => setOtroNombre(e.target.value)} placeholder="Concepto" className={`flex-1 ${inputCls}`} />
+              <input type="number" value={otroPrecio} onChange={(e) => setOtroPrecio(e.target.value)} placeholder="$" className={`w-24 ${inputCls}`} />
+              <button onClick={addOtro} className="px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600"><Plus size={16} /></button>
+            </div>
+          ) : (
+            <button onClick={() => setOtroOpen(true)} className="col-span-2 text-xs text-brand-600 hover:text-brand-700 font-medium w-fit">✏️ Otro (ítem manual)</button>
+          )}
+        </div>
+
+        {/* Seleccionados */}
+        {cart.length > 0 && (
+          <div className="px-6 py-2 border-t border-slate-100 shrink-0 max-h-36 overflow-y-auto flex flex-col gap-1">
+            {cart.map((c) => (
+              <div key={c.key} className="flex items-center gap-2 text-sm">
+                <span className="flex-1 truncate text-slate-600">{c.nombre}</span>
+                <button onClick={() => cambiar(c.key, -1)} className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center"><Minus size={12} /></button>
+                <span className="w-5 text-center font-medium">{c.cantidad}</span>
+                <button onClick={() => cambiar(c.key, +1)} className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center"><Plus size={12} /></button>
+                <span className="w-16 text-right font-semibold text-slate-700">{money(c.precio * c.cantidad)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="px-6 py-4 border-t border-slate-100 shrink-0 flex flex-col gap-2">
+          {error && <p className="text-rose-500 text-xs">{error}</p>}
+          <button onClick={confirmar} disabled={saving || cart.length === 0} className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
+            {saving ? 'Agregando…' : cart.length === 0 ? 'Elegí productos' : `Agregar ${totalItems} ítem${totalItems !== 1 ? 's' : ''} · ${money(totalCart)}`}
+          </button>
         </div>
       </div>
     </div>

@@ -7,7 +7,7 @@ const titles = {
   '/dashboardAdmin/jugadores': 'Jugadores',
   '/dashboardAdmin/clases': 'Clases profesores',
   '/dashboardAdmin/torneos': 'Torneos',
-  '/dashboardAdmin/pagos': 'Pagos',
+  '/dashboardAdmin/pagos': 'Finanzas',
 }
 
 const usePageTitle = () => {

@@ -647,8 +647,7 @@ const PagosPage = () => {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-800">Finanzas</h2>
-          <p className="text-sm text-slate-400 mt-1">Cobranzas y gastos del club</p>
+          <p className="text-sm text-slate-400">Ventas, stock, cobranzas y gastos del club</p>
         </div>
         <div className="flex items-center gap-2">
           <AyudaPanel titulo="Cómo funciona Finanzas">

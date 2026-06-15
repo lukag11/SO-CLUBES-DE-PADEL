@@ -781,22 +781,24 @@ const PagosPage = () => {
             className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400"
           />
         </div>
-        <button
-          onClick={() => generarReporteCobranzas(visibles, club, `${FILTROS.find((f) => f.id === filtro)?.label ?? ''}${tipoFiltro !== 'todos' ? ' · ' + (TIPOS_FILTRO.find((t) => t.id === tipoFiltro)?.label ?? '') : ''}`)}
-          disabled={visibles.length === 0}
-          title="Generar reporte PDF"
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-medium text-xs transition-colors disabled:opacity-40"
-        >
-          <FileText size={14} /> Reporte
-        </button>
-        <button
-          onClick={() => exportarCobranzasCSV(visibles)}
-          disabled={visibles.length === 0}
-          title="Exportar a CSV (para el contador)"
-          className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-slate-500 font-medium text-xs hover:bg-slate-50 transition-colors disabled:opacity-40"
-        >
-          <Download size={14} /> CSV
-        </button>
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            onClick={() => generarReporteCobranzas(visibles, club, `${FILTROS.find((f) => f.id === filtro)?.label ?? ''}${tipoFiltro !== 'todos' ? ' · ' + (TIPOS_FILTRO.find((t) => t.id === tipoFiltro)?.label ?? '') : ''}`)}
+            disabled={visibles.length === 0}
+            title="Generar reporte PDF"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition-colors disabled:opacity-40"
+          >
+            <FileText size={14} /> Reporte
+          </button>
+          <button
+            onClick={() => exportarCobranzasCSV(visibles)}
+            disabled={visibles.length === 0}
+            title="Exportar a CSV (para el contador)"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors disabled:opacity-40"
+          >
+            <Download size={14} /> CSV
+          </button>
+        </div>
       </div>
 
       {/* Lista */}

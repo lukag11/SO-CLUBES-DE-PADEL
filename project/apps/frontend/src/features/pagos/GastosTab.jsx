@@ -184,6 +184,7 @@ const GastosTab = ({ token, metodos }) => {
   const [resumen, setResumen] = useState(null)
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('todos') // todos | pagado | pendiente
+  const [catFiltro, setCatFiltro] = useState('todas')
   const [modal, setModal] = useState(null)       // { gasto } | { nuevo:true }
   const [pagando, setPagando] = useState(null)
   const [eliminando, setEliminando] = useState(null)
@@ -207,8 +208,10 @@ const GastosTab = ({ token, metodos }) => {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  const categoriasGasto = [...new Set(gastos.map((g) => g.categoria).filter(Boolean))].sort()
   const visibles = gastos.filter((g) =>
-    filtro === 'todos' ? true : filtro === 'pagado' ? g.pagado : !g.pagado)
+    (filtro === 'todos' ? true : filtro === 'pagado' ? g.pagado : !g.pagado) &&
+    (catFiltro === 'todas' || g.categoria === catFiltro))
 
   const guardar = async (data) => {
     setSaving(true)
@@ -267,10 +270,18 @@ const GastosTab = ({ token, metodos }) => {
       </div>
 
       {/* Filtros */}
-      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit">
-        {[{ id: 'todos', label: 'Todos' }, { id: 'pendiente', label: 'A pagar' }, { id: 'pagado', label: 'Pagados' }].map(({ id, label }) => (
-          <button key={id} onClick={() => setFiltro(id)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filtro === id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>
-        ))}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit">
+          {[{ id: 'todos', label: 'Todos' }, { id: 'pendiente', label: 'A pagar' }, { id: 'pagado', label: 'Pagados' }].map(({ id, label }) => (
+            <button key={id} onClick={() => setFiltro(id)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filtro === id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>
+          ))}
+        </div>
+        {categoriasGasto.length > 0 && (
+          <select value={catFiltro} onChange={(e) => setCatFiltro(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-600 outline-none focus:border-brand-400">
+            <option value="todas">Todas las categorías</option>
+            {categoriasGasto.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Lista */}

@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Minus, X, ShoppingCart, Clock, Trash2, Users, AlertTriangle } from 'lucide-react'
+import { Plus, Minus, X, ShoppingCart, Clock, Trash2, Users, AlertTriangle, FileText } from 'lucide-react'
 import { api } from '../../lib/api'
 import { METODO_MAP } from '../../lib/metodosPago'
+import { imprimirTicket, ticketTexto, enviarWhatsApp } from './comprobantes'
+import useClubStore from '../../store/clubStore'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
@@ -134,8 +136,10 @@ const VentasTab = ({ token, metodos, showToast }) => {
 // ─── Modal del ticket de una mesa ───────────────────────────────────────────────
 const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerrada, onChange }) => {
   const auth = { Authorization: `Bearer ${token}` }
+  const club = useClubStore((s) => s.club)
   const [items, setItems] = useState(mesa.cargos ?? [])
   const [addOpen, setAddOpen] = useState(false)
+  const [cerrada, setCerrada] = useState(null) // ticket tras cobrar (para imprimir / WhatsApp)
   const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
   const [dividir, setDividir] = useState(1)
   const [saving, setSaving] = useState(false)
@@ -167,7 +171,11 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
     setSaving(true); setError('')
     try {
       await api.post(`/comandas/${mesa.id}/cerrar`, { metodoPago }, auth)
-      showToast('exito', 'Mesa cobrada y cerrada'); onCerrada()
+      const ticket = {
+        etiqueta: mesa.etiqueta, total, metodoLabel: METODO_MAP[metodoPago]?.label ?? metodoPago, fecha: new Date(),
+        items: items.map((c) => ({ nombre: nombreBase(c.concepto), cantidad: c.cantidad || 1, monto: c.monto })),
+      }
+      showToast('exito', 'Mesa cobrada y cerrada'); setCerrada(ticket); setSaving(false)
     } catch (e) { setError(e?.message || 'No se pudo cerrar'); setSaving(false) }
   }
   const eliminarMesa = async () => {
@@ -187,9 +195,23 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
             <p className="text-slate-800 font-bold">{mesa.etiqueta}</p>
             <p className="text-slate-400 text-xs mt-0.5">Mesa abierta · {items.length} ítem{items.length !== 1 ? 's' : ''}</p>
           </div>
-          <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
+          <button onClick={() => (cerrada ? onCerrada() : onClose())} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
         </div>
 
+        {cerrada ? (
+          <div className="p-6 flex flex-col items-center text-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">✓</div>
+            <div>
+              <p className="text-slate-800 font-bold">Cobrado {money(cerrada.total)}</p>
+              <p className="text-slate-400 text-xs mt-0.5">{cerrada.etiqueta} · {cerrada.metodoLabel}</p>
+            </div>
+            <div className="flex gap-2 w-full">
+              <button onClick={() => imprimirTicket(cerrada, club)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm"><FileText size={15} /> Imprimir ticket</button>
+              <button onClick={() => enviarWhatsApp(ticketTexto(cerrada, club))} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#25D366] hover:brightness-95 text-white font-semibold text-sm">WhatsApp</button>
+            </div>
+            <button onClick={onCerrada} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
+          </div>
+        ) : (<>
         <div className="overflow-y-auto p-6 flex flex-col gap-4">
           {/* ── En la mesa (lo cargado) ── */}
           <div>
@@ -251,6 +273,7 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
             </button>
           </div>
         </div>
+        </>)}
       </div>
 
       {addOpen && <ModalAgregarProductos mesa={mesa} productos={productos} token={token}

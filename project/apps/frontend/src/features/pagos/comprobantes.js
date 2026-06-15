@@ -46,6 +46,51 @@ export const imprimirRecibo = (deuda, club) => {
   win.document.close()
 }
 
+// ── Ticket de consumo (mesa / venta) ────────────────────────────────────────
+// ticket: { etiqueta?, items:[{nombre, cantidad, monto}], total, metodoLabel?, fecha? }
+export const imprimirTicket = (ticket, club) => {
+  const fecha = (ticket.fecha ? new Date(ticket.fecha) : new Date()).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const filas = (ticket.items || []).map((i) => `<tr><td>${i.cantidad > 1 ? `${i.cantidad}× ` : ''}${esc(i.nombre)}</td><td style="text-align:right">${esc(money(i.monto))}</td></tr>`).join('')
+  const logo = club?.logo ? `<img src="${esc(club.logo)}" style="max-height:42px;max-width:120px;object-fit:contain" />` : ''
+  const win = window.open('', '_blank', 'width=320,height=600')
+  if (!win) return
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Ticket</title>
+  <style>
+    *{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,monospace}
+    body{margin:0;padding:16px;color:#1e293b;width:280px}
+    .head{text-align:center;border-bottom:1px dashed #cbd5e1;padding-bottom:10px;margin-bottom:10px}
+    .club{font-size:15px;font-weight:700;margin-top:4px}
+    .meta{font-size:11px;color:#64748b;margin-top:2px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    td{padding:3px 0}
+    .total{display:flex;justify-content:space-between;margin-top:10px;padding-top:8px;border-top:1px dashed #cbd5e1;font-size:16px;font-weight:800}
+    .pago{font-size:12px;color:#64748b;text-align:right;margin-top:4px}
+    .foot{margin-top:14px;text-align:center;font-size:10px;color:#94a3b8}
+    @media print{body{padding:6px}}
+  </style></head><body>
+    <div class="head">${logo}<div class="club">${esc(club?.nombre || 'Club de Pádel')}</div>
+      ${ticket.etiqueta ? `<div class="meta">${esc(ticket.etiqueta)}</div>` : ''}<div class="meta">${esc(fecha)}</div></div>
+    <table>${filas}</table>
+    <div class="total"><span>Total</span><span>${esc(money(ticket.total))}</span></div>
+    ${ticket.metodoLabel ? `<div class="pago">Pago: ${esc(ticket.metodoLabel)}</div>` : ''}
+    <div class="foot">¡Gracias! · Comprobante no fiscal</div>
+    <script>window.onload=function(){window.print()}</script>
+  </body></html>`)
+  win.document.close()
+}
+
+// Texto del ticket para enviar por WhatsApp
+export const ticketTexto = (ticket, club) => {
+  const lineas = (ticket.items || []).map((i) => `• ${i.cantidad > 1 ? `${i.cantidad}× ` : ''}${i.nombre} — ${money(i.monto)}`).join('\n')
+  return [`*${club?.nombre ?? 'Club de Pádel'}*`, ticket.etiqueta || '', '', lineas, '', `*Total: ${money(ticket.total)}*`, ticket.metodoLabel ? `Pago: ${ticket.metodoLabel}` : '', '', '¡Gracias!'].filter((l) => l !== null && l !== undefined).join('\n')
+}
+
+// Abre WhatsApp con el texto (y número opcional del cliente)
+export const enviarWhatsApp = (texto, telefono = '') => {
+  const tel = String(telefono || '').replace(/\D/g, '')
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(texto)}`, '_blank')
+}
+
 // Genera un reporte PDF branded (vía impresión del navegador → "Guardar como PDF").
 // deudas: lista filtrada; club: para logo/nombre/color; filtroLabel: descripción del filtro aplicado.
 export const generarReporteCobranzas = (deudas, club, filtroLabel = 'Todas') => {

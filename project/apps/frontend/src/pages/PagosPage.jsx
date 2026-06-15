@@ -282,10 +282,10 @@ const JugadorPicker = ({ jugadores, deudores = null, value, onChange, placeholde
 }
 
 // modo: 'venta' (vender productos a jugador/mostrador) | 'cobro' (cobrar deudas de un jugador)
-const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, token, onClose, onRefresh, showToast, modo = 'cobro', initialMostrador = false }) => {
+const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, token, onClose, onRefresh, showToast, modo = 'cobro', initialMostrador = false, initialJugadorId = null, initialDeudaId = null }) => {
   const esVenta = modo === 'venta'
   const esCobro = modo === 'cobro'
-  const [jugadorId, setJugadorId] = useState('')
+  const [jugadorId, setJugadorId] = useState(initialJugadorId || '')
   const [mostrador, setMostrador] = useState(esVenta && initialMostrador) // venta a visitante sin ficha (contado)
   const [deudas, setDeudas] = useState([])
   const [selDeuda, setSelDeuda] = useState({})
@@ -308,7 +308,9 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
       const data = await api.get(`/cargos/cobranzas?jugadorId=${jid}`, auth)
       const pend = (data?.deudas ?? []).filter((d) => d.estado === 'pendiente')
       setDeudas(pend)
-      setSelDeuda(Object.fromEntries(pend.map((d) => [d.id, true])))
+      // Si se entró desde una fila puntual, pre-tildo solo esa deuda; si no, todas
+      const solo = (jid === initialJugadorId && initialDeudaId) ? initialDeudaId : null
+      setSelDeuda(Object.fromEntries(pend.map((d) => [d.id, solo ? d.id === solo : true])))
     } catch { setDeudas([]) } finally { setLoadingDeudas(false) }
   }
   useEffect(() => { if (esCobro) fetchDeudas(jugadorId) }, [jugadorId, esCobro]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -499,7 +501,7 @@ const PagosPage = () => {
   const [tipoFiltro, setTipoFiltro] = useState('todos')
   const [metodoFiltro, setMetodoFiltro] = useState('todos')
   const [search, setSearch] = useState('')
-  const [cobrando, setCobrando] = useState(null)   // cargo en proceso de cobro
+  const [cobroPreset, setCobroPreset] = useState(null) // { jugadorId, deudaId } al cobrar desde una fila
   const [eliminando, setEliminando] = useState(null) // cargo a eliminar
   const [anulando, setAnulando] = useState(null)   // cobro pagado a revertir a pendiente
   const [cambiandoMetodo, setCambiandoMetodo] = useState(null) // cobro pagado al que se le corrige el método
@@ -586,22 +588,6 @@ const PagosPage = () => {
       showToast('exito', 'Métodos de cobro actualizados')
     } catch {
       showToast('error', 'No se pudieron guardar los métodos')
-    } finally { setSaving(false) }
-  }
-
-  const cobrar = async (metodoPago) => {
-    setSaving(true)
-    try {
-      if (cobrando.origen === 'reserva') {
-        await api.patch(`/reservas/${cobrando.refId}/pago`, { pagado: true, metodoPago }, { Authorization: `Bearer ${token}` })
-      } else {
-        await api.patch(`/cargos/${cobrando.refId}/estado`, { estado: 'pagado', metodoPago }, { Authorization: `Bearer ${token}` })
-      }
-      setCobrando(null)
-      showToast('exito', 'Cobro registrado')
-      fetchData()
-    } catch (err) {
-      showToast('error', err?.message || 'No se pudo registrar el cobro')
     } finally { setSaving(false) }
   }
 
@@ -715,7 +701,7 @@ const PagosPage = () => {
             ? <button onClick={() => setModalModo('venta')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm">
                 <ShoppingCart size={16} /> Nueva venta
               </button>
-            : <button onClick={() => setModalModo('cobro')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm">
+            : <button onClick={() => { setCobroPreset(null); setModalModo('cobro') }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm">
                 <Wallet size={16} /> Cobrar cuenta
               </button>}
           </>)}
@@ -861,8 +847,10 @@ const PagosPage = () => {
                   {c.estado === 'pendiente' ? (
                     <>
                       <button
-                        onClick={() => setCobrando(c)}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors"
+                        onClick={() => { setCobroPreset({ jugadorId: c.jugador?.id ?? null, deudaId: c.id }); setModalModo('cobro') }}
+                        disabled={!c.jugador?.id}
+                        title={c.jugador?.id ? 'Cobrar la cuenta de este jugador' : 'Sin jugador asociado'}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-colors disabled:opacity-40"
                       >
                         <CheckCircle size={13} /> Cobrar
                       </button>
@@ -897,11 +885,10 @@ const PagosPage = () => {
       </div>
       </>)}
 
-      {cobrando && <ModalCobro cargo={cobrando} metodos={metodosHabilitados} onConfirm={cobrar} onClose={() => setCobrando(null)} saving={saving} />}
       {cambiandoMetodo && <ModalCobro cargo={cambiandoMetodo} metodos={metodosHabilitados} onConfirm={cambiarMetodo} onClose={() => setCambiandoMetodo(null)} saving={saving} titulo="Cambiar método" />}
       {anulando && <ModalAnular cargo={anulando} onConfirm={anular} onClose={() => setAnulando(null)} saving={saving} />}
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}
-      {cuentaOpen && <ModalCuentaJugador modo={modalModo} jugadores={jugadores} deudores={deudores} productos={productos} metodos={metodosHabilitados} token={token} onClose={() => setModalModo(null)} onRefresh={fetchData} showToast={showToast} />}
+      {cuentaOpen && <ModalCuentaJugador modo={modalModo} jugadores={jugadores} deudores={deudores} productos={productos} metodos={metodosHabilitados} token={token} initialJugadorId={cobroPreset?.jugadorId} initialDeudaId={cobroPreset?.deudaId} onClose={() => { setModalModo(null); setCobroPreset(null) }} onRefresh={fetchData} showToast={showToast} />}
       {configMetodos && <ModalMetodos seleccion={metodosHabilitados} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
 
       {toast && (

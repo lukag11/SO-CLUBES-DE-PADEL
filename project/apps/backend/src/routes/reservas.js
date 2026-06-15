@@ -262,6 +262,21 @@ router.get('/', requireAuth, async (req, res) => {
       },
       orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
     })
+
+    // Admin: adjuntar los cargos de cada turno (porciones + consumos) para derivar el
+    // estado de pago (Pagado/Parcial/En cuenta) y poder reabrir la cuenta del turno.
+    if (esAdmin && reservas.length) {
+      const ids = reservas.map((r) => r.id)
+      const cargos = await prisma.cargo.findMany({
+        where: { clubId, reservaId: { in: ids }, tipo: { in: ['reserva', 'producto'] } },
+        select: { id: true, reservaId: true, jugadorId: true, concepto: true, monto: true, tipo: true, estado: true, metodoPago: true, jugador: { select: { nombre: true, apellido: true } } },
+        orderBy: { createdAt: 'asc' },
+      })
+      const porReserva = {}
+      for (const c of cargos) (porReserva[c.reservaId] ??= []).push(c)
+      reservas.forEach((r) => { r.cargosCuenta = porReserva[r.id] ?? [] })
+    }
+
     res.json(reservas)
   } catch (err) {
     console.error(err)
@@ -956,6 +971,103 @@ router.post('/:id/cobrar', requireAuth, requireRole('admin'), async (req, res) =
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al cobrar el turno' })
+  }
+})
+
+// POST /api/reservas/:id/cuenta — checkout con split (Fase 2).
+// Salda una o varias "personas" del turno a la vez; se puede llamar repetidamente
+// (cobro parcial/diferido). Cada persona paga su porción del turno (turnoMonto) y/o
+// sus consumos, cobrado (metodoPago) o a cuenta (sin metodoPago, solo jugador registrado).
+// Body: { pagos: [{ jugadorId|null, metodoPago|null, turnoMonto, consumos:[{concepto,monto}] }] }
+router.post('/:id/cuenta', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params
+  const { pagos = [] } = req.body
+  const clubId = req.user.clubId
+
+  if (!Array.isArray(pagos) || pagos.length === 0) {
+    return res.status(400).json({ error: 'No hay nada para cobrar' })
+  }
+
+  try {
+    const reserva = await prisma.reserva.findUnique({ where: { id } })
+    if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
+    if (reserva.clubId !== clubId) return res.status(403).json({ error: 'Sin permisos' })
+
+    // Normalizar y validar cada persona
+    const items = []
+    for (const p of pagos) {
+      const jugadorId = p.jugadorId || null
+      const metodoPago = p.metodoPago || null
+      const esACuenta = !metodoPago
+      const turnoMonto = Math.max(0, Math.round(Number(p.turnoMonto) || 0))
+      const consumos = (p.consumos || []).map((c) => ({ concepto: String(c.concepto || '').trim(), monto: Math.round(Number(c.monto)) }))
+
+      if (consumos.some((l) => !l.concepto || !(l.monto > 0))) {
+        return res.status(400).json({ error: 'Hay una consumición con datos inválidos' })
+      }
+      if (turnoMonto === 0 && consumos.length === 0) continue // persona sin nada que cobrar
+      // Un casual (sin jugador) no puede quedar a cuenta: tiene que pagar al contado
+      if (!jugadorId && esACuenta) {
+        return res.status(400).json({ error: 'Un casual debe pagar al contado (no puede quedar a cuenta)' })
+      }
+      items.push({ jugadorId, metodoPago, esACuenta, turnoMonto, consumos })
+    }
+    if (items.length === 0) return res.status(400).json({ error: 'No hay nada para cobrar' })
+
+    // Los jugadores referenciados deben pertenecer al club
+    const jugadorIds = [...new Set(items.map((i) => i.jugadorId).filter(Boolean))]
+    if (jugadorIds.length) {
+      const jugadores = await prisma.jugador.findMany({ where: { id: { in: jugadorIds }, clubId }, select: { id: true } })
+      if (jugadores.length !== jugadorIds.length) {
+        return res.status(404).json({ error: 'Algún jugador no pertenece a este club' })
+      }
+    }
+
+    // Guard anti-sobrecobro del turno: lo ya cubierto + lo nuevo no puede superar el precio
+    const precioTurno = reserva.precio ?? 0
+    const nuevoTurno = items.reduce((s, i) => s + i.turnoMonto, 0)
+    if (nuevoTurno > 0) {
+      if (precioTurno <= 0) return res.status(400).json({ error: 'Este turno no tiene precio para cobrar' })
+      const cargosTurno = await prisma.cargo.findMany({ where: { reservaId: id, tipo: 'reserva' }, select: { monto: true } })
+      const yaCubierto = (reserva.pagado ? precioTurno : 0) + cargosTurno.reduce((s, c) => s + c.monto, 0)
+      if (yaCubierto + nuevoTurno > precioTurno) {
+        return res.status(400).json({ error: 'El monto del turno supera el precio del turno' })
+      }
+    }
+
+    const now = new Date()
+    const cancha = nuevoTurno > 0 ? await prisma.cancha.findUnique({ where: { id: reserva.canchaId }, select: { nombre: true } }) : null
+    const conceptoTurno = `Turno ${cancha?.nombre ?? ''} · ${reserva.fecha} ${reserva.horaInicio}`.trim()
+
+    await prisma.$transaction(async (tx) => {
+      for (const it of items) {
+        const metodo = it.esACuenta ? null : normalizarMetodo(it.metodoPago)
+        const estado = it.esACuenta ? 'pendiente' : 'pagado'
+        const pagoData = it.esACuenta ? {} : { metodoPago: metodo, pagadoAt: now }
+
+        // Porción del turno
+        if (it.turnoMonto > 0) {
+          await tx.cargo.create({
+            data: { clubId, jugadorId: it.jugadorId, reservaId: id, concepto: conceptoTurno, monto: it.turnoMonto, tipo: 'reserva', estado, ...pagoData },
+          })
+        }
+        // Consumos de esta persona
+        for (const c of it.consumos) {
+          await tx.cargo.create({
+            data: { clubId, jugadorId: it.jugadorId, reservaId: id, concepto: c.concepto, monto: c.monto, tipo: 'producto', estado, ...pagoData },
+          })
+        }
+      }
+      // El turno pasa a representarse por cargos → neutralizo la reserva para no contar doble
+      if (nuevoTurno > 0 && !reserva.cobroOmitido) {
+        await tx.reserva.update({ where: { id }, data: { cobroOmitido: true } })
+      }
+    })
+
+    res.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al cobrar la cuenta del turno' })
   }
 })
 

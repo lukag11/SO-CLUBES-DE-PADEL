@@ -1,6 +1,38 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-14 — Finanzas: "Cuenta de jugador" unificada + panel de ayuda + (en curso) checkout de cobro en grilla
+**Última actualización:** 2026-06-15 — Checkout en grilla FASE 2 (split por persona) + margen de gracia + estado "Parcial/En cuenta"
+
+---
+
+## Checkout en grilla — FASE 2 (split por persona) (2026-06-15)
+
+Cobrar un turno dividido entre varias personas, con métodos mixtos y cobro **diferido** (uno paga y se va, el resto después). Investigado vs Playtomic/MatchPoint/DeporWeb ("cuenta/ticket por turno").
+
+### Margen de gracia para "Debe" (pre-Fase 2)
+- Un turno impago no pasa a 🔴 **Debe** apenas termina: hay **60 min de gracia** (la gente consume y arregla después). Constante fija `MIN_GRACIA_COBRO=60` (no configurable; un solo lugar). Frontend `venceCobro(fecha, horaFin)` + backend `lib/deudas.js` (`turnosImpagosDeuda`) **alineados** → el badge rojo y la entrada a Cobranzas ocurren en el mismo momento.
+
+### Modelo "Cuenta del turno"
+- El turno se parte en **porciones** = cargos `tipo:'reserva'` (uno por persona, monto = precio÷N, resto al primero). Consumos = cargos `tipo:'producto'`. `reserva.cobroOmitido=true` neutraliza la reserva (no doble conteo con turnos-impagos). **Sin tabla nueva.**
+- **Backend `POST /reservas/:id/cuenta`** { pagos: [{ jugadorId|null, metodoPago|null, turnoMonto, consumos[] }] } — idempotente, se llama varias veces (cobro parcial). Guard anti-sobrecobro (cubierto+nuevo ≤ precio). Casual = contado obligatorio. `GET /reservas` (admin) adjunta `cargosCuenta` (porciones+consumos, con nombre del jugador) para derivar el badge y reabrir.
+
+### Estados de pago (fuente única `mapBackendReserva`)
+- 🟢 **Pagado** = todo cobrado (entró a caja). 🔵 **En cuenta** = turno **100% repartido** pero parte/todo quedó a deber (cerrado, deuda en Cobranzas). 🟣 **Parcial** = falta registrar gente (turno **abierto**). 🟡 Pendiente / 🔴 Debe = sin tocar.
+- **Decisión clave (con el usuario):** "a cuenta" **cierra** el turno (no lo deja Parcial) pero en **azul** (no verde) — el fiado no es plata en caja, la deuda queda visible. Parcial es solo "falta gente por registrar".
+- `pagadoTurno` (cobrado), `aCuentaTurno` (a deber), `saldoTurno` (= precio−cobrado, para "Por cobrar"), `restanteTurno` (= precio−cobrado−aCuenta, lo asignable en el checkout).
+
+### Pantalla `features/pagos/CheckoutTurno.jsx` (reescrita)
+- Dos modos: **Uno paga todo** (rápido) y **Dividir**.
+- **Dividir:** agregás personas (jugador por DNI/nombre vía `GET /jugadores/buscar`, o casual). **Auto-reparto**: al sumar/quitar/togglear jugadores el turno se re-divide solo (efecto sobre `jugadoresKey`); si editás un monto a mano, `autoSplit=false` (respeta tu edición); botón "Dividir en partes iguales" reactiva.
+- **Rol Jugó/Acompañante** por persona: el turno se reparte SOLO entre los que jugaron; acompañante = $0 turno, solo consumo. Aviso suave si >4 jugadores.
+- **Consumos individuales** (asignados a una persona) vs **compartidos** (`CompartidoForm`: reparte un ítem entre las personas elegidas, suma exacta).
+- Cada persona: **Cobrar** (su método) o **A cuenta** (solo registrado). Aviso ámbar en modo simple "Anotar a cuenta" (se carga TODO el saldo al titular → usá Dividir si son varios).
+- **Reapertura:** desglose read-only "Ya en la cuenta" (nombres + cobrado/a cuenta), resumen "Cobrado/A cuenta/falta", Personas arranca **vacío** (el titular pudo haberse ido), campo turno oculto si ya no queda por asignar. Botón del detalle: "Cobrar turno" / "Cobrar resto" (parcial) / "Agregar consumo" (pagado/en cuenta).
+- Fix consistencia: "Marcar impago" solo en pago simple (`pagadoSimple`); en split-pagado dice "se corrige en Pagos".
+
+### Próximos bloques (acordado con el usuario, por bloques)
+1. **Anular/editar cobro** (solo del momento/hoy): exponer en Cobranzas pestaña Pagados un "Anular" (revierte a pendiente, ya soportado en backend `PATCH /cargos/:id/estado`) + cambiar método. **Sin** sección nueva — pulir lo existente.
+2. **Ticket por turno enriquecido**: la cuenta del turno (reapertura) como ticket con líneas accionables (anular/cambiar método). No silo aparte.
+3. **Comanda de mostrador (Nivel 1)**: venta a visitante sin turno, contado (`jugadorId` null). Nivel 2 (tab abierto persistente para visitante) = modelo `Comanda` nuevo, solo si hace falta.
 
 ---
 

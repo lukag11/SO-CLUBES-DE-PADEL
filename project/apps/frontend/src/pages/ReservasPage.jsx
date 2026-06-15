@@ -76,6 +76,19 @@ const esPasado = (fecha, inicio) => {
   return toMin(inicio) <= toMin(horaActual())
 }
 
+// Margen de gracia para cobrar un turno terminado antes de marcarlo "Debe".
+// La gente sigue consumiendo y arregla la cuenta un rato después de jugar.
+// Fijo a propósito (no configurable); si hiciera falta, se vuelve campo del club.
+const MIN_GRACIA_COBRO = 60
+
+// ¿El turno está vencido para cobro? = terminó hace más de MIN_GRACIA_COBRO minutos.
+const venceCobro = (fecha, horaFin) => {
+  const hoy = todayISO()
+  if (fecha < hoy) return true
+  if (fecha > hoy) return false
+  return toMin(horaFin) + MIN_GRACIA_COBRO <= toMin(horaActual())
+}
+
 // Devuelve el día de semana de una fecha ISO en formato normalizado ('lunes', 'miercoles', etc.)
 const getDiaSemana = (iso) => {
   const dias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
@@ -93,6 +106,7 @@ const TIPO_CONFIG = {
 
 const PAGO_CONFIG = {
   pagado:    { label: 'Pagado',    cls: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+  parcial:   { label: 'Parcial',   cls: 'text-violet-600  bg-violet-50  border-violet-200' },
   en_cuenta: { label: 'En cuenta', cls: 'text-blue-600   bg-blue-50   border-blue-200'   },
   pendiente: { label: 'Pendiente', cls: 'text-amber-600  bg-amber-50  border-amber-200'  },
   debe:      { label: 'Debe',      cls: 'text-red-600    bg-red-50    border-red-200'    },
@@ -170,9 +184,10 @@ const StatsBar = ({ reservasDia, clasesDia, totalTurnosFijos, canchasCount, fran
 
   // Solo tipos con valor económico para los cálculos de cobro
   const conPago = reservasDia.filter((r) => r.tipo !== 'bloqueado' && r.tipo !== 'clase')
-  const ingresados = conPago.filter((r) => r.pago === 'pagado').reduce((s, r) => s + (r.monto || 0), 0)
-  // "Por cobrar" = todo lo adeudado del día: pendiente + en cuenta + vencido
-  const pendientes = conPago.filter((r) => ['pendiente', 'en_cuenta', 'debe'].includes(r.pago)).reduce((s, r) => s + (r.monto || 0), 0)
+  // Cobrado = parte efectivamente cobrada de cada turno (incluye porciones de un split)
+  const ingresados = conPago.reduce((s, r) => s + (r.pagadoTurno || 0), 0)
+  // "Por cobrar" = saldo pendiente de cada turno (pendiente + en cuenta + vencido + resto de parciales)
+  const pendientes = conPago.reduce((s, r) => s + (r.saldoTurno ?? r.monto ?? 0), 0)
 
   // Turnos fijos: total de activos para el día de semana (sin descontar ausencias puntuales)
   const fijos = totalTurnosFijos + (clasesDia?.length || 0)
@@ -1479,18 +1494,18 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar, onChe
               onClick={() => onCheckout(reserva)}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors"
             >
-              <DollarSign size={14} /> {reserva.pago === 'pagado' ? 'Agregar consumo' : 'Cobrar turno'}
+              <DollarSign size={14} /> {reserva.pago === 'pagado' || reserva.pago === 'en_cuenta' ? 'Agregar consumo' : reserva.pago === 'parcial' ? 'Cobrar resto' : 'Cobrar turno'}
             </button>
           )}
           {/* Turno ya pagado: estado + corrección (marcar impago). El cobro se hace SOLO con el botón de arriba. */}
           {reserva.estado === 'confirmada' && reserva.pago === 'pagado' && (
             <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-emerald-50 border border-emerald-100">
               <span className="text-xs font-medium text-emerald-700 flex items-center gap-1.5">
-                <CheckCircle size={13} /> Turno pagado{reserva.metodoPago ? ` · ${METODO_MAP[reserva.metodoPago]?.label ?? reserva.metodoPago}` : ''}
+                <CheckCircle size={13} /> Turno pagado{reserva.pagadoSimple && reserva.metodoPago ? ` · ${METODO_MAP[reserva.metodoPago]?.label ?? reserva.metodoPago}` : reserva.pagadoSimple ? '' : ' · por cuenta'}
               </span>
-              <button onClick={() => onPago(reserva.id, null)} className="text-[11px] text-slate-400 hover:text-rose-500 transition-colors">
-                Marcar impago
-              </button>
+              {reserva.pagadoSimple
+                ? <button onClick={() => onPago(reserva.id, null)} className="text-[11px] text-slate-400 hover:text-rose-500 transition-colors">Marcar impago</button>
+                : <span className="text-[11px] text-slate-300">se corrige en Pagos</span>}
             </div>
           )}
           <button
@@ -3029,35 +3044,54 @@ const ReservasPage = () => {
   }, [adminToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Transforma una reserva de la DB al formato de la grilla admin
-  const mapBackendReserva = (r) => ({
-    id: `backend_${r.id}`,
-    _backendId: r.id,
-    canchaId: r.canchaId,
-    canchaNombre: r.cancha?.nombre || '',
-    fecha: r.fecha,
-    inicio: r.horaInicio,
-    fin: r.horaFin,
-    tipo: r.tipo || 'online',
-    jugadores: r.jugador ? [`${r.jugador.nombre} ${r.jugador.apellido}`] : [],
-    jugadorId: r.jugador?.id ?? r.jugadorId ?? null,
-    profesor: r.profesor || null,
-    estado: r.estado,
-    // Fuente única del estado de pago del turno (lo leen celdas, detalle, leyenda y totales)
-    pago: r.pagado
-      ? 'pagado'
-      : r.estado !== 'confirmada'
-        ? null
-        : r.cobroOmitido
-          ? 'en_cuenta'                                   // anotado a la cuenta de un jugador
-          : esPasado(r.fecha, r.horaFin)
-            ? 'debe'                                      // impago y el turno ya terminó (vencido)
-            : 'pendiente',                                // impago, aún por jugarse
-    cobroOmitido: r.cobroOmitido ?? false,
-    metodoPago: r.metodoPago ?? null,
-    monto: r.precio || 0,
-    notas: r.notas || '',
-    creadoPor: 'jugador',
-  })
+  const mapBackendReserva = (r) => {
+    const precio = r.precio || 0
+    // Porciones del turno cobradas/anotadas (Fase 2 split). Fuente: cargos tipo 'reserva'.
+    const cuenta = Array.isArray(r.cargosCuenta) ? r.cargosCuenta : []
+    const cargosTurno = cuenta.filter((c) => c.tipo === 'reserva')
+    const pagadoTurno = (r.pagado ? precio : 0) +
+      cargosTurno.filter((c) => c.estado === 'pagado').reduce((s, c) => s + c.monto, 0)
+    const aCuentaTurno = cargosTurno.filter((c) => c.estado === 'pendiente').reduce((s, c) => s + c.monto, 0)
+    const saldoTurno = Math.max(0, precio - pagadoTurno)               // falta cobrar (incluye lo que está a cuenta)
+    const restanteTurno = Math.max(0, precio - pagadoTurno - aCuentaTurno) // falta asignar/cobrar en el checkout
+
+    // Fuente única del estado de pago (lo leen celdas, detalle, leyenda y totales)
+    const atribuido = pagadoTurno + aCuentaTurno   // parte del turno ya resuelta (cobrada o a cuenta)
+    let pago
+    if (r.estado !== 'confirmada') pago = null
+    else if (precio > 0 && pagadoTurno >= precio) pago = 'pagado'        // todo cobrado (entró a caja)
+    else if (precio > 0 && atribuido >= precio) pago = 'en_cuenta'       // turno cerrado, parte/todo quedó a deber
+    else if (r.cobroOmitido && pagadoTurno === 0 && aCuentaTurno === 0) pago = 'en_cuenta' // omitido sin cargos
+    else if (pagadoTurno > 0 || aCuentaTurno > 0) pago = 'parcial'       // falta registrar gente (turno abierto)
+    else pago = venceCobro(r.fecha, r.horaFin) ? 'debe' : 'pendiente'    // impago: dentro/fuera de gracia
+
+    return {
+      id: `backend_${r.id}`,
+      _backendId: r.id,
+      canchaId: r.canchaId,
+      canchaNombre: r.cancha?.nombre || '',
+      fecha: r.fecha,
+      inicio: r.horaInicio,
+      fin: r.horaFin,
+      tipo: r.tipo || 'online',
+      jugadores: r.jugador ? [`${r.jugador.nombre} ${r.jugador.apellido}`] : [],
+      jugadorId: r.jugador?.id ?? r.jugadorId ?? null,
+      profesor: r.profesor || null,
+      estado: r.estado,
+      pago,
+      pagadoSimple: !!r.pagado,     // pago completo en la reserva (no split) → permite "marcar impago"
+      cobroOmitido: r.cobroOmitido ?? false,
+      metodoPago: r.metodoPago ?? null,
+      monto: precio,
+      pagadoTurno,
+      aCuentaTurno,
+      saldoTurno,
+      restanteTurno,
+      cargosCuenta: cuenta,        // desglose para reabrir la cuenta del turno
+      notas: r.notas || '',
+      creadoPor: 'jugador',
+    }
+  }
 
   // Mapea la hora del TF a la franja real de la grilla del club (no el mock hardcodeado)
   const franjaParaHora = (hora) =>
@@ -3464,20 +3498,25 @@ const ReservasPage = () => {
                 <span className="text-xs font-medium text-emerald-700">Pagado</span>
                 <span className="text-xs text-emerald-500">— ya se cobró (entró a la caja)</span>
               </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-50 border border-violet-200 w-fit">
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+                <span className="text-xs font-medium text-violet-700">Parcial</span>
+                <span className="text-xs text-violet-400">— falta registrar a alguien (turno abierto)</span>
+              </div>
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-200 w-fit">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                 <span className="text-xs font-medium text-blue-700">En cuenta</span>
-                <span className="text-xs text-blue-500">— anotado a la cuenta de un jugador (deuda)</span>
+                <span className="text-xs text-blue-500">— turno cerrado, quedó saldo a deber (en Cobranzas)</span>
               </div>
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 w-fit">
                 <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 <span className="text-xs font-medium text-amber-700">Pendiente</span>
-                <span className="text-xs text-amber-500">— por jugarse, aún sin cobrar</span>
+                <span className="text-xs text-amber-500">— por jugarse o recién terminado, aún sin cobrar</span>
               </div>
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 border border-red-200 w-fit">
                 <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
                 <span className="text-xs font-medium text-red-700">Debe</span>
-                <span className="text-xs text-red-400">— turno jugado e impago (vencido)</span>
+                <span className="text-xs text-red-400">— jugado e impago (1 h después de terminar)</span>
               </div>
             </div>
           </div>

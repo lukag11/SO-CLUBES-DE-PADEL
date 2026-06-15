@@ -73,7 +73,7 @@ const ModalGasto = ({ gasto, metodos, token, onSave, onClose, saving }) => {
         <div className="overflow-y-auto p-6 flex flex-col gap-4">
           <div>
             <label className="block text-slate-500 text-xs font-medium mb-1.5">Concepto</label>
-            <input value={form.concepto} onChange={(e) => set('concepto', e.target.value)} placeholder="Ej: Compra de pelotas, factura de luz…" className={inputCls} />
+            <input value={form.concepto} onChange={(e) => set('concepto', e.target.value)} placeholder="Ej: factura de luz, alquiler, sueldo…" className={inputCls} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

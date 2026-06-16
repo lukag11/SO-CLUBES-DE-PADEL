@@ -1,6 +1,19 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-16 — Capa SaaS Fase C: panel visual del super-admin (login + dashboard de clubes)
+**Última actualización:** 2026-06-16 — Capa SaaS Fase B: feature gating (motor + menú + enforcement en todos los módulos)
+
+---
+
+## Capa SaaS — Fase B: feature gating (2026-06-16)
+
+El plan **ya manda de verdad**. Probado de punta a punta por API + en pantalla. Falta solo la parte de gestión (editor de matriz + regalitos).
+
+- **Catálogo en código** (`lib/planes.js`): `FEATURES` (reservas/jugadores/turnos_fijos = core siempre; finanzas/torneos/profesores/estadisticas/sponsors/ia/multisede/branding), `DEFAULT_MATRIZ`, `featuresEfectivas(club, matriz)` y `accesoBloqueado(club)`. **Prueba vigente → Premium completo** (decisión B). Suspendido / prueba vencida → sin acceso.
+- **Matriz en DB** (`PlatformSetting` clave `planMatriz`, editable a futuro desde el panel) + `Club.featuresExtra String[]` (regalitos). `lib/planesConfig.js`: getMatriz/setMatriz (semilla = DEFAULT_MATRIZ). **db push hecho en local.**
+- **Middleware** (`middleware/auth.js`): `requireFeature(featureId)` + `requireClubActivo`. `login`/`admin/me` ahora devuelven `club.plan`, `club.estado` y `club.features` (efectivas).
+- **Enforcement backend (con bisturí, sin romper público/jugador):** `finanzas` → caja, productos, gastos, comandas, categorias (router-level en app.js) + cargos (per-route admin). `profesores`, `sponsors` → router-level. `torneos` → solo las 12 rutas admin (públicas GET y jugador inscribir quedan abiertas). `estadisticas` → `/reservas/admin/stats`.
+- **Frontend:** hook `useFeature`/`useFeatures` (lee `authStore.user.club.features`). Sidebar + BottomNav del admin **filtran los ítems** según plan (Clases/Torneos/Sponsors/Finanzas desaparecen en básico). Verificado en pantalla.
+- **Pendiente Fase B:** Paso 4 (editor visual de la matriz en el panel de plataforma) + Paso 5 (toggle de regalitos por club). También sigue pendiente: que suspender corte sesiones ya logueadas (requireClubActivo existe pero falta aplicarlo a los routers core como reservas) + tokenVersion en Admin.
 
 ---
 

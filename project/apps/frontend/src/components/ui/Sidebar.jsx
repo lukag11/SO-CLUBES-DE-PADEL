@@ -4,15 +4,17 @@ import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X, Users, Graduati
 import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
 import useClubStore from '../../store/clubStore'
+import { useFeatures } from '../../hooks/useFeature'
 
+// feature: id del módulo en el gating (sin feature = siempre visible)
 const navItems = [
   { to: '/dashboardAdmin/club',      label: 'Club',      icon: Info },
   { to: '/dashboardAdmin/reservas',  label: 'Reservas',  icon: CalendarDays },
   { to: '/dashboardAdmin/jugadores', label: 'Jugadores', icon: Users },
-  { to: '/dashboardAdmin/clases',    label: 'Clases',    icon: GraduationCap },
-  { to: '/dashboardAdmin/torneos',   label: 'Torneos',   icon: Trophy },
-  { to: '/dashboardAdmin/sponsors',  label: 'Sponsors',  icon: Star },
-  { to: '/dashboardAdmin/pagos',     label: 'Finanzas',  icon: CreditCard },
+  { to: '/dashboardAdmin/clases',    label: 'Clases',    icon: GraduationCap, feature: 'profesores' },
+  { to: '/dashboardAdmin/torneos',   label: 'Torneos',   icon: Trophy,        feature: 'torneos' },
+  { to: '/dashboardAdmin/sponsors',  label: 'Sponsors',  icon: Star,          feature: 'sponsors' },
+  { to: '/dashboardAdmin/pagos',     label: 'Finanzas',  icon: CreditCard,    feature: 'finanzas' },
 ]
 
 const Sidebar = ({ mobileOpen, onMobileClose }) => {
@@ -23,6 +25,8 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
   const sinLeerTorneos = useNotificacionesStore((state) => state.sinLeerTorneos())
   const clubNombre = useClubStore((state) => state.club.nombre)
   const clubLogo   = useClubStore((state) => state.club.logo)
+  const features   = useFeatures()
+  const items = navItems.filter((i) => !i.feature || !features || features.includes(i.feature))
 
   const handleLogout = () => {
     logout()
@@ -68,7 +72,7 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
 
       {/* Navegación */}
       <nav className="flex-1 px-2 py-4 flex flex-col gap-1">
-        {navItems.map(({ to, label, icon: Icon }) => (
+        {items.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

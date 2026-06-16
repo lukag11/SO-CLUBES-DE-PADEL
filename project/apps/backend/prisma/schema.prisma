@@ -14,9 +14,10 @@ model Club {
   slug        String   @unique
   logoUrl     String?
   activo      Boolean  @default(true)
-  plan        String   @default("basico") // basico | pro | premium — define el feature gating
-  estado      String   @default("prueba") // prueba | activo | suspendido
-  trialHasta  DateTime?                    // fin del período de prueba (14 días). null = sin trial
+  plan         String   @default("basico") // basico | pro | premium — define el feature gating
+  estado       String   @default("prueba") // prueba | activo | suspendido
+  trialHasta   DateTime?                    // fin del período de prueba (14 días). null = sin trial
+  featuresExtra String[]                    // "regalitos": features extra fuera del plan
   config      Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -65,6 +66,17 @@ model PlatformAdmin {
   updatedAt DateTime @updatedAt
 
   @@map("platform_admins")
+}
+
+// Config global de la plataforma (clave-valor JSON). Guarda, entre otras cosas,
+// la matriz de planes editable desde el panel (clave 'planMatriz').
+model PlatformSetting {
+  id        String   @id @default(cuid())
+  clave     String   @unique
+  valor     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_settings")
 }
 
 model Profesor {

@@ -1,0 +1,55 @@
+// ============================================================
+// Planes y feature gating — fuente de verdad del backend.
+// El CATÁLOGO de features vive en código (depende de qué módulos existen).
+// La MATRIZ (qué feature va en qué plan) vive en la DB (editable desde el
+// panel), sembrada con DEFAULT_MATRIZ la primera vez.
+// ============================================================
+
+// Catálogo de módulos "gateables". core:true = siempre habilitado (todos los planes).
+export const FEATURES = [
+  { id: 'reservas',     label: 'Reservas / grilla',          core: true },
+  { id: 'jugadores',    label: 'Jugadores',                  core: true },
+  { id: 'turnos_fijos', label: 'Turnos fijos',               core: true },
+  { id: 'finanzas',     label: 'Finanzas (caja/stock)',      core: false },
+  { id: 'torneos',      label: 'Torneos',                    core: false },
+  { id: 'profesores',   label: 'Profesores / Clases',        core: false },
+  { id: 'estadisticas', label: 'Estadísticas',               core: false },
+  { id: 'sponsors',     label: 'Sponsors / personalización', core: false },
+  { id: 'ia',           label: 'Asistente IA',               core: false },
+  { id: 'multisede',    label: 'Multi-sede / multi-admin',   core: false },
+  { id: 'branding',     label: 'Branding avanzado',          core: false },
+]
+
+export const FEATURE_IDS = FEATURES.map((f) => f.id)
+export const CORE_FEATURES = FEATURES.filter((f) => f.core).map((f) => f.id)
+export const PLANES = ['basico', 'pro', 'premium']
+
+// Matriz por defecto (semilla). Cada plan lista TODAS las features que incluye.
+export const DEFAULT_MATRIZ = {
+  basico:  ['reservas', 'jugadores', 'turnos_fijos'],
+  pro:     ['reservas', 'jugadores', 'turnos_fijos', 'finanzas', 'torneos', 'profesores', 'estadisticas', 'sponsors'],
+  premium: ['reservas', 'jugadores', 'turnos_fijos', 'finanzas', 'torneos', 'profesores', 'estadisticas', 'sponsors', 'ia', 'multisede', 'branding'],
+}
+
+// ¿El club tiene el acceso cortado por completo? (suspendido o prueba vencida)
+export const accesoBloqueado = (club) => {
+  if (!club) return true
+  if (club.estado === 'suspendido') return 'suspendido'
+  if (club.estado === 'prueba' && club.trialHasta && new Date(club.trialHasta).getTime() < Date.now()) {
+    return 'prueba_vencida'
+  }
+  return false
+}
+
+// Lista de features EFECTIVAS de un club, dado su plan/estado y la matriz vigente.
+// - suspendido / prueba vencida → [] (sin acceso).
+// - prueba vigente → Premium completo (decisión B: que pruebe todo 14 días).
+// - activo → lo que diga su plan.
+// - core siempre incluido + featuresExtra (regalitos por club).
+export const featuresEfectivas = (club, matriz = DEFAULT_MATRIZ) => {
+  if (!club || accesoBloqueado(club)) return []
+  const m = matriz || DEFAULT_MATRIZ
+  const base = club.estado === 'prueba' ? (m.premium || []) : (m[club.plan] || m.basico || [])
+  const extra = Array.isArray(club.featuresExtra) ? club.featuresExtra : []
+  return [...new Set([...CORE_FEATURES, ...base, ...extra])]
+}

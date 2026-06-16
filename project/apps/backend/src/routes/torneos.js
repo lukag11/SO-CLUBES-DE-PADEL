@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { Prisma } from '@prisma/client'
 import prisma from '../lib/prisma.js'
-import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireActive, requireFeature } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -122,7 +122,7 @@ router.get('/:id', async (req, res) => {
 })
 
 // POST /api/torneos   — admin crea torneo
-router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const {
     nombre, categorias, formato, genero, cupoLibre, cuposPorCategoria, cupoEspera,
     cupoEsperaPorCategoria, generoPorCategoria,
@@ -187,7 +187,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // PATCH /api/torneos/:id   — admin edita campos base del torneo
-router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const { id } = req.params
   const {
     nombre, categorias, formato, genero, cupoLibre, cuposPorCategoria, cupoEspera,
@@ -263,7 +263,7 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // PATCH /api/torneos/:id/estado   — admin transiciona estado
-router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/estado', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const { id } = req.params
   const { estado } = req.body
 
@@ -305,7 +305,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
 })
 
 // PATCH /api/torneos/:id/brackets   — admin guarda brackets por categoría
-router.patch('/:id/brackets', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/brackets', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const { id } = req.params
   const { brackets } = req.body
 
@@ -330,7 +330,7 @@ router.patch('/:id/brackets', requireAuth, requireRole('admin'), async (req, res
 })
 
 // PATCH /api/torneos/:id/grupos   — admin guarda fase de grupos
-router.patch('/:id/grupos', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/grupos', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const { id } = req.params
   const { grupos } = req.body
 
@@ -355,7 +355,7 @@ router.patch('/:id/grupos', requireAuth, requireRole('admin'), async (req, res) 
 })
 
 // PATCH /api/torneos/:id/personalizacion   — admin guarda campos visuales
-router.patch('/:id/personalizacion', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/personalizacion', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const { id } = req.params
   const { personalizacion } = req.body
 
@@ -380,7 +380,7 @@ router.patch('/:id/personalizacion', requireAuth, requireRole('admin'), async (r
 })
 
 // PATCH /api/torneos/:id/reprogramar   — admin setea nueva fecha (null para cancelar reprogramación)
-router.patch('/:id/reprogramar', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/reprogramar', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const { id } = req.params
   const { fechaReprogramada } = req.body
 
@@ -401,7 +401,7 @@ router.patch('/:id/reprogramar', requireAuth, requireRole('admin'), async (req, 
 })
 
 // PATCH /api/torneos/:id/ganadores   — admin registra campeón y subcampeón
-router.patch('/:id/ganadores', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/ganadores', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const { id } = req.params
   const { ganador, subcampeon } = req.body
 
@@ -422,7 +422,7 @@ router.patch('/:id/ganadores', requireAuth, requireRole('admin'), async (req, re
 })
 
 // DELETE /api/torneos/:id   — admin elimina torneo (solo draft/open)
-router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/:id', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const { id } = req.params
 
   try {
@@ -451,7 +451,7 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // POST /api/torneos/:id/parejas   — admin inscribe una pareja
-router.post('/:id/parejas', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/:id/parejas', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const { id: torneoId } = req.params
   const {
     jugador1, jugador2, jugador1Dni, jugador2Dni,
@@ -537,7 +537,7 @@ router.post('/:id/parejas', requireAuth, requireRole('admin'), async (req, res) 
 })
 
 // PATCH /api/torneos/:id/parejas/:pid   — admin edita una pareja inscripta
-router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const { id: torneoId, pid } = req.params
   const {
     jugador1, jugador2, jugador1Dni, jugador2Dni,
@@ -614,7 +614,7 @@ router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req,
 })
 
 // DELETE /api/torneos/:id/parejas/:pid   — admin da de baja una pareja
-router.delete('/:id/parejas/:pid', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/:id/parejas/:pid', requireAuth, requireRole('admin'), requireFeature('torneos'), async (req, res) => {
   const { id: torneoId, pid } = req.params
 
   try {

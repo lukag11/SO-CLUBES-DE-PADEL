@@ -8,19 +8,22 @@ import useTurnosFijosStore from '../store/turnosFijosStore'
 import Sidebar from '../components/ui/Sidebar'
 import Navbar from '../components/ui/Navbar'
 import usePageTitle from '../hooks/usePageTitle'
+import { useFeatures } from '../hooks/useFeature'
 import { api } from '../lib/api'
 
 const BOTTOM_NAV_ITEMS = [
   { to: '/dashboardAdmin',           label: 'Inicio',     icon: LayoutDashboard, exact: true },
   { to: '/dashboardAdmin/reservas',  label: 'Reservas',   icon: CalendarDays },
   { to: '/dashboardAdmin/jugadores', label: 'Jugadores',  icon: Users },
-  { to: '/dashboardAdmin/clases',    label: 'Clases',     icon: GraduationCap },
-  { to: '/dashboardAdmin/torneos',   label: 'Torneos',    icon: Trophy },
-  { to: '/dashboardAdmin/pagos',     label: 'Pagos',      icon: CreditCard },
+  { to: '/dashboardAdmin/clases',    label: 'Clases',     icon: GraduationCap, feature: 'profesores' },
+  { to: '/dashboardAdmin/torneos',   label: 'Torneos',    icon: Trophy,        feature: 'torneos' },
+  { to: '/dashboardAdmin/pagos',     label: 'Pagos',      icon: CreditCard,    feature: 'finanzas' },
 ]
 
 const BottomNav = ({ visible }) => {
   const sinLeer = useNotificacionesStore((s) => s.sinLeer())
+  const features = useFeatures()
+  const items = BOTTOM_NAV_ITEMS.filter((i) => !i.feature || !features || features.includes(i.feature))
 
   return (
     <nav
@@ -28,7 +31,7 @@ const BottomNav = ({ visible }) => {
       className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-dark-900 border-t border-white/8 transition-transform duration-300"
     >
       <div className="flex items-stretch h-14">
-        {BOTTOM_NAV_ITEMS.map(({ to, label, icon: Icon, exact }) => {
+        {items.map(({ to, label, icon: Icon, exact }) => {
           const badge = to.includes('reservas') && sinLeer > 0 ? sinLeer : null
           return (
             <NavLink

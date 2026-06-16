@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
 import { signToken } from '../lib/jwt.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
+import { featuresEfectivas } from '../lib/planes.js'
+import { getMatriz } from '../lib/planesConfig.js'
 
 const router = Router()
 
@@ -11,15 +13,16 @@ router.get('/admin/me', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     const admin = await prisma.admin.findUnique({
       where: { id: req.user.id },
-      include: { club: { select: { id: true, nombre: true, slug: true } } },
+      include: { club: true },
     })
     if (!admin) return res.status(404).json({ error: 'Admin no encontrado' })
+    const features = featuresEfectivas(admin.club, await getMatriz())
     res.json({
       id: admin.id,
       nombre: admin.nombre,
       email: admin.email,
       role: 'admin',
-      club: { id: admin.club.id, nombre: admin.club.nombre, slug: admin.club.slug },
+      club: { id: admin.club.id, nombre: admin.club.nombre, slug: admin.club.slug, plan: admin.club.plan, estado: admin.club.estado, features },
     })
   } catch (err) {
     console.error(err)
@@ -46,6 +49,7 @@ router.post('/admin/login', async (req, res) => {
     }
 
     const token = signToken({ id: admin.id, role: 'admin', clubId: admin.clubId })
+    const features = featuresEfectivas(admin.club, await getMatriz())
 
     res.json({
       token,
@@ -54,7 +58,7 @@ router.post('/admin/login', async (req, res) => {
         nombre: admin.nombre,
         email: admin.email,
         role: 'admin',
-        club: { id: admin.club.id, nombre: admin.club.nombre, slug: admin.club.slug },
+        club: { id: admin.club.id, nombre: admin.club.nombre, slug: admin.club.slug, plan: admin.club.plan, estado: admin.club.estado, features },
       },
     })
   } catch (err) {

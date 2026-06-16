@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { Prisma } from '@prisma/client'
 import prisma from '../lib/prisma.js'
-import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireActive, requireFeature } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { snapshotProductos } from '../lib/productos.js'
 import { descontarStock } from '../lib/stock.js'
@@ -130,7 +130,7 @@ router.get('/profesor/mis-clases', requireAuth, requireRole('profesor'), async (
 })
 
 // GET /api/reservas/admin/stats?periodo=semana|mes  — estadísticas agregadas para el admin
-router.get('/admin/stats', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/admin/stats', requireAuth, requireRole('admin'), requireFeature('estadisticas'), async (req, res) => {
   const { periodo = 'semana' } = req.query
   const clubId = req.user.clubId
   const dias = periodo === 'mes' ? 30 : 7

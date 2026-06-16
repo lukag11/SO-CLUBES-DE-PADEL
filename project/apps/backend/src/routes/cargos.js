@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
-import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireActive, requireFeature } from '../middleware/auth.js'
 import { inicioMesArg } from '../lib/tiempo.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
@@ -62,7 +62,7 @@ router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req
 
 // GET /api/cargos — admin lista cargos del club, con filtros opcionales
 // ?estado=pendiente|pagado|condonado|vencido  &jugadorId=
-router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), async (req, res) => {
   const { estado, jugadorId } = req.query
   try {
     // comandaId: null → excluye ítems de comandas/mesas del bar (no son deudas de jugadores)
@@ -88,7 +88,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // GET /api/cargos/resumen — totales para las tarjetas de cobranzas
-router.get('/resumen', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/resumen', requireAuth, requireRole('admin'), requireFeature('finanzas'), async (req, res) => {
   const clubId = req.user.clubId
   try {
     const pendientes = await prisma.cargo.findMany({
@@ -123,7 +123,7 @@ router.get('/resumen', requireAuth, requireRole('admin'), async (req, res) => {
 // GET /api/cargos/cobranzas — vista unificada: cargos + turnos impagos pasados
 // ?jugadorId=  → scopea a un jugador (para la ficha del drawer)
 // Devuelve { deudas, resumen }. Cada deuda lleva origen: 'cargo' | 'reserva'.
-router.get('/cobranzas', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/cobranzas', requireAuth, requireRole('admin'), requireFeature('finanzas'), async (req, res) => {
   const clubId = req.user.clubId
   const { jugadorId } = req.query
   const filtroJ = jugadorId ? { jugadorId } : {}
@@ -158,7 +158,7 @@ router.get('/cobranzas', requireAuth, requireRole('admin'), async (req, res) => 
 })
 
 // POST /api/cargos — admin crea un cargo manual
-router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), async (req, res) => {
   const { jugadorId = null, concepto, monto, vencimiento, cobrar, metodoPago } = req.body
   const clubId = req.user.clubId
 
@@ -207,7 +207,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
 
 // POST /api/cargos/cobrar-cuenta — cobra varias deudas de un jugador de una (checkout).
 // Body: { jugadorId, items: [{ origen:'cargo'|'reserva', refId }], metodoPago }
-router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), requireFeature('finanzas'), async (req, res) => {
   const { jugadorId, items, metodoPago } = req.body
   const clubId = req.user.clubId
   if (!jugadorId || !Array.isArray(items) || items.length === 0) {
@@ -242,7 +242,7 @@ router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), async (req, res
 })
 
 // DELETE /api/cargos/:id — admin elimina un cargo (ej: decide no cobrar una multa)
-router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/:id', requireAuth, requireRole('admin'), requireFeature('finanzas'), async (req, res) => {
   const { id } = req.params
   try {
     const cargo = await prisma.cargo.findUnique({ where: { id } })
@@ -263,7 +263,7 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // PATCH /api/cargos/:id/estado — admin marca pagado (con método) o condona
-router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/estado', requireAuth, requireRole('admin'), requireFeature('finanzas'), async (req, res) => {
   const { id } = req.params
   const { estado, metodoPago } = req.body
 

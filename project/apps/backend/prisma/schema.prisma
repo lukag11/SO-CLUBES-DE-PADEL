@@ -14,6 +14,9 @@ model Club {
   slug        String   @unique
   logoUrl     String?
   activo      Boolean  @default(true)
+  plan        String   @default("basico") // basico | pro | premium — define el feature gating
+  estado      String   @default("prueba") // prueba | activo | suspendido
+  trialHasta  DateTime?                    // fin del período de prueba (14 días). null = sin trial
   config      Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -49,6 +52,19 @@ model Admin {
   club Club @relation(fields: [clubId], references: [id])
 
   @@map("admins")
+}
+
+// Dueño de la PLATAFORMA (4to rol). Identidad separada, por encima de todos los
+// clubes — NO pertenece a ningún club. Gestiona altas, planes y estado de tenants.
+model PlatformAdmin {
+  id        String   @id @default(cuid())
+  nombre    String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_admins")
 }
 
 model Profesor {

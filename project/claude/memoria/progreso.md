@@ -1,6 +1,19 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-15 — Landing de ventas PadelwIArk (capa SaaS): 8 bloques, sistema "Court Noir"
+**Última actualización:** 2026-06-16 — Capa SaaS Fase A: backend del 4to rol (PlatformAdmin + alta de clubes + planes)
+
+---
+
+## Capa SaaS — Fase A: rol super-admin + tenants (2026-06-16)
+
+Cimientos de la plataforma (ver [[project_saas_plataforma_rol4]]). Backend completo y **probado de punta a punta por API** (login → crear club → listar → suspender → reactivar/plan → guard 401 → cleanup). Solo backend; el panel visual es Fase C.
+
+- **Schema (db push hecho en local):** modelo `PlatformAdmin` (id, nombre, email @unique, password — identidad separada, NO es un Admin de club). En `Club`: `plan` (basico|pro|premium, default basico), `estado` (prueba|activo|suspendido, default prueba), `trialHasta` (DateTime?). El `db push` aplicó defaults al Club Demo existente sin romper nada.
+- **`lib/tenants.js` → `crearClub({...})`:** MOTOR ÚNICO de alta (sirve para alta asistida hoy y self-service mañana — mismo núcleo, solo cambia quién lo llama). Slug único auto, valida email admin único, crea club + primer admin atómicamente, trial 14 días, estado 'prueba'. Exporta `PLANES_VALIDOS` y `slugify`.
+- **`routes/platform.js`** (montado en `/api/platform`): `POST /login` + `GET /me` (role 'platform' en el JWT), `GET /clubs` (lista con _count jugadores/canchas/admins), `POST /clubs` (usa crearClub), `PATCH /clubs/:id` (cambiar plan y/o estado; suspendido baja también el kill-switch `activo`).
+- **`scripts/create-platform-admin.mjs`:** `node scripts/create-platform-admin.mjs "Nombre" email "pass"` — crea/actualiza el dueño de plataforma. El usuario crea el suyo real cuando esté el panel (Fase C).
+- **Decisión de onboarding:** arrancar ASISTIDO (alta a mano desde el panel), con self-service como objetivo posterior (mismo motor `crearClub`). El usuario quiere quick-setup wizard + IA quirúrgica más adelante (Fase posterior, va arriba de esto).
+- **Pendiente:** Fase B (feature gating: plan → features, middleware `requirePlan` + `useFeature`/`<FeatureGate>`), Fase C (panel visual super-admin + login real), después self-service público + verificación email + wizard.
 
 ---
 

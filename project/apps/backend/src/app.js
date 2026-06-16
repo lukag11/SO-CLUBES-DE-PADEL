@@ -19,6 +19,7 @@ import profesoresRouter from './routes/profesores.js'
 import sponsorsRouter from './routes/sponsors.js'
 import uploadsRouter from './routes/uploads.js'
 import devResetRouter from './routes/dev-reset.js'
+import platformRouter from './routes/platform.js'
 
 const app = express()
 
@@ -59,5 +60,6 @@ app.use('/api/caja', cajaRouter)
 app.use('/api/profesores', profesoresRouter)
 app.use('/api/sponsors', sponsorsRouter)
 app.use('/api/dev', devResetRouter)
+app.use('/api/platform', platformRouter)
 
 export default app

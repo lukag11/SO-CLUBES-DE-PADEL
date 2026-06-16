@@ -1,10 +1,17 @@
 import { useState } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
-import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X, Users, GraduationCap, Star } from 'lucide-react'
+import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X, Users, GraduationCap, Star, Crown, Sparkles, ArrowUpRight } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
 import useClubStore from '../../store/clubStore'
 import { useFeatures } from '../../hooks/useFeature'
+
+// Estilo del badge de plan (vinculado a club.plan que ya provee el gating)
+const PLAN_INFO = {
+  basico:  { label: 'Básico',  icon: Zap,      chip: 'text-slate-200 bg-white/10' },
+  pro:     { label: 'Pro',     icon: Sparkles, chip: 'text-brand-300 bg-brand-500/20' },
+  premium: { label: 'Premium', icon: Crown,    chip: 'text-amber-300 bg-amber-500/20' },
+}
 
 // feature: id del módulo en el gating (sin feature = siempre visible)
 const navItems = [
@@ -26,7 +33,9 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
   const clubNombre = useClubStore((state) => state.club.nombre)
   const clubLogo   = useClubStore((state) => state.club.logo)
   const features   = useFeatures()
+  const plan       = useAuthStore((state) => state.user?.club?.plan)
   const items = navItems.filter((i) => !i.feature || !features || features.includes(i.feature))
+  const planInfo = PLAN_INFO[plan]
 
   const handleLogout = () => {
     logout()
@@ -65,10 +74,41 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
         </div>
         {expanded && (
           <span className="text-white font-bold text-lg tracking-tight truncate">
-            {clubNombre || 'PadelOS'}
+            {clubNombre || 'PadelwIArk'}
           </span>
         )}
       </Link>
+
+      {/* Tarjeta de plan (+ upsell para los que no son premium) */}
+      {expanded && planInfo && (
+        <div className="px-3 pt-3 shrink-0">
+          <div className="relative overflow-hidden rounded-xl border border-white/8 bg-gradient-to-br from-white/[0.07] to-transparent p-3">
+            <div className="flex items-center gap-2.5">
+              <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${planInfo.chip}`}>
+                <planInfo.icon size={16} />
+              </span>
+              <div className="leading-tight min-w-0">
+                <p className="text-[9px] uppercase tracking-wider text-white/40">Tu plan</p>
+                <p className="text-sm font-bold text-white truncate">{planInfo.label}</p>
+              </div>
+            </div>
+            {plan !== 'premium' ? (
+              <a
+                href="/padelwiark#precios"
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 flex items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-brand-500 to-brand-400 text-dark-900 text-xs font-bold py-2 hover:opacity-90 transition-opacity"
+              >
+                Mejorar plan <ArrowUpRight size={13} />
+              </a>
+            ) : (
+              <p className="mt-2.5 text-[10px] text-white/40 flex items-center gap-1">
+                <Crown size={11} className="text-amber-300" /> Acceso completo
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Navegación */}
       <nav className="flex-1 px-2 py-4 flex flex-col gap-1">

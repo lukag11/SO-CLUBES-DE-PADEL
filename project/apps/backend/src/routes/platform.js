@@ -48,7 +48,9 @@ router.get('/clubs', requireAuth, requireRole('platform'), async (req, res) => {
       select: {
         id: true, nombre: true, slug: true, plan: true, estado: true, activo: true,
         trialHasta: true, createdAt: true,
-        _count: { select: { jugadores: true, canchas: true, admins: true } },
+        // Contar solo lo ACTIVO, para que coincida con lo que ve el operador del club
+        // (las canchas/jugadores dados de baja quedan en la DB como activo:false).
+        _count: { select: { jugadores: { where: { activo: true } }, canchas: { where: { activo: true } }, admins: true } },
       },
     })
     res.json(clubs)
@@ -100,6 +102,29 @@ router.patch('/clubs/:id', requireAuth, requireRole('platform'), async (req, res
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al actualizar el club' })
+  }
+})
+
+// ---- POST /api/platform/clubs/:id/reset-admin — resetear la contraseña del admin del club ----
+// Tarea de soporte: el dueño de un club olvidó su clave. Resetea al admin más antiguo
+// (el creado en el alta) y devuelve su email para pasárselo.
+router.post('/clubs/:id/reset-admin', requireAuth, requireRole('platform'), async (req, res) => {
+  const { id } = req.params
+  const { password } = req.body
+  if (!password || String(password).length < 4) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres' })
+  }
+  try {
+    const club = await prisma.club.findUnique({ where: { id }, select: { id: true } })
+    if (!club) return res.status(404).json({ error: 'Club no encontrado' })
+    const admin = await prisma.admin.findFirst({ where: { clubId: id }, orderBy: { createdAt: 'asc' } })
+    if (!admin) return res.status(404).json({ error: 'El club no tiene administrador' })
+    const hash = await bcrypt.hash(password, 10)
+    await prisma.admin.update({ where: { id: admin.id }, data: { password: hash } })
+    res.json({ ok: true, email: admin.email })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al resetear la contraseña' })
   }
 })
 

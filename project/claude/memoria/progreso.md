@@ -1,6 +1,21 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-16 — Capa SaaS Fase A: backend del 4to rol (PlatformAdmin + alta de clubes + planes)
+**Última actualización:** 2026-06-16 — Capa SaaS Fase C: panel visual del super-admin (login + dashboard de clubes)
+
+---
+
+## Capa SaaS — Fase C: panel del super-admin (2026-06-16)
+
+Frontend del 4to rol, en `/plataforma` (standalone, estilo "Court Noir" de la landing). Probado en navegador por el usuario.
+
+- **`store/platformStore.js`:** auth con `platform_token`/`platform_user` en localStorage (separado de los otros roles).
+- **`pages/padelwiark/admin/`:** `PlataformaPage` (login si no hay sesión / dashboard si hay), `PwAdminLogin` (Court Noir, lleva `pw-root` para el fondo oscuro), `PwAdminDashboard` (resumen Clubes/Activos/En prueba + lista con badges plan/estado + conteos + selector de plan + suspender/reactivar), `PwModalCrearClub`, `PwConfirm` (confirmación genérica), `PwModalResetAdmin`.
+- **Toasts** propios del panel (Court Noir) en crear/plan/suspender/reactivar/reset + errores.
+- **Guardrails:** confirmación antes de suspender; **resetear contraseña del admin** del club (`POST /platform/clubs/:id/reset-admin` → resetea el admin más antiguo, devuelve su email). Caso de uso: dueño de club olvidó la clave.
+- **Fix conteos:** `_count` de jugadores/canchas filtra `activo: true` (las canchas/jugadores soft-deleted ya no inflan el número; ahora coincide con lo que ve el operador).
+- Primer PlatformAdmin real creado: WiarkSolutions / wiarksolutions@gmail.com.
+
+**Pendiente Fase B (enforcement server-side, el salto importante):** hoy `plan` y `estado` son decorativos. Falta: (1) feature gating real (plan limita módulos — middleware `requirePlan` + `useFeature`/`<FeatureGate>`, ver [[project_feature_gating]]); (2) que **suspender** corte el acceso de sesiones ya logueadas (hoy el middleware no chequea `club.estado`); (3) invalidar sesión de admin al resetear contraseña (Admin no tiene `tokenVersion` como Jugador). Las 3 son el mismo trabajo: validar en cada request.
 
 ---
 

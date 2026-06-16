@@ -1,6 +1,17 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-15 — Hardening anti doble-booking: transacciones Serializable en todos los caminos de reserva
+**Última actualización:** 2026-06-15 — Landing de ventas PadelwIArk (capa SaaS): 8 bloques, sistema "Court Noir"
+
+---
+
+## Landing de ventas PadelwIArk — "Court Noir" (2026-06-15)
+
+Inicio de la **capa de plataforma SaaS** (ver memorias [[project_saas_plataforma_rol4]] y [[project_padelwiark_marca]]). El usuario decidió arrancar por la **landing comercial de la empresa** (web de ventas, ≠ landing de cada club). El producto pasa a llamarse **PadelwIArk** (con "IA" embebido, resaltado en neón en el logo).
+
+- **Ruta:** `/padelwiark` (standalone, sin layout del club), en `src/pages/padelwiark/`. Autocontenida, mobile-first, reusa React+Vite+Tailwind v4. Extraíble a dominio propio después.
+- **Sistema de diseño "Court Noir"** en `padelwiark.css` (scopeado bajo `.pw-root`, no toca el resto de la app): oscuro premium `#0a0f0d` + neón lima marca `#afca0b`/`#d4ff3f` + teal `#14b8a6`. Fuentes: Space Grotesk (display) + Inter (body) + JetBrains Mono (labels), cargadas en `index.html`. Aurora animada, grano, glassmorphism, glows, fade-up, reduced-motion.
+- **8 bloques** (componentes en `components/`): `PwNav` (glass sticky + logo Padelw[IA]rk + menú mobile), `PwHero` (aurora + titular clamp + mockup dashboard CSS flotando), `PwTrust` (reemplaza cuaderno/WhatsApp/Excel — sin logos falsos), `PwProblema` (before/after), `PwFeatures` (bento grid con mini-visuales: reservas/finanzas/torneos/IA/app), `PwComo` (3 pasos), `PwPrecios` (3 planes ARS placeholder básico/pro/premium + toggle mensual/anual, alineado al feature gating), `PwPorque` (6 diferenciadores), `PwFAQ` (acordeón), `PwCTA` (cierre + footer).
+- **Pendiente:** precios y features definitivos (hoy placeholder), conectar CTAs a un flujo real de alta, mover a dominio propio, y construir el resto de la capa SaaS (rol super-admin PlatformAdmin + feature gating — Fases A-C de [[project_saas_plataforma_rol4]]).
 
 ---
 

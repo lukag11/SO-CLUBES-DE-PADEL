@@ -35,6 +35,7 @@ import AdminSponsorsPage from '../pages/AdminSponsorsPage'
 import AdminReservasLayout from '../layouts/AdminReservasLayout'
 import AdminReservasEstadisticasPage from '../pages/AdminReservasEstadisticasPage'
 import NotFoundPage from '../pages/NotFoundPage'
+import PadelwiarkLanding from '../pages/padelwiark/PadelwiarkLanding'
 
 const router = createBrowserRouter([
   {
@@ -116,6 +117,9 @@ const router = createBrowserRouter([
       },
     ],
   },
+  // Landing de ventas de PadelwIArk (web comercial — sin layout del club)
+  { path: '/padelwiark', element: <PadelwiarkLanding /> },
+
   // Ruta pública del torneo (seguimiento sin login)
   { path: '/torneos', element: <TorneosPublicosPage /> },
   { path: '/torneos/:id', element: <TorneoPublicoPage /> },

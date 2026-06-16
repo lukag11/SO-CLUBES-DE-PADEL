@@ -1,0 +1,96 @@
+/* ============================================================
+   PadelwIArk · Landing de ventas — Sistema "Court Noir"
+   Oscuro premium + neón lima. Tokens, fuentes y animaciones
+   scopeados bajo .pw-root para no tocar el resto de la app.
+   ============================================================ */
+
+.pw-root {
+  --pw-bg: #0a0f0d;
+  --pw-surface: #141c18;
+  --pw-line: rgba(244, 245, 239, 0.08);
+  --pw-lime: #afca0b;
+  --pw-lime-neon: #d4ff3f;
+  --pw-teal: #14b8a6;
+  --pw-cream: #f4f5ef;
+  --pw-muted: #9ba89f;
+
+  background: var(--pw-bg);
+  color: var(--pw-cream);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.pw-display { font-family: 'Space Grotesk', system-ui, sans-serif; }
+.pw-mono    { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+/* Titular fluido: escala sola entre mobile y desktop */
+.pw-h1 {
+  font-size: clamp(2.5rem, 6.5vw, 5rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+
+/* ---- Aurora de fondo (gradientes que respiran) ---- */
+@keyframes pw-aurora {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(6%, -4%, 0) scale(1.18); }
+  66%      { transform: translate3d(-5%, 5%, 0) scale(0.92); }
+}
+.pw-aurora { animation: pw-aurora 20s ease-in-out infinite; will-change: transform; }
+
+/* ---- Float suave (mockup que flota) ---- */
+@keyframes pw-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-14px); }
+}
+.pw-float { animation: pw-float 7s ease-in-out infinite; will-change: transform; }
+
+/* ---- Entrada fade-up escalonable ---- */
+@keyframes pw-fade-up {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: none; }
+}
+.pw-fade-up { animation: pw-fade-up 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.pw-d1 { animation-delay: 0.05s; }
+.pw-d2 { animation-delay: 0.15s; }
+.pw-d3 { animation-delay: 0.25s; }
+.pw-d4 { animation-delay: 0.35s; }
+.pw-d5 { animation-delay: 0.45s; }
+
+/* ---- Grano fino premium ---- */
+.pw-grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---- Resaltado de marca "IA" ---- */
+.pw-ia {
+  color: var(--pw-lime-neon);
+  text-shadow: 0 0 18px rgba(212, 255, 63, 0.55), 0 0 38px rgba(175, 202, 11, 0.35);
+}
+
+/* ---- Botón lima con glow ---- */
+.pw-btn-lime {
+  background: var(--pw-lime);
+  color: #0a0f0d;
+  box-shadow: 0 0 0 0 rgba(175, 202, 11, 0.45);
+  transition: box-shadow 0.3s ease, transform 0.2s ease, background 0.2s ease;
+}
+.pw-btn-lime:hover {
+  background: var(--pw-lime-neon);
+  box-shadow: 0 0 30px -2px rgba(175, 202, 11, 0.6);
+  transform: translateY(-1px);
+}
+
+/* Respeta usuarios con reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .pw-aurora, .pw-float, .pw-fade-up { animation: none !important; }
+}

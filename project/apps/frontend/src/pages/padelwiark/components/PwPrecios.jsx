@@ -115,7 +115,7 @@ const PwPrecios = () => {
                 </p>
 
                 <a
-                  href="/login"
+                  href="/padelwiark/registro"
                   className={`flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold mb-7 transition-all ${
                     p.destacado
                       ? 'pw-btn-lime'

@@ -1,6 +1,18 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-16 — Capa SaaS Fase B COMPLETA: + editor de matriz y regalitos por club
+**Última actualización:** 2026-06-16 — Capa SaaS: suspensión que corta sesiones activas + alta self-service pública
+
+---
+
+## Capa SaaS — suspensión real + self-service (2026-06-16)
+
+Cierre del bloque SaaS (salvo lo que depende del deploy).
+
+- **Suspender corta sesiones ya logueadas:** `requireClubActivo` aplicado a routers core 100% autenticados (reservas, turnos-fijos, notificaciones) en `app.js`. Los gateados (finanzas/torneos/etc.) ya chequeaban vía `requireFeature`. Además, los 3 logins (admin/jugador/profesor) rechazan con `club_bloqueado` si el club está suspendido o con prueba vencida. Frontend: `api.js` ante `club_bloqueado` cierra sesión del club (limpia tokens) + alert + redirige a /login (guard `bloqueoManejado` para no repetir). NO se tocaron `jugadores` (búsqueda pública por DNI) ni `clubs` (landing pública). Probado e2e: suspender corta la sesión activa (403) y bloquea el re-login.
+- **Self-service público:** `POST /api/platform/signup` (sin auth) usa el mismo motor `crearClub` → club en 'prueba'. Valida nombre/email/pass (≥6). `PwRegistro.jsx` en `/padelwiark/registro` (Court Noir, con pantalla de éxito → "Entrar a mi club"). Todos los CTAs "Probar gratis" de la landing (nav, hero, precios, cierre) apuntan ahí. Probado: alta + login directo.
+- **PENDIENTE (deploy):** verificación por email del signup (hoy entra directo, sin confirmar — requiere proveedor de mail) + anti-abuso + `tokenVersion` en Admin. Anotado en [[project_deploy_pendiente]] junto a Mercado Pago.
+
+---
 
 ---
 

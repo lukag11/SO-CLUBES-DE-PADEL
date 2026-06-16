@@ -1,5 +1,7 @@
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
+let bloqueoManejado = false // evita alert/redirect repetidos cuando varias requests fallan juntas
+
 const request = async (path, { headers, ...rest } = {}) => {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { 'Content-Type': 'application/json', ...headers },
@@ -10,6 +12,13 @@ const request = async (path, { headers, ...rest } = {}) => {
     // Sesión cerrada por baja de cuenta o por cambio de contraseña en otro dispositivo.
     if (data.error === 'cuenta_inactiva' || data.error === 'sesion_expirada') {
       window.dispatchEvent(new CustomEvent('jugador:cuenta-inactiva', { detail: data.message }))
+    }
+    // Club suspendido / prueba vencida → cerrar sesión del club y volver al inicio.
+    if (data.error === 'club_bloqueado' && !bloqueoManejado) {
+      bloqueoManejado = true
+      ;['token', 'player_token', 'player_data'].forEach((k) => localStorage.removeItem(k))
+      alert(data.message || 'El acceso del club fue bloqueado.')
+      window.location.href = '/login'
     }
     throw new Error(data.message || data.error || 'Error del servidor')
   }

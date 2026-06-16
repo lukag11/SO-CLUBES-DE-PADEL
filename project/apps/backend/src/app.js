@@ -20,7 +20,7 @@ import sponsorsRouter from './routes/sponsors.js'
 import uploadsRouter from './routes/uploads.js'
 import devResetRouter from './routes/dev-reset.js'
 import platformRouter from './routes/platform.js'
-import { requireAuth, requireRole, requireFeature } from './middleware/auth.js'
+import { requireAuth, requireRole, requireFeature, requireClubActivo } from './middleware/auth.js'
 
 const app = express()
 
@@ -46,12 +46,12 @@ app.use(express.json({ limit: '8mb' }))
 app.use('/api', healthRouter)
 app.use('/api/auth', authRouter)
 app.use('/api/canchas', canchasRouter)
-app.use('/api/reservas', reservasRouter)
+app.use('/api/reservas', requireAuth, requireClubActivo, reservasRouter)
 app.use('/api/torneos', torneosRouter)
 app.use('/api/jugadores', jugadoresRouter)
 app.use('/api/clubs', clubsRouter)
-app.use('/api/turnos-fijos', turnosFijosRouter)
-app.use('/api/notificaciones', notificacionesRouter)
+app.use('/api/turnos-fijos', requireAuth, requireClubActivo, turnosFijosRouter)
+app.use('/api/notificaciones', requireAuth, requireClubActivo, notificacionesRouter)
 app.use('/api/cargos', cargosRouter)
 app.use('/api/productos', requireAuth, requireRole('admin'), requireFeature('finanzas'), productosRouter)
 app.use('/api/categorias', requireAuth, requireRole('admin'), requireFeature('finanzas'), categoriasRouter)

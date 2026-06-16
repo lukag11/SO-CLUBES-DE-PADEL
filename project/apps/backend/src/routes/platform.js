@@ -116,6 +116,33 @@ router.patch('/clubs/:id', requireAuth, requireRole('platform'), async (req, res
   }
 })
 
+// ---- POST /api/platform/signup — alta self-service PÚBLICA (sin auth) ----
+// Usa el MISMO motor crearClub que el alta asistida. El club arranca en 'prueba'.
+// PENDIENTE para producción: verificación por email + anti-abuso (captcha / rate-limit).
+// Hasta deployar (sin proveedor de mail) queda abierto — aceptable en local.
+router.post('/signup', async (req, res) => {
+  const { clubNombre, adminNombre, adminEmail, adminPassword } = req.body
+  const email = String(adminEmail || '').trim().toLowerCase()
+  if (!clubNombre || !email || !adminPassword) {
+    return res.status(400).json({ error: 'Completá el nombre del club, tu email y una contraseña' })
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'El email no parece válido' })
+  }
+  if (String(adminPassword).length < 6) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' })
+  }
+  try {
+    // plan 'basico' por defecto: igual durante la prueba ve Premium (decisión B)
+    const club = await crearClub({ clubNombre, adminNombre, adminEmail: email, adminPassword, plan: 'basico' })
+    res.status(201).json({ ok: true, slug: club.slug, adminEmail: email })
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message })
+    console.error(err)
+    res.status(500).json({ error: 'No se pudo crear tu club. Probá de nuevo.' })
+  }
+})
+
 // ---- GET /api/platform/planes — catálogo de features + matriz vigente (para el editor) ----
 router.get('/planes', requireAuth, requireRole('platform'), async (req, res) => {
   try {

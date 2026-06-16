@@ -3,8 +3,14 @@ import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
 import { signToken } from '../lib/jwt.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
-import { featuresEfectivas } from '../lib/planes.js'
+import { featuresEfectivas, accesoBloqueado } from '../lib/planes.js'
 import { getMatriz } from '../lib/planesConfig.js'
+
+// Mensaje de bloqueo según el motivo (club suspendido / prueba vencida).
+const mensajeBloqueo = (motivo) =>
+  motivo === 'prueba_vencida'
+    ? 'La prueba gratuita del club venció. Contactá para activar un plan.'
+    : 'El club está suspendido. Contactá al soporte.'
 
 const router = Router()
 
@@ -47,6 +53,8 @@ router.post('/admin/login', async (req, res) => {
     if (!(await bcrypt.compare(password, admin.password))) {
       return res.status(401).json({ error: 'Contraseña incorrecta' })
     }
+    const bloqueoAdmin = accesoBloqueado(admin.club)
+    if (bloqueoAdmin) return res.status(403).json({ error: 'club_bloqueado', message: mensajeBloqueo(bloqueoAdmin) })
 
     const token = signToken({ id: admin.id, role: 'admin', clubId: admin.clubId })
     const features = featuresEfectivas(admin.club, await getMatriz())
@@ -116,6 +124,8 @@ router.post('/jugador/login', async (req, res) => {
     if (!jugador.activo) {
       return res.status(403).json({ error: 'Tu cuenta fue dada de baja. Contactá al club.' })
     }
+    const bloqueoJug = accesoBloqueado(jugador.club)
+    if (bloqueoJug) return res.status(403).json({ error: 'club_bloqueado', message: mensajeBloqueo(bloqueoJug) })
 
     const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId, tokenVersion: jugador.tokenVersion ?? 0 })
     res.json({ token, user: jugadorPublico(jugador) })
@@ -271,6 +281,8 @@ router.post('/profesor/login', async (req, res) => {
     if (!(await bcrypt.compare(password, profesor.password))) {
       return res.status(401).json({ error: 'Contraseña incorrecta' })
     }
+    const bloqueoProf = accesoBloqueado(profesor.club)
+    if (bloqueoProf) return res.status(403).json({ error: 'club_bloqueado', message: mensajeBloqueo(bloqueoProf) })
     const token = signToken({ id: profesor.id, role: 'profesor', clubId: profesor.clubId })
     const { password: _, ...safe } = profesor
     res.json({

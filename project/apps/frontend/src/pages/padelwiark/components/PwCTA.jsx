@@ -20,7 +20,7 @@ const PwCTA = () => (
           Empezá gratis hoy. En un día tenés todo tu club adentro, ordenado y midiendo solo.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <a href="/login" className="pw-btn-lime inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 font-semibold text-sm">
+          <a href="/padelwiark/registro" className="pw-btn-lime inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 font-semibold text-sm">
             Probar gratis 14 días <ArrowRight size={17} />
           </a>
           <a
@@ -30,7 +30,7 @@ const PwCTA = () => (
             Ver funciones
           </a>
         </div>
-        <p className="pw-mono text-[11px] text-[#9ba89f]/70 mt-6">Sin tarjeta · Sin permanencia · Soporte en español</p>
+        <p className="pw-mono text-[11px] text-[#9ba89f]/70 mt-6">Listo en un día · Sin instalar nada · Cancelás cuando quieras</p>
       </div>
     </section>
 
@@ -60,7 +60,7 @@ const PwCTA = () => (
             <div className="flex flex-col gap-3">
               <span className="pw-mono text-[11px] uppercase tracking-wider text-[#9ba89f]/60">Acceso</span>
               <a href="/login" className="text-[#9ba89f] hover:text-[#f4f5ef] transition-colors">Entrar</a>
-              <a href="#precios" className="text-[#9ba89f] hover:text-[#f4f5ef] transition-colors">Probar gratis</a>
+              <a href="/padelwiark/registro" className="text-[#9ba89f] hover:text-[#f4f5ef] transition-colors">Probar gratis</a>
             </div>
           </div>
         </div>

@@ -92,7 +92,7 @@ const PwHero = () => (
         </p>
 
         <div className="pw-fade-up pw-d4 flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-9">
-          <a href="#precios" className="pw-btn-lime inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 font-semibold text-sm">
+          <a href="/padelwiark/registro" className="pw-btn-lime inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 font-semibold text-sm">
             Probar gratis <ArrowRight size={17} />
           </a>
           <a

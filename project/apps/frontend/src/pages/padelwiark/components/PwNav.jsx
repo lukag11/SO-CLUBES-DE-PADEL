@@ -49,7 +49,7 @@ const PwNav = () => {
           <a href="/login" className="text-sm text-[#f4f5ef]/80 hover:text-[#f4f5ef] transition-colors px-3 py-2">
             Entrar
           </a>
-          <a href="#precios" className="pw-btn-lime text-sm font-semibold rounded-full px-5 py-2.5">
+          <a href="/padelwiark/registro" className="pw-btn-lime text-sm font-semibold rounded-full px-5 py-2.5">
             Probar gratis
           </a>
         </div>
@@ -83,7 +83,7 @@ const PwNav = () => {
             <a href="/login" className="flex-1 text-center text-[#f4f5ef] border border-white/10 rounded-full px-5 py-3 text-sm">
               Entrar
             </a>
-            <a href="#precios" onClick={() => setOpen(false)} className="pw-btn-lime flex-1 text-center font-semibold rounded-full px-5 py-3 text-sm">
+            <a href="/padelwiark/registro" onClick={() => setOpen(false)} className="pw-btn-lime flex-1 text-center font-semibold rounded-full px-5 py-3 text-sm">
               Probar gratis
             </a>
           </div>

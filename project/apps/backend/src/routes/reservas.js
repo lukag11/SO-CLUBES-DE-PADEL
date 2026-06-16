@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { Prisma } from '@prisma/client'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
@@ -6,6 +7,24 @@ import { snapshotProductos } from '../lib/productos.js'
 import { descontarStock } from '../lib/stock.js'
 
 const router = Router()
+
+// Ejecuta el chequeo-de-conflicto + creación en una transacción Serializable.
+// READ COMMITTED (el default de Postgres) NO impide el doble-booking: dos requests
+// simultáneos pueden pasar ambos la validación y crear dos reservas para el mismo
+// slot (TOCTOU). En Serializable, Postgres aborta una de las dos con un error de
+// serialización (P2034 / 40001); reintentamos y, al re-correr el chequeo, esa
+// segunda transacción ya ve la fila commiteada y devuelve el 409 limpio.
+const runSerializable = async (fn, retries = 2) => {
+  for (let intento = 0; ; intento++) {
+    try {
+      return await prisma.$transaction(fn, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+    } catch (err) {
+      const serializationFail = err?.code === 'P2034' || err?.code === '40001'
+      if (serializationFail && intento < retries) continue
+      throw err
+    }
+  }
+}
 
 const toMin = (t) => {
   const [h, m] = t.split(':').map(Number)
@@ -312,9 +331,9 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
     const [fy, fm, fd] = fecha.split('-').map(Number)
     const dia = DIAS_SEMANA[new Date(fy, fm - 1, fd).getDay()]
 
-    // Check de conflicto + create dentro de $transaction: evita que dos requests simultáneos
-    // pasen la validación y creen dos reservas para el mismo slot (TOCTOU race condition).
-    const reserva = await prisma.$transaction(async (tx) => {
+    // Check de conflicto + create dentro de una transacción Serializable (ver runSerializable):
+    // evita que dos requests simultáneos pasen la validación y creen dos reservas (doble-booking).
+    const reserva = await runSerializable(async (tx) => {
       const existentes = await tx.reserva.findMany({
         where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
       })
@@ -407,52 +426,59 @@ router.post('/profesor', requireAuth, requireRole('profesor'), async (req, res) 
       return res.status(403).json({ error: 'No tenés asignada esa cancha' })
     }
 
-    const existentes = await prisma.reserva.findMany({
-      where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
-    })
-    const hayConflicto = existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
-    if (hayConflicto) return res.status(409).json({ error: 'El horario ya está reservado' })
-
-    // Verificar solapamiento con TurnosFijos activos
+    // Chequeos de solapamiento + creación en transacción Serializable (anti doble-booking)
     const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
     const [fy, fm, fd] = fecha.split('-').map(Number)
     const dia = DIAS_SEMANA[new Date(fy, fm - 1, fd).getDay()]
-    const turnosFijosActivos = await prisma.turnoFijo.findMany({
-      where: { canchaId, dia, estado: 'confirmado' },
-    })
-    const hayConflictoFijo = turnosFijosActivos.some(
-      (tf) =>
-        overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) &&
-        !tf.diasAusentes.includes(fecha) &&
-        (!tf.desde || tf.desde <= fecha)
-    )
-    if (hayConflictoFijo) return res.status(409).json({ error: 'Ese horario tiene un turno fijo activo de un jugador' })
 
-    // Verificar que el profesor no tenga ya otra clase en ese horario (en cualquier cancha)
-    const clasesExistentesProfesor = await prisma.reserva.findMany({
-      where: { profesorId, fecha, estado: { not: 'cancelada' } },
-    })
-    const hayConflictoProfesor = clasesExistentesProfesor.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
-    if (hayConflictoProfesor) return res.status(409).json({ error: 'Ya tenés una clase en ese horario en otra cancha' })
+    const reserva = await runSerializable(async (tx) => {
+      const existentes = await tx.reserva.findMany({
+        where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
+      })
+      if (existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
+        throw Object.assign(new Error('El horario ya está reservado'), { status: 409 })
+      }
 
-    const reserva = await prisma.reserva.create({
-      data: {
-        clubId,
-        canchaId,
-        profesorId,
-        fecha,
-        horaInicio,
-        horaFin,
-        tipo: 'clase',
-        estado: 'confirmada',
-        precio: precio ? Math.round(parseFloat(precio)) : null,
-        jugadores: jugadores ?? [],
-        notas: notas || '',
-      },
-      include: {
-        cancha: true,
-        profesor: { select: { id: true, nombre: true, apellido: true } },
-      },
+      // Verificar solapamiento con TurnosFijos activos
+      const turnosFijosActivos = await tx.turnoFijo.findMany({
+        where: { canchaId, dia, estado: 'confirmado' },
+      })
+      if (turnosFijosActivos.some(
+        (tf) =>
+          overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) &&
+          !tf.diasAusentes.includes(fecha) &&
+          (!tf.desde || tf.desde <= fecha)
+      )) {
+        throw Object.assign(new Error('Ese horario tiene un turno fijo activo de un jugador'), { status: 409 })
+      }
+
+      // Verificar que el profesor no tenga ya otra clase en ese horario (en cualquier cancha)
+      const clasesExistentesProfesor = await tx.reserva.findMany({
+        where: { profesorId, fecha, estado: { not: 'cancelada' } },
+      })
+      if (clasesExistentesProfesor.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
+        throw Object.assign(new Error('Ya tenés una clase en ese horario en otra cancha'), { status: 409 })
+      }
+
+      return tx.reserva.create({
+        data: {
+          clubId,
+          canchaId,
+          profesorId,
+          fecha,
+          horaInicio,
+          horaFin,
+          tipo: 'clase',
+          estado: 'confirmada',
+          precio: precio ? Math.round(parseFloat(precio)) : null,
+          jugadores: jugadores ?? [],
+          notas: notas || '',
+        },
+        include: {
+          cancha: true,
+          profesor: { select: { id: true, nombre: true, apellido: true } },
+        },
+      })
     })
 
     // Notificar al admin
@@ -475,6 +501,7 @@ router.post('/profesor', requireAuth, requireRole('profesor'), async (req, res) 
 
     res.status(201).json(reserva)
   } catch (err) {
+    if (err.status === 409) return res.status(409).json({ error: err.message })
     console.error(err)
     res.status(500).json({ error: 'Error al crear clase' })
   }
@@ -565,56 +592,63 @@ router.post('/admin/clase-profesor', requireAuth, requireRole('admin'), async (r
     const cancha = await prisma.cancha.findFirst({ where: { id: canchaId, clubId, activo: true } })
     if (!cancha) return res.status(404).json({ error: 'Cancha no encontrada' })
 
-    // Verificar solapamiento con reservas existentes
-    const existentes = await prisma.reserva.findMany({
-      where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
-    })
-    const hayConflicto = existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
-    if (hayConflicto) return res.status(409).json({ error: 'El horario ya está ocupado en esa cancha' })
-
-    // Verificar solapamiento con TurnosFijos activos
+    // Chequeos de solapamiento + creación en transacción Serializable (anti doble-booking)
     const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
     const [fy, fm, fd] = fecha.split('-').map(Number)
     const dia = DIAS_SEMANA[new Date(fy, fm - 1, fd).getDay()]
-    const turnosFijosActivos = await prisma.turnoFijo.findMany({
-      where: { canchaId, dia, estado: 'confirmado' },
-    })
-    const hayConflictoFijo = turnosFijosActivos.some(
-      (tf) =>
-        overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) &&
-        !tf.diasAusentes.includes(fecha) &&
-        (!tf.desde || tf.desde <= fecha)
-    )
-    if (hayConflictoFijo) return res.status(409).json({ error: 'Ese horario tiene un turno fijo activo de un jugador' })
 
-    // Verificar que el profesor no tenga ya otra clase en ese horario (en cualquier cancha)
-    const clasesExistentesProfesor = await prisma.reserva.findMany({
-      where: { profesorId, fecha, estado: { not: 'cancelada' } },
-    })
-    const hayConflictoProfesor = clasesExistentesProfesor.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
-    if (hayConflictoProfesor) return res.status(409).json({ error: 'El profesor ya tiene una clase en ese horario en otra cancha' })
+    const reserva = await runSerializable(async (tx) => {
+      const existentes = await tx.reserva.findMany({
+        where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
+      })
+      if (existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
+        throw Object.assign(new Error('El horario ya está ocupado en esa cancha'), { status: 409 })
+      }
 
-    const reserva = await prisma.reserva.create({
-      data: {
-        clubId,
-        canchaId,
-        profesorId,
-        fecha,
-        horaInicio,
-        horaFin,
-        tipo: 'clase',
-        estado: 'confirmada',
-        precio: precio ? Math.round(parseFloat(precio)) : null,
-        jugadores: [],
-        notas: notas || '',
-      },
-      include: {
-        cancha: true,
-        profesor: { select: { id: true, nombre: true, apellido: true } },
-      },
+      // Verificar solapamiento con TurnosFijos activos
+      const turnosFijosActivos = await tx.turnoFijo.findMany({
+        where: { canchaId, dia, estado: 'confirmado' },
+      })
+      if (turnosFijosActivos.some(
+        (tf) =>
+          overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) &&
+          !tf.diasAusentes.includes(fecha) &&
+          (!tf.desde || tf.desde <= fecha)
+      )) {
+        throw Object.assign(new Error('Ese horario tiene un turno fijo activo de un jugador'), { status: 409 })
+      }
+
+      // Verificar que el profesor no tenga ya otra clase en ese horario (en cualquier cancha)
+      const clasesExistentesProfesor = await tx.reserva.findMany({
+        where: { profesorId, fecha, estado: { not: 'cancelada' } },
+      })
+      if (clasesExistentesProfesor.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
+        throw Object.assign(new Error('El profesor ya tiene una clase en ese horario en otra cancha'), { status: 409 })
+      }
+
+      return tx.reserva.create({
+        data: {
+          clubId,
+          canchaId,
+          profesorId,
+          fecha,
+          horaInicio,
+          horaFin,
+          tipo: 'clase',
+          estado: 'confirmada',
+          precio: precio ? Math.round(parseFloat(precio)) : null,
+          jugadores: [],
+          notas: notas || '',
+        },
+        include: {
+          cancha: true,
+          profesor: { select: { id: true, nombre: true, apellido: true } },
+        },
+      })
     })
     res.status(201).json(reserva)
   } catch (err) {
+    if (err.status === 409) return res.status(409).json({ error: err.message })
     console.error(err)
     res.status(500).json({ error: 'Error al crear clase' })
   }
@@ -641,19 +675,21 @@ router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
     const cancha = await prisma.cancha.findFirst({ where: { id: canchaId, clubId } })
     if (!cancha) return res.status(404).json({ error: 'Cancha no encontrada' })
 
-    // Validar solapamiento con reservas existentes
-    const existentes = await prisma.reserva.findMany({
-      where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
-    })
-    const hayConflicto = existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))
-    if (hayConflicto) return res.status(409).json({ error: 'El horario ya está reservado' })
-
-    // Transacción atómica: Reserva + TurnoFijo deben crearse juntos o ninguno
+    // Transacción Serializable: chequeo de solapamiento + creación juntos (anti doble-booking).
+    // Reserva + TurnoFijo deben crearse atómicamente o ninguno.
     const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
     const [fy, fm, fd] = fecha.split('-').map(Number)
     const diaKey = DIAS[new Date(fy, fm - 1, fd).getDay()]
 
-    const reserva = await prisma.$transaction(async (tx) => {
+    const reserva = await runSerializable(async (tx) => {
+      // Validar solapamiento con reservas existentes (dentro de la transacción)
+      const existentes = await tx.reserva.findMany({
+        where: { canchaId, fecha, estado: { in: ['pendiente', 'confirmada'] } },
+      })
+      if (existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
+        throw Object.assign(new Error('El horario ya está reservado'), { status: 409 })
+      }
+
       const newReserva = await tx.reserva.create({
         data: {
           clubId,
@@ -744,6 +780,7 @@ router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
 
     res.status(201).json(reserva)
   } catch (err) {
+    if (err.status === 409) return res.status(409).json({ error: err.message })
     console.error(err)
     res.status(500).json({ error: 'Error al crear reserva' })
   }
@@ -767,7 +804,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
     // una reserva previamente cancelada se reactive sobre un slot ya ocupado.
     let updated
     if (estado === 'confirmada') {
-      updated = await prisma.$transaction(async (tx) => {
+      updated = await runSerializable(async (tx) => {
         const solapadas = await tx.reserva.findMany({
           where: { canchaId: reserva.canchaId, fecha: reserva.fecha, estado: { in: ['pendiente', 'confirmada'] }, id: { not: id } },
         })
@@ -865,6 +902,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
 
     res.json(updated)
   } catch (err) {
+    if (err.status === 409) return res.status(409).json({ error: err.message })
     console.error(err)
     res.status(500).json({ error: 'Error al actualizar reserva' })
   }

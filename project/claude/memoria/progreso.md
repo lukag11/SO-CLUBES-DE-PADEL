@@ -1,6 +1,18 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-15 — Stock de productos: control opt-in, descuento en ventas, ingreso por compra, alertas. OCR estructurado
+**Última actualización:** 2026-06-15 — Hardening anti doble-booking: transacciones Serializable en todos los caminos de reserva
+
+---
+
+## Hardening anti doble-booking (2026-06-15)
+
+Auditoría de robustez del core (flujo reserva + aislamiento multi-tenant) de cara a soltarlo a un primer usuario.
+
+- **Aislamiento entre clubes:** auditado, **sólido**. `clubId` siempre del JWT (nunca del body/query), toda mutación verifica `reserva.clubId === req.user.clubId` → 403, referencias a jugador validadas contra el club. Sin cambios.
+- **Doble reserva:** había un agujero real de concurrencia. La `$transaction` corría en READ COMMITTED (default Postgres) → dos requests simultáneos podían pasar ambos el chequeo de solapamiento y crear dos reservas para el mismo slot (TOCTOU). No hay constraint a nivel DB que lo ataje.
+- **Fix** (`routes/reservas.js`, sin migración): helper `runSerializable(fn, retries=2)` → corre la transacción en **Serializable** con reintento ante fallo de serialización (P2034/40001). Aplicado a los **5 caminos** que crean/confirman reservas: `POST /` (jugador), `POST /admin` (manual, antes chequeaba fuera de la transacción), `POST /profesor` y `POST /admin/clase-profesor` (antes **sin** transacción), y `PATCH /:id/estado` (confirmación). Ahora es Postgres quien garantiza la unicidad del slot.
+- **Bonus:** bug preexistente — al confirmar sobre un slot ya ocupado se lanzaba 409 pero el catch lo devolvía 500. Corregido (devuelve 409).
+- Pendiente opcional (no urgente): constraint a nivel DB (exclusion GiST + rango) como doble red; con Serializable ya está cubierto el escenario real.
 
 ---
 

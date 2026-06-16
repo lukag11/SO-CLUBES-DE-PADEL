@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, LogOut, Users, LayoutGrid, Ban, CheckCircle2, Building2, X, KeyRound } from 'lucide-react'
+import { Plus, LogOut, Users, LayoutGrid, Ban, CheckCircle2, Building2, X, KeyRound, Gift } from 'lucide-react'
 import { api } from '../../../lib/api'
 import usePlatformStore from '../../../store/platformStore'
 import { PwLogo } from '../components/PwNav'
 import PwModalCrearClub from './PwModalCrearClub'
 import PwConfirm from './PwConfirm'
 import PwModalResetAdmin from './PwModalResetAdmin'
+import PwModalRegalitos from './PwModalRegalitos'
+import PwPlanesEditor from './PwPlanesEditor'
 
 const PLAN_BADGE = {
   basico: 'text-slate-300 bg-white/5 border-white/10',
@@ -23,9 +25,11 @@ const PwAdminDashboard = () => {
   const { user, token, logout } = usePlatformStore()
   const [clubs, setClubs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [view, setView] = useState('clubes') // 'clubes' | 'planes'
   const [modal, setModal] = useState(false)
   const [confirm, setConfirm] = useState(null)   // { ...props de PwConfirm }
   const [resetClub, setResetClub] = useState(null) // club al que se le resetea la clave
+  const [regalitosClub, setRegalitosClub] = useState(null) // club al que se le editan features extra
   const [toast, setToast] = useState(null) // { msg, type:'ok'|'error', id }
 
   const auth = { Authorization: `Bearer ${token}` }
@@ -76,6 +80,22 @@ const PwAdminDashboard = () => {
       </header>
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8 py-8">
+        {/* Selector de vista */}
+        <div className="flex items-center gap-1 bg-white/[0.03] border border-white/8 rounded-xl p-1 w-fit mb-7">
+          {[{ id: 'clubes', label: 'Clubes' }, { id: 'planes', label: 'Planes' }].map(({ id, label }) => (
+            <button
+              key={id} onClick={() => setView(id)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === id ? 'bg-[#afca0b] text-[#0a0f0d]' : 'text-[#9ba89f] hover:text-[#f4f5ef]'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === 'planes' ? (
+          <PwPlanesEditor notify={notify} />
+        ) : (
+        <>
         {/* Resumen */}
         <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-7">
           {[
@@ -137,6 +157,13 @@ const PwAdminDashboard = () => {
                     {PLANES.map((p) => <option key={p} value={p} className="bg-[#141c18]">{p}</option>)}
                   </select>
                   <button
+                    onClick={() => setRegalitosClub(c)}
+                    title="Features extra (regalitos)"
+                    className="flex items-center justify-center rounded-lg border border-white/12 text-[#9ba89f] hover:text-[#d4ff3f] hover:border-[#afca0b]/40 px-2.5 py-2 transition-colors"
+                  >
+                    <Gift size={14} />
+                  </button>
+                  <button
                     onClick={() => setResetClub(c)}
                     title="Resetear contraseña del admin"
                     className="flex items-center justify-center rounded-lg border border-white/12 text-[#9ba89f] hover:text-[#f4f5ef] hover:border-white/25 px-2.5 py-2 transition-colors"
@@ -166,6 +193,8 @@ const PwAdminDashboard = () => {
             ))}
           </div>
         )}
+        </>
+        )}
       </main>
 
       {modal && (
@@ -182,6 +211,14 @@ const PwAdminDashboard = () => {
           club={resetClub}
           onClose={() => setResetClub(null)}
           onDone={(email) => notify(`Contraseña reseteada (${email})`)}
+        />
+      )}
+
+      {regalitosClub && (
+        <PwModalRegalitos
+          club={regalitosClub}
+          onClose={() => setRegalitosClub(null)}
+          onDone={(updated) => { setClubs((cs) => cs.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))); notify('Features actualizadas') }}
         />
       )}
 

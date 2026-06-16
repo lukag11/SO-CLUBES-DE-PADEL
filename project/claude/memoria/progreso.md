@@ -1,6 +1,6 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-16 — Capa SaaS Fase B: feature gating (motor + menú + enforcement en todos los módulos)
+**Última actualización:** 2026-06-16 — Capa SaaS Fase B COMPLETA: + editor de matriz y regalitos por club
 
 ---
 
@@ -13,7 +13,9 @@ El plan **ya manda de verdad**. Probado de punta a punta por API + en pantalla. 
 - **Middleware** (`middleware/auth.js`): `requireFeature(featureId)` + `requireClubActivo`. `login`/`admin/me` ahora devuelven `club.plan`, `club.estado` y `club.features` (efectivas).
 - **Enforcement backend (con bisturí, sin romper público/jugador):** `finanzas` → caja, productos, gastos, comandas, categorias (router-level en app.js) + cargos (per-route admin). `profesores`, `sponsors` → router-level. `torneos` → solo las 12 rutas admin (públicas GET y jugador inscribir quedan abiertas). `estadisticas` → `/reservas/admin/stats`.
 - **Frontend:** hook `useFeature`/`useFeatures` (lee `authStore.user.club.features`). Sidebar + BottomNav del admin **filtran los ítems** según plan (Clases/Torneos/Sponsors/Finanzas desaparecen en básico). Verificado en pantalla.
-- **Pendiente Fase B:** Paso 4 (editor visual de la matriz en el panel de plataforma) + Paso 5 (toggle de regalitos por club). También sigue pendiente: que suspender corte sesiones ya logueadas (requireClubActivo existe pero falta aplicarlo a los routers core como reservas) + tokenVersion en Admin.
+- **Paso 4 — Editor de matriz (panel):** `GET/PATCH /platform/planes` (lee catálogo+matriz / guarda sanitizando, core siempre incluido). `PwPlanesEditor.jsx` con grilla módulos×planes (core con 🔒), selector "Clubes | Planes" en el dashboard. Editás básico/pro/premium desde el panel y el gating obedece (probado e2e).
+- **Paso 5 — Regalitos por club:** `PATCH /platform/clubs/:id` acepta `featuresExtra` (valida ids). `PwModalRegalitos.jsx` (ícono 🎁 por fila): habilita módulos sueltos fuera del plan; los que ya vienen en el plan salen bloqueados. Probado: club básico + regalo 'torneos' → puede usar torneos sin cambiar de plan.
+- **FASE B COMPLETA.** Pendiente (no Fase B): que suspender corte sesiones ya logueadas (`requireClubActivo` existe pero falta aplicarlo a routers core como reservas) + `tokenVersion` en Admin. Luego: self-service público + verificación email + quick-setup wizard.
 
 ---
 

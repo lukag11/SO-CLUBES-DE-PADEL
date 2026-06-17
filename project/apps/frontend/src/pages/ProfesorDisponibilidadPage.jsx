@@ -4,6 +4,7 @@ import { Clock, CheckCircle, AlertCircle, HelpCircle, X, Zap } from 'lucide-reac
 import useAuthProfesorStore from '../store/authProfesorStore'
 import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
+import { useToast } from '../components/ui/ToastProvider'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -176,9 +177,8 @@ const ProfesorDisponibilidadPage = () => {
 
   const [disp, setDisp] = useState(() => buildInitialState(profesor?.disponibilidad, horarios))
   const [submitting, setSubmitting] = useState(false)
-  const [toast, setToast] = useState(null)
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
-  const toastTimer = useRef(null)
+  const toast = useToast()
 
   // Re-inicializa solo la primera vez que llegan los datos reales del backend.
   // Sin este guard, el useEffect pisaría los cambios del usuario si el fetch termina
@@ -221,11 +221,7 @@ const ProfesorDisponibilidadPage = () => {
     )
   }
 
-  const showToast = (msg, type = 'ok') => {
-    clearTimeout(toastTimer.current)
-    setToast({ msg, type })
-    toastTimer.current = setTimeout(() => setToast(null), 3000)
-  }
+  const showToast = (msg, type = 'ok') => (type === 'ok' ? toast.success(msg) : toast.error(msg))
 
   const toggleDia = (dia) => {
     if (clubDiaCerrado(dia, horarios)) return // día cerrado en el club — no se puede activar
@@ -461,19 +457,6 @@ const ProfesorDisponibilidadPage = () => {
         document.body
       )}
 
-      {/* Toast */}
-      {toast && createPortal(
-        <div className={[
-          'fixed top-5 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2.5 px-5 py-3 rounded-2xl shadow-2xl text-sm font-medium border backdrop-blur-sm',
-          toast.type === 'ok'
-            ? 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300'
-            : 'bg-red-950/90 border-red-500/30 text-red-300',
-        ].join(' ')}>
-          {toast.type === 'ok' ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
-          {toast.msg}
-        </div>,
-        document.body
-      )}
     </div>
   )
 }

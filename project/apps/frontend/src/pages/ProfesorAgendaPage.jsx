@@ -7,6 +7,7 @@ import {
 import useAuthProfesorStore from '../store/authProfesorStore'
 import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
+import { useToast } from '../components/ui/ToastProvider'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -685,14 +686,8 @@ const ProfesorAgendaPage = () => {
   const [submitting, setSubmitting] = useState(false)
   const [showHelper, setShowHelper] = useState(false)
   const [clasesSemana, setClasesSemana] = useState({})
-  const [toast, setToast] = useState(null)
-  const toastTimer = useRef(null)
-
-  const showToast = useCallback((msg) => {
-    setToast(msg)
-    clearTimeout(toastTimer.current)
-    toastTimer.current = setTimeout(() => setToast(null), 3500)
-  }, [])
+  const toast = useToast()
+  const showToast = toast.success // alias: mantiene los call-sites existentes
 
   const hoy = todayISO()
   const headers = { Authorization: `Bearer ${token}` }
@@ -1342,14 +1337,6 @@ const ProfesorAgendaPage = () => {
           onClose={() => setClaseEliminar(null)}
           submitting={submitting}
         />
-      )}
-      {/* Toast de éxito */}
-      {toast && createPortal(
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2.5 bg-emerald-500 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl shadow-emerald-500/30 animate-toast-enter">
-          <CheckCircle size={16} className="shrink-0" />
-          {toast}
-        </div>,
-        document.body
       )}
     </div>
   )

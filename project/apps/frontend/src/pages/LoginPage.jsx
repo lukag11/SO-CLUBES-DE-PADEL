@@ -88,7 +88,7 @@ const LoginPage = () => {
           <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/30">
             <Zap size={20} className="text-white" />
           </div>
-          <span className="text-white font-bold text-xl tracking-tight">PadelOS</span>
+          <span className="text-white font-bold text-xl tracking-tight">PadelwIArk</span>
         </div>
 
         {/* Tagline */}
@@ -119,7 +119,7 @@ const LoginPage = () => {
             <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
               <Zap size={16} className="text-white" />
             </div>
-            <span className="text-slate-800 font-bold text-lg">PadelOS</span>
+            <span className="text-slate-800 font-bold text-lg">PadelwIArk</span>
           </div>
 
           <div className="mb-8">

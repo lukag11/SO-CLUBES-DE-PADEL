@@ -51,7 +51,7 @@ const ProfesorLoginPage = () => {
             <Zap size={20} className="text-white" />
           </div>
           <div>
-            <span className="text-white font-bold text-xl tracking-tight block">PadelOS</span>
+            <span className="text-white font-bold text-xl tracking-tight block">PadelwIArk</span>
             <span className="text-white/30 text-xs">Portal de Profesores</span>
           </div>
         </div>

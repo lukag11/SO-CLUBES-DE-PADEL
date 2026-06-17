@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
 import { signToken } from '../lib/jwt.js'
 import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
+import { lookupLimiter } from '../middleware/rateLimit.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
 
 const router = Router()
@@ -20,7 +21,7 @@ const contarDeudaPendiente = async (clubId, jugadorId) => {
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
 // GET /api/jugadores/buscar-por-dni?dni=&clubId= — público, pre-llena el formulario de registro
-router.get('/buscar-por-dni', async (req, res) => {
+router.get('/buscar-por-dni', lookupLimiter, async (req, res) => {
   const { dni, clubId } = req.query
   if (!dni || !/^\d{7,8}$/.test(dni.trim()) || !clubId) return res.json({ found: false })
   try {

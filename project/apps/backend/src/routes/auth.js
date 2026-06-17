@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
 import { signToken } from '../lib/jwt.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
+import { loginLimiter } from '../middleware/rateLimit.js'
 import { featuresEfectivas, accesoBloqueado } from '../lib/planes.js'
 import { getMatriz } from '../lib/planesConfig.js'
 
@@ -37,7 +38,7 @@ router.get('/admin/me', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // POST /api/auth/admin/login
-router.post('/admin/login', async (req, res) => {
+router.post('/admin/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body
 
   if (!email || !password) {
@@ -99,7 +100,7 @@ const jugadorPublico = (j) => ({
 })
 
 // POST /api/auth/jugador/login
-router.post('/jugador/login', async (req, res) => {
+router.post('/jugador/login', loginLimiter, async (req, res) => {
   const { dni, password, clubId } = req.body
 
   if (!dni || !password || !clubId) {
@@ -266,7 +267,7 @@ router.get('/profesor/me', requireAuth, requireRole('profesor'), async (req, res
 })
 
 // POST /api/auth/profesor/login
-router.post('/profesor/login', async (req, res) => {
+router.post('/profesor/login', loginLimiter, async (req, res) => {
   const { email, password, clubId } = req.body
   if (!email || !password || !clubId) {
     return res.status(400).json({ error: 'Email, contraseña y clubId requeridos' })

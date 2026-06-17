@@ -198,7 +198,7 @@ const PlayerLayout = () => {
             }
           </div>
           <div className="min-w-0">
-            <span className="text-white font-bold text-sm tracking-tight block truncate">{clubNombre || 'PadelOS'}</span>
+            <span className="text-white font-bold text-sm tracking-tight block truncate">{clubNombre || 'PadelwIArk'}</span>
             <span className="text-white/30 text-xs">Área Jugadores</span>
           </div>
         </div>
@@ -288,7 +288,7 @@ const PlayerLayout = () => {
           {clubLogo && (
             <img src={clubLogo} alt={clubNombre || 'Club'} className="w-7 h-7 rounded-lg object-cover shrink-0" />
           )}
-          <span className="text-white font-bold text-sm tracking-tight truncate">{clubNombre || 'PadelOS'}</span>
+          <span className="text-white font-bold text-sm tracking-tight truncate">{clubNombre || 'PadelwIArk'}</span>
         </header>
         <main className="flex-1 p-4 md:p-6 overflow-y-auto overflow-x-hidden">
           <Outlet />

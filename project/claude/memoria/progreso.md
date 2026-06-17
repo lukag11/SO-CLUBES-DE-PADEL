@@ -1,6 +1,19 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-16 — Capa SaaS: suspensión que corta sesiones activas + alta self-service pública
+**Última actualización:** 2026-06-17 — Pulido post-auditoría: anti-abuso (rate-limit) + UX de bloqueo + branding PadelwIArk
+
+---
+
+## Pulido post-auditoría — Bloques 1-3 (2026-06-17)
+
+Tras auditar los 3 portales (admin/jugador/profesor): el aislamiento multi-tenant/rol está SÓLIDO (todo `findUnique(id)` chequea clubId/pertenencia). Lo que se pulió fueron detalles menores que salieron en la auditoría:
+
+- **Bloque 1 — anti-abuso:** `express-rate-limit` + `middleware/rateLimit.js` (loginLimiter 10/min, signupLimiter 5/h, lookupLimiter 30/min). Aplicado a los 4 logins (admin/jugador/profesor/plataforma), `/platform/signup` y `/jugadores/buscar-por-dni`. `signup` con mensaje genérico ante email existente (anti-enumeración; el rate-limit es la defensa real). Probado: 6º signup → 429. OJO deploy: falta `app.set('trust proxy', 1)` por el proxy de Railway (ver [[project_deploy_pendiente]]).
+- **Bloque 2 — UX:** (a) `api.js` ante `club_bloqueado` ahora redirige según el portal (admin→/login, jugador→/dashboardJugadores, profesor→/dashboardProfesor) limpiando el token correcto; (b) `authStore` ahora PERSISTE el user (`admin_user` en localStorage) → las features del plan están al instante en cada reload, sin parpadeo del menú. Sidebar/BottomNav ocultan módulos gateados hasta que cargan las features (aparecen en vez de desaparecer).
+- **Bloque 3 — branding:** reemplazado "PadelOS" → "PadelwIArk" en 10 archivos (auth, layouts, navbar, titles). White-label real por club (nombre del club en auth via fetch por slug) sigue pendiente, va con el refactor de theming.
+- **Pendiente (Bloque 4, refactor aparte con QA):** unificar toasts + theming (color `#afca0b` hardcodeado ~422 usos → token).
+
+---
 
 ---
 

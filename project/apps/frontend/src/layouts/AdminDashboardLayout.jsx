@@ -23,7 +23,7 @@ const BOTTOM_NAV_ITEMS = [
 const BottomNav = ({ visible }) => {
   const sinLeer = useNotificacionesStore((s) => s.sinLeer())
   const features = useFeatures()
-  const items = BOTTOM_NAV_ITEMS.filter((i) => !i.feature || !features || features.includes(i.feature))
+  const items = BOTTOM_NAV_ITEMS.filter((i) => !i.feature || (features && features.includes(i.feature)))
 
   return (
     <nav

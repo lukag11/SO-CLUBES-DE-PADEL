@@ -34,7 +34,7 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
   const clubLogo   = useClubStore((state) => state.club.logo)
   const features   = useFeatures()
   const plan       = useAuthStore((state) => state.user?.club?.plan)
-  const items = navItems.filter((i) => !i.feature || !features || features.includes(i.feature))
+  const items = navItems.filter((i) => !i.feature || (features && features.includes(i.feature)))
   const planInfo = PLAN_INFO[plan]
 
   const handleLogout = () => {

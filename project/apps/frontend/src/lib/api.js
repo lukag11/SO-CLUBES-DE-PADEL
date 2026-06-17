@@ -13,12 +13,23 @@ const request = async (path, { headers, ...rest } = {}) => {
     if (data.error === 'cuenta_inactiva' || data.error === 'sesion_expirada') {
       window.dispatchEvent(new CustomEvent('jugador:cuenta-inactiva', { detail: data.message }))
     }
-    // Club suspendido / prueba vencida → cerrar sesión del club y volver al inicio.
+    // Club suspendido / prueba vencida → cerrar sesión del club y volver al login
+    // que corresponde al rol (según en qué portal está parado el usuario).
     if (data.error === 'club_bloqueado' && !bloqueoManejado) {
       bloqueoManejado = true
-      ;['token', 'player_token', 'player_data'].forEach((k) => localStorage.removeItem(k))
+      const path = window.location.pathname
+      let destino = '/login' // admin por defecto
+      if (path.startsWith('/dashboardJugadores')) {
+        localStorage.removeItem('player_token'); localStorage.removeItem('player_data')
+        destino = '/dashboardJugadores'
+      } else if (path.startsWith('/dashboardProfesor')) {
+        localStorage.removeItem('profesor_token')
+        destino = '/dashboardProfesor'
+      } else {
+        localStorage.removeItem('token')
+      }
       alert(data.message || 'El acceso del club fue bloqueado.')
-      window.location.href = '/login'
+      window.location.href = destino
     }
     throw new Error(data.message || data.error || 'Error del servidor')
   }

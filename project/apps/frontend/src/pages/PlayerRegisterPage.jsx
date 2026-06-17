@@ -76,7 +76,7 @@ const LeftPanel = ({ step }) => {
         <div className="w-9 h-9 bg-[#afca0b] rounded-xl flex items-center justify-center shadow-lg shadow-[#afca0b]/25">
           <Zap size={18} className="text-[#0d1117]" />
         </div>
-        <span className="text-white font-bold text-lg tracking-tight">PadelOS</span>
+        <span className="text-white font-bold text-lg tracking-tight">PadelwIArk</span>
       </Link>
 
       {/* Contenido dinámico por paso */}
@@ -191,7 +191,7 @@ const PlayerRegisterPage = () => {
               <div className="w-8 h-8 bg-[#afca0b] rounded-lg flex items-center justify-center">
                 <Zap size={16} className="text-[#0d1117]" />
               </div>
-              <span className="text-white font-bold text-lg">PadelOS</span>
+              <span className="text-white font-bold text-lg">PadelwIArk</span>
             </div>
 
             {/* Header */}

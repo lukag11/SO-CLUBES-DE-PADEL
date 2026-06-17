@@ -594,7 +594,7 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
                       : <span className="text-[8px] font-bold text-white">{(club.nombre || 'P').charAt(0).toUpperCase()}</span>
                     }
                   </div>
-                  <span className="text-white text-xs font-bold">{club.nombre || 'PadelOS'}</span>
+                  <span className="text-white text-xs font-bold">{club.nombre || 'PadelwIArk'}</span>
                 </div>
                 <div
                   className="px-2.5 py-1 rounded-lg text-xs font-bold text-[#1E1F23]"

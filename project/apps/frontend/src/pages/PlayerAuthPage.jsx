@@ -72,7 +72,7 @@ const PlayerAuthPage = () => {
           <div className="w-10 h-10 bg-[#afca0b] rounded-xl flex items-center justify-center shadow-lg shadow-[#afca0b]/30">
             <Zap size={20} className="text-[#0d1117]" />
           </div>
-          <span className="text-white font-bold text-xl tracking-tight">PadelOS</span>
+          <span className="text-white font-bold text-xl tracking-tight">PadelwIArk</span>
         </Link>
 
         {/* Tagline */}
@@ -113,7 +113,7 @@ const PlayerAuthPage = () => {
             <div className="w-8 h-8 bg-[#afca0b] rounded-lg flex items-center justify-center">
               <Zap size={16} className="text-[#0d1117]" />
             </div>
-            <span className="text-white font-bold text-lg">PadelOS — Jugadores</span>
+            <span className="text-white font-bold text-lg">PadelwIArk — Jugadores</span>
           </div>
 
           <div className="mb-8">

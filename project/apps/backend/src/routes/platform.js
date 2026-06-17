@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
 import { signToken } from '../lib/jwt.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
+import { loginLimiter, signupLimiter } from '../middleware/rateLimit.js'
 import { crearClub, PLANES_VALIDOS } from '../lib/tenants.js'
 import { FEATURES, FEATURE_IDS, CORE_FEATURES } from '../lib/planes.js'
 import { getMatriz, setMatriz } from '../lib/planesConfig.js'
@@ -12,7 +13,7 @@ const router = Router()
 const ESTADOS_VALIDOS = ['prueba', 'activo', 'suspendido']
 
 // ---- POST /api/platform/login — login del dueño de plataforma ----
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' })
 
@@ -120,7 +121,7 @@ router.patch('/clubs/:id', requireAuth, requireRole('platform'), async (req, res
 // Usa el MISMO motor crearClub que el alta asistida. El club arranca en 'prueba'.
 // PENDIENTE para producción: verificación por email + anti-abuso (captcha / rate-limit).
 // Hasta deployar (sin proveedor de mail) queda abierto — aceptable en local.
-router.post('/signup', async (req, res) => {
+router.post('/signup', signupLimiter, async (req, res) => {
   const { clubNombre, adminNombre, adminEmail, adminPassword } = req.body
   const email = String(adminEmail || '').trim().toLowerCase()
   if (!clubNombre || !email || !adminPassword) {
@@ -137,6 +138,11 @@ router.post('/signup', async (req, res) => {
     const club = await crearClub({ clubNombre, adminNombre, adminEmail: email, adminPassword, plan: 'basico' })
     res.status(201).json({ ok: true, slug: club.slug, adminEmail: email })
   } catch (err) {
+    // Mensaje genérico (no confirmar si el email ya existe → anti-enumeración).
+    // El rate-limit (signupLimiter) es la defensa real contra el barrido.
+    if (err.status === 409) {
+      return res.status(409).json({ error: 'No pudimos crear el club con esos datos. Si ya tenés una cuenta, iniciá sesión.' })
+    }
     if (err.status) return res.status(err.status).json({ error: err.message })
     console.error(err)
     res.status(500).json({ error: 'No se pudo crear tu club. Probá de nuevo.' })

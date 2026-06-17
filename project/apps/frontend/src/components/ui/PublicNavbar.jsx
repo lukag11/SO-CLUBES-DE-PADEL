@@ -62,7 +62,7 @@ const PublicNavbar = () => {
               : <Zap size={16} className={navbarEstilo === 'color-solido' && !isLight ? 'text-black/70' : isLight ? 'text-white' : 'text-[#1E1F23]'} />
             }
           </div>
-          <span className={`font-bold text-lg tracking-tight ${logoTextColor}`}>{nombre || 'PadelOS'}</span>
+          <span className={`font-bold text-lg tracking-tight ${logoTextColor}`}>{nombre || 'PadelwIArk'}</span>
         </Link>
 
         {/* Links desktop */}

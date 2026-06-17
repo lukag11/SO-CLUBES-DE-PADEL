@@ -12,7 +12,7 @@ const titles = {
 
 const usePageTitle = () => {
   const { pathname } = useLocation()
-  return titles[pathname] || 'PadelOS'
+  return titles[pathname] || 'PadelwIArk'
 }
 
 export default usePageTitle

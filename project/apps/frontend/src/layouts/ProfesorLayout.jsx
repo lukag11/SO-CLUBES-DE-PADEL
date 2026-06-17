@@ -96,7 +96,7 @@ const ProfesorLayout = () => {
             }
           </div>
           <div className="min-w-0">
-            <span className="text-white font-bold text-sm tracking-tight block truncate">{clubNombre || 'PadelOS'}</span>
+            <span className="text-white font-bold text-sm tracking-tight block truncate">{clubNombre || 'PadelwIArk'}</span>
             <span className="text-white/30 text-xs">Área Profesores</span>
           </div>
         </div>
@@ -166,7 +166,7 @@ const ProfesorLayout = () => {
           >
             <Menu size={18} />
           </button>
-          <span className="lg:hidden text-white font-bold text-sm tracking-tight truncate">{clubNombre || 'PadelOS'}</span>
+          <span className="lg:hidden text-white font-bold text-sm tracking-tight truncate">{clubNombre || 'PadelwIArk'}</span>
           <div className="hidden lg:block" />
 
           {/* Campana */}

@@ -131,7 +131,7 @@ const Step3Preferencias = ({ form, errors, handleChange, handleBlur, toggleArray
               <p className="text-sm font-medium text-white/80">Perfil público</p>
               <p className="text-xs text-white/35 mt-0.5 leading-relaxed">
                 {form.perfilPublico
-                  ? 'Visible para jugadores de cualquier club en la red PadelOS'
+                  ? 'Visible para jugadores de cualquier club en la red PadelwIArk'
                   : 'Solo vos y el administrador de tu club pueden ver tu perfil'}
               </p>
             </div>

@@ -2,6 +2,7 @@ import { verifyToken } from '../lib/jwt.js'
 import prisma from '../lib/prisma.js'
 import { featuresEfectivas, accesoBloqueado } from '../lib/planes.js'
 import { getMatriz } from '../lib/planesConfig.js'
+import { tienePermiso } from '../lib/permisos.js'
 
 export const requireAuth = (req, res, next) => {
   const header = req.headers.authorization
@@ -77,6 +78,28 @@ export const requireFeature = (featureId) => async (req, res, next) => {
   } catch (e) {
     console.error(e)
     res.status(500).json({ error: 'Error al validar el plan' })
+  }
+}
+
+// Exige que el ADMIN tenga el permiso del módulo. El dueño (rol 'owner') pasa
+// siempre; el empleado (rol 'staff') solo si tiene el permiso. Úsalo DESPUÉS de
+// requireRole('admin') — los demás roles ni llegan acá.
+export const requirePermiso = (permisoId) => async (req, res, next) => {
+  try {
+    const admin = await prisma.admin.findUnique({
+      where: { id: req.user.id },
+      select: { rol: true, permisos: true },
+    })
+    if (!admin) return res.status(401).json({ error: 'Sesión inválida' })
+    if (tienePermiso(admin, permisoId)) return next()
+    return res.status(403).json({
+      error: 'sin_permiso',
+      permiso: permisoId,
+      message: 'No tenés permiso para esta sección. Pedíselo al dueño del club.',
+    })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Error al validar el permiso' })
   }
 }
 

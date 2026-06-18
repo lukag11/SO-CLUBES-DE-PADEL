@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js'
 import { loginLimiter } from '../middleware/rateLimit.js'
 import { featuresEfectivas, accesoBloqueado } from '../lib/planes.js'
 import { getMatriz } from '../lib/planesConfig.js'
+import { permisosEfectivos } from '../lib/permisos.js'
 
 // Mensaje de bloqueo según el motivo (club suspendido / prueba vencida).
 const mensajeBloqueo = (motivo) =>
@@ -29,6 +30,8 @@ router.get('/admin/me', requireAuth, requireRole('admin'), async (req, res) => {
       nombre: admin.nombre,
       email: admin.email,
       role: 'admin',
+      rol: admin.rol,                       // owner | staff
+      permisos: permisosEfectivos(admin),   // módulos del empleado (owner = todos)
       club: { id: admin.club.id, nombre: admin.club.nombre, slug: admin.club.slug, plan: admin.club.plan, estado: admin.club.estado, features },
     })
   } catch (err) {
@@ -67,6 +70,8 @@ router.post('/admin/login', loginLimiter, async (req, res) => {
         nombre: admin.nombre,
         email: admin.email,
         role: 'admin',
+        rol: admin.rol,                       // owner | staff
+        permisos: permisosEfectivos(admin),   // módulos del empleado (owner = todos)
         club: { id: admin.club.id, nombre: admin.club.nombre, slug: admin.club.slug, plan: admin.club.plan, estado: admin.club.estado, features },
       },
     })

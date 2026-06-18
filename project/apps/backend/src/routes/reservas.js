@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { Prisma } from '@prisma/client'
 import prisma from '../lib/prisma.js'
-import { requireAuth, requireRole, requireActive, requireFeature } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireActive, requireFeature, requirePermiso } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { snapshotProductos } from '../lib/productos.js'
 import { descontarStock } from '../lib/stock.js'
@@ -910,7 +910,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
 
 // PATCH /api/reservas/:id   — admin actualiza campos (notas, precio, jugadores, jugadorId)
 // PATCH /api/reservas/:id/pago — admin marca la reserva como pagada/impaga + método
-router.patch('/:id/pago', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/pago', requireAuth, requireRole('admin'), requirePermiso('ventas'), async (req, res) => {
   const { id } = req.params
   const { pagado, metodoPago } = req.body
 
@@ -937,7 +937,7 @@ router.patch('/:id/pago', requireAuth, requireRole('admin'), async (req, res) =>
 // Cobra/anota el turno + las consumiciones juntas. El turno vive en la reserva; las
 // consumiciones van como cargos atados a jugadorId (o null=casual) + reservaId.
 // Body: { jugadorId|null, metodoPago|null (null=a cuenta), cobrarTurno:bool, consumos:[{concepto,monto}] }
-router.post('/:id/cobrar', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/:id/cobrar', requireAuth, requireRole('admin'), requirePermiso('ventas'), async (req, res) => {
   const { id } = req.params
   const { jugadorId = null, metodoPago = null, cobrarTurno = true, consumos = [] } = req.body
   const clubId = req.user.clubId
@@ -1019,7 +1019,7 @@ router.post('/:id/cobrar', requireAuth, requireRole('admin'), async (req, res) =
 // (cobro parcial/diferido). Cada persona paga su porción del turno (turnoMonto) y/o
 // sus consumos, cobrado (metodoPago) o a cuenta (sin metodoPago, solo jugador registrado).
 // Body: { pagos: [{ jugadorId|null, metodoPago|null, turnoMonto, consumos:[{concepto,monto}] }] }
-router.post('/:id/cuenta', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/:id/cuenta', requireAuth, requireRole('admin'), requirePermiso('ventas'), async (req, res) => {
   const { id } = req.params
   const { pagos = [] } = req.body
   const clubId = req.user.clubId
@@ -1122,7 +1122,7 @@ router.post('/:id/cuenta', requireAuth, requireRole('admin'), async (req, res) =
 
 // PATCH /api/reservas/:id/cobro-omitido — admin marca/desmarca un turno como "no se cobra"
 // (sale de cobranzas sin contar como ingreso; la reserva queda en el historial)
-router.patch('/:id/cobro-omitido', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/cobro-omitido', requireAuth, requireRole('admin'), requirePermiso('ventas'), async (req, res) => {
   const { id } = req.params
   const { omitido = true } = req.body
   try {

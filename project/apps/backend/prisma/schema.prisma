@@ -47,6 +47,8 @@ model Admin {
   nombre    String
   email     String   @unique
   password  String
+  rol       String   @default("owner") // owner (dueño, acceso total) | staff (empleado con permisos)
+  permisos  String[]                    // módulos habilitados para staff (owner ignora esto)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

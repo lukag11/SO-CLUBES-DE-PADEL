@@ -20,7 +20,7 @@ import sponsorsRouter from './routes/sponsors.js'
 import uploadsRouter from './routes/uploads.js'
 import devResetRouter from './routes/dev-reset.js'
 import platformRouter from './routes/platform.js'
-import { requireAuth, requireRole, requireFeature, requireClubActivo } from './middleware/auth.js'
+import { requireAuth, requireRole, requireFeature, requireClubActivo, requirePermiso } from './middleware/auth.js'
 
 const app = express()
 
@@ -53,13 +53,13 @@ app.use('/api/clubs', clubsRouter)
 app.use('/api/turnos-fijos', requireAuth, requireClubActivo, turnosFijosRouter)
 app.use('/api/notificaciones', requireAuth, requireClubActivo, notificacionesRouter)
 app.use('/api/cargos', cargosRouter)
-app.use('/api/productos', requireAuth, requireRole('admin'), requireFeature('finanzas'), productosRouter)
-app.use('/api/categorias', requireAuth, requireRole('admin'), requireFeature('finanzas'), categoriasRouter)
-app.use('/api/gastos', requireAuth, requireRole('admin'), requireFeature('finanzas'), gastosRouter)
-app.use('/api/comandas', requireAuth, requireRole('admin'), requireFeature('finanzas'), comandasRouter)
-app.use('/api/caja', requireAuth, requireRole('admin'), requireFeature('finanzas'), cajaRouter)
-app.use('/api/profesores', requireAuth, requireRole('admin'), requireFeature('profesores'), profesoresRouter)
-app.use('/api/sponsors', requireAuth, requireRole('admin'), requireFeature('sponsors'), sponsorsRouter)
+app.use('/api/productos', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), productosRouter)
+app.use('/api/categorias', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), categoriasRouter)
+app.use('/api/gastos', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('caja'), gastosRouter)
+app.use('/api/comandas', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), comandasRouter)
+app.use('/api/caja', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('caja'), cajaRouter)
+app.use('/api/profesores', requireAuth, requireRole('admin'), requireFeature('profesores'), requirePermiso('clases'), profesoresRouter)
+app.use('/api/sponsors', requireAuth, requireRole('admin'), requireFeature('sponsors'), requirePermiso('sponsors'), sponsorsRouter)
 app.use('/api/dev', devResetRouter)
 app.use('/api/platform', platformRouter)
 

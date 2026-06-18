@@ -10,6 +10,13 @@ import {
 } from 'lucide-react'
 import { usePlayerStats } from '../features/player-stats/usePlayerStats'
 
+// Color primario del club (white-label). Recharts pinta por ATRIBUTO SVG, donde
+// var(--club-primary) no resuelve → leemos el valor real en runtime y pasamos hex.
+const CLUB = () => {
+  if (typeof window === 'undefined') return '#afca0b'
+  return getComputedStyle(document.documentElement).getPropertyValue('--club-primary').trim() || '#afca0b'
+}
+
 // ── Helpers visuales ──────────────────────────────────────────────────────────
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -28,7 +35,7 @@ const RadarTooltip = ({ active, payload }) => {
   return (
     <div className="bg-[#111827] border border-white/10 rounded-xl px-3 py-2 text-xs">
       <p className="text-white font-semibold">{payload[0]?.payload?.subject}</p>
-      <p className="text-[#afca0b] mt-0.5">{payload[0]?.value}%</p>
+      <p className="text-club mt-0.5">{payload[0]?.value}%</p>
     </div>
   )
 }
@@ -40,7 +47,7 @@ const EvolucionTooltip = ({ active, payload }) => {
     <div className="bg-[#111827] border border-white/10 rounded-xl px-4 py-3 shadow-xl">
       <p className="text-white font-semibold text-xs mb-1 max-w-[200px] truncate">{d.torneo}</p>
       <p className="text-white/40 text-[11px] mb-2">{formatFechaMes(d.fecha)}</p>
-      <p className="text-sm font-semibold text-[#afca0b]">Acumulado: {d.winRateAcumulado}%</p>
+      <p className="text-sm font-semibold text-club">Acumulado: {d.winRateAcumulado}%</p>
       <p className="text-xs text-white/50 mt-0.5">En este torneo: {d.winRateTorneo}%</p>
     </div>
   )
@@ -50,9 +57,9 @@ const MiniStat = ({ label, value, sub, icon: Icon, accent = false, gold = false 
   <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5">
     <div className="flex items-start justify-between mb-3">
       <p className="text-white/40 text-xs font-medium">{label}</p>
-      <Icon size={15} className={gold ? 'text-yellow-400' : accent ? 'text-[#afca0b]' : 'text-white/20'} />
+      <Icon size={15} className={gold ? 'text-yellow-400' : accent ? 'text-club' : 'text-white/20'} />
     </div>
-    <p className={`text-3xl font-black ${gold ? 'text-yellow-400' : accent ? 'text-[#afca0b]' : 'text-white'}`}>{value}</p>
+    <p className={`text-3xl font-black ${gold ? 'text-yellow-400' : accent ? 'text-club' : 'text-white'}`}>{value}</p>
     {sub && <p className="text-white/30 text-xs mt-1">{sub}</p>}
   </div>
 )
@@ -78,7 +85,7 @@ const LoadingSkeleton = () => (
 )
 
 const TAG_CONFIG = {
-  favorable: { label: 'Favorable', color: 'text-[#afca0b]',  bg: 'bg-[#afca0b]/10 border-[#afca0b]/25', icon: TrendingUp },
+  favorable: { label: 'Favorable', color: 'text-club',  bg: 'bg-club/10 border-club/25', icon: TrendingUp },
   rival:     { label: 'Rival',     color: 'text-red-400',    bg: 'bg-red-400/10 border-red-400/25',       icon: TrendingDown },
   parejo:    { label: 'Parejo',    color: 'text-amber-400',  bg: 'bg-amber-400/10 border-amber-400/25',   icon: Minus },
 }
@@ -130,7 +137,7 @@ const ComparativaClub = ({ data }) => {
         </div>
         {ranked ? (
           <div className="text-right shrink-0">
-            <p className="text-2xl font-black text-[#afca0b] leading-none">Top {data.percentil}%</p>
+            <p className="text-2xl font-black text-club leading-none">Top {data.percentil}%</p>
             <p className="text-white/30 text-xs mt-1">#{data.posicion} de {data.totalJugadores}</p>
           </div>
         ) : (
@@ -150,7 +157,7 @@ const ComparativaClub = ({ data }) => {
 
       <div className="flex flex-col gap-3.5">
         {[
-          { label: 'Vos', value: miWinRate, color: 'bg-[#afca0b]', text: 'text-[#afca0b]', strong: true },
+          { label: 'Vos', value: miWinRate, color: 'bg-club', text: 'text-club', strong: true },
           { label: 'Promedio del club', value: promedioClub, color: 'bg-white/25', text: 'text-white/50' },
           { label: 'Mejor del club', value: mejorWinRate, color: 'bg-amber-400/60', text: 'text-amber-400/80' },
         ].map((row) => (
@@ -168,7 +175,7 @@ const ComparativaClub = ({ data }) => {
 
       {ranked && (
         <div className="mt-4 pt-4 border-t border-white/6">
-          <p className={`text-xs ${diff >= 0 ? 'text-[#afca0b]' : 'text-amber-400'}`}>
+          <p className={`text-xs ${diff >= 0 ? 'text-club' : 'text-amber-400'}`}>
             {diff > 0
               ? `Estás ${diff} puntos por encima del promedio del club. ¡Seguí así!`
               : diff === 0
@@ -193,7 +200,7 @@ const LogrosGrid = ({ logros, desbloqueados }) => {
           </h3>
           <p className="text-white/30 text-xs mt-0.5">Desbloqueá insignias jugando</p>
         </div>
-        <span className="text-xs font-semibold text-[#afca0b] bg-[#afca0b]/10 border border-[#afca0b]/20 px-2.5 py-1 rounded-lg">
+        <span className="text-xs font-semibold text-club bg-club/10 border border-club/20 px-2.5 py-1 rounded-lg">
           {desbloqueados}/{logros.length}
         </span>
       </div>
@@ -206,21 +213,21 @@ const LogrosGrid = ({ logros, desbloqueados }) => {
               key={l.id}
               className={`rounded-xl p-4 border flex flex-col items-center text-center gap-2 transition-all ${
                 l.desbloqueado
-                  ? 'border-[#afca0b]/30 bg-[#afca0b]/5'
+                  ? 'border-club/30 bg-club/5'
                   : 'border-white/6 bg-white/2'
               }`}
             >
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-                l.desbloqueado ? 'bg-[#afca0b]/15' : 'bg-white/4'
+                l.desbloqueado ? 'bg-club/15' : 'bg-white/4'
               }`}>
-                <Icon size={20} className={l.desbloqueado ? 'text-[#afca0b]' : 'text-white/20'} strokeWidth={l.desbloqueado ? 2.5 : 2} />
+                <Icon size={20} className={l.desbloqueado ? 'text-club' : 'text-white/20'} strokeWidth={l.desbloqueado ? 2.5 : 2} />
               </div>
               <div>
                 <p className={`font-semibold text-sm ${l.desbloqueado ? 'text-white' : 'text-white/45'}`}>{l.nombre}</p>
                 <p className="text-white/30 text-[11px] mt-0.5 leading-tight">{l.desc}</p>
               </div>
               {l.desbloqueado ? (
-                <span className="text-[10px] font-bold text-[#afca0b] uppercase tracking-wide mt-0.5">Desbloqueado</span>
+                <span className="text-[10px] font-bold text-club uppercase tracking-wide mt-0.5">Desbloqueado</span>
               ) : (
                 <div className="w-full mt-0.5">
                   <div className="h-1 bg-white/8 rounded-full overflow-hidden">
@@ -264,9 +271,9 @@ const TabResumen = ({ stats }) => {
       </div>
 
       {r.proximaReserva && (
-        <div className="bg-[#0d1117] border border-[#afca0b]/20 rounded-2xl p-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-[#afca0b]/10 flex items-center justify-center shrink-0">
-            <Calendar size={18} className="text-[#afca0b]" />
+        <div className="bg-[#0d1117] border border-club/20 rounded-2xl p-5 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-club/10 flex items-center justify-center shrink-0">
+            <Calendar size={18} className="text-club" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white/40 text-xs">Próxima reserva</p>
@@ -276,7 +283,7 @@ const TabResumen = ({ stats }) => {
             </p>
             {r.proximaReserva.cancha && <p className="text-white/30 text-xs mt-0.5">{r.proximaReserva.cancha}</p>}
           </div>
-          <span className="text-xs font-semibold text-[#afca0b] bg-[#afca0b]/10 border border-[#afca0b]/20 px-2.5 py-1 rounded-lg shrink-0">Confirmada</span>
+          <span className="text-xs font-semibold text-club bg-club/10 border border-club/20 px-2.5 py-1 rounded-lg shrink-0">Confirmada</span>
         </div>
       )}
 
@@ -301,12 +308,12 @@ const TabResumen = ({ stats }) => {
 
       {rachMaxima > 1 && (
         <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-[#afca0b]/10 flex items-center justify-center shrink-0">
-            <Flame size={18} className="text-[#afca0b]" />
+          <div className="w-10 h-10 rounded-xl bg-club/10 flex items-center justify-center shrink-0">
+            <Flame size={18} className="text-club" />
           </div>
           <div>
             <p className="text-white/40 text-xs">Mejor racha histórica</p>
-            <p className="text-white font-bold text-2xl">{rachMaxima} <span className="text-[#afca0b] text-base">victorias seguidas</span></p>
+            <p className="text-white font-bold text-2xl">{rachMaxima} <span className="text-club text-base">victorias seguidas</span></p>
           </div>
         </div>
       )}
@@ -320,7 +327,7 @@ const TabResumen = ({ stats }) => {
             </div>
             <div className="text-right">
               <p className="font-bold text-base">
-                <span className="text-[#afca0b]">{ganados}V</span>
+                <span className="text-club">{ganados}V</span>
                 <span className="text-white/20 mx-1">·</span>
                 <span className="text-red-400">{p.perdidos ?? 0}D</span>
               </p>
@@ -332,7 +339,7 @@ const TabResumen = ({ stats }) => {
               <div key={i} className="flex flex-col items-center gap-1">
                 <div className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm shadow-lg ${
                   res === 'W'
-                    ? 'bg-[#afca0b] text-black'
+                    ? 'bg-club text-black'
                     : 'bg-red-500/20 border-2 border-red-500/60 text-red-400'
                 }`}>
                   {res === 'W' ? 'V' : 'D'}
@@ -345,7 +352,7 @@ const TabResumen = ({ stats }) => {
             <div className="mt-4 pt-4 border-t border-white/6 flex items-center gap-2">
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${
                 recentTrend[recentTrend.length - 1] === 'W'
-                  ? 'bg-[#afca0b]/10 text-[#afca0b] border-[#afca0b]/20'
+                  ? 'bg-club/10 text-club border-club/20'
                   : 'bg-red-500/10 text-red-400 border-red-500/20'
               }`}>{rachaLabel}</span>
               <span className="text-white/30 text-xs">racha actual</span>
@@ -393,8 +400,8 @@ const TabTorneos = ({ stats }) => {
       {topCompaneros.length > 0 && (
         <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 rounded-xl bg-[#afca0b]/10 flex items-center justify-center shrink-0">
-              <Users size={15} className="text-[#afca0b]" />
+            <div className="w-8 h-8 rounded-xl bg-club/10 flex items-center justify-center shrink-0">
+              <Users size={15} className="text-club" />
             </div>
             <div>
               <p className="text-white font-semibold text-sm">Compañeros frecuentes</p>
@@ -408,7 +415,7 @@ const TabTorneos = ({ stats }) => {
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-medium text-sm truncate">{c.nombre}</p>
                 </div>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg border ${i === 0 ? 'text-[#afca0b] bg-[#afca0b]/10 border-[#afca0b]/20' : 'text-white/40 bg-white/4 border-white/8'}`}>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg border ${i === 0 ? 'text-club bg-club/10 border-club/20' : 'text-white/40 bg-white/4 border-white/8'}`}>
                   {c.veces} torneo{c.veces > 1 ? 's' : ''}
                 </span>
               </div>
@@ -430,17 +437,17 @@ const TabTorneos = ({ stats }) => {
                   <div key={categoria}>
                     <div className="flex justify-between items-center mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-[#afca0b] bg-[#afca0b]/10 border border-[#afca0b]/20 px-2 py-0.5 rounded-lg">{categoria}</span>
+                        <span className="text-xs font-bold text-club bg-club/10 border border-club/20 px-2 py-0.5 rounded-lg">{categoria}</span>
                         <span className="text-white/40 text-xs">{total} partidos</span>
                       </div>
                       <span className="text-white font-bold text-sm">{pct}%</span>
                     </div>
                     <div className="h-2 bg-white/6 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-[#afca0b] to-[#c4e20c] rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                      <div className="h-full bg-gradient-to-r from-club to-[#c4e20c] rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
                     </div>
                     <div className="flex justify-between mt-1">
                       <span className="text-white/25 text-xs">{g}V · {pd}D</span>
-                      <span className={`text-xs font-medium ${pct >= 60 ? 'text-[#afca0b]' : pct >= 40 ? 'text-amber-400' : 'text-red-400'}`}>{pct >= 60 ? 'Bueno' : pct >= 40 ? 'Regular' : 'A mejorar'}</span>
+                      <span className={`text-xs font-medium ${pct >= 60 ? 'text-club' : pct >= 40 ? 'text-amber-400' : 'text-red-400'}`}>{pct >= 60 ? 'Bueno' : pct >= 40 ? 'Regular' : 'A mejorar'}</span>
                     </div>
                   </div>
                 )
@@ -460,7 +467,7 @@ const TabTorneos = ({ stats }) => {
                 <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="ganados" name="Victorias" radius={[6, 6, 0, 0]}>
-                  {fasesData.map((_, i) => <Cell key={i} fill="#afca0b" />)}
+                  {fasesData.map((_, i) => <Cell key={i} fill={CLUB()} />)}
                 </Bar>
                 <Bar dataKey="total" name="Total" radius={[6, 6, 0, 0]}>
                   {fasesData.map((_, i) => <Cell key={i} fill="rgba(255,255,255,0.1)" />)}
@@ -497,7 +504,7 @@ const TabTorneos = ({ stats }) => {
                 <p className="text-white/30 text-xs mt-0.5">Win rate acumulado torneo a torneo</p>
               </div>
               <div className="text-right">
-                <div className={`flex items-center gap-1 justify-end font-bold ${delta > 0 ? 'text-[#afca0b]' : delta < 0 ? 'text-red-400' : 'text-white/40'}`}>
+                <div className={`flex items-center gap-1 justify-end font-bold ${delta > 0 ? 'text-club' : delta < 0 ? 'text-red-400' : 'text-white/40'}`}>
                   {delta > 0 ? <TrendingUp size={16} /> : delta < 0 ? <TrendingDown size={16} /> : <Minus size={16} />}
                   <span>{delta > 0 ? '+' : ''}{delta} pts</span>
                 </div>
@@ -508,8 +515,8 @@ const TabTorneos = ({ stats }) => {
               <LineChart data={evolucionWinRate} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="gradEvo" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#afca0b" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="#afca0b" stopOpacity={1} />
+                    <stop offset="0%" stopColor={CLUB()} stopOpacity={0.4} />
+                    <stop offset="100%" stopColor={CLUB()} stopOpacity={1} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
@@ -518,11 +525,11 @@ const TabTorneos = ({ stats }) => {
                 <Tooltip content={<EvolucionTooltip />} />
                 <ReferenceLine y={50} stroke="rgba(255,255,255,0.12)" strokeDasharray="4 4" />
                 <Line type="monotone" dataKey="winRateTorneo" name="Por torneo" stroke="rgba(255,255,255,0.18)" strokeWidth={1.5} dot={false} />
-                <Line type="monotone" dataKey="winRateAcumulado" name="Acumulado" stroke="url(#gradEvo)" strokeWidth={3} dot={{ fill: '#afca0b', r: 3, strokeWidth: 0 }} activeDot={{ r: 6, fill: '#afca0b', strokeWidth: 0 }} />
+                <Line type="monotone" dataKey="winRateAcumulado" name="Acumulado" stroke="url(#gradEvo)" strokeWidth={3} dot={{ fill: CLUB(), r: 3, strokeWidth: 0 }} activeDot={{ r: 6, fill: CLUB(), strokeWidth: 0 }} />
               </LineChart>
             </ResponsiveContainer>
             <div className="flex items-center gap-4 mt-3 justify-end">
-              <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 bg-[#afca0b] rounded-full" /><span className="text-white/40 text-xs">Acumulado</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 bg-club rounded-full" /><span className="text-white/40 text-xs">Acumulado</span></div>
               <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 bg-white/25 rounded-full" /><span className="text-white/40 text-xs">Por torneo</span></div>
             </div>
           </div>
@@ -537,19 +544,19 @@ const TabTorneos = ({ stats }) => {
           <div className="flex-1">
             <p className="text-white/40 text-xs mb-2">Sets ganados / perdidos</p>
             <div className="flex items-center gap-2">
-              <span className="text-[#afca0b] font-black text-2xl leading-none">{p.setsGanados}</span>
+              <span className="text-club font-black text-2xl leading-none">{p.setsGanados}</span>
               <span className="text-white/20 text-lg">·</span>
               <span className="text-red-400 font-black text-2xl leading-none">{p.setsPerdidos}</span>
             </div>
             <div className="mt-2 h-1.5 bg-white/6 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-[#afca0b] to-[#c4e20c] rounded-full transition-all duration-700"
+                className="h-full bg-gradient-to-r from-club to-[#c4e20c] rounded-full transition-all duration-700"
                 style={{ width: `${Math.round((p.setsGanados / (p.setsGanados + p.setsPerdidos)) * 100)}%` }}
               />
             </div>
           </div>
           <div className="text-right shrink-0">
-            <p className={`text-2xl font-black leading-none ${Math.round((p.setsGanados / (p.setsGanados + p.setsPerdidos)) * 100) >= 50 ? 'text-[#afca0b]' : 'text-red-400'}`}>
+            <p className={`text-2xl font-black leading-none ${Math.round((p.setsGanados / (p.setsGanados + p.setsPerdidos)) * 100) >= 50 ? 'text-club' : 'text-red-400'}`}>
               {Math.round((p.setsGanados / (p.setsGanados + p.setsPerdidos)) * 100)}%
             </p>
             <p className="text-white/30 text-xs mt-0.5">en sets</p>
@@ -577,7 +584,7 @@ const TabTorneos = ({ stats }) => {
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-white font-semibold">Trayectoria de categoría</h3>
             {categoriaActual && (
-              <span className="text-xs text-[#afca0b] bg-[#afca0b]/10 border border-[#afca0b]/20 px-2.5 py-1 rounded-lg font-semibold">
+              <span className="text-xs text-club bg-club/10 border border-club/20 px-2.5 py-1 rounded-lg font-semibold">
                 Actual: {categoriaActual}
               </span>
             )}
@@ -588,13 +595,13 @@ const TabTorneos = ({ stats }) => {
               const esActual = ev.categoria === categoriaActual
               const winPct = Math.round(ev.winRate ?? 0)
               return (
-                <div key={ev.categoria} className={`rounded-xl p-4 border transition-all ${esActual ? 'border-[#afca0b]/40 bg-[#afca0b]/4' : 'border-white/6 bg-white/2'}`}>
+                <div key={ev.categoria} className={`rounded-xl p-4 border transition-all ${esActual ? 'border-club/40 bg-club/4' : 'border-white/6 bg-white/2'}`}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2.5">
-                      <span className={`text-sm font-bold px-2.5 py-0.5 rounded-lg border ${esActual ? 'text-[#afca0b] bg-[#afca0b]/12 border-[#afca0b]/30' : 'text-white/60 bg-white/5 border-white/10'}`}>
+                      <span className={`text-sm font-bold px-2.5 py-0.5 rounded-lg border ${esActual ? 'text-club bg-club/12 border-club/30' : 'text-white/60 bg-white/5 border-white/10'}`}>
                         {ev.categoria}
                       </span>
-                      {esActual && <span className="text-[10px] text-[#afca0b]/70 font-medium">EN CURSO</span>}
+                      {esActual && <span className="text-[10px] text-club/70 font-medium">EN CURSO</span>}
                       {ev.titulos > 0 && (
                         <div className="flex items-center gap-1">
                           {Array.from({ length: Math.min(ev.titulos, 3) }).map((_, i) => (
@@ -605,12 +612,12 @@ const TabTorneos = ({ stats }) => {
                       )}
                     </div>
                     <div className="text-right">
-                      <p className={`text-lg font-black leading-none ${winPct >= 60 ? 'text-[#afca0b]' : winPct >= 40 ? 'text-amber-400' : 'text-red-400'}`}>{winPct}%</p>
+                      <p className={`text-lg font-black leading-none ${winPct >= 60 ? 'text-club' : winPct >= 40 ? 'text-amber-400' : 'text-red-400'}`}>{winPct}%</p>
                       <p className="text-white/25 text-[10px] mt-0.5">{ev.ganados}V · {ev.perdidos}D</p>
                     </div>
                   </div>
                   <div className="h-1.5 bg-white/6 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-700 ${winPct >= 60 ? 'bg-gradient-to-r from-[#afca0b] to-[#c4e20c]' : winPct >= 40 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${winPct}%` }} />
+                    <div className={`h-full rounded-full transition-all duration-700 ${winPct >= 60 ? 'bg-gradient-to-r from-club to-[#c4e20c]' : winPct >= 40 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${winPct}%` }} />
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-white/25 text-xs">{ev.torneos} torneo{ev.torneos !== 1 ? 's' : ''}</span>
@@ -637,7 +644,7 @@ const TabTorneos = ({ stats }) => {
                   <p className="text-white font-medium text-sm truncate">{item.nombre}</p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {item.categorias.map((c) => (
-                      <span key={c} className="text-xs text-[#afca0b] bg-[#afca0b]/8 border border-[#afca0b]/20 px-1.5 py-0.5 rounded">{c}</span>
+                      <span key={c} className="text-xs text-club bg-club/8 border border-club/20 px-1.5 py-0.5 rounded">{c}</span>
                     ))}
                     {item.fechaInicio && <span className="text-white/25 text-xs">{formatFechaMes(item.fechaInicio)}</span>}
                     {item.partidosJugados > 0 && (
@@ -710,8 +717,8 @@ const TabReservas = ({ stats, periodo }) => {
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 bg-[#afca0b] rounded-full" />
-                <span className="text-[#afca0b] text-xs">Confirmadas</span>
+                <div className="w-2 h-2 bg-club rounded-full" />
+                <span className="text-club text-xs">Confirmadas</span>
               </div>
               {porMes.some((m) => (m.canceladas ?? 0) > 0) && (
                 <div className="flex items-center gap-1.5">
@@ -725,8 +732,8 @@ const TabReservas = ({ stats, periodo }) => {
             <AreaChart data={porMes.map((m) => ({ mes: m.mes, confirmadas: m.confirmadas, canceladas: m.canceladas ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
               <defs>
                 <linearGradient id="gradRes" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#afca0b" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#afca0b" stopOpacity={0} />
+                  <stop offset="5%" stopColor={CLUB()} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={CLUB()} stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gradCanc" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#f87171" stopOpacity={0.2} />
@@ -737,7 +744,7 @@ const TabReservas = ({ stats, periodo }) => {
               <XAxis dataKey="mes" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 12 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="confirmadas" name="Confirmadas" stroke="#afca0b" strokeWidth={2.5} fill="url(#gradRes)" dot={{ fill: '#afca0b', r: 4, strokeWidth: 0 }} activeDot={{ r: 6, fill: '#afca0b', strokeWidth: 0 }} />
+              <Area type="monotone" dataKey="confirmadas" name="Confirmadas" stroke={CLUB()} strokeWidth={2.5} fill="url(#gradRes)" dot={{ fill: CLUB(), r: 4, strokeWidth: 0 }} activeDot={{ r: 6, fill: CLUB(), strokeWidth: 0 }} />
               <Area type="monotone" dataKey="canceladas" name="Canceladas" stroke="#f87171" strokeWidth={1.5} strokeDasharray="4 4" fill="url(#gradCanc)" dot={false} activeDot={{ r: 4, fill: '#f87171', strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
@@ -756,7 +763,7 @@ const TabReservas = ({ stats, periodo }) => {
                 <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="cantidad" name="Reservas" radius={[4, 4, 0, 0]}>
-                  {dias.map((d) => <Cell key={d.dia} fill={d.dia === r.diaFavorito ? '#afca0b' : 'rgba(175,202,11,0.25)'} />)}
+                  {dias.map((d) => <Cell key={d.dia} fill={CLUB()} fillOpacity={d.dia === r.diaFavorito ? 1 : 0.25} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -776,11 +783,11 @@ const TabReservas = ({ stats, periodo }) => {
                 return (
                   <div key={franja}>
                     <div className="flex justify-between items-center mb-1.5">
-                      <span className={`text-sm font-medium ${franja === r.horarioFavorito ? 'text-[#afca0b]' : 'text-white/60'}`}>{franja}</span>
+                      <span className={`text-sm font-medium ${franja === r.horarioFavorito ? 'text-club' : 'text-white/60'}`}>{franja}</span>
                       <span className="text-white/40 text-xs">{cant} reservas · {pct}%</span>
                     </div>
                     <div className="h-2 bg-white/6 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all duration-700 ${franja === r.horarioFavorito ? 'bg-[#afca0b]' : 'bg-white/20'}`} style={{ width: `${pct}%` }} />
+                      <div className={`h-full rounded-full transition-all duration-700 ${franja === r.horarioFavorito ? 'bg-club' : 'bg-white/20'}`} style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 )
@@ -833,7 +840,7 @@ const TabOponentes = ({ fetchOponentes, oponentes, loadingOponentes, errorOponen
       <div className="grid xl:grid-cols-3 gap-4">
         <div className="xl:col-span-1 flex flex-col gap-3">
           {[
-            { label: 'Oponentes favorables', value: oponentes.favorables, color: 'text-[#afca0b]', bg: 'bg-[#afca0b]/8 border-[#afca0b]/15' },
+            { label: 'Oponentes favorables', value: oponentes.favorables, color: 'text-club', bg: 'bg-club/8 border-club/15' },
             { label: 'Rivales difíciles',    value: oponentes.rivales,    color: 'text-red-400',   bg: 'bg-red-400/8 border-red-400/15' },
             { label: 'Partidos parejos',     value: oponentes.parejos,    color: 'text-amber-400', bg: 'bg-amber-400/8 border-amber-400/15' },
           ].map(({ label, value, color, bg }) => (
@@ -857,7 +864,7 @@ const TabOponentes = ({ fetchOponentes, oponentes, loadingOponentes, errorOponen
               <RadarChart data={radarData}>
                 <PolarGrid stroke="rgba(255,255,255,0.06)" />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} />
-                <Radar name="vs oponente" dataKey="value" stroke="#afca0b" fill="#afca0b" fillOpacity={0.15} strokeWidth={2} />
+                <Radar name="vs oponente" dataKey="value" stroke={CLUB()} fill={CLUB()} fillOpacity={0.15} strokeWidth={2} />
                 <Tooltip content={<RadarTooltip />} />
               </RadarChart>
             </ResponsiveContainer>
@@ -874,13 +881,13 @@ const TabOponentes = ({ fetchOponentes, oponentes, loadingOponentes, errorOponen
               placeholder="Buscar oponente..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-white/5 border border-white/8 rounded-xl pl-9 pr-4 py-2 text-sm text-white placeholder:text-white/25 outline-none focus:border-[#afca0b]/40 transition-colors"
+              className="w-full bg-white/5 border border-white/8 rounded-xl pl-9 pr-4 py-2 text-sm text-white placeholder:text-white/25 outline-none focus:border-club/40 transition-colors"
             />
           </div>
           <div className="flex items-center gap-1 ml-auto">
             <span className="text-white/25 text-xs mr-1">Ordenar:</span>
             {[{ key: 'partidos', label: 'Partidos' }, { key: 'ganados', label: 'Victorias' }, { key: 'pct', label: '% Efect.' }].map(({ key, label }) => (
-              <button key={key} onClick={() => setSortBy(key)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${sortBy === key ? 'bg-[#afca0b]/12 text-[#afca0b] border border-[#afca0b]/25' : 'text-white/30 hover:text-white/60 border border-transparent'}`}>
+              <button key={key} onClick={() => setSortBy(key)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${sortBy === key ? 'bg-club/12 text-club border border-club/25' : 'text-white/30 hover:text-white/60 border border-transparent'}`}>
                 {label}
               </button>
             ))}
@@ -905,12 +912,12 @@ const TabOponentes = ({ fetchOponentes, oponentes, loadingOponentes, errorOponen
               </div>
               <div className="flex items-center gap-4 shrink-0">
                 <div className="text-center hidden sm:block"><p className="text-white font-semibold text-sm">{o.partidos}</p><p className="text-white/30 text-xs">partidos</p></div>
-                <div className="text-center hidden sm:block"><p className="text-[#afca0b] font-semibold text-sm">{o.ganados}V</p><p className="text-white/30 text-xs">ganados</p></div>
+                <div className="text-center hidden sm:block"><p className="text-club font-semibold text-sm">{o.ganados}V</p><p className="text-white/30 text-xs">ganados</p></div>
                 <div className="text-center hidden sm:block"><p className="text-red-400 font-semibold text-sm">{o.perdidos}D</p><p className="text-white/30 text-xs">perdidos</p></div>
                 <div className="w-24 hidden md:block">
                   <div className="flex justify-between mb-1"><span className="text-white/40 text-xs">{o.pct}%</span></div>
                   <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-500 ${o.pct >= 60 ? 'bg-[#afca0b]' : o.pct >= 40 ? 'bg-amber-400' : 'bg-red-400/60'}`} style={{ width: `${o.pct}%` }} />
+                    <div className={`h-full rounded-full transition-all duration-500 ${o.pct >= 60 ? 'bg-club' : o.pct >= 40 ? 'bg-amber-400' : 'bg-red-400/60'}`} style={{ width: `${o.pct}%` }} />
                   </div>
                 </div>
               </div>
@@ -955,7 +962,7 @@ const PlayerStatsPage = () => {
               onClick={() => setPeriodo(id)}
               className={`px-4 py-2 text-xs font-semibold transition-all ${
                 periodo === id
-                  ? 'bg-[#afca0b]/15 text-[#afca0b] border-r border-[#afca0b]/20 last:border-r-0'
+                  ? 'bg-club/15 text-club border-r border-club/20 last:border-r-0'
                   : 'text-white/35 hover:text-white/60 hover:bg-white/4 border-r border-white/6 last:border-r-0'
               }`}
             >
@@ -974,7 +981,7 @@ const PlayerStatsPage = () => {
             className={[
               'px-4 py-2.5 text-sm font-medium transition-all relative',
               tab === id
-                ? 'text-[#afca0b] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-[#afca0b] after:rounded-t'
+                ? 'text-club after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-club after:rounded-t'
                 : 'text-white/40 hover:text-white/70',
             ].join(' ')}
           >
@@ -986,8 +993,8 @@ const PlayerStatsPage = () => {
       {/* Contenido del tab */}
       {!tieneAlgo && tab === 'resumen' ? (
         <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-12 flex flex-col items-center gap-4 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-[#afca0b]/10 flex items-center justify-center">
-            <Trophy size={24} className="text-[#afca0b]" />
+          <div className="w-14 h-14 rounded-2xl bg-club/10 flex items-center justify-center">
+            <Trophy size={24} className="text-club" />
           </div>
           <div>
             <p className="text-white font-semibold text-lg">

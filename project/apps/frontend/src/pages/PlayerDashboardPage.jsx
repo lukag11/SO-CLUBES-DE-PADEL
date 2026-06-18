@@ -158,13 +158,13 @@ const PlayerDashboardPage = () => {
       {/* ── Hero perfil ── */}
       <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#0d1117] via-[#1a1f2e] to-[#0d1117] border border-white/8 p-8">
         {/* Glow decorativo */}
-        <div className="absolute top-0 right-0 w-72 h-72 bg-[#afca0b]/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#afca0b]/5 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-72 h-72 bg-club/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-club/5 rounded-full blur-2xl pointer-events-none" />
 
         <div className="relative z-10 flex items-center gap-6">
           {/* Avatar */}
-          <div className="w-20 h-20 rounded-2xl bg-[#afca0b]/15 border border-[#afca0b]/30 flex items-center justify-center shrink-0">
-            <span className="text-3xl font-bold text-[#afca0b]">{initials}</span>
+          <div className="w-20 h-20 rounded-2xl bg-club/15 border border-club/30 flex items-center justify-center shrink-0">
+            <span className="text-3xl font-bold text-club">{initials}</span>
           </div>
 
           {/* Info jugador */}
@@ -175,7 +175,7 @@ const PlayerDashboardPage = () => {
             </h2>
             <div className="flex items-center gap-3 mt-2">
               {categoriaReal && (
-                <span className="text-xs font-semibold text-[#1E1F23] bg-[#afca0b] px-2.5 py-1 rounded-lg">
+                <span className="text-xs font-semibold text-[#1E1F23] bg-club px-2.5 py-1 rounded-lg">
                   {categoriaReal}
                 </span>
               )}
@@ -189,7 +189,7 @@ const PlayerDashboardPage = () => {
               <div className="h-12 w-20 rounded-xl bg-white/5 animate-pulse ml-auto" />
             ) : totalPartidos > 0 ? (
               <>
-                <p className="text-5xl font-black text-[#afca0b]">{winRate}%</p>
+                <p className="text-5xl font-black text-club">{winRate}%</p>
                 <p className="text-white/40 text-xs mt-1">efectividad</p>
               </>
             ) : (
@@ -205,7 +205,7 @@ const PlayerDashboardPage = () => {
         <div className="relative z-10 grid grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/8">
           {statCards.map(({ label, value, icon: Icon }) => (
             <div key={label} className="text-center">
-              <Icon size={16} className="text-[#afca0b] mx-auto mb-1.5" />
+              <Icon size={16} className="text-club mx-auto mb-1.5" />
               <p className="text-xl font-bold text-white">
                 {loadingStats && label !== 'Torneos' ? '…' : value}
               </p>
@@ -218,7 +218,7 @@ const PlayerDashboardPage = () => {
       {/* ── Acciones rápidas ── */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Reservar cancha', icon: CalendarPlus, color: 'text-[#afca0b]', bg: 'hover:border-[#afca0b]/30 hover:bg-[#afca0b]/5', to: '/dashboardJugadores/reservas' },
+          { label: 'Reservar cancha', icon: CalendarPlus, color: 'text-club', bg: 'hover:border-club/30 hover:bg-club/5', to: '/dashboardJugadores/reservas' },
           { label: 'Ver torneos',     icon: Trophy,       color: 'text-amber-400', bg: 'hover:border-amber-400/30 hover:bg-amber-400/5', to: '/dashboardJugadores/torneos' },
           { label: 'Mis estadísticas',icon: BarChart3,    color: 'text-violet-400',bg: 'hover:border-violet-400/30 hover:bg-violet-400/5', to: '/dashboardJugadores/estadisticas' },
         ].map(({ label, icon: Icon, color, bg, to }) => (
@@ -270,12 +270,12 @@ const PlayerDashboardPage = () => {
       <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
         <div className="px-5 py-3.5 border-b border-white/6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CalendarDays size={15} className="text-[#afca0b]" />
+            <CalendarDays size={15} className="text-club" />
             <h3 className="text-white font-semibold text-sm">Próximas reservas</h3>
           </div>
           <button
             onClick={() => navigate('/dashboardJugadores/reservas')}
-            className="flex items-center gap-1 text-[#afca0b] text-xs font-medium hover:text-[#afca0b]/70 transition-colors"
+            className="flex items-center gap-1 text-club text-xs font-medium hover:text-club/70 transition-colors"
           >
             Reservar <ArrowRight size={12} />
           </button>
@@ -286,7 +286,7 @@ const PlayerDashboardPage = () => {
             <p className="text-white/30 text-sm">No tenés reservas próximas</p>
             <button
               onClick={() => navigate('/dashboardJugadores/reservas')}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#afca0b]/10 text-[#afca0b] hover:bg-[#afca0b]/15 transition-colors"
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-club/10 text-club hover:bg-club/15 transition-colors"
             >
               Reservar cancha
             </button>
@@ -298,9 +298,9 @@ const PlayerDashboardPage = () => {
               const esFijo = r.estado === 'confirmada' && r.esTurnoFijo
               return (
                 <div key={r.id} className={`px-4 py-3.5 flex items-center gap-3 ${pendiente ? 'bg-amber-500/3' : esFijo ? 'bg-violet-500/3' : ''}`}>
-                  <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center shrink-0 ${pendiente ? 'bg-amber-500/10 border border-amber-500/20' : esFijo ? 'bg-violet-500/10 border border-violet-500/20' : 'bg-[#afca0b]/10 border border-[#afca0b]/20'}`}>
-                    <span className={`font-black text-sm leading-none ${pendiente ? 'text-amber-400' : esFijo ? 'text-violet-400' : 'text-[#afca0b]'}`}>{r.fecha.slice(8)}</span>
-                    <span className={`text-[9px] uppercase opacity-60 ${pendiente ? 'text-amber-400' : esFijo ? 'text-violet-400' : 'text-[#afca0b]'}`}>{MESES[parseInt(r.fecha.slice(5,7))-1]}</span>
+                  <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center shrink-0 ${pendiente ? 'bg-amber-500/10 border border-amber-500/20' : esFijo ? 'bg-violet-500/10 border border-violet-500/20' : 'bg-club/10 border border-club/20'}`}>
+                    <span className={`font-black text-sm leading-none ${pendiente ? 'text-amber-400' : esFijo ? 'text-violet-400' : 'text-club'}`}>{r.fecha.slice(8)}</span>
+                    <span className={`text-[9px] uppercase opacity-60 ${pendiente ? 'text-amber-400' : esFijo ? 'text-violet-400' : 'text-club'}`}>{MESES[parseInt(r.fecha.slice(5,7))-1]}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -481,12 +481,12 @@ const PlayerDashboardPage = () => {
       <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
         <div className="px-5 py-3.5 border-b border-white/6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BarChart3 size={15} className="text-[#afca0b]" />
+            <BarChart3 size={15} className="text-club" />
             <h3 className="text-white font-semibold text-sm">Tu rendimiento</h3>
           </div>
           <button
             onClick={() => navigate('/dashboardJugadores/estadisticas')}
-            className="flex items-center gap-1 text-[#afca0b] text-xs font-medium hover:text-[#afca0b]/70 transition-colors"
+            className="flex items-center gap-1 text-club text-xs font-medium hover:text-club/70 transition-colors"
           >
             Ver estadísticas <ArrowRight size={12} />
           </button>
@@ -494,7 +494,7 @@ const PlayerDashboardPage = () => {
 
         {loadingStats ? (
           <div className="px-5 py-5 flex items-center gap-3">
-            <div className="w-4 h-4 rounded-full border-2 border-[#afca0b]/40 border-t-[#afca0b] animate-spin shrink-0" />
+            <div className="w-4 h-4 rounded-full border-2 border-club/40 border-t-club animate-spin shrink-0" />
             <p className="text-white/25 text-sm">Cargando rendimiento…</p>
           </div>
         ) : totalPartidos === 0 ? (
@@ -503,7 +503,7 @@ const PlayerDashboardPage = () => {
             <p className="text-white/30 text-sm">Todavía no jugaste partidos de torneo</p>
             <button
               onClick={() => navigate('/dashboardJugadores/torneos')}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#afca0b]/10 text-[#afca0b] hover:bg-[#afca0b]/15 transition-colors"
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-club/10 text-club hover:bg-club/15 transition-colors"
             >
               Ver torneos
             </button>
@@ -522,7 +522,7 @@ const PlayerDashboardPage = () => {
                     <div
                       key={i}
                       className={`flex-1 h-7 rounded-md flex items-center justify-center text-xs font-bold ${
-                        r === 'W' ? 'bg-[#afca0b]/20 text-[#afca0b]' : 'bg-red-500/15 text-red-400'
+                        r === 'W' ? 'bg-club/20 text-club' : 'bg-red-500/15 text-red-400'
                       }`}
                     >
                       {r === 'W' ? 'V' : 'D'}
@@ -539,14 +539,14 @@ const PlayerDashboardPage = () => {
                 <div className="flex flex-col divide-y divide-white/5 -mx-1">
                   {ultimosPartidos.slice(0, 3).map((p, i) => (
                     <div key={i} className="px-1 py-2.5 flex items-center gap-3">
-                      <div className={`w-1.5 h-9 rounded-full shrink-0 ${p.resultado === 'W' ? 'bg-[#afca0b]' : 'bg-red-500/60'}`} />
+                      <div className={`w-1.5 h-9 rounded-full shrink-0 ${p.resultado === 'W' ? 'bg-club' : 'bg-red-500/60'}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-medium truncate">vs {p.rival}</p>
                         <p className="text-white/35 text-xs mt-0.5 truncate">{p.torneo} · {fmtFechaCorta(p.fecha)}</p>
                       </div>
                       <div className="text-right shrink-0">
                         {p.score && <p className="text-white/70 text-sm font-mono">{p.score}</p>}
-                        <p className={`text-xs font-bold mt-0.5 ${p.resultado === 'W' ? 'text-[#afca0b]' : 'text-red-400'}`}>
+                        <p className={`text-xs font-bold mt-0.5 ${p.resultado === 'W' ? 'text-club' : 'text-red-400'}`}>
                           {p.resultado === 'W' ? 'Victoria' : 'Derrota'}
                         </p>
                       </div>
@@ -600,7 +600,7 @@ const PlayerDashboardPage = () => {
               <p className="text-white/50 text-xs leading-relaxed">
                 ¿Estás seguro que deseás cancelar esta reserva? Esta acción no se puede deshacer.
                 {horasMinimas > 0 && (
-                  <span className="block mt-1 text-[#afca0b]/60">
+                  <span className="block mt-1 text-club/60">
                     Cancelación gratuita — quedan {Math.floor(horasRestantes)}h de anticipación (mínimo {horasMinimas}h).
                   </span>
                 )}

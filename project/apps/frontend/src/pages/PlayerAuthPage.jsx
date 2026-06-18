@@ -8,13 +8,13 @@ import { api } from '../lib/api'
 
 const CourtDecoration = () => (
   <svg className="absolute inset-0 w-full h-full opacity-[0.07]" viewBox="0 0 500 700" fill="none" preserveAspectRatio="xMidYMid slice">
-    <rect x="60" y="80" width="380" height="540" stroke="#afca0b" strokeWidth="2" />
-    <line x1="60" y1="350" x2="440" y2="350" stroke="#afca0b" strokeWidth="2" />
-    <line x1="250" y1="80" x2="250" y2="620" stroke="#afca0b" strokeWidth="1.5" />
-    <rect x="60" y="80" width="380" height="180" stroke="#afca0b" strokeWidth="1" />
-    <rect x="60" y="440" width="380" height="180" stroke="#afca0b" strokeWidth="1" />
-    <line x1="60" y1="350" x2="440" y2="350" stroke="#afca0b" strokeWidth="4" strokeDasharray="8 4" />
-    <circle cx="250" cy="350" r="20" stroke="#afca0b" strokeWidth="1.5" />
+    <rect x="60" y="80" width="380" height="540" stroke="var(--club-primary)" strokeWidth="2" />
+    <line x1="60" y1="350" x2="440" y2="350" stroke="var(--club-primary)" strokeWidth="2" />
+    <line x1="250" y1="80" x2="250" y2="620" stroke="var(--club-primary)" strokeWidth="1.5" />
+    <rect x="60" y="80" width="380" height="180" stroke="var(--club-primary)" strokeWidth="1" />
+    <rect x="60" y="440" width="380" height="180" stroke="var(--club-primary)" strokeWidth="1" />
+    <line x1="60" y1="350" x2="440" y2="350" stroke="var(--club-primary)" strokeWidth="4" strokeDasharray="8 4" />
+    <circle cx="250" cy="350" r="20" stroke="var(--club-primary)" strokeWidth="1.5" />
   </svg>
 )
 
@@ -63,13 +63,13 @@ const PlayerAuthPage = () => {
 
       {/* Panel izquierdo — branding */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-[#0d1117] flex-col justify-between p-12 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0d1117] via-[#111827] to-[#afca0b]/15" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0d1117] via-[#111827] to-club/15" />
         <CourtDecoration />
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#afca0b]/8 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-club/8 rounded-full blur-3xl" />
 
         {/* Logo */}
         <Link to="/" className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#afca0b] rounded-xl flex items-center justify-center shadow-lg shadow-[#afca0b]/30">
+          <div className="w-10 h-10 bg-club rounded-xl flex items-center justify-center shadow-lg shadow-club/30">
             <Zap size={20} className="text-[#0d1117]" />
           </div>
           <span className="text-white font-bold text-xl tracking-tight">PadelwIArk</span>
@@ -77,10 +77,10 @@ const PlayerAuthPage = () => {
 
         {/* Tagline */}
         <div className="relative z-10">
-          <div className="w-10 h-1 bg-[#afca0b] rounded-full mb-6" />
+          <div className="w-10 h-1 bg-club rounded-full mb-6" />
           <h1 className="text-4xl font-bold text-white leading-tight">
             Tu historial,<br />
-            <span className="text-[#afca0b]">tu carrera</span>
+            <span className="text-club">tu carrera</span>
           </h1>
           <p className="text-white/40 mt-4 text-base leading-relaxed max-w-sm">
             Accedé a tus estadísticas, torneos jugados, resultados y oponentes enfrentados.
@@ -98,7 +98,7 @@ const PlayerAuthPage = () => {
 
         <p className="relative z-10 text-white/20 text-xs">
           ¿No tenés cuenta?{' '}
-          <Link to="/dashboardJugadores/registro" className="text-[#afca0b]/60 hover:text-[#afca0b] transition-colors">
+          <Link to="/dashboardJugadores/registro" className="text-club/60 hover:text-club transition-colors">
             Registrate acá
           </Link>
         </p>
@@ -110,7 +110,7 @@ const PlayerAuthPage = () => {
 
           {/* Logo mobile */}
           <div className="flex items-center gap-2 mb-10 lg:hidden">
-            <div className="w-8 h-8 bg-[#afca0b] rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-club rounded-lg flex items-center justify-center">
               <Zap size={16} className="text-[#0d1117]" />
             </div>
             <span className="text-white font-bold text-lg">PadelwIArk — Jugadores</span>
@@ -160,7 +160,7 @@ const PlayerAuthPage = () => {
                 {error.includes('inexistente') && (
                   <Link
                     to="/dashboardJugadores/registro"
-                    className="text-[#afca0b] font-semibold text-xs whitespace-nowrap hover:underline shrink-0 mt-0.5"
+                    className="text-club font-semibold text-xs whitespace-nowrap hover:underline shrink-0 mt-0.5"
                   >
                     Registrarme →
                   </Link>
@@ -168,7 +168,7 @@ const PlayerAuthPage = () => {
               </div>
             )}
 
-            <Button type="submit" fullWidth loading={loading} size="lg" className="mt-2 !bg-[#afca0b] !text-[#0d1117] hover:!bg-[#c4e20c]">
+            <Button type="submit" fullWidth loading={loading} size="lg" className="mt-2 !bg-club !text-[#0d1117] hover:!bg-[#c4e20c]">
               Iniciar sesión
             </Button>
           </form>
@@ -183,7 +183,7 @@ const PlayerAuthPage = () => {
           {/* Link registro */}
           <p className="text-center text-sm text-white/30 mt-6">
             ¿No tenés cuenta?{' '}
-            <Link to="/dashboardJugadores/registro" className="text-[#afca0b] hover:text-[#c4e20c] font-semibold transition-colors">
+            <Link to="/dashboardJugadores/registro" className="text-club hover:text-[#c4e20c] font-semibold transition-colors">
               Registrate
             </Link>
           </p>

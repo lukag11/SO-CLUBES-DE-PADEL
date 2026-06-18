@@ -12,9 +12,9 @@ const fmtTimestamp = (iso) => {
 const TIPO_META = {
   reserva_confirmada: {
     icon: CalendarDays,
-    color: 'text-[#afca0b]',
-    bg: 'bg-[#afca0b]/10',
-    border: 'border-[#afca0b]/20',
+    color: 'text-club',
+    bg: 'bg-club/10',
+    border: 'border-club/20',
   },
   reserva_admin_manual: {
     icon: CalendarDays,
@@ -106,7 +106,7 @@ const PlayerNotificacionesPage = () => {
       {/* Lista */}
       <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-white/8 flex items-center gap-2">
-          <Bell size={16} className="text-[#afca0b]" />
+          <Bell size={16} className="text-club" />
           <h3 className="text-white font-semibold">Todas las notificaciones</h3>
         </div>
 

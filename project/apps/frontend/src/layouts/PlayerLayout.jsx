@@ -191,7 +191,7 @@ const PlayerLayout = () => {
 
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-white/5">
-          <div className="w-8 h-8 bg-[#afca0b] rounded-lg flex items-center justify-center shadow-lg shadow-[#afca0b]/20 shrink-0 overflow-hidden">
+          <div className="w-8 h-8 bg-club rounded-lg flex items-center justify-center shadow-lg shadow-club/20 shrink-0 overflow-hidden">
             {clubLogo
               ? <img src={clubLogo} alt={clubNombre || 'Club'} className="w-full h-full object-cover" />
               : <Zap size={16} className="text-[#0d1117]" />
@@ -206,8 +206,8 @@ const PlayerLayout = () => {
         {/* Avatar jugador */}
         <div className="px-4 py-4 border-b border-white/5">
           <div className="flex items-center gap-3 bg-white/4 rounded-xl px-3 py-2.5">
-            <div className="w-9 h-9 bg-[#afca0b]/15 border border-[#afca0b]/25 rounded-xl flex items-center justify-center shrink-0">
-              <span className="text-sm font-bold text-[#afca0b]">{initials}</span>
+            <div className="w-9 h-9 bg-club/15 border border-club/25 rounded-xl flex items-center justify-center shrink-0">
+              <span className="text-sm font-bold text-club">{initials}</span>
             </div>
             <div className="min-w-0">
               <p className="text-white text-sm font-medium truncate">
@@ -229,14 +229,14 @@ const PlayerLayout = () => {
                 [
                   'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
                   isActive
-                    ? 'bg-[#afca0b]/12 text-[#afca0b] border border-[#afca0b]/20'
+                    ? 'bg-club/12 text-club border border-club/20'
                     : 'text-white/40 hover:text-white hover:bg-white/5',
                 ].join(' ')
               }
             >
               {({ isActive }) => (
                 <>
-                  <Icon size={17} className={isActive ? 'text-[#afca0b]' : 'text-white/30'} />
+                  <Icon size={17} className={isActive ? 'text-club' : 'text-white/30'} />
                   {label}
                 </>
               )}

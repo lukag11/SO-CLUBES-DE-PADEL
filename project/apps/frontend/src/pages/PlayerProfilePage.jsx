@@ -55,7 +55,7 @@ const FieldInput = ({ label, name, type = 'text', value, onChange, onBlur, error
       placeholder={placeholder}
       className={[
         'w-full bg-white/5 border rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-white/20 outline-none transition-colors',
-        readOnly ? 'opacity-40 cursor-not-allowed border-white/5' : 'border-white/10 focus:border-[#afca0b]/50',
+        readOnly ? 'opacity-40 cursor-not-allowed border-white/5' : 'border-white/10 focus:border-club/50',
         error ? 'border-red-400/50' : '',
       ].join(' ')}
     />
@@ -74,7 +74,7 @@ const StyledSelect = ({ label, value, onChange, options, placeholder, error, dis
         disabled={disabled}
         className={[
           'w-full bg-white/5 border rounded-xl pl-9 pr-9 py-2.5 text-sm outline-none transition-colors appearance-none cursor-pointer',
-          disabled ? 'opacity-40 cursor-not-allowed border-white/5 text-white/30' : 'border-white/10 focus:border-[#afca0b]/50 text-white',
+          disabled ? 'opacity-40 cursor-not-allowed border-white/5 text-white/30' : 'border-white/10 focus:border-club/50 text-white',
           error ? 'border-red-400/50' : '',
         ].join(' ')}
         style={{ backgroundColor: '#0d1117' }}
@@ -108,7 +108,7 @@ const SelectChip = ({ options, selected, onToggle, multi = false, error, abbrevi
             className={[
               'px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-150',
               isActive
-                ? 'bg-[#afca0b]/15 border-[#afca0b]/40 text-[#afca0b]'
+                ? 'bg-club/15 border-club/40 text-club'
                 : 'bg-white/4 border-white/10 text-white/40 hover:text-white/70 hover:border-white/25',
             ].join(' ')}
           >
@@ -132,7 +132,7 @@ const PasswordInput = ({ label, name, value, onChange, error, show, onToggleShow
         onChange={onChange}
         className={[
           'w-full bg-white/5 border rounded-xl px-4 py-2.5 pr-11 text-sm text-white outline-none transition-colors',
-          error ? 'border-red-400/50' : 'border-white/10 focus:border-[#afca0b]/50',
+          error ? 'border-red-400/50' : 'border-white/10 focus:border-club/50',
         ].join(' ')}
       />
       <button
@@ -368,13 +368,13 @@ const DatosTab = ({ player, updatePlayer, token }) => {
       {/* Guardar */}
       <div className="flex items-center gap-3 justify-end">
         {saved && (
-          <span className="flex items-center gap-1.5 text-[#afca0b] text-sm font-medium">
+          <span className="flex items-center gap-1.5 text-club text-sm font-medium">
             <CheckCircle size={15} /> Cambios guardados
           </span>
         )}
         <button
           onClick={handleSave}
-          className="flex items-center gap-2 bg-[#afca0b] hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-150 shadow-lg shadow-[#afca0b]/20"
+          className="flex items-center gap-2 bg-club hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-150 shadow-lg shadow-club/20"
         >
           <Save size={15} />
           Guardar cambios
@@ -469,7 +469,7 @@ const PasswordTab = () => {
                     className={[
                       'h-1.5 flex-1 rounded-full transition-all duration-300',
                       i < strength
-                        ? strength === 1 ? 'bg-red-400' : strength === 2 ? 'bg-amber-400' : 'bg-[#afca0b]'
+                        ? strength === 1 ? 'bg-red-400' : strength === 2 ? 'bg-amber-400' : 'bg-club'
                         : 'bg-white/8',
                     ].join(' ')}
                   />
@@ -481,7 +481,7 @@ const PasswordTab = () => {
                   { ok: checks.upper, text: 'Una mayúscula' },
                   { ok: checks.number, text: 'Un número' },
                 ].map(({ ok, text }) => (
-                  <span key={text} className={`flex items-center gap-1.5 text-xs ${ok ? 'text-[#afca0b]' : 'text-white/25'}`}>
+                  <span key={text} className={`flex items-center gap-1.5 text-xs ${ok ? 'text-club' : 'text-white/25'}`}>
                     <CheckCircle size={11} />
                     {text}
                   </span>
@@ -515,7 +515,7 @@ const PasswordTab = () => {
         <button
           onClick={handleSave}
           disabled={submitting}
-          className="flex items-center gap-2 bg-[#afca0b] hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-150 shadow-lg shadow-[#afca0b]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 bg-club hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-150 shadow-lg shadow-club/20 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Lock size={15} />
           {submitting ? 'Actualizando…' : 'Actualizar contraseña'}
@@ -598,8 +598,8 @@ const PlayerProfilePage = () => {
 
       {/* Header */}
       <div className="flex items-center gap-5">
-        <div className="w-16 h-16 rounded-2xl bg-[#afca0b]/15 border border-[#afca0b]/30 flex items-center justify-center shrink-0">
-          <span className="text-2xl font-bold text-[#afca0b]">{initials}</span>
+        <div className="w-16 h-16 rounded-2xl bg-club/15 border border-club/30 flex items-center justify-center shrink-0">
+          <span className="text-2xl font-bold text-club">{initials}</span>
         </div>
         <div>
           <h2 className="text-2xl font-bold text-white">
@@ -621,7 +621,7 @@ const PlayerProfilePage = () => {
             className={[
               'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150',
               activeTab === key
-                ? 'bg-[#afca0b] text-[#0d1117] shadow-lg shadow-[#afca0b]/20'
+                ? 'bg-club text-[#0d1117] shadow-lg shadow-club/20'
                 : 'text-white/40 hover:text-white/70',
             ].join(' ')}
           >

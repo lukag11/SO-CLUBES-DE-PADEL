@@ -19,7 +19,7 @@ const ToggleChip = ({ label, selected, onClick }) => (
     className={[
       'px-3 py-2 rounded-xl text-sm font-medium border transition-all duration-150',
       selected
-        ? 'bg-[#afca0b]/15 border-[#afca0b]/50 text-[#afca0b]'
+        ? 'bg-club/15 border-club/50 text-club'
         : 'bg-white/4 border-white/10 text-white/50 hover:border-white/25 hover:text-white/80',
     ].join(' ')}
   >
@@ -35,7 +35,7 @@ const PasswordStrength = ({ password }) => {
     { label: 'Número', ok: /\d/.test(password) },
   ]
   const score = checks.filter((c) => c.ok).length
-  const colors = ['bg-red-500', 'bg-amber-400', 'bg-[#afca0b]']
+  const colors = ['bg-red-500', 'bg-amber-400', 'bg-club']
 
   return (
     <div className="mt-2">
@@ -49,7 +49,7 @@ const PasswordStrength = ({ password }) => {
       </div>
       <div className="flex gap-3">
         {checks.map(({ label, ok }) => (
-          <span key={label} className={`text-xs ${ok ? 'text-[#afca0b]' : 'text-white/25'}`}>
+          <span key={label} className={`text-xs ${ok ? 'text-club' : 'text-white/25'}`}>
             {ok ? '✓' : '·'} {label}
           </span>
         ))}
@@ -77,7 +77,7 @@ const Step3Preferencias = ({ form, errors, handleChange, handleBlur, toggleArray
               className={[
                 'px-4 py-3 rounded-xl border text-sm font-medium text-left transition-all duration-150',
                 form.frecuencia === f
-                  ? 'bg-[#afca0b]/12 border-[#afca0b]/50 text-[#afca0b]'
+                  ? 'bg-club/12 border-club/50 text-club'
                   : 'bg-white/4 border-white/10 text-white/50 hover:border-white/25 hover:text-white/80',
               ].join(' ')}
             >
@@ -124,8 +124,8 @@ const Step3Preferencias = ({ form, errors, handleChange, handleBlur, toggleArray
       <div className="rounded-2xl border border-white/8 bg-white/3 p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className={`mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${form.perfilPublico ? 'bg-[#afca0b]/15' : 'bg-white/6'}`}>
-              <Globe size={16} className={form.perfilPublico ? 'text-[#afca0b]' : 'text-white/30'} />
+            <div className={`mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${form.perfilPublico ? 'bg-club/15' : 'bg-white/6'}`}>
+              <Globe size={16} className={form.perfilPublico ? 'text-club' : 'text-white/30'} />
             </div>
             <div>
               <p className="text-sm font-medium text-white/80">Perfil público</p>
@@ -139,7 +139,7 @@ const Step3Preferencias = ({ form, errors, handleChange, handleBlur, toggleArray
           <button
             type="button"
             onClick={() => setValue('perfilPublico', !form.perfilPublico)}
-            className={`relative shrink-0 w-11 h-6 rounded-full transition-colors duration-200 ${form.perfilPublico ? 'bg-[#afca0b]' : 'bg-white/15'}`}
+            className={`relative shrink-0 w-11 h-6 rounded-full transition-colors duration-200 ${form.perfilPublico ? 'bg-club' : 'bg-white/15'}`}
           >
             <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${form.perfilPublico ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>

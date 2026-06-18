@@ -31,16 +31,16 @@ const AvatarUpload = ({ onChange }) => {
   return (
     <div className="flex flex-col items-center gap-3 mb-2">
       <div className="relative group cursor-pointer" onClick={() => inputRef.current.click()}>
-        <div className="w-20 h-20 rounded-2xl bg-white/8 border-2 border-dashed border-white/20 group-hover:border-[#afca0b]/60 flex flex-col items-center justify-center transition-all duration-200 overflow-hidden">
+        <div className="w-20 h-20 rounded-2xl bg-white/8 border-2 border-dashed border-white/20 group-hover:border-club/60 flex flex-col items-center justify-center transition-all duration-200 overflow-hidden">
           {preview
             ? <img src={preview} alt="avatar" className="w-full h-full object-cover" />
             : <>
-                <Camera size={22} className="text-white/30 group-hover:text-[#afca0b] transition-colors" />
-                <span className="text-white/30 group-hover:text-[#afca0b] text-xs mt-1 transition-colors">Foto</span>
+                <Camera size={22} className="text-white/30 group-hover:text-club transition-colors" />
+                <span className="text-white/30 group-hover:text-club text-xs mt-1 transition-colors">Foto</span>
               </>
           }
         </div>
-        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#afca0b] rounded-lg flex items-center justify-center shadow-lg">
+        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-club rounded-lg flex items-center justify-center shadow-lg">
           <span className="text-[#0d1117] text-xs font-bold">{preview ? '✓' : '+'}</span>
         </div>
       </div>
@@ -66,7 +66,7 @@ const StyledSelect = ({ label, value, onChange, onBlur, options, placeholder, er
         disabled={disabled}
         className={[
           'w-full bg-white/5 border rounded-xl pl-9 pr-9 py-2.5 text-sm outline-none transition-colors appearance-none cursor-pointer',
-          disabled ? 'opacity-40 cursor-not-allowed border-white/5 text-white/30' : 'border-white/10 focus:border-[#afca0b]/50 text-white',
+          disabled ? 'opacity-40 cursor-not-allowed border-white/5 text-white/30' : 'border-white/10 focus:border-club/50 text-white',
           error ? 'border-red-400/50' : '',
         ].join(' ')}
         style={{ backgroundColor: '#0d1117' }}
@@ -286,8 +286,8 @@ const Step1Basicos = ({ form, errors, handleChange, handleBlur, setValue }) => {
         </label>
         <div className={`flex items-center gap-0 bg-white/5 border rounded-xl overflow-hidden transition-colors ${
           form.telefono.replace(/\s/g, '').length === 10
-            ? 'border-[#afca0b]/60'
-            : 'border-white/10 focus-within:border-[#afca0b]/50'
+            ? 'border-club/60'
+            : 'border-white/10 focus-within:border-club/50'
         }`}>
           <div className="flex items-center gap-1.5 px-3 py-2.5 border-r border-white/10 shrink-0">
             <Phone size={14} className="text-white/30" />
@@ -316,7 +316,7 @@ const Step1Basicos = ({ form, errors, handleChange, handleBlur, setValue }) => {
             className="flex-1 bg-transparent px-3 py-2.5 text-sm text-white outline-none placeholder-white/20 font-mono"
           />
           {form.telefono.replace(/\s/g, '').length === 10 && (
-            <CheckCircle2 size={16} className="text-[#afca0b] mr-3 shrink-0" />
+            <CheckCircle2 size={16} className="text-club mr-3 shrink-0" />
           )}
         </div>
         {telHint && <p className="text-amber-400 text-xs mt-1 animate-pulse">{telHint}</p>}

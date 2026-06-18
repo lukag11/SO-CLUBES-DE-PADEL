@@ -28,9 +28,9 @@ const Stepper = ({ current }) => (
               className={[
                 'w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold transition-all duration-300 border-2',
                 done
-                  ? 'bg-[#afca0b] border-[#afca0b] text-[#0d1117]'
+                  ? 'bg-club border-club text-[#0d1117]'
                   : active
-                  ? 'bg-transparent border-[#afca0b] text-[#afca0b]'
+                  ? 'bg-transparent border-club text-club'
                   : 'bg-transparent border-white/15 text-white/25',
               ].join(' ')}
             >
@@ -38,7 +38,7 @@ const Stepper = ({ current }) => (
             </div>
             <span
               className={`text-xs font-medium whitespace-nowrap ${
-                active ? 'text-[#afca0b]' : done ? 'text-white/60' : 'text-white/20'
+                active ? 'text-club' : done ? 'text-white/60' : 'text-white/20'
               }`}
             >
               {step.short}
@@ -48,7 +48,7 @@ const Stepper = ({ current }) => (
           {/* Conector */}
           {i < STEPS.length - 1 && (
             <div className="flex-1 h-px mx-3 mb-5 transition-all duration-300">
-              <div className={`h-full ${done ? 'bg-[#afca0b]/50' : 'bg-white/10'}`} />
+              <div className={`h-full ${done ? 'bg-club/50' : 'bg-white/10'}`} />
             </div>
           )}
         </div>
@@ -68,12 +68,12 @@ const LeftPanel = ({ step }) => {
 
   return (
     <div className="hidden lg:flex lg:w-[420px] shrink-0 relative bg-[#0d1117] border-r border-white/5 flex-col justify-between p-12 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0d1117] via-[#111827] to-[#afca0b]/10" />
-      <div className="absolute top-1/4 right-0 w-64 h-64 bg-[#afca0b]/8 rounded-full blur-3xl" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0d1117] via-[#111827] to-club/10" />
+      <div className="absolute top-1/4 right-0 w-64 h-64 bg-club/8 rounded-full blur-3xl" />
 
       {/* Logo */}
       <Link to="/" className="relative z-10 flex items-center gap-3">
-        <div className="w-9 h-9 bg-[#afca0b] rounded-xl flex items-center justify-center shadow-lg shadow-[#afca0b]/25">
+        <div className="w-9 h-9 bg-club rounded-xl flex items-center justify-center shadow-lg shadow-club/25">
           <Zap size={18} className="text-[#0d1117]" />
         </div>
         <span className="text-white font-bold text-lg tracking-tight">PadelwIArk</span>
@@ -81,7 +81,7 @@ const LeftPanel = ({ step }) => {
 
       {/* Contenido dinámico por paso */}
       <div className="relative z-10">
-        <div className="w-12 h-1 bg-[#afca0b] rounded-full mb-6" />
+        <div className="w-12 h-1 bg-club rounded-full mb-6" />
         <h2 className="text-3xl font-bold text-white leading-tight transition-all">
           {title}
         </h2>
@@ -95,7 +95,7 @@ const LeftPanel = ({ step }) => {
             <div
               key={s.id}
               className={`h-1.5 rounded-full transition-all duration-300 ${
-                s.id === step ? 'w-8 bg-[#afca0b]' : s.id < step ? 'w-4 bg-[#afca0b]/40' : 'w-4 bg-white/10'
+                s.id === step ? 'w-8 bg-club' : s.id < step ? 'w-4 bg-club/40' : 'w-4 bg-white/10'
               }`}
             />
           ))}
@@ -106,7 +106,7 @@ const LeftPanel = ({ step }) => {
       <div className="relative z-10">
         <p className="text-white/20 text-xs">
           ¿Ya tenés cuenta?{' '}
-          <Link to="/dashboardJugadores" className="text-[#afca0b]/60 hover:text-[#afca0b] transition-colors">
+          <Link to="/dashboardJugadores" className="text-club/60 hover:text-club transition-colors">
             Iniciá sesión
           </Link>
         </p>
@@ -188,7 +188,7 @@ const PlayerRegisterPage = () => {
 
             {/* Logo mobile */}
             <div className="flex items-center gap-2 mb-8 lg:hidden">
-              <div className="w-8 h-8 bg-[#afca0b] rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-club rounded-lg flex items-center justify-center">
                 <Zap size={16} className="text-[#0d1117]" />
               </div>
               <span className="text-white font-bold text-lg">PadelwIArk</span>
@@ -196,7 +196,7 @@ const PlayerRegisterPage = () => {
 
             {/* Header */}
             <div className="mb-6">
-              <p className="text-[#afca0b] text-sm font-semibold mb-1">
+              <p className="text-club text-sm font-semibold mb-1">
                 Paso {currentStep} de {STEPS.length}
               </p>
               <h1 className="text-2xl font-bold text-white">
@@ -240,7 +240,7 @@ const PlayerRegisterPage = () => {
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="flex items-center gap-2 bg-[#afca0b] hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-lg shadow-[#afca0b]/20"
+                    className="flex items-center gap-2 bg-club hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-lg shadow-club/20"
                   >
                     Siguiente
                     <ArrowRight size={16} />
@@ -249,7 +249,7 @@ const PlayerRegisterPage = () => {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex items-center gap-2 bg-[#afca0b] hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-lg shadow-[#afca0b]/20 disabled:opacity-50"
+                    className="flex items-center gap-2 bg-club hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-lg shadow-club/20 disabled:opacity-50"
                   >
                     {submitting ? (
                       <>

@@ -48,7 +48,7 @@ const ESTADO_CONFIG = {
   draft:       { label: 'Borrador',   color: 'text-white/30 bg-white/5 border-white/10',           icon: Clock },
   open:        { label: 'Inscripción abierta', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20', icon: CheckCircle },
   closed:      { label: 'Insc. cerrada', color: 'text-amber-400 bg-amber-400/10 border-amber-400/20', icon: Lock },
-  in_progress: { label: 'En curso',   color: 'text-[#afca0b] bg-[#afca0b]/10 border-[#afca0b]/20', icon: Zap },
+  in_progress: { label: 'En curso',   color: 'text-club bg-club/10 border-club/20', icon: Zap },
   finished:    { label: 'Finalizado', color: 'text-white/30 bg-white/5 border-white/10',           icon: Archive },
 }
 
@@ -87,7 +87,7 @@ const esDePareja = (pareja, playerName) =>
   pareja?.jugador1 === playerName || pareja?.jugador2 === playerName
 
 const getResultado = (torneo, playerName) => {
-  if (esDePareja(torneo.ganador, playerName))    return { label: 'Campeón',   icon: '🏆', color: 'text-[#afca0b]' }
+  if (esDePareja(torneo.ganador, playerName))    return { label: 'Campeón',   icon: '🏆', color: 'text-club' }
   if (esDePareja(torneo.subcampeon, playerName)) return { label: 'Finalista', icon: '🥈', color: 'text-blue-400' }
   if (torneo.estado === 'finished')              return { label: 'Eliminado', icon: '⚡', color: 'text-white/40' }
   return null
@@ -130,21 +130,21 @@ const BracketReadOnly = ({ bracket, playerName }) => {
                 <div
                   key={partido.id}
                   className={`rounded-xl border text-[11px] overflow-hidden ${
-                    isP1 || isP2 ? 'border-[#afca0b]/30 bg-[#afca0b]/5' : 'border-white/8 bg-white/3'
+                    isP1 || isP2 ? 'border-club/30 bg-club/5' : 'border-white/8 bg-white/3'
                   }`}
                 >
                   {/* Pareja 1 */}
                   <div className={`flex items-center gap-2 px-2.5 py-1.5 border-b border-white/5 ${
                     esGanadorP1 ? 'text-white font-semibold' : esGanadorP2 ? 'text-white/25 line-through' : 'text-white/60'
-                  } ${isP1 ? 'text-[#afca0b] font-bold' : ''}`}>
-                    {esGanadorP1 && <Trophy size={9} className="text-[#afca0b] shrink-0" />}
+                  } ${isP1 ? 'text-club font-bold' : ''}`}>
+                    {esGanadorP1 && <Trophy size={9} className="text-club shrink-0" />}
                     <span className="truncate">{p1 ? `${p1.jugador1} / ${p1.jugador2}` : 'BYE'}</span>
                   </div>
                   {/* Pareja 2 */}
                   <div className={`flex items-center gap-2 px-2.5 py-1.5 ${
                     esGanadorP2 ? 'text-white font-semibold' : esGanadorP1 ? 'text-white/25 line-through' : 'text-white/60'
-                  } ${isP2 ? 'text-[#afca0b] font-bold' : ''}`}>
-                    {esGanadorP2 && <Trophy size={9} className="text-[#afca0b] shrink-0" />}
+                  } ${isP2 ? 'text-club font-bold' : ''}`}>
+                    {esGanadorP2 && <Trophy size={9} className="text-club shrink-0" />}
                     <span className="truncate">{p2 ? `${p2.jugador1} / ${p2.jugador2}` : 'BYE'}</span>
                   </div>
                   {/* Sets */}
@@ -194,7 +194,7 @@ const PartidoZonaReadOnly = ({ partido, miParejaId, parejas = [] }) => {
     `w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
       esGanador ? 'bg-emerald-500 text-white' :
       finalizado ? 'bg-white/5 text-white/20' :
-      esMiPar ? 'bg-[#afca0b]/20 text-[#afca0b]' :
+      esMiPar ? 'bg-club/20 text-club' :
       'bg-white/8 text-white/35'
     }`
 
@@ -202,12 +202,12 @@ const PartidoZonaReadOnly = ({ partido, miParejaId, parejas = [] }) => {
     `text-xs truncate ${
       esGanador ? 'text-white font-semibold' :
       finalizado ? 'text-white/20 line-through' :
-      esMiPar ? 'text-[#afca0b] font-medium' :
+      esMiPar ? 'text-club font-medium' :
       'text-white/45'
     }`
 
   return (
-    <div className={`rounded-xl border overflow-hidden ${esMio ? 'border-[#afca0b]/20' : 'border-white/8'}`}>
+    <div className={`rounded-xl border overflow-hidden ${esMio ? 'border-club/20' : 'border-white/8'}`}>
       {/* Fila principal: P1 | sets | P2 */}
       <div className={`flex items-center gap-2 px-3 py-2.5 ${finalizado ? 'bg-emerald-500/4' : 'bg-white/3'}`}>
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -385,7 +385,7 @@ const StandingsZona = ({ zona, miParejaId, puntosPorVictoria = 2 }) => {
             <tr className="border-b border-white/8 bg-white/3">
               <th className="px-2.5 py-1.5 text-left text-white/20 font-semibold w-10">Pos.</th>
               <th className="px-2.5 py-1.5 text-left text-white/20 font-semibold">Pareja</th>
-              <th className="px-2 py-1.5 text-center text-[#afca0b]/40 font-bold w-9" title="Puntos">Pts</th>
+              <th className="px-2 py-1.5 text-center text-club/40 font-bold w-9" title="Puntos">Pts</th>
               <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-8">PG</th>
               <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-8">PP</th>
               <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-12" title="Diferencia de sets">Dif.S</th>
@@ -401,25 +401,25 @@ const StandingsZona = ({ zona, miParejaId, puntosPorVictoria = 2 }) => {
               const difSets  = st.setsA - st.setsC
               const difGames = st.gamesA - st.gamesC
               const criterio = getCriterio(i)
-              const critCls  = criterio === 'Pts'   ? 'text-[#afca0b]/80 bg-[#afca0b]/10 border-[#afca0b]/20'
+              const critCls  = criterio === 'Pts'   ? 'text-club/80 bg-club/10 border-club/20'
                              : criterio === 'Dif.S' ? 'text-sky-400/80 bg-sky-400/10 border-sky-400/20'
                              : criterio === 'Dif.G' ? 'text-violet-400/80 bg-violet-400/10 border-violet-400/20'
                              : criterio === '='     ? 'text-amber-400/80 bg-amber-400/10 border-amber-400/20'
                              : ''
               return (
-                <tr key={pareja.id} className={`border-b border-white/5 last:border-0 ${esMia ? 'bg-[#afca0b]/5' : ''}`}>
+                <tr key={pareja.id} className={`border-b border-white/5 last:border-0 ${esMia ? 'bg-club/5' : ''}`}>
                   <td className="px-2.5 py-2 font-bold text-white/20">{i + 1}°</td>
                   <td className="px-2.5 py-2 max-w-0">
                     <div className="flex items-center gap-1.5">
                       {esClasif && zona.clasificados && (
                         <span className="w-1 h-3.5 rounded-full bg-emerald-400/50 shrink-0" />
                       )}
-                      <span className={`font-medium truncate ${esMia ? 'text-[#afca0b]' : esClasif ? 'text-white/65' : 'text-white/30'}`}>
+                      <span className={`font-medium truncate ${esMia ? 'text-club' : esClasif ? 'text-white/65' : 'text-white/30'}`}>
                         {pareja.jugador1.split(' ')[0]} / {pareja.jugador2.split(' ')[0]}
                       </span>
                     </div>
                   </td>
-                  <td className="px-2 py-2 text-center font-bold text-[#afca0b]">{st.pts}</td>
+                  <td className="px-2 py-2 text-center font-bold text-club">{st.pts}</td>
                   <td className="px-2 py-2 text-center font-semibold text-emerald-400">{st.wins}</td>
                   <td className="px-2 py-2 text-center text-white/25">{st.losses}</td>
                   <td className={`px-2 py-2 text-center font-semibold tabular-nums ${
@@ -467,13 +467,13 @@ const StandingsZona = ({ zona, miParejaId, puntosPorVictoria = 2 }) => {
               {sorted.map((rowPar, rowIdx) => {
                 const esMia = rowPar.id === miParejaId
                 return (
-                  <tr key={rowPar.id} className={`border-b border-white/4 last:border-0 ${esMia ? 'bg-[#afca0b]/4' : ''}`}>
+                  <tr key={rowPar.id} className={`border-b border-white/4 last:border-0 ${esMia ? 'bg-club/4' : ''}`}>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
-                          esMia ? 'bg-[#afca0b]/20 text-[#afca0b]' : 'bg-white/8 text-white/25'
+                          esMia ? 'bg-club/20 text-club' : 'bg-white/8 text-white/25'
                         }`}>{rowIdx + 1}</span>
-                        <span className={`truncate font-medium text-[10px] ${esMia ? 'text-[#afca0b]' : 'text-white/30'}`}>
+                        <span className={`truncate font-medium text-[10px] ${esMia ? 'text-club' : 'text-white/30'}`}>
                           {rowPar.jugador1.split(' ')[0]}
                         </span>
                       </div>
@@ -567,7 +567,7 @@ const GrupoReadOnly = ({ grupos, playerName, puntosPorVictoria = 2 }) => {
             `w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
               esGanador ? 'bg-emerald-500 text-white' :
               finalizado ? 'bg-white/5 text-white/20' :
-              esMiPar ? 'bg-[#afca0b]/20 text-[#afca0b]' :
+              esMiPar ? 'bg-club/20 text-club' :
               'bg-white/8 text-white/35'
             }`
 
@@ -575,13 +575,13 @@ const GrupoReadOnly = ({ grupos, playerName, puntosPorVictoria = 2 }) => {
             `text-xs truncate ${
               esGanador ? 'text-white font-semibold' :
               finalizado ? 'text-white/20 line-through' :
-              esMiPar ? 'text-[#afca0b] font-medium' :
+              esMiPar ? 'text-club font-medium' :
               'text-white/45'
             }`
 
           return (
             <div key={m.id} className={`rounded-xl border overflow-hidden ${
-              esMio ? 'border-[#afca0b]/20' : 'border-white/8'
+              esMio ? 'border-club/20' : 'border-white/8'
             }`}>
 
               {/* Fila principal: P1 | sets | P2 */}
@@ -651,7 +651,7 @@ const GrupoReadOnly = ({ grupos, playerName, puntosPorVictoria = 2 }) => {
     <div className="mt-3">
       {/* Header zona */}
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-[#afca0b] text-xs font-bold">{miZona.nombre}</span>
+        <span className="text-club text-xs font-bold">{miZona.nombre}</span>
         <span className="text-white/25 text-[10px]">·</span>
         <span className="text-white/30 text-[10px]">{miZona.capacidad} parejas</span>
         {zonaCompleta && (
@@ -817,7 +817,7 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg shrink-0 border ${
           resultado
             ? resultado.label === 'Campeón'
-              ? 'bg-[#afca0b]/10 border-[#afca0b]/30'
+              ? 'bg-club/10 border-club/30'
               : resultado.label === 'Finalista'
                 ? 'bg-blue-400/10 border-blue-400/25'
                 : 'bg-white/4 border-white/10'
@@ -833,7 +833,7 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <div className="flex items-center gap-1.5">
                   <div className="flex items-center gap-1.5 bg-white/6 border border-white/10 rounded-lg px-2 py-1 leading-none">
-                    <Calendar size={9} className="text-[#afca0b]/50 shrink-0" />
+                    <Calendar size={9} className="text-club/50 shrink-0" />
                     <span className="text-white/70 text-[11px] font-semibold">
                       {new Date(torneo.fechaInicio + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
                     </span>
@@ -903,7 +903,7 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
             <button
               onClick={() => setShowDisp((v) => !v)}
               className={`mt-2.5 flex items-center gap-1.5 text-[11px] font-medium transition-colors ${
-                showDisp ? 'text-[#afca0b]' : 'text-white/25 hover:text-white/50'
+                showDisp ? 'text-club' : 'text-white/25 hover:text-white/50'
               }`}
             >
               <Clock size={12} />
@@ -923,7 +923,7 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
                 <>
                   {miPareja.disponibilidad.map((s, i) => (
                     <div key={i} className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#afca0b]/60 shrink-0" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-club/60 shrink-0" />
                       <span className="text-white/60 text-xs font-medium">{s.dia}</span>
                       <span className="text-white/30 text-xs">desde las {s.horaDesde}</span>
                     </div>
@@ -970,7 +970,7 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
             <div className="flex border-b border-white/5">
               <button
                 onClick={() => onEditar(torneo, miPareja)}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs transition-all ${esEspera ? 'text-amber-400/70 hover:text-amber-400 hover:bg-amber-400/5' : 'text-[#afca0b]/70 hover:text-[#afca0b] hover:bg-[#afca0b]/5'}`}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs transition-all ${esEspera ? 'text-amber-400/70 hover:text-amber-400 hover:bg-amber-400/5' : 'text-club/70 hover:text-club hover:bg-club/5'}`}
               >
                 <Pencil size={12} />
                 {esEspera ? 'Editar en espera' : 'Editar inscripción'}
@@ -996,7 +996,7 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
                     onClick={() => setActiveTab((v) => v === 'miZona' ? null : 'miZona')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                       activeTab === 'miZona'
-                        ? 'bg-[#afca0b]/15 text-[#afca0b] border border-[#afca0b]/25'
+                        ? 'bg-club/15 text-club border border-club/25'
                         : 'text-white/35 hover:text-white/60 hover:bg-white/5 border border-transparent'
                     }`}
                   >
@@ -1006,7 +1006,7 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
                       return z ? (
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-md border ${
                           activeTab === 'miZona'
-                            ? 'bg-[#afca0b]/10 border-[#afca0b]/20 text-[#afca0b]/70'
+                            ? 'bg-club/10 border-club/20 text-club/70'
                             : 'bg-white/5 border-white/8 text-white/25'
                         }`}>{z.nombre}</span>
                       ) : null
@@ -1120,12 +1120,12 @@ const ModalInscriptos = ({ torneo, playerName, onClose }) => {
           {titulares.map((p, i) => {
             const esPropio = p.jugador1 === playerName || p.jugador2 === playerName
             return (
-              <div key={p.id ?? i} className={`flex items-center gap-3 px-3 py-2 rounded-xl ${esPropio ? 'bg-[#afca0b]/8 border border-[#afca0b]/15' : 'hover:bg-white/3'}`}>
+              <div key={p.id ?? i} className={`flex items-center gap-3 px-3 py-2 rounded-xl ${esPropio ? 'bg-club/8 border border-club/15' : 'hover:bg-white/3'}`}>
                 <span className="text-white/25 text-[11px] w-5 shrink-0 text-right">{i + 1}.</span>
-                <span className={`text-sm truncate flex-1 ${esPropio ? 'text-[#afca0b] font-semibold' : 'text-white/60'}`}>
+                <span className={`text-sm truncate flex-1 ${esPropio ? 'text-club font-semibold' : 'text-white/60'}`}>
                   {p.jugador1}{p.jugador2 && p.jugador2 !== 'Por definir' ? ` / ${p.jugador2}` : ''}
                 </span>
-                {esPropio && <span className="text-[10px] text-[#afca0b]/50 font-medium shrink-0">vos</span>}
+                {esPropio && <span className="text-[10px] text-club/50 font-medium shrink-0">vos</span>}
               </div>
             )
           })}
@@ -1176,7 +1176,7 @@ const ZonaPanel = ({ zona, playerName, defaultOpen, puntosPorVictoria = 2 }) => 
   return (
     <div className={`rounded-2xl border overflow-hidden transition-colors ${
       miPareja
-        ? 'border-[#afca0b]/20 bg-[#afca0b]/3'
+        ? 'border-club/20 bg-club/3'
         : 'border-white/8 bg-white/[0.015]'
     }`}>
       {/* Header de zona — siempre visible */}
@@ -1186,13 +1186,13 @@ const ZonaPanel = ({ zona, playerName, defaultOpen, puntosPorVictoria = 2 }) => 
       >
         <div className="flex items-center gap-2.5 min-w-0">
           {/* Bullet de color */}
-          <span className={`w-2 h-2 rounded-full shrink-0 ${miPareja ? 'bg-[#afca0b]' : 'bg-white/15'}`} />
-          <span className={`text-sm font-bold truncate ${miPareja ? 'text-[#afca0b]' : 'text-white/50'}`}>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${miPareja ? 'bg-club' : 'bg-white/15'}`} />
+          <span className={`text-sm font-bold truncate ${miPareja ? 'text-club' : 'text-white/50'}`}>
             {zona.nombre}
           </span>
           <span className="text-[10px] text-white/25 shrink-0">{zona.capacidad} parejas</span>
           {miPareja && (
-            <span className="text-[10px] font-semibold text-[#afca0b]/70 bg-[#afca0b]/10 border border-[#afca0b]/20 px-1.5 py-0.5 rounded-lg shrink-0">
+            <span className="text-[10px] font-semibold text-club/70 bg-club/10 border border-club/20 px-1.5 py-0.5 rounded-lg shrink-0">
               Tu zona
             </span>
           )}
@@ -1268,15 +1268,15 @@ const ModalTodasLasZonas = ({ torneo, playerName, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/8 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-[#afca0b]/10 border border-[#afca0b]/20 flex items-center justify-center shrink-0">
-              <LayoutGrid size={14} className="text-[#afca0b]" />
+            <div className="w-8 h-8 rounded-xl bg-club/10 border border-club/20 flex items-center justify-center shrink-0">
+              <LayoutGrid size={14} className="text-club" />
             </div>
             <div className="min-w-0">
               <h3 className="text-white font-bold text-sm leading-tight truncate">{torneo.nombre}</h3>
               <p className="text-white/35 text-[11px] mt-0.5">
                 Fase de grupos · {grupos.length} zona{grupos.length !== 1 ? 's' : ''}
                 {miZonaIdx >= 0 && (
-                  <span className="ml-1.5 text-[#afca0b]/50">· tu zona: {grupos[miZonaIdx]?.nombre}</span>
+                  <span className="ml-1.5 text-club/50">· tu zona: {grupos[miZonaIdx]?.nombre}</span>
                 )}
               </p>
             </div>
@@ -1392,7 +1392,7 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse, playerGenero }) => {
                 </div>
                 <div className="h-1 bg-white/8 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-500 ${totalLlenoCat ? 'bg-red-500' : hayEsperaCat ? 'bg-amber-400' : 'bg-[#afca0b]'}`}
+                    className={`h-full rounded-full transition-all duration-500 ${totalLlenoCat ? 'bg-red-500' : hayEsperaCat ? 'bg-amber-400' : 'bg-club'}`}
                     style={{ width: `${Math.min(pct, 100)}%` }}
                   />
                 </div>
@@ -1440,7 +1440,7 @@ const TorneoDisponibleCard = ({ torneo, onInscribirse, playerGenero }) => {
             ? 'bg-white/5 text-white/25 cursor-not-allowed'
             : hayEsperaAlguna
               ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30'
-              : 'bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117]'
+              : 'bg-club hover:bg-[#c8e00d] text-[#0d1117]'
         }`}
       >
         <Plus size={15} />
@@ -1680,11 +1680,11 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                 ) : (
                   <svg width="96" height="96" viewBox="0 0 96 96">
                     <circle cx="48" cy="48" r="44" fill="none"
-                      stroke="#afca0b" strokeWidth="3" strokeLinecap="round"
+                      stroke="var(--club-primary)" strokeWidth="3" strokeLinecap="round"
                       style={{ strokeDasharray: 276, strokeDashoffset: 276, animation: 'drawCirc 0.6s ease-out 0.1s forwards' }}
                     />
                     <path d="M30 50 L43 63 L67 37" fill="none"
-                      stroke="#afca0b" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
+                      stroke="var(--club-primary)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
                       style={{ strokeDasharray: 50, strokeDashoffset: 50, animation: 'drawChk 0.35s ease-out 0.6s forwards' }}
                     />
                   </svg>
@@ -1745,7 +1745,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                 className={`w-full py-3 rounded-xl text-sm font-bold transition-all ${
                   exito.vaAEspera
                     ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30'
-                    : 'bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117]'
+                    : 'bg-club hover:bg-[#c8e00d] text-[#0d1117]'
                 }`}
               >
                 Listo
@@ -1856,7 +1856,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                   }}
                   placeholder="Nombre y apellido"
                   disabled={dniLookup.status === 'loading'}
-                  className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 disabled:opacity-40 ${
+                  className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-club/30 focus:border-club/50 transition-all placeholder-white/20 disabled:opacity-40 ${
                     errors.jugador2 ? 'border-red-500/50' : 'border-white/10'
                   }`}
                 />
@@ -1895,7 +1895,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                     placeholder="12345678"
                     maxLength={8}
                     inputMode="numeric"
-                    className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all placeholder-white/20 pr-7 ${
+                    className={`w-full bg-white/5 border rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-club/30 focus:border-club/50 transition-all placeholder-white/20 pr-7 ${
                       errors.jugador2Dni ? 'border-red-500/50' : dniLookup.status === 'found' ? 'border-emerald-500/30' : 'border-white/10'
                     }`}
                   />
@@ -2025,7 +2025,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                   <select
                     value={categoria}
                     onChange={(e) => setCategoria(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-[#afca0b]/30 focus:border-[#afca0b]/50 transition-all"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-club/30 focus:border-club/50 transition-all"
                     style={{ backgroundColor: '#0d1117' }}
                   >
                     {catsDisponibles.map((c) => (
@@ -2073,7 +2073,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                     setPendingDia(d)
                     setPendingHora(horasParaDia(d)[0] ?? '18:00')
                   }}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:border-[#afca0b]/50 transition-all"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:border-club/50 transition-all"
                   style={{ backgroundColor: '#0d1117' }}
                 >
                   {diasLibres.map((d) => (
@@ -2084,7 +2084,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                   type="button"
                   onClick={agregarSlot}
                   disabled={slots.length >= MAX_SLOTS}
-                  className="flex items-center gap-1 bg-[#afca0b]/15 hover:bg-[#afca0b]/25 border border-[#afca0b]/30 text-[#afca0b] text-xs font-semibold px-3 py-2 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                  className="flex items-center gap-1 bg-club/15 hover:bg-club/25 border border-club/30 text-club text-xs font-semibold px-3 py-2 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                 >
                   <Plus size={12} />
                   Agregar
@@ -2099,7 +2099,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                     onClick={() => setPendingHora(h)}
                     className={`py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
                       pendingHora === h
-                        ? 'bg-[#afca0b] border-[#afca0b] text-[#0d1117]'
+                        ? 'bg-club border-club text-[#0d1117]'
                         : 'bg-white/5 border-white/10 text-white/50 hover:border-white/25 hover:text-white/80'
                     }`}
                   >
@@ -2115,10 +2115,10 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                 {slots.map((s, i) => (
                   <div
                     key={i}
-                    className="flex items-center justify-between bg-[#afca0b]/8 border border-[#afca0b]/20 rounded-xl px-3 py-1.5"
+                    className="flex items-center justify-between bg-club/8 border border-club/20 rounded-xl px-3 py-1.5"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-[#afca0b] text-xs font-semibold">{s.dia}</span>
+                      <span className="text-club text-xs font-semibold">{s.dia}</span>
                       <span className="text-white/25 text-xs">·</span>
                       <span className="text-white/60 text-xs">desde las {s.horaDesde}</span>
                     </div>
@@ -2150,12 +2150,12 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                 !soloUnDia
                   ? 'border-white/5 bg-white/2 opacity-40 cursor-not-allowed'
                   : prefiereMismoDia
-                    ? 'border-[#afca0b]/30 bg-[#afca0b]/8'
+                    ? 'border-club/30 bg-club/8'
                     : 'border-white/8 bg-white/3 hover:bg-white/5'
               }`}
             >
               <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
-                prefiereMismoDia && soloUnDia ? 'bg-[#afca0b] border-[#afca0b]' : 'border-white/20 bg-transparent'
+                prefiereMismoDia && soloUnDia ? 'bg-club border-club' : 'border-white/20 bg-transparent'
               }`}>
                 {prefiereMismoDia && soloUnDia && (
                   <svg viewBox="0 0 10 8" className="w-2 h-2">
@@ -2163,7 +2163,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
                   </svg>
                 )}
               </div>
-              <span className={`text-[11px] font-medium ${prefiereMismoDia && soloUnDia ? 'text-[#afca0b]' : 'text-white/45'}`}>
+              <span className={`text-[11px] font-medium ${prefiereMismoDia && soloUnDia ? 'text-club' : 'text-white/45'}`}>
                 Preferimos jugar los 2 partidos el mismo día
               </span>
             </button>
@@ -2187,7 +2187,7 @@ const ModalInscripcion = ({ torneo, jugador1, jugador1Dni, playerGenero, parejaE
             <button
               onClick={handleConfirmar}
               disabled={submitting}
-              className="px-5 py-2 text-xs font-bold bg-[#afca0b] hover:bg-[#c8e00d] text-[#0d1117] rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-2 text-xs font-bold bg-club hover:bg-[#c8e00d] text-[#0d1117] rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? 'Guardando…' : soloDisponibilidad ? 'Guardar disponibilidad' : isEdit ? 'Guardar cambios' : 'Confirmar inscripción'}
             </button>
@@ -2442,8 +2442,8 @@ const PlayerTournamentsPage = () => {
         {(titulos > 0 || finales > 0) && (
           <div className="flex gap-2">
             {titulos > 0 && (
-              <div className="bg-[#afca0b]/10 border border-[#afca0b]/20 rounded-xl px-3 py-2 text-center">
-                <p className="text-xl font-black text-[#afca0b]">🏆 {titulos}</p>
+              <div className="bg-club/10 border border-club/20 rounded-xl px-3 py-2 text-center">
+                <p className="text-xl font-black text-club">🏆 {titulos}</p>
                 <p className="text-white/30 text-xs mt-0.5">Títulos</p>
               </div>
             )}
@@ -2462,7 +2462,7 @@ const PlayerTournamentsPage = () => {
         <section className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <h3 className="text-white font-semibold text-base">Inscribirse</h3>
-            <span className="text-xs px-2 py-0.5 rounded-md bg-[#afca0b]/10 text-[#afca0b] font-semibold border border-[#afca0b]/20">
+            <span className="text-xs px-2 py-0.5 rounded-md bg-club/10 text-club font-semibold border border-club/20">
               {disponibles.length} disponible{disponibles.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -2487,7 +2487,7 @@ const PlayerTournamentsPage = () => {
             <Trophy size={40} strokeWidth={1.2} />
             <p className="text-sm">Todavía no estás inscripto en ningún torneo</p>
             {disponibles.length > 0 && (
-              <p className="text-xs text-[#afca0b]/60">
+              <p className="text-xs text-club/60">
                 Hay {disponibles.length} torneo{disponibles.length !== 1 ? 's' : ''} con inscripción abierta
               </p>
             )}

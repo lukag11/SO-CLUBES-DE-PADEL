@@ -6,7 +6,7 @@ import {
   AlertTriangle, Shuffle, CheckCheck, GitMerge, UserPlus, Plus, X, Pencil, Swords,
   Palette, ChevronDown, Maximize2, Minimize2, Share2, Upload, Search, Info, Flag,
 } from 'lucide-react'
-import Toast from '../components/ui/Toast'
+import { useToast } from '../components/ui/ToastProvider'
 import useTorneosStore from '../store/torneosStore'
 import useAuthStore from '../store/authStore'
 import { api, uploadImage } from '../lib/api'
@@ -3529,12 +3529,16 @@ const TorneoDetallePage = () => {
   const [elimIntervaloMin, setElimIntervaloMin] = useState(75)
   const [elimAutoState, setElimAutoState] = useState(null) // null | {status:'procesando'} | {status:'done',asignados}
   const [modalAsignarManual, setModalAsignarManual] = useState(null) // null | { matchId, zonaIdx, partido }
-  const [toast, setToast] = useState(null)
   const [reprogramarOpen, setReprogramarOpen] = useState(false)
   const [reprogramarFecha, setReprogramarFecha] = useState('')
   const [reprogramarSaving, setReprogramarSaving] = useState(false)
-  const [toastEstado, setToastEstado] = useState(null)
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
+  const toast = useToast()
+  const showToast = toast.info // los mensajes eran neutros (éxito y error en el mismo estilo)
+  const toastEstadoInscripcion = (estado) => {
+    if (estado === 'open') toast.success('Las inscripciones están abiertas', { label: 'Inscripción abierta', icon: ToggleRight })
+    else if (estado === 'closed') toast.info('Las inscripciones están cerradas', { label: 'Inscripción cerrada', icon: Lock })
+    else if (estado === 'draft') toast.info('El torneo volvió a borrador', { label: 'Volvió a borrador', icon: ToggleLeft })
+  }
   const [confirmModal, setConfirmModal] = useState(null) // { titulo, mensaje, onConfirmar }
   const [modalCerrarInsc, setModalCerrarInsc] = useState(false)
   const [persona, setPersona] = useState(() => {
@@ -3812,7 +3816,7 @@ const TorneoDetallePage = () => {
         .forEach((i) => updatePareja(torneo.id, i.id, { estado: 'espera' }))
     }
     syncEstado(nuevoEstado)
-    setToastEstado(nuevoEstado)
+    toastEstadoInscripcion(nuevoEstado)
   }
 
   const handleToggleEstado = () => {
@@ -6375,18 +6379,6 @@ const TorneoDetallePage = () => {
         </div>
       )}
 
-      {/* Toast genérico */}
-      <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] transition-all duration-500 ${toast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-        <div className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2.5 rounded-2xl shadow-xl">
-          <CheckCircle size={14} className="text-emerald-400 shrink-0" />
-          <p className="text-sm font-semibold">{toast}</p>
-        </div>
-      </div>
-
-      {/* Toasts estado inscripción */}
-      {toastEstado === 'open'   && <Toast icon={ToggleRight} iconBg="bg-emerald-500/15 border border-emerald-500/25" iconColor="text-emerald-400" barColor="bg-emerald-400/50" label="Inscripción abierta"  message="Las inscripciones están abiertas"  duration={3500} onClose={() => setToastEstado(null)} />}
-      {toastEstado === 'closed' && <Toast icon={Lock}        iconBg="bg-amber-500/15 border border-amber-500/25"     iconColor="text-amber-400"   barColor="bg-amber-400/50"   label="Inscripción cerrada"  message="Las inscripciones están cerradas"  duration={3500} onClose={() => setToastEstado(null)} />}
-      {toastEstado === 'draft'  && <Toast icon={ToggleLeft}  iconBg="bg-slate-500/15 border border-slate-500/25"     iconColor="text-slate-400"   barColor="bg-slate-400/50"   label="Volvió a borrador"    message="El torneo volvió a borrador"       duration={3500} onClose={() => setToastEstado(null)} />}
 
       {/* Modal picker sponsors — nivel raíz para funcionar desde cualquier sección */}
       {sponsorModalOpen && (

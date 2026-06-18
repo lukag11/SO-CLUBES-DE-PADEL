@@ -10,6 +10,7 @@ import useNotificacionesStore from '../store/notificacionesStore'
 import useClubStore from '../store/clubStore'
 import { esSlotDeGrupos } from '../services/torneoService'
 import { api } from '../lib/api'
+import { useToast } from '../components/ui/ToastProvider'
 import InfoBlock from '../components/InfoBlock'
 import BracketView from '../components/BracketView'
 
@@ -2246,9 +2247,9 @@ const PlayerTournamentsPage = () => {
   const completacionTorneo         = useNotificacionesStore((s) => s.completacionTorneo)
   const [modalTorneo, setModalTorneo]   = useState(null)
   const [modalEdicion, setModalEdicion] = useState(null) // { torneo, pareja }
-  const [toastEspera, setToastEspera]   = useState(null)
-  const [toastError, setToastError]     = useState(null)
   const [modalCancelar, setModalCancelar] = useState(null) // { torneo, pareja }
+  const toast = useToast()
+  const avisarEspera = (nombre) => toast.info(`Quedaste en lista de espera en "${nombre}". Te avisamos si se libera un lugar.`, { label: 'Lista de espera', icon: Clock, duration: 5000 })
 
   const playerName = player
     ? `${player.nombre}${player.apellido ? ' ' + player.apellido : ''}`
@@ -2324,7 +2325,7 @@ const PlayerTournamentsPage = () => {
         })
         if (enEspera) {
           addInscripcionEnEspera({ torneoNombre: modalTorneo.nombre, categoria: cat })
-          setToastEspera(modalTorneo.nombre)
+          avisarEspera(modalTorneo.nombre)
         }
         return { ok: true, vaAEspera: enEspera }
       } catch (err) {
@@ -2343,7 +2344,7 @@ const PlayerTournamentsPage = () => {
     })
     if (vaAEspera) {
       addInscripcionEnEspera({ torneoNombre: modalTorneo.nombre, categoria: cat })
-      setToastEspera(modalTorneo.nombre)
+      avisarEspera(modalTorneo.nombre)
     }
     return { ok: true, vaAEspera }
   }
@@ -2421,19 +2422,6 @@ const PlayerTournamentsPage = () => {
         )
       })}
 
-      {/* Toast lista de espera */}
-      {toastEspera && (
-        <div className="fixed bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-auto z-50 flex items-start gap-3 bg-amber-500 text-white text-sm font-semibold px-4 py-3 rounded-2xl shadow-xl shadow-amber-500/30 animate-fade-in">
-          <span className="flex-1 leading-snug">⏳ Quedaste en lista de espera en <em className="not-italic font-bold">{toastEspera}</em>. Te avisamos si se libera un lugar.</span>
-          <button onClick={() => setToastEspera(null)} className="text-white/70 hover:text-white transition-colors shrink-0 mt-0.5">✕</button>
-        </div>
-      )}
-      {toastError && (
-        <div className="fixed bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-auto z-50 flex items-start gap-3 bg-red-500 text-white text-sm font-semibold px-4 py-3 rounded-2xl shadow-xl shadow-red-500/30 animate-fade-in">
-          <span className="flex-1 leading-snug">✕ {toastError}</span>
-          <button onClick={() => setToastError(null)} className="text-white/70 hover:text-white transition-colors shrink-0 mt-0.5">✕</button>
-        </div>
-      )}
       {modalCancelar && (
         <ModalCancelar
           torneo={modalCancelar.torneo}

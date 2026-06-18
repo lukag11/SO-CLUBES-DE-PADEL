@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
+import { useToast } from '../components/ui/ToastProvider'
 
 const CATEGORIAS = ['1ª', '2ª', '3ª', '4ª', '5ª', '6ª', '7ª', '8ª']
 
@@ -814,15 +815,12 @@ const JugadoresAdminPage = () => {
   const [modalAlta, setModalAlta] = useState(false)
   const [jugadorDetalle, setJugadorDetalle] = useState(null)
   const [jugadorEditar, setJugadorEditar] = useState(null)
-  const [toast, setToast] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
   const [sugeridosAscenso, setSugeridosAscenso] = useState(new Set())
 
-  const showToast = (msg) => {
-    setToast(msg)
-    setTimeout(() => setToast(null), 3500)
-  }
+  const toast = useToast()
+  const showToast = toast.success
 
   useEffect(() => {
     if (!token) return
@@ -1153,15 +1151,6 @@ const JugadoresAdminPage = () => {
         onCancel={() => setConfirm(null)}
       />
 
-      {/* Toast */}
-      <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-500 ${toast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-        <div className="flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-[#0d1117] border border-brand-500/30 shadow-2xl" style={{ boxShadow: '0 0 0 1px rgba(175,202,11,0.2), 0 20px 40px rgba(0,0,0,0.6)' }}>
-          <div className="w-7 h-7 rounded-xl bg-brand-500/15 flex items-center justify-center shrink-0">
-            <CheckCircle size={14} className="text-brand-400" />
-          </div>
-          <p className="text-white text-sm font-semibold">{toast}</p>
-        </div>
-      </div>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { User, Lock, Save, Eye, EyeOff, CheckCircle, AlertCircle, ChevronDown, MapPin } from 'lucide-react'
-import Toast from '../components/ui/Toast'
+import { useToast } from '../components/ui/ToastProvider'
 import usePlayerStore from '../store/playerStore'
 import { DIAS, HORARIOS, POSICIONES, MANOS, CATEGORIAS, FRECUENCIAS } from '../hooks/useRegisterForm'
 import { useProvincias, useMunicipios } from '../hooks/useGeoref'
@@ -391,12 +391,8 @@ const PasswordTab = () => {
   const [errors, setErrors] = useState({})
   const [show, setShow] = useState({ actual: false, nueva: false, confirmar: false })
   const [submitting, setSubmitting] = useState(false)
-  const [toast, setToast] = useState(null) // { tipo: 'exito'|'error', message }
-
-  const showToast = (tipo, message) => {
-    setToast({ tipo, message })
-    setTimeout(() => setToast(null), 3500)
-  }
+  const toast = useToast()
+  const showToast = (tipo, message) => (tipo === 'exito' ? toast.success(message) : toast.error(message))
 
   const checks = passwordChecks(form.nueva)
   const strength = Object.values(checks).filter(Boolean).length
@@ -526,18 +522,6 @@ const PasswordTab = () => {
         </button>
       </div>
 
-      {toast && (
-        <Toast
-          icon={toast.tipo === 'exito' ? CheckCircle : AlertCircle}
-          iconBg={toast.tipo === 'exito' ? 'bg-[#afca0b]/15' : 'bg-red-500/15'}
-          iconColor={toast.tipo === 'exito' ? 'text-[#afca0b]' : 'text-red-400'}
-          barColor={toast.tipo === 'exito' ? 'bg-[#afca0b]' : 'bg-red-400'}
-          label={toast.tipo === 'exito' ? 'Contraseña' : 'Error'}
-          message={toast.message}
-          duration={3500}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
   )
 }

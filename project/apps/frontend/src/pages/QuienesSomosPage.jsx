@@ -13,6 +13,7 @@ import useClubStore from '../store/clubStore'
 import useProfesoresStore from '../store/profesoresStore'
 import useAuthStore from '../store/authStore'
 import { api, uploadImage } from '../lib/api'
+import { useToast } from '../components/ui/ToastProvider'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -2182,15 +2183,10 @@ const TabProfesores = ({ club, token }) => {
   const [serverError, setServerError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const hintTimers = useRef({})
-  const [toast, setToast] = useState(null)
-  const toastTimer = useRef(null)
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
+  const toast = useToast()
 
-  const showToast = (msg, type = 'ok') => {
-    clearTimeout(toastTimer.current)
-    setToast({ msg, type })
-    toastTimer.current = setTimeout(() => setToast(null), 3000)
-  }
+  const showToast = (msg, type = 'ok') => (type === 'ok' ? toast.success(msg) : toast.error(msg))
 
   const headers = { Authorization: `Bearer ${token}` }
   const canchas = club.canchas?.filter((c) => c.activa) ?? CANCHAS_DEFAULT
@@ -2293,12 +2289,6 @@ const TabProfesores = ({ club, token }) => {
   return (
     <div className="flex flex-col gap-4 relative">
       {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-medium shadow-lg transition-all ${TOAST_STYLES[toast.type] ?? TOAST_STYLES.ok}`}>
-          <CheckCircle size={15} />
-          {toast.msg}
-        </div>
-      )}
       <SectionCard
         title="Profesores del club"
         subtitle="Los profesores pueden acceder a su portal en /dashboardProfesor para gestionar su agenda de clases"

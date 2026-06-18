@@ -21,6 +21,16 @@
   --color-dark-800: #0d1426;
   --color-dark-700: #131c30;
   --color-dark-600: #1a2540;
+
+  /* Club — color primario del club (white-label). clubStore setea --club-primary
+     en :root desde la config; si no, cae al lima por defecto. Tailwind v4 maneja
+     las opacidades (bg-club/15, etc.) con color-mix. Usar SOLO en el área jugador. */
+  --color-club: var(--club-primary, #afca0b);
+}
+
+/* Fallback de la variable por si el store todavía no la aplicó */
+:root {
+  --club-primary: #afca0b;
 }
 
 * {

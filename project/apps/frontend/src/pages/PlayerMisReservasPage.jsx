@@ -31,8 +31,8 @@ const FilaReserva = ({ r, onCancelar, showDate = false }) => {
     ? 'bg-white/3 border border-white/5'
     : esPendiente
     ? 'bg-amber-500/10 border border-amber-500/20'
-    : 'bg-[#afca0b]/10 border border-[#afca0b]/20'
-  const dateTextCls = esPasada ? 'text-white/20' : esPendiente ? 'text-amber-400' : 'text-[#afca0b]'
+    : 'bg-club/10 border border-club/20'
+  const dateTextCls = esPasada ? 'text-white/20' : esPendiente ? 'text-amber-400' : 'text-club'
 
   return (
     <div className={`px-4 py-3.5 flex items-center gap-3 transition-colors ${
@@ -65,7 +65,7 @@ const FilaReserva = ({ r, onCancelar, showDate = false }) => {
             <Clock size={10} /> {r.hora}{r.horaFin ? ` a ${r.horaFin}` : ''}
           </span>
           {r.precio > 0 && (
-            <span className={`text-xs font-medium ${esPasada ? 'text-white/20' : esPendiente ? 'text-amber-400/70' : 'text-[#afca0b]/70'}`}>
+            <span className={`text-xs font-medium ${esPasada ? 'text-white/20' : esPendiente ? 'text-amber-400/70' : 'text-club/70'}`}>
               ${r.precio.toLocaleString('es-AR')}
             </span>
           )}
@@ -215,7 +215,7 @@ export default function PlayerMisReservasPage() {
               onClick={() => setFiltro(key)}
               className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                 filtro === key
-                  ? 'bg-[#afca0b] text-[#0d1117]'
+                  ? 'bg-club text-[#0d1117]'
                   : 'text-white/40 hover:text-white'
               }`}
             >
@@ -251,7 +251,7 @@ export default function PlayerMisReservasPage() {
               <div key={fecha}>
                 <div className="px-4 py-2.5 bg-white/3 border-b border-white/5 flex items-center gap-2.5">
                   {fecha === hoyStr && (
-                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-[#afca0b]/20 text-[#afca0b] border border-[#afca0b]/30">HOY</span>
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-club/20 text-club border border-club/30">HOY</span>
                   )}
                   <span className="text-white/60 text-[11px] font-bold capitalize">{fmtFechaHeader(fecha, hoyStr)}</span>
                   {reservasDia.length > 1 && (
@@ -269,15 +269,15 @@ export default function PlayerMisReservasPage() {
           <div>
             {proximas.length > 0 && (
               <div>
-                <div className="px-4 py-2.5 bg-[#afca0b]/5 border-b border-[#afca0b]/10 flex items-center gap-2">
-                  <span className="text-[#afca0b]/70 text-[10px] font-black uppercase tracking-widest">Próximas</span>
-                  <span className="text-[#afca0b]/30 text-[10px]">{proximas.length}</span>
+                <div className="px-4 py-2.5 bg-club/5 border-b border-club/10 flex items-center gap-2">
+                  <span className="text-club/70 text-[10px] font-black uppercase tracking-widest">Próximas</span>
+                  <span className="text-club/30 text-[10px]">{proximas.length}</span>
                 </div>
                 {proximasPorFecha.map(([fecha, reservasDia]) => (
                   <div key={fecha}>
                     <div className="px-4 py-2 bg-white/2 border-b border-white/4 flex items-center gap-2">
                       {fecha === hoyStr && (
-                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-[#afca0b]/20 text-[#afca0b] border border-[#afca0b]/30">HOY</span>
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-club/20 text-club border border-club/30">HOY</span>
                       )}
                       <span className="text-white/40 text-[10px] font-semibold capitalize">{fmtFechaHeader(fecha, hoyStr)}</span>
                       {reservasDia.length > 1 && (
@@ -310,7 +310,7 @@ export default function PlayerMisReservasPage() {
       {filtro === 'proximas' && pasadas.length > 0 && (
         <p className="text-center text-white/20 text-xs">
           {pasadas.length} reserva{pasadas.length !== 1 ? 's' : ''} en el historial —{' '}
-          <button onClick={() => setFiltro('todas')} className="text-[#afca0b]/60 hover:text-[#afca0b] transition-colors">
+          <button onClick={() => setFiltro('todas')} className="text-club/60 hover:text-club transition-colors">
             ver todas
           </button>
         </p>
@@ -355,7 +355,7 @@ export default function PlayerMisReservasPage() {
                 <p className="text-white/50 text-xs leading-relaxed">
                   ¿Estás seguro que deseás cancelar esta reserva? Esta acción no se puede deshacer.
                   {horasMinimas > 0 && (
-                    <span className="block mt-1 text-[#afca0b]/60">
+                    <span className="block mt-1 text-club/60">
                       Cancelación gratuita — quedan {Math.floor(horasRestantes)}h de anticipación (mínimo {horasMinimas}h).
                     </span>
                   )}

@@ -409,7 +409,7 @@ const PlayerTurnosFijosPage = () => {
       {/* Lista */}
       <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-white/8 flex items-center gap-2">
-          <Repeat size={16} className="text-[#afca0b]" />
+          <Repeat size={16} className="text-club" />
           <h3 className="text-white font-semibold">Turnos reservados</h3>
         </div>
 

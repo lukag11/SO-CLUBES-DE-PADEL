@@ -10,6 +10,13 @@ import { isGroupPhaseFinished } from '../services/torneoService'
 import BracketView, { isColorDark } from '../components/BracketView'
 import { api } from '../lib/api'
 
+// Color del club (white-label). Como accentColor puede ir a SVG (bracket/fixture)
+// donde var() no resuelve, el fallback se resuelve a hex real en runtime.
+const CLUB = () => {
+  if (typeof window === 'undefined') return '#afca0b'
+  return getComputedStyle(document.documentElement).getPropertyValue('--club-primary').trim() || '#afca0b'
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
@@ -762,7 +769,7 @@ const makePartidoCard = (p, {
 
 // ── Sponsor Strip ─────────────────────────────────────────────────────────────
 
-const SponsorStrip = ({ sponsors = [], accentColor = '#afca0b' }) => (
+const SponsorStrip = ({ sponsors = [], accentColor = CLUB() }) => (
   <div className="mt-4 overflow-hidden rounded-xl" style={{ borderTop: `3px solid ${accentColor}` }}>
     <div
       className="flex flex-wrap items-center justify-center gap-8 px-8 py-4"
@@ -2658,7 +2665,7 @@ const TorneoPublicoPage = () => {
   const pollRef            = useRef(null)
 
   const torneo      = torneos.find((t) => String(t.id) === String(id))
-  const accentColor = torneo?.colorAcentoFixture || torneo?.colorAcento || '#afca0b'
+  const accentColor = torneo?.colorAcentoFixture || torneo?.colorAcento || CLUB()
 
   // Fetch club si no está cargado (visitante directo sin pasar por la landing)
   useEffect(() => {
@@ -2732,20 +2739,20 @@ const TorneoPublicoPage = () => {
 
         {/* Grid de fondo */}
         <div className="absolute inset-0 pointer-events-none" style={{
-          backgroundImage: 'linear-gradient(rgba(175,202,11,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(175,202,11,0.04) 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(color-mix(in srgb, var(--club-primary) 4%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--club-primary) 4%, transparent) 1px, transparent 1px)',
           backgroundSize: '64px 64px',
         }} />
 
         {/* Línea de escaneo */}
         <div className="absolute left-0 right-0 h-[2px] pointer-events-none" style={{
-          background: 'linear-gradient(90deg, transparent 0%, #afca0b 40%, #e8ff40 50%, #afca0b 60%, transparent 100%)',
+          background: 'linear-gradient(90deg, transparent 0%, var(--club-primary) 40%, #e8ff40 50%, var(--club-primary) 60%, transparent 100%)',
           animation: 'scanLine 1.8s ease-in-out infinite',
-          boxShadow: '0 0 12px 2px rgba(175,202,11,0.5)',
+          boxShadow: '0 0 12px 2px color-mix(in srgb, var(--club-primary) 50%, transparent)',
         }} />
 
         {/* Corner brackets */}
         {[['top-6 left-6','border-t-2 border-l-2'],['top-6 right-6','border-t-2 border-r-2'],['bottom-6 left-6','border-b-2 border-l-2'],['bottom-6 right-6','border-b-2 border-r-2']].map(([pos, cls], i) => (
-          <div key={i} className={`absolute w-6 h-6 border-[#afca0b] ${pos} ${cls}`}
+          <div key={i} className={`absolute w-6 h-6 border-club ${pos} ${cls}`}
             style={{ animation: `cornerPulse 2s ease-in-out ${i * 0.3}s infinite` }} />
         ))}
 
@@ -2753,7 +2760,7 @@ const TorneoPublicoPage = () => {
         <div className="relative flex flex-col items-center gap-5 px-8">
           {/* Badge EN CURSO */}
           <div className="flex items-center gap-2" style={{ animation: 'tplSlideUp 0.5s ease-out 0.1s both' }}>
-            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#afca0b' }} />
+            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--club-primary)' }} />
             <span className="text-[10px] font-black uppercase tracking-[0.35em] text-white/40">En curso</span>
             <span className="text-white/15 mx-1">·</span>
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/25">Torneo</span>
@@ -2766,7 +2773,7 @@ const TorneoPublicoPage = () => {
               fontStyle: 'italic',
               letterSpacing: '-0.02em',
               animation: 'tplSlideUp 0.5s ease-out 0.2s both, tplGlitch 3.5s ease-in-out 1s infinite',
-              textShadow: '0 0 40px rgba(175,202,11,0.15)',
+              textShadow: '0 0 40px color-mix(in srgb, var(--club-primary) 15%, transparent)',
             }}
           >
             {cachedName ?? 'TORNEO'}
@@ -2776,9 +2783,9 @@ const TorneoPublicoPage = () => {
           <div style={{ animation: 'tplSlideUp 0.5s ease-out 0.35s both', width: '100%', maxWidth: 280 }}>
             <div className="h-[2px] bg-white/6 rounded-full overflow-hidden">
               <div className="h-full rounded-full" style={{
-                backgroundColor: '#afca0b',
+                backgroundColor: 'var(--club-primary)',
                 animation: 'tplFillBar 2.2s cubic-bezier(0.4,0,0.2,1) 0.4s both',
-                boxShadow: '0 0 8px rgba(175,202,11,0.6)',
+                boxShadow: '0 0 8px color-mix(in srgb, var(--club-primary) 60%, transparent)',
               }} />
             </div>
           </div>
@@ -2802,7 +2809,7 @@ const TorneoPublicoPage = () => {
           <p className="text-white/20 text-sm mt-1">Este torneo no está activo o no existe.</p>
           <button
             onClick={() => navigate('/')}
-            className="mt-6 inline-flex items-center gap-2 text-sm text-[#afca0b] hover:text-[#c8e00d] transition-colors"
+            className="mt-6 inline-flex items-center gap-2 text-sm text-club hover:text-[#c8e00d] transition-colors"
           >
             <ArrowLeft size={14} /> Volver al inicio
           </button>

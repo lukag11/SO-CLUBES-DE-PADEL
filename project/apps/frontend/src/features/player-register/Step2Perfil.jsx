@@ -7,7 +7,7 @@ const OptionCard = ({ label, selected, onClick, description }) => (
     className={[
       'flex flex-col items-start px-4 py-3 rounded-xl border text-left transition-all duration-150 w-full',
       selected
-        ? 'bg-[#afca0b]/12 border-[#afca0b]/50 text-[#afca0b]'
+        ? 'bg-club/12 border-club/50 text-club'
         : 'bg-white/4 border-white/10 text-white/60 hover:border-white/25 hover:text-white/80',
     ].join(' ')}
   >
@@ -74,7 +74,7 @@ const Step2Perfil = ({ form, errors, setValue }) => {
               className={[
                 'py-2.5 rounded-xl border text-sm font-semibold transition-all duration-150',
                 form.categoria === c
-                  ? 'bg-[#afca0b]/12 border-[#afca0b]/50 text-[#afca0b]'
+                  ? 'bg-club/12 border-club/50 text-club'
                   : 'bg-white/4 border-white/10 text-white/50 hover:border-white/25 hover:text-white/80',
               ].join(' ')}
             >
@@ -85,7 +85,7 @@ const Step2Perfil = ({ form, errors, setValue }) => {
         <FieldError error={errors.categoria} />
         {form.categoria && (
           <p className="text-white/30 text-xs mt-2">
-            Seleccionaste: <span className="text-[#afca0b]">{form.categoria}</span>
+            Seleccionaste: <span className="text-club">{form.categoria}</span>
           </p>
         )}
       </div>

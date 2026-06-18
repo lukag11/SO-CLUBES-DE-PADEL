@@ -569,8 +569,8 @@ const PlayerReservasPage = () => {
           className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/2 transition-colors"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-lg bg-[#afca0b]/10 border border-[#afca0b]/20 flex items-center justify-center shrink-0">
-              <Info size={12} className="text-[#afca0b]" />
+            <div className="w-6 h-6 rounded-lg bg-club/10 border border-club/20 flex items-center justify-center shrink-0">
+              <Info size={12} className="text-club" />
             </div>
             <span className="text-white/60 text-xs font-medium">¿Cómo funciona esta sección?</span>
           </div>
@@ -579,8 +579,8 @@ const PlayerReservasPage = () => {
         {helpOpen && (
           <div className="px-4 pb-4 flex flex-col gap-3 border-t border-white/5 pt-3">
             <div className="flex items-start gap-3 px-3 py-3 rounded-xl bg-white/3 border border-white/6">
-              <div className="w-7 h-7 rounded-lg bg-[#afca0b]/10 border border-[#afca0b]/20 flex items-center justify-center shrink-0 mt-0.5">
-                <CalendarDays size={13} className="text-[#afca0b]" />
+              <div className="w-7 h-7 rounded-lg bg-club/10 border border-club/20 flex items-center justify-center shrink-0 mt-0.5">
+                <CalendarDays size={13} className="text-club" />
               </div>
               <div>
                 <p className="text-white/80 text-xs font-semibold">Reserva puntual</p>
@@ -617,11 +617,11 @@ const PlayerReservasPage = () => {
 
       {/* ── Toasts de confirmación (uno por operación, coexisten) ── */}
       {confirmaciones.map((c) => (
-        <div key={c.uid} className={`flex items-start gap-3 border rounded-2xl px-5 py-3.5 ${c.esFijo ? 'bg-amber-500/10 border-amber-500/25' : 'bg-[#afca0b]/8 border-[#afca0b]/20'}`}>
+        <div key={c.uid} className={`flex items-start gap-3 border rounded-2xl px-5 py-3.5 ${c.esFijo ? 'bg-amber-500/10 border-amber-500/25' : 'bg-club/8 border-club/20'}`}>
           <div className="shrink-0 mt-0.5">
             {c.esFijo
               ? <Repeat size={16} className="text-amber-400" />
-              : <CheckCircle size={16} className="text-[#afca0b]" />}
+              : <CheckCircle size={16} className="text-club" />}
           </div>
           <div className="flex-1 min-w-0">
             {c.esFijo ? (
@@ -634,11 +634,11 @@ const PlayerReservasPage = () => {
               </>
             ) : (
               <>
-                <p className="text-[#afca0b] text-sm font-semibold">Reserva enviada</p>
-                <p className="text-[#afca0b]/70 text-xs mt-0.5">
+                <p className="text-club text-sm font-semibold">Reserva enviada</p>
+                <p className="text-club/70 text-xs mt-0.5">
                   {c.cancha} · {c.hora}–{c.horaFin} · {c.fecha}
                 </p>
-                <p className="text-[#afca0b]/50 text-xs mt-1">Pendiente de confirmación admin · La ves en <span className="text-[#afca0b]/80 font-medium">"Mis reservas"</span></p>
+                <p className="text-club/50 text-xs mt-1">Pendiente de confirmación admin · La ves en <span className="text-club/80 font-medium">"Mis reservas"</span></p>
               </>
             )}
           </div>
@@ -654,7 +654,7 @@ const PlayerReservasPage = () => {
       {/* ── Selector de fecha ── */}
       <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-4">
         <div className="flex items-center gap-3 mb-3">
-          <CalendarDays size={15} className="text-[#afca0b]" />
+          <CalendarDays size={15} className="text-club" />
           <span className="text-white/50 text-xs font-medium uppercase tracking-wider">Fecha</span>
         </div>
         <div className="flex items-center gap-2 min-w-0">
@@ -677,14 +677,14 @@ const PlayerReservasPage = () => {
                   className={[
                     'flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-xl border transition-all shrink-0 min-w-[52px]',
                     isSelected
-                      ? 'bg-[#afca0b]/12 border-[#afca0b]/40 text-[#afca0b]'
+                      ? 'bg-club/12 border-club/40 text-club'
                       : 'border-white/6 text-white/50 hover:text-white hover:border-white/15 hover:bg-white/4',
                   ].join(' ')}
                 >
                   <span className="text-[10px] font-medium uppercase tracking-wide">
                     {i === 0 ? 'Hoy' : DIAS_CORTOS[d.getDay()]}
                   </span>
-                  <span className={`text-lg font-bold leading-none ${isSelected ? 'text-[#afca0b]' : ''}`}>
+                  <span className={`text-lg font-bold leading-none ${isSelected ? 'text-club' : ''}`}>
                     {d.getDate()}
                   </span>
                   <span className="text-[9px] opacity-60">{MESES[d.getMonth()]}</span>
@@ -709,7 +709,7 @@ const PlayerReservasPage = () => {
           {/* Tabs de canchas */}
           <div className="bg-[#0d1117] border border-white/8 rounded-2xl p-4">
             <div className="flex items-center gap-3 mb-3">
-              <MapPin size={15} className="text-[#afca0b]" />
+              <MapPin size={15} className="text-club" />
               <span className="text-white/50 text-xs font-medium uppercase tracking-wider">Cancha</span>
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -723,18 +723,18 @@ const PlayerReservasPage = () => {
                       'flex flex-col items-start px-4 py-2.5 rounded-xl border transition-all text-left',
                       bloqueada
                         ? canchaId === c.id
-                          ? 'bg-[#afca0b]/8 border-[#afca0b]/25 text-[#afca0b]/60'
+                          ? 'bg-club/8 border-club/25 text-club/60'
                           : 'border-white/6 text-white/30 opacity-60'
                         : canchaId === c.id
-                          ? 'bg-[#afca0b]/10 border-[#afca0b]/35 text-[#afca0b]'
+                          ? 'bg-club/10 border-club/35 text-club'
                           : 'border-white/6 text-white/50 hover:text-white hover:border-white/15 hover:bg-white/4',
                     ].join(' ')}
                   >
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-semibold">{c.nombre}</span>
-                      {bloqueada && <Trophy size={10} className="text-[#afca0b]/50 shrink-0" />}
+                      {bloqueada && <Trophy size={10} className="text-club/50 shrink-0" />}
                     </div>
-                    <span className={`text-[10px] mt-0.5 ${canchaId === c.id ? 'text-[#afca0b]/60' : 'text-white/25'}`}>
+                    <span className={`text-[10px] mt-0.5 ${canchaId === c.id ? 'text-club/60' : 'text-white/25'}`}>
                       {bloqueada ? 'Reservada · torneo' : `${c.tipo} · ${c.indoor ? 'Indoor' : 'Outdoor'} · $${c.precioTurno.toLocaleString('es-AR')}`}
                     </span>
                   </button>
@@ -747,12 +747,12 @@ const PlayerReservasPage = () => {
           <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
             <div className="px-5 py-3.5 border-b border-white/6 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Clock size={15} className="text-[#afca0b]" />
+                <Clock size={15} className="text-club" />
                 <span className="text-white/50 text-xs font-medium uppercase tracking-wider">Horarios disponibles</span>
               </div>
               <div className="hidden sm:flex items-center gap-4 text-[10px] text-white/30">
                 <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-white/12 border border-white/10" /> Libre</span>
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#afca0b]/20 border border-[#afca0b]/30" /> Confirmado</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-club/20 border border-club/30" /> Confirmado</span>
                 <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-amber-500/20 border border-amber-500/30" /> Pendiente</span>
                 <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-red-500/20 border border-red-500/30" /> Baja pendiente</span>
                 <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-white/4" /> Ocupado</span>
@@ -761,20 +761,20 @@ const PlayerReservasPage = () => {
 
             {canchasBloquedas.includes(canchaId) ? (
               <div className="flex flex-col items-center justify-center py-12 gap-4 text-center px-6">
-                <div className="w-14 h-14 rounded-2xl bg-[#afca0b]/10 border border-[#afca0b]/20 flex items-center justify-center">
-                  <Trophy size={26} className="text-[#afca0b]" />
+                <div className="w-14 h-14 rounded-2xl bg-club/10 border border-club/20 flex items-center justify-center">
+                  <Trophy size={26} className="text-club" />
                 </div>
                 <div className="flex flex-col gap-1">
                   <p className="text-white font-bold text-base">{torneoActivo.nombre}</p>
                   <p className="text-white/50 text-xs">
                     {fmtFechaTorneo(torneoActivo.fechaInicio)} → {fmtFechaTorneo(torneoActivo.fechaFin)}
-                    {torneoActivo.categorias?.length > 0 && <span className="ml-2 text-[#afca0b]/70">{torneoActivo.categorias.join(' · ')}</span>}
+                    {torneoActivo.categorias?.length > 0 && <span className="ml-2 text-club/70">{torneoActivo.categorias.join(' · ')}</span>}
                   </p>
                   <p className="text-white/30 text-xs">{torneoActivo.formato}</p>
                 </div>
                 {jugadorInscripto ? (
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-xs font-semibold text-[#afca0b] bg-[#afca0b]/10 border border-[#afca0b]/20 px-3 py-1 rounded-full">
+                    <span className="text-xs font-semibold text-club bg-club/10 border border-club/20 px-3 py-1 rounded-full">
                       Estás participando en este torneo
                     </span>
                     <Link to="/dashboardJugadores/torneos" className="text-xs text-white/40 hover:text-white/70 underline transition-colors">
@@ -785,7 +785,7 @@ const PlayerReservasPage = () => {
                   <div className="flex flex-col items-center gap-1.5">
                     <p className="text-white/40 text-xs">Esta cancha está reservada para el torneo.</p>
                     {torneoActivo.estado === 'open' ? (
-                      <Link to="/dashboardJugadores/torneos" className="text-xs text-[#afca0b] hover:text-[#afca0b]/80 underline transition-colors">
+                      <Link to="/dashboardJugadores/torneos" className="text-xs text-club hover:text-club/80 underline transition-colors">
                         Inscribite al torneo →
                       </Link>
                     ) : (
@@ -814,10 +814,10 @@ const PlayerReservasPage = () => {
 
                   if (slot.miReserva) {
                     return (
-                      <div key={slot.hora} className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg border bg-[#afca0b]/8 border-[#afca0b]/25 cursor-default text-center">
-                        <CheckCircle size={10} className="text-[#afca0b] shrink-0" />
-                        <span className="text-[#afca0b] font-bold text-[10px] leading-none">{slot.hora}</span>
-                        <span className="text-[#afca0b]/50 text-[9px] leading-none">{slot.horaFin}</span>
+                      <div key={slot.hora} className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg border bg-club/8 border-club/25 cursor-default text-center">
+                        <CheckCircle size={10} className="text-club shrink-0" />
+                        <span className="text-club font-bold text-[10px] leading-none">{slot.hora}</span>
+                        <span className="text-club/50 text-[9px] leading-none">{slot.horaFin}</span>
                       </div>
                     )
                   }
@@ -877,14 +877,14 @@ const PlayerReservasPage = () => {
                       className={[
                         'flex flex-col items-center gap-0.5 p-1.5 rounded-lg border transition-all duration-150 text-center',
                         isSelected
-                          ? 'bg-[#afca0b]/15 border-[#afca0b]/50 ring-1 ring-[#afca0b]/30'
+                          ? 'bg-club/15 border-club/50 ring-1 ring-club/30'
                           : 'bg-white/4 border-white/8 hover:bg-white/8 hover:border-white/16',
                       ].join(' ')}
                     >
-                      <span className={`font-bold text-[10px] leading-none ${isSelected ? 'text-[#afca0b]' : 'text-white/80'}`}>
+                      <span className={`font-bold text-[10px] leading-none ${isSelected ? 'text-club' : 'text-white/80'}`}>
                         {slot.hora}
                       </span>
-                      <span className={`text-[9px] leading-none ${isSelected ? 'text-[#afca0b]/60' : 'text-white/25'}`}>
+                      <span className={`text-[9px] leading-none ${isSelected ? 'text-club/60' : 'text-white/25'}`}>
                         {slot.horaFin}
                       </span>
                     </button>
@@ -912,8 +912,8 @@ const PlayerReservasPage = () => {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/8">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#afca0b]/12 border border-[#afca0b]/20 flex items-center justify-center">
-                  <Clock size={16} className="text-[#afca0b]" />
+                <div className="w-9 h-9 rounded-xl bg-club/12 border border-club/20 flex items-center justify-center">
+                  <Clock size={16} className="text-club" />
                 </div>
                 <div>
                   <p className="text-white font-bold text-base leading-tight">Confirmá tu turno</p>
@@ -954,15 +954,15 @@ const PlayerReservasPage = () => {
                 <div className="h-px bg-white/5" />
                 <div className="flex items-center justify-between">
                   <span className="text-white/40 text-xs">Total a pagar</span>
-                  <span className="text-[#afca0b] font-black text-2xl">${precio.toLocaleString('es-AR')}</span>
+                  <span className="text-club font-black text-2xl">${precio.toLocaleString('es-AR')}</span>
                 </div>
               </div>
 
               {/* Toggle turno fijo */}
               <div className={`flex items-center justify-between bg-white/3 border rounded-2xl px-4 py-3.5 ${yaTimeTurnoFijoEnCancha ? 'border-white/4 opacity-60' : 'border-white/6'}`}>
                 <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${esTurnoFijo ? 'bg-[#afca0b]/15 border border-[#afca0b]/25' : 'bg-white/5 border border-white/8'}`}>
-                    <Repeat size={14} className={esTurnoFijo ? 'text-[#afca0b]' : 'text-white/30'} />
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${esTurnoFijo ? 'bg-club/15 border border-club/25' : 'bg-white/5 border border-white/8'}`}>
+                    <Repeat size={14} className={esTurnoFijo ? 'text-club' : 'text-white/30'} />
                   </div>
                   <div>
                     <p className="text-white/80 text-xs font-semibold">Turno fijo semanal</p>
@@ -978,7 +978,7 @@ const PlayerReservasPage = () => {
                 <button
                   onClick={() => !yaTimeTurnoFijoEnCancha && setEsTurnoFijo((v) => !v)}
                   disabled={yaTimeTurnoFijoEnCancha}
-                  className={`relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 ${esTurnoFijo && !yaTimeTurnoFijoEnCancha ? 'bg-[#afca0b]' : 'bg-white/15'} disabled:cursor-not-allowed`}
+                  className={`relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 ${esTurnoFijo && !yaTimeTurnoFijoEnCancha ? 'bg-club' : 'bg-white/15'} disabled:cursor-not-allowed`}
                 >
                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-300 ${esTurnoFijo && !yaTimeTurnoFijoEnCancha ? 'left-6' : 'left-1'}`} />
                 </button>
@@ -992,7 +992,7 @@ const PlayerReservasPage = () => {
                   'w-full flex items-center justify-center gap-3 font-bold text-base py-4 rounded-2xl transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed',
                   esTurnoFijo
                     ? 'bg-amber-400 text-[#0d1117] hover:bg-amber-300 shadow-lg shadow-amber-400/20'
-                    : 'bg-[#afca0b] text-[#0d1117] hover:brightness-110 shadow-lg shadow-[#afca0b]/20',
+                    : 'bg-club text-[#0d1117] hover:brightness-110 shadow-lg shadow-club/20',
                 ].join(' ')}
               >
                 {submitting ? (
@@ -1026,11 +1026,11 @@ const PlayerReservasPage = () => {
       {misReservasMapped.filter((r) => !r.esTurnoFijo && (r.estado === 'confirmada' || r.estado === 'pendiente') && r.fecha >= fmtDate(hoy)).length > 0 && (
         <Link
           to="/dashboardJugadores/mis-reservas"
-          className="flex items-center justify-between px-5 py-3.5 bg-[#0d1117] border border-white/8 rounded-2xl hover:border-[#afca0b]/30 hover:bg-[#afca0b]/3 transition-all group"
+          className="flex items-center justify-between px-5 py-3.5 bg-[#0d1117] border border-white/8 rounded-2xl hover:border-club/30 hover:bg-club/3 transition-all group"
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-[#afca0b]/10 border border-[#afca0b]/20 flex items-center justify-center shrink-0">
-              <CalendarDays size={14} className="text-[#afca0b]" />
+            <div className="w-8 h-8 rounded-xl bg-club/10 border border-club/20 flex items-center justify-center shrink-0">
+              <CalendarDays size={14} className="text-club" />
             </div>
             <div>
               <p className="text-white/70 text-xs font-semibold group-hover:text-white transition-colors">
@@ -1049,7 +1049,7 @@ const PlayerReservasPage = () => {
               <p className="text-white/25 text-[10px] mt-0.5">Ver en Mis reservas</p>
             </div>
           </div>
-          <ChevronDown size={14} className="text-white/20 group-hover:text-[#afca0b] -rotate-90 transition-colors" />
+          <ChevronDown size={14} className="text-white/20 group-hover:text-club -rotate-90 transition-colors" />
         </Link>
       )}
 

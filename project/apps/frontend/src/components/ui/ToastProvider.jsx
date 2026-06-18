@@ -18,7 +18,7 @@ const VARIANTS = {
 
 const ToastItem = ({ t, onClose }) => {
   const v = VARIANTS[t.type] || VARIANTS.info
-  const Icon = v.Icon
+  const Icon = t.icon || v.Icon // ícono custom opcional (mantiene el color del tipo)
   return (
     <div className="animate-toast-enter pointer-events-auto relative flex items-center gap-3.5 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl shadow-black/30 border border-white/8 min-w-[280px] max-w-sm overflow-hidden">
       <div className={`w-9 h-9 rounded-xl ${v.iconBg} flex items-center justify-center shrink-0`}>
@@ -45,10 +45,10 @@ export const ToastProvider = ({ children }) => {
     if (timers.current[id]) { clearTimeout(timers.current[id]); delete timers.current[id] }
   }, [])
 
-  const push = useCallback((type, message, { label, duration = 3500 } = {}) => {
+  const push = useCallback((type, message, { label, duration = 3500, icon } = {}) => {
     if (!message) return
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    setToasts((list) => [...list, { id, type, message, label: label ?? VARIANTS[type]?.label, duration }])
+    setToasts((list) => [...list, { id, type, message, label: label ?? VARIANTS[type]?.label, duration, icon }])
     timers.current[id] = setTimeout(() => dismiss(id), duration)
     return id
   }, [dismiss])

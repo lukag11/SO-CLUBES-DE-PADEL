@@ -6,7 +6,7 @@ import {
   Lock, Pencil, Trash2, AlertTriangle, Bell, UserCheck, Camera, Download, Flag,
 } from 'lucide-react'
 import FlyerTorneo from '../components/FlyerTorneo'
-import Toast from '../components/ui/Toast'
+import { useToast } from '../components/ui/ToastProvider'
 import { FLYER_TEMPLATES } from '../lib/flyerTemplates'
 import { GENEROS, FORMATOS } from '../features/admin/torneosMockData'
 import InfoBlock from '../components/InfoBlock'
@@ -1833,43 +1833,16 @@ const TorneosPage = () => {
   const [torneoEditar, setTorneoEditar] = useState(null)
   const [busquedaFin, setBusquedaFin] = useState('')
   const [añoFin, setAñoFin] = useState('')
-  const [toastNuevoTorneo, setToastNuevoTorneo] = useState(null)
-  const [toastFlyer, setToastFlyer]             = useState(false)
-  const [toastEdicion, setToastEdicion]         = useState(false)
-  const [toastEliminado, setToastEliminado]     = useState(false)
-  const [toastEstado, setToastEstado]           = useState(null)   // { estado: 'open'|'closed'|... }
   const [flyerTorneo, setFlyerTorneo]           = useState(null)
   const [modalCerrarTorneo, setModalCerrarTorneo] = useState(null) // torneo a cerrar
+  const toast = useToast()
 
-  useEffect(() => {
-    if (!toastNuevoTorneo) return
-    const t = setTimeout(() => setToastNuevoTorneo(null), 4000)
-    return () => clearTimeout(t)
-  }, [toastNuevoTorneo])
-
-  useEffect(() => {
-    if (!toastFlyer) return
-    const t = setTimeout(() => setToastFlyer(false), 3500)
-    return () => clearTimeout(t)
-  }, [toastFlyer])
-
-  useEffect(() => {
-    if (!toastEdicion) return
-    const t = setTimeout(() => setToastEdicion(false), 3500)
-    return () => clearTimeout(t)
-  }, [toastEdicion])
-
-  useEffect(() => {
-    if (!toastEliminado) return
-    const t = setTimeout(() => setToastEliminado(false), 3500)
-    return () => clearTimeout(t)
-  }, [toastEliminado])
-
-  useEffect(() => {
-    if (!toastEstado) return
-    const t = setTimeout(() => setToastEstado(null), 3500)
-    return () => clearTimeout(t)
-  }, [toastEstado])
+  // Toasts de estado de inscripción (abierta/cerrada/borrador) con su ícono propio
+  const toastEstadoInscripcion = (estado) => {
+    if (estado === 'open') toast.success('Las inscripciones están abiertas', { label: 'Inscripción abierta', icon: ToggleRight })
+    else if (estado === 'closed') toast.info('Las inscripciones están cerradas', { label: 'Inscripción cerrada', icon: Lock })
+    else if (estado === 'draft') toast.info('El torneo volvió a borrador', { label: 'Volvió a borrador', icon: ToggleLeft })
+  }
 
   const tabs = [
     { key: 'en_curso',    label: 'En curso',    icon: CheckCircle },
@@ -1917,7 +1890,7 @@ const TorneosPage = () => {
         .filter((i) => i.estado === 'suplente')
         .forEach((i) => updatePareja(torneo.id, i.id, { estado: 'espera' }))
     }
-    setToastEstado(nuevoEstado)
+    toastEstadoInscripcion(nuevoEstado)
   }
 
   const handleToggleEstado = (id) => {
@@ -1955,14 +1928,14 @@ const TorneosPage = () => {
         addTorneoFromApi({ ...mapBackendTorneo(data), ...flyerFields(form) })
         setModalNuevo(false)
         setTabActiva('proximos')
-        setToastNuevoTorneo(form.nombre)
+        toast.success(form.nombre, { label: 'Torneo creado', icon: Trophy, duration: 4000 })
         return
       } catch { /* fallback local */ }
     }
     addTorneo(form)
     setModalNuevo(false)
     setTabActiva('proximos')
-    setToastNuevoTorneo(form.nombre)
+    toast.success(form.nombre, { label: 'Torneo creado', icon: Trophy, duration: 4000 })
   }
 
   const handleEditar = (torneo) => setTorneoEditar(torneo)
@@ -1978,13 +1951,13 @@ const TorneosPage = () => {
         const data = await api.patch(`/torneos/${torneoEditar.id}`, form, authHeader)
         updateTorneoFromApi({ ...mapBackendTorneo(data), ...flyerFields(form) })
         setTorneoEditar(null)
-        setToastEdicion(true)
+        toast.success('Datos guardados correctamente', { label: 'Torneo editado' })
         return
       } catch { /* fallback local */ }
     }
     updateTorneo(torneoEditar.id, form)
     setTorneoEditar(null)
-    setToastEdicion(true)
+    toast.success('Datos guardados correctamente', { label: 'Torneo editado' })
   }
 
   const handleEliminar = async (id) => {
@@ -1992,7 +1965,7 @@ const TorneosPage = () => {
       try { await api.delete(`/torneos/${id}`, authHeader) } catch { /* fallback local */ }
     }
     deleteTorneo(id)
-    setToastEliminado(true)
+    toast.info('El torneo fue eliminado', { label: 'Torneo eliminado', icon: Trash2 })
   }
 
   const torneosAbiertos = torneos.filter((t) => t.estado === 'open')
@@ -2304,7 +2277,7 @@ const TorneosPage = () => {
           torneo={flyerTorneo}
           club={club}
           onClose={() => setFlyerTorneo(null)}
-          onDescargado={() => setToastFlyer(true)}
+          onDescargado={() => toast.success('PNG descargado correctamente', { label: 'Flyer listo', icon: Download })}
         />
       )}
 
@@ -2316,14 +2289,6 @@ const TorneosPage = () => {
         />
       )}
 
-      {/* Toasts */}
-      {toastEliminado   && <Toast icon={Trash2}      iconBg="bg-red-500/15 border border-red-500/25"         iconColor="text-red-400"     barColor="bg-red-400/50"     label="Torneo eliminado" message="El torneo fue eliminado"       duration={3500} onClose={() => setToastEliminado(false)}  />}
-      {toastEdicion     && <Toast icon={CheckCircle} iconBg="bg-brand-500/15 border border-brand-500/25"     iconColor="text-brand-400"   barColor="bg-brand-400/50"   label="Torneo editado"   message="Datos guardados correctamente"  duration={3500} onClose={() => setToastEdicion(false)}    />}
-      {toastFlyer       && <Toast icon={Download}    iconBg="bg-emerald-500/15 border border-emerald-500/25" iconColor="text-emerald-400" barColor="bg-emerald-400/50" label="Flyer listo"       message="PNG descargado correctamente"   duration={3500} onClose={() => setToastFlyer(false)}      />}
-      {toastNuevoTorneo && <Toast icon={Trophy}      iconBg="bg-brand-500/15 border border-brand-500/25"     iconColor="text-brand-400"   barColor="bg-brand-400/50"   label="Torneo creado"    message={toastNuevoTorneo}               duration={4000} onClose={() => setToastNuevoTorneo(null)} />}
-      {toastEstado === 'open'   && <Toast icon={ToggleRight} iconBg="bg-emerald-500/15 border border-emerald-500/25" iconColor="text-emerald-400" barColor="bg-emerald-400/50" label="Inscripción abierta"  message="Las inscripciones están abiertas"  duration={3500} onClose={() => setToastEstado(null)} />}
-      {toastEstado === 'closed' && <Toast icon={Lock}        iconBg="bg-amber-500/15 border border-amber-500/25"     iconColor="text-amber-400"   barColor="bg-amber-400/50"   label="Inscripción cerrada"  message="Las inscripciones están cerradas"  duration={3500} onClose={() => setToastEstado(null)} />}
-      {toastEstado === 'draft'  && <Toast icon={ToggleLeft}  iconBg="bg-slate-500/15 border border-slate-500/25"     iconColor="text-slate-400"   barColor="bg-slate-400/50"   label="Volvió a borrador"    message="El torneo volvió a borrador"       duration={3500} onClose={() => setToastEstado(null)} />}
 
     </div>
   )

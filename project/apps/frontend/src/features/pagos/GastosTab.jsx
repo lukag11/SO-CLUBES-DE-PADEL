@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { TrendingDown, AlertTriangle, Plus, X, Trash2, CheckCircle, Pencil, Camera, Loader2, FileText, Download } from 'lucide-react'
 import { api, uploadImage } from '../../lib/api'
-import Toast from '../../components/ui/Toast'
+import { useToast } from '../../components/ui/ToastProvider'
 import { METODO_MAP, MetodoBadge } from '../../lib/metodosPago'
 import { generarReporteGastos, exportarGastosCSV } from './comprobantes'
 import useClubStore from '../../store/clubStore'
@@ -192,8 +192,8 @@ const GastosTab = ({ token, metodos }) => {
   const [pagando, setPagando] = useState(null)
   const [eliminando, setEliminando] = useState(null)
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState(null)
-  const showToast = (tipo, message) => { setToast({ tipo, message }); setTimeout(() => setToast(null), 3500) }
+  const toast = useToast()
+  const showToast = (tipo, message) => (tipo === 'exito' ? toast.success(message) : toast.error(message))
 
   const fetchData = useCallback(async () => {
     if (!token) return
@@ -353,18 +353,6 @@ const GastosTab = ({ token, metodos }) => {
         </div>
       )}
 
-      {toast && (
-        <Toast
-          icon={toast.tipo === 'exito' ? CheckCircle : AlertTriangle}
-          iconBg={toast.tipo === 'exito' ? 'bg-emerald-500/15' : 'bg-rose-500/15'}
-          iconColor={toast.tipo === 'exito' ? 'text-emerald-400' : 'text-rose-400'}
-          barColor={toast.tipo === 'exito' ? 'bg-emerald-400' : 'bg-rose-400'}
-          label={toast.tipo === 'exito' ? 'Gastos' : 'Error'}
-          message={toast.message}
-          duration={3500}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
   )
 }

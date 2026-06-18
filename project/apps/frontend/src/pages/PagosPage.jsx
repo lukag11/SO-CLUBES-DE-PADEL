@@ -6,7 +6,7 @@ import {
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
-import Toast from '../components/ui/Toast'
+import { useToast } from '../components/ui/ToastProvider'
 import { METODOS_CATALOGO, METODO_MAP, metodosDelClub, MetodoBadge } from '../lib/metodosPago'
 import GastosTab from '../features/pagos/GastosTab'
 import VentasTab from '../features/pagos/VentasTab'
@@ -538,9 +538,10 @@ const PagosPage = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [productos, setProductos] = useState([])
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState(null)
+  const toast = useToast()
 
-  const showToast = (tipo, message) => { setToast({ tipo, message }); setTimeout(() => setToast(null), 3500) }
+  // Mantiene la firma showToast(tipo, message) que usan los tabs hijos.
+  const showToast = (tipo, message) => (tipo === 'exito' ? toast.success(message) : toast.error(message))
 
   const fetchData = useCallback(async () => {
     if (!token) return
@@ -922,18 +923,6 @@ const PagosPage = () => {
       {cuentaOpen && <ModalCuentaJugador modo={modalModo} jugadores={jugadores} deudores={deudores} productos={productos} metodos={metodosHabilitados} token={token} club={club} initialJugadorId={cobroPreset?.jugadorId} initialDeudaId={cobroPreset?.deudaId} onClose={() => { setModalModo(null); setCobroPreset(null) }} onRefresh={fetchData} showToast={showToast} />}
       {configMetodos && <ModalMetodos seleccion={metodosHabilitados} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
 
-      {toast && (
-        <Toast
-          icon={toast.tipo === 'exito' ? CheckCircle : AlertTriangle}
-          iconBg={toast.tipo === 'exito' ? 'bg-emerald-500/15' : 'bg-rose-500/15'}
-          iconColor={toast.tipo === 'exito' ? 'text-emerald-400' : 'text-rose-400'}
-          barColor={toast.tipo === 'exito' ? 'bg-emerald-400' : 'bg-rose-400'}
-          label={toast.tipo === 'exito' ? 'Cobranzas' : 'Error'}
-          message={toast.message}
-          duration={3500}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
   )
 }

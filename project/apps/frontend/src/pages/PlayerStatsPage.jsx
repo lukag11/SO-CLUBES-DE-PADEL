@@ -443,7 +443,7 @@ const TabTorneos = ({ stats }) => {
                       <span className="text-white font-bold text-sm">{pct}%</span>
                     </div>
                     <div className="h-2 bg-white/6 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-club to-[#c4e20c] rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                      <div className="h-full bg-club rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
                     </div>
                     <div className="flex justify-between mt-1">
                       <span className="text-white/25 text-xs">{g}V · {pd}D</span>
@@ -550,7 +550,7 @@ const TabTorneos = ({ stats }) => {
             </div>
             <div className="mt-2 h-1.5 bg-white/6 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-club to-[#c4e20c] rounded-full transition-all duration-700"
+                className="h-full bg-club rounded-full transition-all duration-700"
                 style={{ width: `${Math.round((p.setsGanados / (p.setsGanados + p.setsPerdidos)) * 100)}%` }}
               />
             </div>
@@ -617,7 +617,7 @@ const TabTorneos = ({ stats }) => {
                     </div>
                   </div>
                   <div className="h-1.5 bg-white/6 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-700 ${winPct >= 60 ? 'bg-gradient-to-r from-club to-[#c4e20c]' : winPct >= 40 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${winPct}%` }} />
+                    <div className={`h-full rounded-full transition-all duration-700 ${winPct >= 60 ? 'bg-club' : winPct >= 40 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${winPct}%` }} />
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-white/25 text-xs">{ev.torneos} torneo{ev.torneos !== 1 ? 's' : ''}</span>

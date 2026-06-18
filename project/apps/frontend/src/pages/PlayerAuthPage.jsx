@@ -168,7 +168,7 @@ const PlayerAuthPage = () => {
               </div>
             )}
 
-            <Button type="submit" fullWidth loading={loading} size="lg" className="mt-2 !bg-club !text-[#0d1117] hover:!bg-[#c4e20c]">
+            <Button type="submit" fullWidth loading={loading} size="lg" className="mt-2 !bg-club !text-[#0d1117] hover:!brightness-110">
               Iniciar sesión
             </Button>
           </form>
@@ -183,7 +183,7 @@ const PlayerAuthPage = () => {
           {/* Link registro */}
           <p className="text-center text-sm text-white/30 mt-6">
             ¿No tenés cuenta?{' '}
-            <Link to="/dashboardJugadores/registro" className="text-club hover:text-[#c4e20c] font-semibold transition-colors">
+            <Link to="/dashboardJugadores/registro" className="text-club hover:brightness-110 font-semibold transition-colors">
               Registrate
             </Link>
           </p>

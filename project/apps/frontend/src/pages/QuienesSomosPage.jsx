@@ -404,7 +404,19 @@ const NAVBAR_ESTILOS = [
   { value: 'color-solido', label: 'Color sólido',   desc: 'Usa el color primario del club como fondo' },
 ]
 
+// Rechaza colores demasiado oscuros para un acento (texto/contraste).
+// Luminancia percibida; umbral ~0.35 deja pasar vibrantes (rojo/azul/violeta)
+// y frena navy/negro.
+const esColorMuyOscuro = (hex) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim())
+  if (!m) return false
+  const n = parseInt(m[1], 16)
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.35
+}
+
 const TabApariencia = ({ club, updateClub, saveClub }) => {
+  const toast = useToast()
   const [templateId, setTemplateId] = useState(club.templateId ?? 1)
   const [seccionesVisibles, setSeccionesVisibles] = useState(
     club.seccionesVisibles ?? { reservas: true, historia: true, galeria: true, servicios: true, staff: true, faq: true }
@@ -418,6 +430,15 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
 
   const toggleSeccion = (key) =>
     setSeccionesVisibles((prev) => ({ ...prev, [key]: !prev[key] }))
+
+  // Guard: el primario es un acento (botones/badges) → no permitir muy oscuro.
+  const handleColorPrimario = (hex) => {
+    if (esColorMuyOscuro(hex)) {
+      toast.error('Ese color es muy oscuro para un acento. Elegí uno más claro para que se lea bien sobre los botones.')
+      return
+    }
+    setColorPrimario(hex)
+  }
 
   const handleSave = () => {
     updateClub({ templateId, seccionesVisibles, navbarEstilo, colorPrimario, colorSecundario, modoOscuroJugadores: modoOscuro, fontFamilia })
@@ -533,7 +554,7 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
             label="Color primario"
             description="Botones, badges, acentos principales"
             value={colorPrimario}
-            onChange={setColorPrimario}
+            onChange={handleColorPrimario}
           />
           <ColorPicker
             label="Color secundario"

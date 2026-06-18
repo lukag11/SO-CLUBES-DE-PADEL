@@ -240,7 +240,7 @@ const PlayerRegisterPage = () => {
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="flex items-center gap-2 bg-club hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-lg shadow-club/20"
+                    className="flex items-center gap-2 bg-club hover:brightness-110 text-[#0d1117] font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-lg shadow-club/20"
                   >
                     Siguiente
                     <ArrowRight size={16} />
@@ -249,7 +249,7 @@ const PlayerRegisterPage = () => {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex items-center gap-2 bg-club hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-lg shadow-club/20 disabled:opacity-50"
+                    className="flex items-center gap-2 bg-club hover:brightness-110 text-[#0d1117] font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-lg shadow-club/20 disabled:opacity-50"
                   >
                     {submitting ? (
                       <>

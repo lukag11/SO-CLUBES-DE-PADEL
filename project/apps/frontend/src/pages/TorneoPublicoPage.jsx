@@ -2745,7 +2745,7 @@ const TorneoPublicoPage = () => {
 
         {/* Línea de escaneo */}
         <div className="absolute left-0 right-0 h-[2px] pointer-events-none" style={{
-          background: 'linear-gradient(90deg, transparent 0%, var(--club-primary) 40%, #e8ff40 50%, var(--club-primary) 60%, transparent 100%)',
+          background: 'linear-gradient(90deg, transparent 0%, var(--club-primary) 40%, #ffffff 50%, var(--club-primary) 60%, transparent 100%)',
           animation: 'scanLine 1.8s ease-in-out infinite',
           boxShadow: '0 0 12px 2px color-mix(in srgb, var(--club-primary) 50%, transparent)',
         }} />

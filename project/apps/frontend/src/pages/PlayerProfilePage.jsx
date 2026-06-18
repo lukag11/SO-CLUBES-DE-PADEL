@@ -374,7 +374,7 @@ const DatosTab = ({ player, updatePlayer, token }) => {
         )}
         <button
           onClick={handleSave}
-          className="flex items-center gap-2 bg-club hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-150 shadow-lg shadow-club/20"
+          className="flex items-center gap-2 bg-club hover:brightness-110 text-[#0d1117] font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-150 shadow-lg shadow-club/20"
         >
           <Save size={15} />
           Guardar cambios
@@ -515,7 +515,7 @@ const PasswordTab = () => {
         <button
           onClick={handleSave}
           disabled={submitting}
-          className="flex items-center gap-2 bg-club hover:bg-[#c4e20c] text-[#0d1117] font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-150 shadow-lg shadow-club/20 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 bg-club hover:brightness-110 text-[#0d1117] font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-150 shadow-lg shadow-club/20 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Lock size={15} />
           {submitting ? 'Actualizando…' : 'Actualizar contraseña'}

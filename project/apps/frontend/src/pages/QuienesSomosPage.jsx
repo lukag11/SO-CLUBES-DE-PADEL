@@ -431,16 +431,14 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
   const toggleSeccion = (key) =>
     setSeccionesVisibles((prev) => ({ ...prev, [key]: !prev[key] }))
 
-  // Guard: el primario es un acento (botones/badges) → no permitir muy oscuro.
-  const handleColorPrimario = (hex) => {
-    if (esColorMuyOscuro(hex)) {
+  const handleSave = () => {
+    // Guard: el primario es un acento (botones/badges) → no permitir muy oscuro.
+    // Se valida acá (al guardar), no en el onChange, para no spamear toasts mientras
+    // el usuario arrastra por la paleta del selector.
+    if (esColorMuyOscuro(colorPrimario)) {
       toast.error('Ese color es muy oscuro para un acento. Elegí uno más claro para que se lea bien sobre los botones.')
       return
     }
-    setColorPrimario(hex)
-  }
-
-  const handleSave = () => {
     updateClub({ templateId, seccionesVisibles, navbarEstilo, colorPrimario, colorSecundario, modoOscuroJugadores: modoOscuro, fontFamilia })
     saveClub()
     setSaved(true)
@@ -554,7 +552,7 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
             label="Color primario"
             description="Botones, badges, acentos principales"
             value={colorPrimario}
-            onChange={handleColorPrimario}
+            onChange={setColorPrimario}
           />
           <ColorPicker
             label="Color secundario"

@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
-import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireActive, requirePermiso } from '../middleware/auth.js'
 
 const router = Router()
 
@@ -108,7 +108,7 @@ router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req
 
 // ── GET /?clubId= — admin: todos los turnos del club ─────────────────────────
 // GET /api/turnos-fijos/jugador/:id   — admin ve los turnos fijos de un jugador específico
-router.get('/jugador/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/jugador/:id', requireAuth, requireRole('admin'), requirePermiso('reservas'), async (req, res) => {
   try {
     const turnos = await prisma.turnoFijo.findMany({
       where: { jugadorId: req.params.id, clubId: req.user.clubId, estado: { not: 'inactivo' } },
@@ -121,7 +121,7 @@ router.get('/jugador/:id', requireAuth, requireRole('admin'), async (req, res) =
   }
 })
 
-router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/', requireAuth, requireRole('admin'), requirePermiso('reservas'), async (req, res) => {
   try {
     const clubId = req.user.clubId  // siempre del JWT, ignorar query param
     if (!clubId) return res.status(400).json({ error: 'clubId requerido' })
@@ -218,7 +218,7 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
 })
 
 // ── PATCH /:id/estado — admin: confirmar | rechazar | dar de baja ─────────────
-router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/estado', requireAuth, requireRole('admin'), requirePermiso('reservas'), async (req, res) => {
   try {
     const { estado } = req.body
     if (!['confirmado', 'inactivo', 'pendiente'].includes(estado)) {
@@ -467,7 +467,7 @@ router.post('/:id/ausencia', requireAuth, requireRole('jugador'), requireActive,
 })
 
 // ── PATCH /:id/ausencia/:fecha — admin: confirmar o crear ausencia puntual ────
-router.patch('/:id/ausencia/:fecha', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/ausencia/:fecha', requireAuth, requireRole('admin'), requirePermiso('reservas'), async (req, res) => {
   try {
     const { id, fecha } = req.params
 

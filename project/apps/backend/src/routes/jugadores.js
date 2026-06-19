@@ -2,7 +2,7 @@ import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
 import { signToken } from '../lib/jwt.js'
-import { requireAuth, requireRole, requireActive } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireActive, requirePermiso } from '../middleware/auth.js'
 import { lookupLimiter } from '../middleware/rateLimit.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
 
@@ -37,7 +37,7 @@ router.get('/buscar-por-dni', lookupLimiter, async (req, res) => {
 })
 
 // GET /api/jugadores/buscar?q= — admin busca jugadores de su club (por nombre, apellido o DNI)
-router.get('/buscar', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/buscar', requireAuth, requireRole('admin'), requirePermiso('jugadores'), async (req, res) => {
   const { q } = req.query
   if (!q || q.trim().length < 2) return res.json([])
   try {
@@ -813,7 +813,7 @@ router.get('/me/oponentes', requireAuth, requireRole('jugador'), requireActive, 
 })
 
 // GET /api/jugadores/ascenso-sugeridos — admin: jugadores candidatos a subir categoría
-router.get('/ascenso-sugeridos', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/ascenso-sugeridos', requireAuth, requireRole('admin'), requirePermiso('jugadores'), async (req, res) => {
   const clubId = req.user.clubId
   try {
     const jugadores = await prisma.jugador.findMany({
@@ -893,7 +893,7 @@ router.get('/ascenso-sugeridos', requireAuth, requireRole('admin'), async (req, 
 })
 
 // GET /api/jugadores/:id/stats — admin: mini-stats de un jugador específico
-router.get('/:id/stats', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/:id/stats', requireAuth, requireRole('admin'), requirePermiso('jugadores'), async (req, res) => {
   const clubId = req.user.clubId
   const { id: jugadorId } = req.params
   try {
@@ -1011,7 +1011,7 @@ router.get('/:id/stats', requireAuth, requireRole('admin'), async (req, res) => 
 })
 
 // ── GET / — admin: lista todos los jugadores del club ────────────────────────
-router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/', requireAuth, requireRole('admin'), requirePermiso('jugadores'), async (req, res) => {
   try {
     const jugadores = await prisma.jugador.findMany({
       where: { clubId: req.user.clubId },
@@ -1042,7 +1042,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // ── POST / — admin: dar de alta un jugador manualmente ───────────────────────
-router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/', requireAuth, requireRole('admin'), requirePermiso('jugadores'), async (req, res) => {
   const { nombre, apellido, dni, email, telefono, categoria } = req.body
   if (!nombre || !apellido || !dni) {
     return res.status(400).json({ error: 'nombre, apellido y dni son requeridos' })
@@ -1086,7 +1086,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // ── PATCH /:id — admin: editar datos de un jugador ───────────────────────────
-router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id', requireAuth, requireRole('admin'), requirePermiso('jugadores'), async (req, res) => {
   const { nombre, apellido, email, telefono, categoria, activo } = req.body
   try {
     const jugador = await prisma.jugador.findUnique({ where: { id: req.params.id } })
@@ -1130,7 +1130,7 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // ── DELETE /:id — admin: eliminar jugador sin cuenta ─────────────────────────
-router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/:id', requireAuth, requireRole('admin'), requirePermiso('jugadores'), async (req, res) => {
   try {
     const jugador = await prisma.jugador.findUnique({ where: { id: req.params.id } })
     if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' })

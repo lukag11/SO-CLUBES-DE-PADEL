@@ -5,6 +5,7 @@ import { requireAuth, requireRole, requireActive, requireFeature, requirePermiso
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { snapshotProductos } from '../lib/productos.js'
 import { descontarStock } from '../lib/stock.js'
+import { tienePermiso } from '../lib/permisos.js'
 
 const router = Router()
 
@@ -70,7 +71,7 @@ router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req
 })
 
 // GET /api/reservas/jugador/:id   — admin ve el historial de reservas eventuales de un jugador
-router.get('/jugador/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/jugador/:id', requireAuth, requireRole('admin'), requirePermiso('reservas'), async (req, res) => {
   try {
     const reservas = await prisma.reserva.findMany({
       where: {
@@ -89,7 +90,7 @@ router.get('/jugador/:id', requireAuth, requireRole('admin'), async (req, res) =
 })
 
 // GET /api/reservas/pendientes   — admin ve todas las reservas pendientes de aprobación
-router.get('/pendientes', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/pendientes', requireAuth, requireRole('admin'), requirePermiso('reservas'), async (req, res) => {
   try {
     const reservas = await prisma.reserva.findMany({
       where: {
@@ -576,7 +577,7 @@ router.patch('/profesor/:id', requireAuth, requireRole('profesor'), async (req, 
   }
 })
 
-router.post('/admin/clase-profesor', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/admin/clase-profesor', requireAuth, requireRole('admin'), requirePermiso('clases'), async (req, res) => {
   const { profesorId, canchaId, fecha, horaInicio, horaFin, notas, precio } = req.body
   const clubId = req.user.clubId
 
@@ -655,7 +656,7 @@ router.post('/admin/clase-profesor', requireAuth, requireRole('admin'), async (r
 })
 
 // POST /api/reservas/admin   — admin crea reserva manual (bloqueado, clase, etc.)
-router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/admin', requireAuth, requireRole('admin'), requirePermiso('reservas'), async (req, res) => {
   const { canchaId, fecha, horaInicio, horaFin, tipo, jugadores, precio, notas, esTurnoFijo, jugadorId } = req.body
   const clubId = req.user.clubId
 
@@ -787,7 +788,7 @@ router.post('/admin', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // PATCH /api/reservas/:id/estado   — admin aprueba o cancela
-router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/estado', requireAuth, requireRole('admin'), requirePermiso('reservas'), async (req, res) => {
   const { id } = req.params
   const { estado } = req.body
 
@@ -1137,7 +1138,7 @@ router.patch('/:id/cobro-omitido', requireAuth, requireRole('admin'), requirePer
   }
 })
 
-router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id', requireAuth, requireRole('admin'), requirePermiso('reservas'), async (req, res) => {
   const { id } = req.params
   const { notas, precio, jugadores, tipo, jugadorId } = req.body
 
@@ -1169,6 +1170,12 @@ router.delete('/:id', requireAuth, async (req, res) => {
   const { id } = req.params
 
   try {
+    // Empleado (admin staff) sin permiso de reservas no puede cancelar
+    if (req.user.role === 'admin') {
+      const admin = await prisma.admin.findUnique({ where: { id: req.user.id }, select: { rol: true, permisos: true } })
+      if (!tienePermiso(admin, 'reservas')) return res.status(403).json({ error: 'sin_permiso' })
+    }
+
     const reserva = await prisma.reserva.findUnique({
       where: { id },
       include: { cancha: { select: { nombre: true } } },

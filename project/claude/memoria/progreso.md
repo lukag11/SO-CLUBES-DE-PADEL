@@ -1,6 +1,19 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-17 — Pulido post-auditoría: anti-abuso (rate-limit) + UX de bloqueo + branding PadelwIArk
+**Última actualización:** 2026-06-19 — RBAC "Empleados con permisos" COMPLETO (las 2 olas)
+
+---
+
+## RBAC — Empleados con permisos por módulo (2026-06-19)
+
+El dueño del club puede crear **empleados** con acceso limitado por módulo, para que un empleado (ej: mostrador) **no vea las finanzas ni toque la configuración del club**. Es RBAC *dentro* del tenant, separado del feature-gating por plan (se apilan: acceso efectivo = plan ∩ permisos del empleado). Bloque cerrado y probado e2e. Ver [[project_empleados_permisos]].
+
+- **Modelo:** `Admin.rol` (`owner`|`staff`, default `owner` → admins existentes son dueños) + `Admin.permisos String[]`. `lib/permisos.js`: catálogo de 7 módulos asignables + `tienePermiso(admin,id)` (owner→true) + `permisosEfectivos`. login/`admin/me` devuelven `rol` + `permisos`. db push hecho en local.
+- **Permisos asignables:** reservas, jugadores, clases, torneos, sponsors, **ventas** (cobros/ventas/stock — operativo) y **caja** (caja/reportes/gastos — la plata, sensible). Finanzas se PARTE a propósito: el empleado cobra/vende sin ver cuánto factura el club. **Solo dueño (no se delega):** Apariencia/config del club, Equipo, Plan/facturación.
+- **Backend Ola 1 (routers admin-only):** `requirePermiso(id)` + `requireOwner`. caja/gastos→caja; productos/categorias/comandas/cargos→ventas; reservas cobro (/:id/cobrar,/cuenta,/pago,/cobro-omitido)→ventas; torneos→torneos; profesores→clases; sponsors→sponsors. `PATCH /clubs/me` y `/me/canchas`→requireOwner. **Dashboard adaptativo:** `/clubs/me/dashboard` solo manda lo financiero (ingresos día/mes/deuda + "Pago recibido") si el admin tiene `caja`.
+- **Backend Ola 2 (defense-in-depth, gestión):** jugadores admin→`jugadores`; turnos-fijos admin→`reservas`; reservas per-ruta (/jugador/:id, /pendientes, POST /admin, PATCH /:id/estado, PATCH /:id→`reservas`; POST /admin/clase-profesor→`clases`). `DELETE /reservas/:id` es COMPARTIDA → guard dentro del handler solo para el branch admin (jugador/profesor intactos). Validado e2e: staff sin permiso→403 en todo; con permiso→200/404.
+- **Permisos en caliente:** `requirePermiso` lee rol+permisos de la DB en cada request → quitar un permiso (o eliminar al empleado) tiene efecto inmediato, sin esperar a que expire el token.
+- **Frontend:** `EquipoAdminPage` (/dashboardAdmin/equipo, solo dueño) — CRUD de empleados con checkboxes de permisos + validación en tiempo real (skill form-validation: bloqueo de números en nombre vía `useFieldHint`, email regex, PasswordStrength). Sidebar/BottomNav filtran ítems por permiso (`puedeVerItem`; Club+Equipo+Plan = ownerOnly). PagosPage filtra pestañas (Ventas/Stock/Cobranzas=ventas; Gastos/Caja=caja) y redirige si cae en una no permitida. Navbar muestra rol "Dueño"/"Empleado". AdminDashboardPage oculta las tarjetas de ingresos si no llegan.
 
 ---
 

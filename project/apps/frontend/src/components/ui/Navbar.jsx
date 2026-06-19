@@ -49,9 +49,11 @@ const Navbar = ({ title, onMenuClick }) => {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const initials = user?.name
-    ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+  const initials = user?.nombre
+    ? user.nombre.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : 'U'
+  // El admin del club es Dueño (owner) o Empleado (staff)
+  const rolLabel = user?.rol === 'staff' ? 'Empleado' : 'Dueño'
 
   const handleLogout = () => { logout(); navigate('/login') }
 
@@ -152,8 +154,8 @@ const Navbar = ({ title, onMenuClick }) => {
               <span className="text-xs font-bold text-brand-600">{initials}</span>
             </div>
             <div className="text-left hidden sm:block">
-              <p className="text-sm font-medium text-slate-800 leading-tight">{user?.name || 'Usuario'}</p>
-              <p className="text-xs text-slate-400 leading-tight capitalize">{user?.role || 'Admin'}</p>
+              <p className="text-sm font-medium text-slate-800 leading-tight">{user?.nombre || 'Usuario'}</p>
+              <p className="text-xs text-slate-400 leading-tight">{rolLabel}</p>
             </div>
             <ChevronDown size={14} className={['text-slate-400 transition-transform duration-150', userOpen ? 'rotate-180' : ''].join(' ')} />
           </button>
@@ -161,10 +163,10 @@ const Navbar = ({ title, onMenuClick }) => {
           {userOpen && (
             <div className="absolute right-0 top-11 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100">
-                <p className="text-sm font-semibold text-slate-800 truncate">{user?.name || 'Usuario'}</p>
+                <p className="text-sm font-semibold text-slate-800 truncate">{user?.nombre || 'Usuario'}</p>
                 <p className="text-xs text-slate-400 truncate mt-0.5">{user?.email || ''}</p>
                 <span className="mt-1.5 inline-block text-[10px] font-semibold uppercase tracking-wide text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full">
-                  {user?.role || 'Admin'}
+                  {rolLabel}
                 </span>
               </div>
               <div className="p-1.5">

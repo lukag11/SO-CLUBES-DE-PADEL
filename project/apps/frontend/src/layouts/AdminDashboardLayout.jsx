@@ -9,21 +9,26 @@ import Sidebar from '../components/ui/Sidebar'
 import Navbar from '../components/ui/Navbar'
 import usePageTitle from '../hooks/usePageTitle'
 import { useFeatures } from '../hooks/useFeature'
+import { puedeVerItem } from '../components/ui/Sidebar'
 import { api } from '../lib/api'
 
 const BOTTOM_NAV_ITEMS = [
   { to: '/dashboardAdmin',           label: 'Inicio',     icon: LayoutDashboard, exact: true },
-  { to: '/dashboardAdmin/reservas',  label: 'Reservas',   icon: CalendarDays },
-  { to: '/dashboardAdmin/jugadores', label: 'Jugadores',  icon: Users },
-  { to: '/dashboardAdmin/clases',    label: 'Clases',     icon: GraduationCap, feature: 'profesores' },
-  { to: '/dashboardAdmin/torneos',   label: 'Torneos',    icon: Trophy,        feature: 'torneos' },
-  { to: '/dashboardAdmin/pagos',     label: 'Pagos',      icon: CreditCard,    feature: 'finanzas' },
+  { to: '/dashboardAdmin/reservas',  label: 'Reservas',   icon: CalendarDays,  permiso: 'reservas' },
+  { to: '/dashboardAdmin/jugadores', label: 'Jugadores',  icon: Users,         permiso: 'jugadores' },
+  { to: '/dashboardAdmin/clases',    label: 'Clases',     icon: GraduationCap, feature: 'profesores', permiso: 'clases' },
+  { to: '/dashboardAdmin/torneos',   label: 'Torneos',    icon: Trophy,        feature: 'torneos',    permiso: 'torneos' },
+  { to: '/dashboardAdmin/pagos',     label: 'Pagos',      icon: CreditCard,    feature: 'finanzas',   permisoAny: ['ventas', 'caja'] },
 ]
 
 const BottomNav = ({ visible }) => {
   const sinLeer = useNotificacionesStore((s) => s.sinLeer())
   const features = useFeatures()
-  const items = BOTTOM_NAV_ITEMS.filter((i) => !i.feature || (features && features.includes(i.feature)))
+  const permisos = useAuthStore((s) => s.user?.permisos)
+  const esDueno  = useAuthStore((s) => s.user?.rol) !== 'staff'
+  const items = BOTTOM_NAV_ITEMS.filter((i) =>
+    (!i.feature || (features && features.includes(i.feature))) && puedeVerItem(i, esDueno, permisos)
+  )
 
   return (
     <nav

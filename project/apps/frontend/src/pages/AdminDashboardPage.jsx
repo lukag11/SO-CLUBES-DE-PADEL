@@ -49,13 +49,18 @@ const DashboardPage = () => {
       .finally(() => setLoading(false))
   }, [token])
 
+  // El backend omite lo financiero si el admin no tiene permiso de 'caja'.
+  const verFinanzas = data?.ingresosMes !== undefined
+
   const stats = [
     { label: 'Canchas en uso', value: data ? `${data.ocupadasAhora}/${data.canchasActivas}` : '—', sub: 'ocupadas ahora', icon: Activity, color: 'text-brand-500', bg: 'bg-brand-500/10' },
     { label: 'Reservas de hoy', value: data?.reservasHoy ?? '—', sub: 'confirmadas', icon: CalendarDays, color: 'text-blue-500', bg: 'bg-blue-500/10' },
     { label: 'Jugadores activos', value: data?.jugadoresActivos ?? '—', sub: 'en el club', icon: Users, color: 'text-violet-500', bg: 'bg-violet-500/10' },
     { label: 'Torneos activos', value: data?.torneosActivos ?? '—', sub: 'en curso o abiertos', icon: Trophy, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-    { label: 'Ingresos del día', value: money(data?.ingresosDia), sub: 'cobrado hoy', icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-    { label: 'Ingresos del mes', value: money(data?.ingresosMes), sub: 'cobrado este mes', icon: TrendingUp, color: 'text-rose-500', bg: 'bg-rose-500/10' },
+    ...(verFinanzas ? [
+      { label: 'Ingresos del día', value: money(data?.ingresosDia), sub: 'cobrado hoy', icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+      { label: 'Ingresos del mes', value: money(data?.ingresosMes), sub: 'cobrado este mes', icon: TrendingUp, color: 'text-rose-500', bg: 'bg-rose-500/10' },
+    ] : []),
   ]
 
   return (

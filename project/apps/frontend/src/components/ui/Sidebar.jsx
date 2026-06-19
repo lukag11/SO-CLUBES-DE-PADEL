@@ -13,17 +13,27 @@ const PLAN_INFO = {
   premium: { label: 'Premium', icon: Crown,    chip: 'text-amber-300 bg-amber-500/20' },
 }
 
-// feature: id del módulo en el gating (sin feature = siempre visible)
+// feature: módulo del gating de plan · permiso/permisoAny: permiso del empleado
+// (el dueño ve todo) · ownerOnly: solo el dueño (config/diseño/equipo)
 const navItems = [
-  { to: '/dashboardAdmin/club',      label: 'Club',      icon: Info },
-  { to: '/dashboardAdmin/reservas',  label: 'Reservas',  icon: CalendarDays },
-  { to: '/dashboardAdmin/jugadores', label: 'Jugadores', icon: Users },
-  { to: '/dashboardAdmin/clases',    label: 'Clases',    icon: GraduationCap, feature: 'profesores' },
-  { to: '/dashboardAdmin/torneos',   label: 'Torneos',   icon: Trophy,        feature: 'torneos' },
-  { to: '/dashboardAdmin/sponsors',  label: 'Sponsors',  icon: Star,          feature: 'sponsors' },
-  { to: '/dashboardAdmin/pagos',     label: 'Finanzas',  icon: CreditCard,    feature: 'finanzas' },
+  { to: '/dashboardAdmin/club',      label: 'Club',      icon: Info,          ownerOnly: true },
+  { to: '/dashboardAdmin/reservas',  label: 'Reservas',  icon: CalendarDays,  permiso: 'reservas' },
+  { to: '/dashboardAdmin/jugadores', label: 'Jugadores', icon: Users,         permiso: 'jugadores' },
+  { to: '/dashboardAdmin/clases',    label: 'Clases',    icon: GraduationCap, feature: 'profesores', permiso: 'clases' },
+  { to: '/dashboardAdmin/torneos',   label: 'Torneos',   icon: Trophy,        feature: 'torneos',    permiso: 'torneos' },
+  { to: '/dashboardAdmin/sponsors',  label: 'Sponsors',  icon: Star,          feature: 'sponsors',   permiso: 'sponsors' },
+  { to: '/dashboardAdmin/pagos',     label: 'Finanzas',  icon: CreditCard,    feature: 'finanzas',   permisoAny: ['ventas', 'caja'] },
   { to: '/dashboardAdmin/equipo',    label: 'Equipo',    icon: UserCog,       ownerOnly: true },
 ]
+
+// ¿El admin (dueño o empleado) puede ver este ítem según sus permisos?
+export const puedeVerItem = (i, esDueno, permisos) => {
+  if (esDueno) return true
+  if (i.ownerOnly) return false
+  if (i.permisoAny) return i.permisoAny.some((p) => permisos?.includes(p))
+  if (i.permiso) return !!permisos?.includes(i.permiso)
+  return true
+}
 
 const Sidebar = ({ mobileOpen, onMobileClose }) => {
   const [hovered, setHovered] = useState(false)
@@ -35,10 +45,11 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
   const clubLogo   = useClubStore((state) => state.club.logo)
   const features   = useFeatures()
   const plan       = useAuthStore((state) => state.user?.club?.plan)
+  const permisos   = useAuthStore((state) => state.user?.permisos)
   const esDueno    = useAuthStore((state) => state.user?.rol) !== 'staff' // owner o sin definir = dueño
   const items = navItems.filter((i) =>
     (!i.feature || (features && features.includes(i.feature))) &&
-    (!i.ownerOnly || esDueno)
+    puedeVerItem(i, esDueno, permisos)
   )
   const planInfo = PLAN_INFO[plan]
 
@@ -84,8 +95,8 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
         )}
       </Link>
 
-      {/* Tarjeta de plan (+ upsell para los que no son premium) */}
-      {expanded && planInfo && (
+      {/* Tarjeta de plan (+ upsell) — solo el dueño la ve */}
+      {expanded && planInfo && esDueno && (
         <div className="px-3 pt-3 shrink-0">
           <div className="relative overflow-hidden rounded-xl border border-white/8 bg-gradient-to-br from-white/[0.07] to-transparent p-3">
             <div className="flex items-center gap-2.5">

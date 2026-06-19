@@ -1,11 +1,36 @@
 import { useState, useEffect, useCallback } from 'react'
-import { UserCog, Plus, X, Trash2, KeyRound, Pencil, ShieldCheck, Check } from 'lucide-react'
+import { UserCog, Plus, X, Trash2, KeyRound, Pencil, ShieldCheck, Check, CheckCircle } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
 import { useToast } from '../components/ui/ToastProvider'
+import useFieldHint from '../hooks/useFieldHint'
 
 const field = 'w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-400 transition-colors'
 const labelCls = 'block text-xs font-medium text-slate-500 mb-1.5'
+
+// Validaciones en tiempo real (ver skill form-validation.md)
+const emailValido = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim())
+const passwordChecks = (v) => ({ length: v.length >= 8, upper: /[A-Z]/.test(v), number: /[0-9]/.test(v) })
+
+const validators = {
+  nombre: (v) => {
+    const t = String(v).trim()
+    if (!t) return 'El nombre es requerido'
+    if (t.length < 2) return 'Mínimo 2 caracteres'
+    if (/\d/.test(v)) return 'El nombre no puede contener números'
+    return ''
+  },
+  email: (v) => {
+    if (!String(v).trim()) return 'El email es requerido'
+    if (!emailValido(v)) return 'Ingresá un email válido'
+    return ''
+  },
+  password: (v) => {
+    if (!v) return 'La contraseña es requerida'
+    if (v.length < 8) return 'Mínimo 8 caracteres'
+    return ''
+  },
+}
 
 // ── Modal crear / editar empleado ──────────────────────────────────────────────
 const ModalEmpleado = ({ empleado, permisosCatalogo, token, onClose, onSaved }) => {
@@ -18,15 +43,40 @@ const ModalEmpleado = ({ empleado, permisosCatalogo, token, onClose, onSaved }) 
   })
   const [permisos, setPermisos] = useState(new Set(empleado?.permisos || []))
   const [error, setError] = useState('')
+  const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
+  const [nombreHint, showNombreHint] = useFieldHint()
   const auth = { Authorization: `Bearer ${token}` }
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const checks = passwordChecks(form.password)
+  const strength = Number(checks.length) + Number(checks.upper) + Number(checks.number)
+
+  // Valida un campo en vivo y actualiza su error
+  const validarCampo = (name, value) => setErrors((er) => ({ ...er, [name]: validators[name]?.(value, { ...form, [name]: value }) || '' }))
+
+  // Nombre: bloquea números en el acto + hint ámbar + valida en vivo
+  const onNombre = (e) => {
+    const raw = e.target.value
+    const filtrado = raw.replace(/[0-9]/g, '')
+    if (raw !== filtrado) showNombreHint('El nombre no puede contener números')
+    setForm((f) => ({ ...f, nombre: filtrado }))
+    validarCampo('nombre', filtrado)
+  }
+  const onEmail = (e) => { const v = e.target.value; setForm((f) => ({ ...f, email: v })); validarCampo('email', v) }
+  const onPassword = (e) => { const v = e.target.value; setForm((f) => ({ ...f, password: v })); validarCampo('password', v) }
   const togglePermiso = (id) => setPermisos((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
 
-  const submit = async (e) => {
-    e.preventDefault()
+  const validarTodo = () => {
+    const e = { nombre: validators.nombre(form.nombre) }
+    if (!esEdicion) { e.email = validators.email(form.email); e.password = validators.password(form.password) }
+    return Object.fromEntries(Object.entries(e).filter(([, v]) => v))
+  }
+
+  const submit = async (ev) => {
+    ev.preventDefault()
     if (saving) return
+    const errs = validarTodo()
+    if (Object.keys(errs).length) { setErrors(errs); return }
     setError(''); setSaving(true)
     try {
       if (esEdicion) {
@@ -50,16 +100,34 @@ const ModalEmpleado = ({ empleado, permisosCatalogo, token, onClose, onSaved }) 
 
         <div className="mb-3">
           <label className={labelCls}>Nombre</label>
-          <input className={field} value={form.nombre} onChange={set('nombre')} required placeholder="Nombre del empleado" />
+          <input className={`${field} ${errors.nombre ? 'border-red-400' : ''}`} value={form.nombre} onChange={onNombre} onBlur={() => validarCampo('nombre', form.nombre)} placeholder="Nombre del empleado" />
+          {nombreHint && <p className="text-amber-500 text-xs mt-1 animate-pulse">{nombreHint}</p>}
+          {errors.nombre && <p className="text-xs text-red-500 mt-1">{errors.nombre}</p>}
         </div>
         <div className="mb-3">
           <label className={labelCls}>Email {esEdicion && <span className="text-slate-300">(no se puede cambiar)</span>}</label>
-          <input type="email" className={`${field} ${esEdicion ? 'opacity-50 cursor-not-allowed' : ''}`} value={form.email} onChange={set('email')} required disabled={esEdicion} placeholder="empleado@email.com" />
+          <input type="email" className={`${field} ${esEdicion ? 'opacity-50 cursor-not-allowed' : ''} ${errors.email ? 'border-red-400' : ''}`} value={form.email} onChange={onEmail} onBlur={() => !esEdicion && validarCampo('email', form.email)} disabled={esEdicion} placeholder="empleado@email.com" />
+          {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
         </div>
         {!esEdicion && (
           <div className="mb-4">
             <label className={labelCls}>Contraseña</label>
-            <input type="text" className={field} value={form.password} onChange={set('password')} required placeholder="mínimo 6 caracteres" />
+            <input type="text" className={`${field} ${errors.password ? 'border-red-400' : ''}`} value={form.password} onChange={onPassword} placeholder="mínimo 8 caracteres" />
+            {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
+            {form.password && (
+              <div className="mt-2">
+                <div className="flex gap-1.5 mb-1.5">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i < strength ? (strength === 1 ? 'bg-red-400' : strength === 2 ? 'bg-amber-400' : 'bg-brand-500') : 'bg-slate-200'}`} />
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                  {[{ ok: checks.length, t: '8+ caracteres' }, { ok: checks.upper, t: 'Una mayúscula' }, { ok: checks.number, t: 'Un número' }].map(({ ok, t }) => (
+                    <span key={t} className={`flex items-center gap-1 text-[11px] ${ok ? 'text-brand-600' : 'text-slate-400'}`}><CheckCircle size={10} /> {t}</span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

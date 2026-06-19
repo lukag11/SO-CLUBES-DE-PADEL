@@ -519,7 +519,21 @@ const PagosPage = () => {
   const saveConfig = useClubStore((s) => s.saveConfig)
   const metodosHabilitados = metodosDelClub(club)
 
+  // Permisos del empleado: Ventas/Stock/Cobranzas = 'ventas'; Gastos/Caja = 'caja'.
+  const permisos = useAuthStore((s) => s.user?.permisos)
+  const esDueno = useAuthStore((s) => s.user?.rol) !== 'staff'
+  const TAB_PERMISO = { ventas: 'ventas', stock: 'ventas', cobranzas: 'ventas', gastos: 'caja', caja: 'caja' }
+  const puedeTab = (id) => esDueno || !!permisos?.includes(TAB_PERMISO[id])
+
   const [tab, setTab] = useState('ventas') // ventas | cobranzas | gastos | caja
+
+  // Si el empleado cae en una pestaña que no puede ver, lo mando a la primera permitida
+  useEffect(() => {
+    if (!puedeTab(tab)) {
+      const primera = ['ventas', 'stock', 'cobranzas', 'gastos', 'caja'].find(puedeTab)
+      if (primera) setTab(primera)
+    }
+  }, [permisos, esDueno]) // eslint-disable-line
   const [resumen, setResumen] = useState(null)
   const [deudas, setDeudas] = useState([])
   const [jugadores, setJugadores] = useState([])
@@ -737,7 +751,7 @@ const PagosPage = () => {
 
       {/* Tabs: Ventas (POS) · Cobranzas (deudas) · Gastos · Caja */}
       <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit">
-        {[{ id: 'ventas', label: 'Ventas' }, { id: 'stock', label: 'Stock' }, { id: 'cobranzas', label: 'Cobranzas' }, { id: 'gastos', label: 'Gastos' }, { id: 'caja', label: 'Caja / Reportes' }].map(({ id, label }) => (
+        {[{ id: 'ventas', label: 'Ventas' }, { id: 'stock', label: 'Stock' }, { id: 'cobranzas', label: 'Cobranzas' }, { id: 'gastos', label: 'Gastos' }, { id: 'caja', label: 'Caja / Reportes' }].filter(({ id }) => puedeTab(id)).map(({ id, label }) => (
           <button
             key={id} onClick={() => setTab(id)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:text-slate-800'}`}
@@ -749,8 +763,8 @@ const PagosPage = () => {
 
       {tab === 'ventas' && <VentasTab token={token} metodos={metodosHabilitados} showToast={showToast} />}
       {tab === 'stock' && <StockTab token={token} metodos={metodosHabilitados} showToast={showToast} />}
-      {tab === 'gastos' && <GastosTab token={token} metodos={metodosHabilitados} />}
-      {tab === 'caja' && <CajaTab token={token} />}
+      {tab === 'gastos' && puedeTab('gastos') && <GastosTab token={token} metodos={metodosHabilitados} />}
+      {tab === 'caja' && puedeTab('caja') && <CajaTab token={token} />}
 
       {tab === 'cobranzas' && (<>
       {/* Totales */}

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
-import { requireAuth, requireRole } from '../middleware/auth.js'
+import { requireAuth, requireRole, requireOwner } from '../middleware/auth.js'
+import { tienePermiso } from '../lib/permisos.js'
 import { inicioDiaArg, inicioMesArg, hoyArgStr, ahoraArgHHMM } from '../lib/tiempo.js'
 
 const router = Router()
@@ -24,6 +25,11 @@ router.get('/me', requireAuth, requireRole('admin'), async (req, res) => {
 router.get('/me/dashboard', requireAuth, requireRole('admin'), async (req, res) => {
   const clubId = req.user.clubId
   try {
+    // Resumen adaptativo: lo financiero solo se incluye si el admin tiene 'caja'
+    // (o es dueño). El empleado de mostrador ve lo operativo, sin números de plata.
+    const admin = await prisma.admin.findUnique({ where: { id: req.user.id }, select: { rol: true, permisos: true } })
+    const verCaja = tienePermiso(admin, 'caja')
+
     // Límites de fecha/hora en hora local Argentina (el server corre en UTC)
     const inicioDia = inicioDiaArg()
     const inicioMes = inicioMesArg()
@@ -65,19 +71,19 @@ router.get('/me/dashboard', requireAuth, requireRole('admin'), async (req, res) 
         text: `Reserva — ${r.cancha?.nombre ?? 'Cancha'} ${r.fecha} ${r.horaInicio}${r.jugador ? ` · ${r.jugador.nombre} ${r.jugador.apellido}` : ''}`,
       })),
       ...ultimosJugadores.map((j) => ({ createdAt: j.createdAt, text: `Nuevo jugador: ${j.nombre} ${j.apellido}` })),
-      ...ultimosCargos.filter((c) => c.pagadoAt).map((c) => ({ createdAt: c.pagadoAt, text: `Pago recibido: $${(c.monto ?? 0).toLocaleString('es-AR')} — ${c.concepto}` })),
+      // Los "Pago recibido" solo para quien puede ver caja
+      ...(verCaja ? ultimosCargos.filter((c) => c.pagadoAt).map((c) => ({ createdAt: c.pagadoAt, text: `Pago recibido: $${(c.monto ?? 0).toLocaleString('es-AR')} — ${c.concepto}` })) : []),
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6)
 
     res.json({
-      ingresosDia,
-      ingresosMes,
       reservasHoy: reservasHoy.length,
       jugadoresActivos,
       canchasActivas: canchasActivas.length,
       ocupadasAhora,
       torneosActivos,
-      deudaPendiente: sumMonto(deudaPendiente),
       actividad,
+      // Datos financieros: SOLO si tiene permiso de caja (sino ni se mandan)
+      ...(verCaja ? { ingresosDia, ingresosMes, deudaPendiente: sumMonto(deudaPendiente) } : {}),
     })
   } catch (err) {
     console.error(err)
@@ -86,7 +92,7 @@ router.get('/me/dashboard', requireAuth, requireRole('admin'), async (req, res) 
 })
 
 // PATCH /api/clubs/me   — admin guarda config del club
-router.patch('/me', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/me', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
   const { config } = req.body
   if (!config) return res.status(400).json({ error: 'config requerido' })
 
@@ -103,7 +109,7 @@ router.patch('/me', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // PATCH /api/clubs/me/canchas  — admin sincroniza canchas (crea, actualiza, desactiva)
-router.patch('/me/canchas', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/me/canchas', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
   const { canchas } = req.body
   if (!Array.isArray(canchas)) return res.status(400).json({ error: 'canchas debe ser un array' })
 

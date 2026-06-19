@@ -103,6 +103,20 @@ export const requirePermiso = (permisoId) => async (req, res, next) => {
   }
 }
 
+// Exige que el admin sea el DUEÑO del club (rol 'owner'). Para gestión de equipo.
+export const requireOwner = async (req, res, next) => {
+  try {
+    const admin = await prisma.admin.findUnique({ where: { id: req.user.id }, select: { rol: true } })
+    if (!admin || admin.rol !== 'owner') {
+      return res.status(403).json({ error: 'solo_dueno', message: 'Solo el dueño del club puede gestionar el equipo.' })
+    }
+    next()
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: 'Error al validar el rol' })
+  }
+}
+
 // Verifica que el jugador siga activo en la DB (para detectar bajas post-login)
 // y que el token no haya sido invalidado por un cambio de contraseña (tokenVersion).
 export const requireActive = async (req, res, next) => {

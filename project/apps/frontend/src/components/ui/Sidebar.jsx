@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
-import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X, Users, GraduationCap, Star, Crown, Sparkles, ArrowUpRight } from 'lucide-react'
+import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X, Users, GraduationCap, Star, Crown, Sparkles, ArrowUpRight, UserCog } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
 import useClubStore from '../../store/clubStore'
@@ -22,6 +22,7 @@ const navItems = [
   { to: '/dashboardAdmin/torneos',   label: 'Torneos',   icon: Trophy,        feature: 'torneos' },
   { to: '/dashboardAdmin/sponsors',  label: 'Sponsors',  icon: Star,          feature: 'sponsors' },
   { to: '/dashboardAdmin/pagos',     label: 'Finanzas',  icon: CreditCard,    feature: 'finanzas' },
+  { to: '/dashboardAdmin/equipo',    label: 'Equipo',    icon: UserCog,       ownerOnly: true },
 ]
 
 const Sidebar = ({ mobileOpen, onMobileClose }) => {
@@ -34,7 +35,11 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
   const clubLogo   = useClubStore((state) => state.club.logo)
   const features   = useFeatures()
   const plan       = useAuthStore((state) => state.user?.club?.plan)
-  const items = navItems.filter((i) => !i.feature || (features && features.includes(i.feature)))
+  const esDueno    = useAuthStore((state) => state.user?.rol) !== 'staff' // owner o sin definir = dueño
+  const items = navItems.filter((i) =>
+    (!i.feature || (features && features.includes(i.feature))) &&
+    (!i.ownerOnly || esDueno)
+  )
   const planInfo = PLAN_INFO[plan]
 
   const handleLogout = () => {

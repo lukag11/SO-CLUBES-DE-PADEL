@@ -20,6 +20,7 @@ import sponsorsRouter from './routes/sponsors.js'
 import uploadsRouter from './routes/uploads.js'
 import devResetRouter from './routes/dev-reset.js'
 import platformRouter from './routes/platform.js'
+import empleadosRouter from './routes/empleados.js'
 import { requireAuth, requireRole, requireFeature, requireClubActivo, requirePermiso } from './middleware/auth.js'
 
 const app = express()
@@ -62,5 +63,6 @@ app.use('/api/profesores', requireAuth, requireRole('admin'), requireFeature('pr
 app.use('/api/sponsors', requireAuth, requireRole('admin'), requireFeature('sponsors'), requirePermiso('sponsors'), sponsorsRouter)
 app.use('/api/dev', devResetRouter)
 app.use('/api/platform', platformRouter)
+app.use('/api/empleados', empleadosRouter)
 
 export default app

@@ -35,6 +35,7 @@ import AdminSponsorsPage from '../pages/AdminSponsorsPage'
 import AdminReservasLayout from '../layouts/AdminReservasLayout'
 import AdminReservasEstadisticasPage from '../pages/AdminReservasEstadisticasPage'
 import NotFoundPage from '../pages/NotFoundPage'
+import EquipoAdminPage from '../pages/EquipoAdminPage'
 import PadelwiarkLanding from '../pages/padelwiark/PadelwiarkLanding'
 import PlataformaPage from '../pages/padelwiark/admin/PlataformaPage'
 import PwRegistro from '../pages/padelwiark/PwRegistro'
@@ -100,6 +101,7 @@ const router = createBrowserRouter([
       { path: 'jugadores', element: <JugadoresAdminPage /> },
       { path: 'clases', element: <ClasesProfesorAdminPage /> },
       { path: 'sponsors', element: <AdminSponsorsPage /> },
+      { path: 'equipo', element: <EquipoAdminPage /> },
     ],
   },
   {

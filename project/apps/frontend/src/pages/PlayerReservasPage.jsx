@@ -447,6 +447,7 @@ const PlayerReservasPage = () => {
     if (slot.ocupado || slot.miReserva || slot.pasado) return
     setSlotSeleccionado(slot.hora)
     setEsTurnoFijo(false)
+    setErrorReserva(null)
     setModalAbierto(true)
   }
 
@@ -983,6 +984,14 @@ const PlayerReservasPage = () => {
                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-300 ${esTurnoFijo && !yaTimeTurnoFijoEnCancha ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
+
+              {/* Error de la solicitud (ej: turno fijo ya existente) — visible en el modal */}
+              {errorReserva && (
+                <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3">
+                  <XCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                  <p className="text-red-300 text-sm font-medium">{errorReserva}</p>
+                </div>
+              )}
 
               {/* Botón confirmar */}
               <button

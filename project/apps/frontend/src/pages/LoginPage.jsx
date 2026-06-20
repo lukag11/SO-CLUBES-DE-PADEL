@@ -6,37 +6,30 @@ import Input from '../components/ui/Input'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
 
-// Decoración SVG: líneas de cancha de pádel
+// Decoración SVG: cancha de pádel real, vista cenital (proporción 20×10)
 const CourtDecoration = () => (
   <svg
-    className="absolute inset-0 w-full h-full opacity-10"
+    className="absolute inset-0 w-full h-full opacity-[0.13]"
     viewBox="0 0 500 700"
     fill="none"
     preserveAspectRatio="xMidYMid slice"
   >
-    {/* Cancha exterior */}
-    <rect x="60" y="80" width="380" height="540" stroke="#10b981" strokeWidth="2" />
-    {/* Línea central horizontal */}
-    <line x1="60" y1="350" x2="440" y2="350" stroke="#10b981" strokeWidth="2" />
-    {/* Línea central vertical */}
-    <line x1="250" y1="80" x2="250" y2="620" stroke="#10b981" strokeWidth="1.5" />
-    {/* Zona de saque superior */}
-    <rect x="60" y="80" width="380" height="180" stroke="#10b981" strokeWidth="1" />
-    {/* Zona de daque inferior */}
-    <rect x="60" y="440" width="380" height="180" stroke="#10b981" strokeWidth="1" />
-    {/* Red */}
-    <line x1="60" y1="350" x2="440" y2="350" stroke="#10b981" strokeWidth="4" strokeDasharray="8 4" />
-    {/* Círculo central */}
-    <circle cx="250" cy="350" r="20" stroke="#10b981" strokeWidth="1.5" />
-  </svg>
-)
+    {/* Paredes de vidrio — doble contorno para dar sensación de grosor */}
+    <rect x="125" y="110" width="250" height="480" rx="2" stroke="#10b981" strokeWidth="2.5" />
+    <rect x="134" y="119" width="232" height="462" rx="2" stroke="#10b981" strokeWidth="1" strokeOpacity="0.5" />
 
-// Card flotante con estadística
-const StatCard = ({ value, label, className = '' }) => (
-  <div className={`backdrop-blur-sm bg-white/10 border border-white/20 rounded-2xl px-4 py-3 ${className}`}>
-    <p className="text-xl font-bold text-white">{value}</p>
-    <p className="text-xs text-white/60 mt-0.5">{label}</p>
-  </div>
+    {/* Líneas de servicio (a 3 m de cada pared de fondo) */}
+    <line x1="125" y1="182" x2="375" y2="182" stroke="#10b981" strokeWidth="1.5" />
+    <line x1="125" y1="518" x2="375" y2="518" stroke="#10b981" strokeWidth="1.5" />
+
+    {/* Línea central de saque — sólo entre las líneas de servicio */}
+    <line x1="250" y1="182" x2="250" y2="518" stroke="#10b981" strokeWidth="1.5" />
+
+    {/* Red al medio — punteada y gruesa, con postes */}
+    <line x1="125" y1="350" x2="375" y2="350" stroke="#10b981" strokeWidth="3.5" strokeDasharray="7 5" />
+    <circle cx="125" cy="350" r="3.5" fill="#10b981" />
+    <circle cx="375" cy="350" r="3.5" fill="#10b981" />
+  </svg>
 )
 
 const LoginPage = () => {
@@ -93,20 +86,13 @@ const LoginPage = () => {
 
         {/* Tagline */}
         <div className="relative z-10">
-          <h1 className="text-4xl font-bold text-white leading-tight">
-            El sistema operativo<br />
-            <span className="text-brand-400">de tu club</span>
+          <h1 className="text-5xl font-bold text-white leading-tight">
+            Tu club,<br />
+            <span className="text-brand-400">en orden.</span>
           </h1>
-          <p className="text-white/50 mt-4 text-base leading-relaxed max-w-sm">
-            Gestioná reservas, torneos, jugadores y pagos desde un solo lugar.
+          <p className="text-white/50 mt-5 text-base leading-relaxed max-w-sm">
+            Gestioná reservas, torneos y pagos desde un solo lugar.
           </p>
-
-          {/* Stats flotantes */}
-          <div className="flex gap-3 mt-8">
-            <StatCard value="2.400+" label="Reservas/mes" />
-            <StatCard value="180+" label="Jugadores activos" />
-            <StatCard value="12" label="Canchas" />
-          </div>
         </div>
       </div>
 

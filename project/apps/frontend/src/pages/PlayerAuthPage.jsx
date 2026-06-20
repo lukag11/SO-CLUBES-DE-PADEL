@@ -1,20 +1,29 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Zap, Lock, Eye, EyeOff, CreditCard } from 'lucide-react'
+import { Zap, Lock, Eye, EyeOff, CreditCard, CalendarCheck, Trophy, BarChart3 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import usePlayerStore from '../store/playerStore'
 import { api } from '../lib/api'
 
+// Decoración SVG: cancha de pádel real, vista cenital (proporción 20×10)
 const CourtDecoration = () => (
-  <svg className="absolute inset-0 w-full h-full opacity-[0.07]" viewBox="0 0 500 700" fill="none" preserveAspectRatio="xMidYMid slice">
-    <rect x="60" y="80" width="380" height="540" stroke="var(--club-primary)" strokeWidth="2" />
-    <line x1="60" y1="350" x2="440" y2="350" stroke="var(--club-primary)" strokeWidth="2" />
-    <line x1="250" y1="80" x2="250" y2="620" stroke="var(--club-primary)" strokeWidth="1.5" />
-    <rect x="60" y="80" width="380" height="180" stroke="var(--club-primary)" strokeWidth="1" />
-    <rect x="60" y="440" width="380" height="180" stroke="var(--club-primary)" strokeWidth="1" />
-    <line x1="60" y1="350" x2="440" y2="350" stroke="var(--club-primary)" strokeWidth="4" strokeDasharray="8 4" />
-    <circle cx="250" cy="350" r="20" stroke="var(--club-primary)" strokeWidth="1.5" />
+  <svg className="absolute inset-0 w-full h-full opacity-[0.10]" viewBox="0 0 500 700" fill="none" preserveAspectRatio="xMidYMid slice">
+    {/* Paredes de vidrio — doble contorno para dar sensación de grosor */}
+    <rect x="125" y="110" width="250" height="480" rx="2" stroke="var(--club-primary)" strokeWidth="2.5" />
+    <rect x="134" y="119" width="232" height="462" rx="2" stroke="var(--club-primary)" strokeWidth="1" strokeOpacity="0.5" />
+
+    {/* Líneas de servicio (a 3 m de cada pared de fondo) */}
+    <line x1="125" y1="182" x2="375" y2="182" stroke="var(--club-primary)" strokeWidth="1.5" />
+    <line x1="125" y1="518" x2="375" y2="518" stroke="var(--club-primary)" strokeWidth="1.5" />
+
+    {/* Línea central de saque — sólo entre las líneas de servicio */}
+    <line x1="250" y1="182" x2="250" y2="518" stroke="var(--club-primary)" strokeWidth="1.5" />
+
+    {/* Red al medio — punteada y gruesa, con postes */}
+    <line x1="125" y1="350" x2="375" y2="350" stroke="var(--club-primary)" strokeWidth="3.5" strokeDasharray="7 5" />
+    <circle cx="125" cy="350" r="3.5" fill="var(--club-primary)" />
+    <circle cx="375" cy="350" r="3.5" fill="var(--club-primary)" />
   </svg>
 )
 
@@ -79,29 +88,28 @@ const PlayerAuthPage = () => {
         <div className="relative z-10">
           <div className="w-10 h-1 bg-club rounded-full mb-6" />
           <h1 className="text-4xl font-bold text-white leading-tight">
-            Tu historial,<br />
-            <span className="text-club">tu carrera</span>
+            Bienvenido<br />
+            <span className="text-club">a la cancha</span>
           </h1>
           <p className="text-white/40 mt-4 text-base leading-relaxed max-w-sm">
-            Accedé a tus estadísticas, torneos jugados, resultados y oponentes enfrentados.
+            Tu cuenta del club: reservas, turnos fijos y estadísticas.
           </p>
 
-          <div className="flex gap-3 mt-8">
-            {[{ v: '48', l: 'Torneos jugados' }, { v: '3°', l: 'Categoría actual' }, { v: '87%', l: 'Efectividad' }].map(({ v, l }) => (
-              <div key={l} className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-                <p className="text-xl font-bold text-white">{v}</p>
-                <p className="text-xs text-white/40 mt-0.5">{l}</p>
+          <div className="flex flex-col gap-3 mt-8 max-w-xs">
+            {[
+              { Icon: CalendarCheck, l: 'Reservá en segundos' },
+              { Icon: Trophy, l: 'Seguí tus torneos' },
+              { Icon: BarChart3, l: 'Mirá tus stats' },
+            ].map(({ Icon, l }) => (
+              <div key={l} className="flex items-center gap-3 backdrop-blur-sm bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+                <div className="w-9 h-9 rounded-xl bg-club/15 flex items-center justify-center shrink-0">
+                  <Icon size={18} className="text-club" />
+                </div>
+                <p className="text-sm font-medium text-white/80">{l}</p>
               </div>
             ))}
           </div>
         </div>
-
-        <p className="relative z-10 text-white/20 text-xs">
-          ¿No tenés cuenta?{' '}
-          <Link to="/dashboardJugadores/registro" className="text-club/60 hover:text-club transition-colors">
-            Registrate acá
-          </Link>
-        </p>
       </div>
 
       {/* Panel derecho — login */}
@@ -117,8 +125,8 @@ const PlayerAuthPage = () => {
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white">Bienvenido, jugador</h2>
-            <p className="text-white/40 text-sm mt-1">Ingresá con tu DNI y contraseña</p>
+            <h2 className="text-2xl font-bold text-white">Iniciá sesión</h2>
+            <p className="text-white/40 text-sm mt-1">Con tu DNI y contraseña</p>
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -172,13 +180,6 @@ const PlayerAuthPage = () => {
               Iniciar sesión
             </Button>
           </form>
-
-          {/* Demo */}
-          <div className="mt-5 p-3 bg-white/4 rounded-xl border border-white/8">
-            <p className="text-xs text-white/30 text-center">
-              Demo: <span className="font-mono text-white/60">12345678</span> / <span className="font-mono text-white/60">123456</span>
-            </p>
-          </div>
 
           {/* Link registro */}
           <p className="text-center text-sm text-white/30 mt-6">

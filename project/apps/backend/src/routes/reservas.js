@@ -1,6 +1,6 @@
 import { Router } from 'express'
-import { Prisma } from '@prisma/client'
 import prisma from '../lib/prisma.js'
+import { runSerializable } from '../lib/serializable.js'
 import { requireAuth, requireRole, requireActive, requireFeature, requirePermiso } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { snapshotProductos } from '../lib/productos.js'
@@ -8,24 +8,6 @@ import { descontarStock } from '../lib/stock.js'
 import { tienePermiso } from '../lib/permisos.js'
 
 const router = Router()
-
-// Ejecuta el chequeo-de-conflicto + creación en una transacción Serializable.
-// READ COMMITTED (el default de Postgres) NO impide el doble-booking: dos requests
-// simultáneos pueden pasar ambos la validación y crear dos reservas para el mismo
-// slot (TOCTOU). En Serializable, Postgres aborta una de las dos con un error de
-// serialización (P2034 / 40001); reintentamos y, al re-correr el chequeo, esa
-// segunda transacción ya ve la fila commiteada y devuelve el 409 limpio.
-const runSerializable = async (fn, retries = 2) => {
-  for (let intento = 0; ; intento++) {
-    try {
-      return await prisma.$transaction(fn, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
-    } catch (err) {
-      const serializationFail = err?.code === 'P2034' || err?.code === '40001'
-      if (serializationFail && intento < retries) continue
-      throw err
-    }
-  }
-}
 
 const toMin = (t) => {
   const [h, m] = t.split(':').map(Number)
@@ -538,40 +520,45 @@ router.patch('/profesor/:id', requireAuth, requireRole('profesor'), async (req, 
     const cancha = await prisma.cancha.findFirst({ where: { id: canchaId, clubId, activo: true } })
     if (!cancha) return res.status(404).json({ error: 'Cancha no encontrada' })
 
-    // Conflictos en la cancha (excluir la propia reserva)
-    const existentes = await prisma.reserva.findMany({
-      where: { canchaId, fecha: reserva.fecha, estado: { in: ['pendiente', 'confirmada'] }, NOT: { id } },
-    })
-    if (existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
-      return res.status(409).json({ error: 'El horario ya está reservado en esa cancha' })
-    }
-
-    // Conflicto con turnos fijos
+    // Conflictos + update dentro de una transacción Serializable (anti doble-booking / TOCTOU)
     const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
     const [fy, fm, fd] = reserva.fecha.split('-').map(Number)
     const dia = DIAS_SEMANA[new Date(fy, fm - 1, fd).getDay()]
-    const turnosFijosActivos = await prisma.turnoFijo.findMany({ where: { canchaId, dia, estado: 'confirmado' } })
-    const hayConflictoFijo = turnosFijosActivos.some(
-      (tf) => overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) && !tf.diasAusentes.includes(reserva.fecha) && (!tf.desde || tf.desde <= reserva.fecha)
-    )
-    if (hayConflictoFijo) return res.status(409).json({ error: 'Ese horario tiene un turno fijo activo de un jugador' })
 
-    // Conflicto con otras clases del mismo profesor (excluir la propia)
-    const clasesProfesor = await prisma.reserva.findMany({
-      where: { profesorId, fecha: reserva.fecha, estado: { not: 'cancelada' }, NOT: { id } },
-    })
-    if (clasesProfesor.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
-      return res.status(409).json({ error: 'Ya tenés una clase en ese horario en otra cancha' })
-    }
+    const updated = await runSerializable(async (tx) => {
+      // Conflictos en la cancha (excluir la propia reserva)
+      const existentes = await tx.reserva.findMany({
+        where: { canchaId, fecha: reserva.fecha, estado: { in: ['pendiente', 'confirmada'] }, NOT: { id } },
+      })
+      if (existentes.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
+        throw Object.assign(new Error('El horario ya está reservado en esa cancha'), { status: 409 })
+      }
 
-    const updated = await prisma.reserva.update({
-      where: { id },
-      data: { canchaId, horaInicio, horaFin, notas: notas ?? reserva.notas },
-      include: { cancha: true, profesor: { select: { id: true, nombre: true, apellido: true } } },
+      // Conflicto con turnos fijos
+      const turnosFijosActivos = await tx.turnoFijo.findMany({ where: { canchaId, dia, estado: 'confirmado' } })
+      const hayConflictoFijo = turnosFijosActivos.some(
+        (tf) => overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) && !tf.diasAusentes.includes(reserva.fecha) && (!tf.desde || tf.desde <= reserva.fecha)
+      )
+      if (hayConflictoFijo) throw Object.assign(new Error('Ese horario tiene un turno fijo activo de un jugador'), { status: 409 })
+
+      // Conflicto con otras clases del mismo profesor (excluir la propia)
+      const clasesProfesor = await tx.reserva.findMany({
+        where: { profesorId, fecha: reserva.fecha, estado: { not: 'cancelada' }, NOT: { id } },
+      })
+      if (clasesProfesor.some((r) => overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) {
+        throw Object.assign(new Error('Ya tenés una clase en ese horario en otra cancha'), { status: 409 })
+      }
+
+      return tx.reserva.update({
+        where: { id },
+        data: { canchaId, horaInicio, horaFin, notas: notas ?? reserva.notas },
+        include: { cancha: true, profesor: { select: { id: true, nombre: true, apellido: true } } },
+      })
     })
 
     res.json(updated)
   } catch (err) {
+    if (err.status === 409) return res.status(409).json({ error: err.message })
     console.error(err)
     res.status(500).json({ error: 'Error al editar la clase' })
   }

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
+import { runSerializable } from '../lib/serializable.js'
 import { requireAuth, requireRole, requireActive, requirePermiso } from '../middleware/auth.js'
 
 const router = Router()
@@ -155,9 +156,10 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
     const hoy = new Date()
     const desde = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
 
-    // RN-51 + create dentro de $transaction: evita que dos solicitudes simultáneas al mismo slot
-    // pasen ambas la validación y generen dos TF pendientes para la misma cancha+día+horario.
-    const turno = await prisma.$transaction(async (tx) => {
+    // RN-51 + create dentro de una transacción Serializable (runSerializable): evita que dos
+    // solicitudes simultáneas al mismo slot pasen ambas la validación (TOCTOU) y generen dos TF
+    // pendientes para la misma cancha+día+horario. READ COMMITTED no alcanza para esto.
+    const turno = await runSerializable(async (tx) => {
       const nsMin = toMinBE(horaInicio), nfMin = toMinBE(horaFin)
       const existentes = await tx.turnoFijo.findMany({
         where: { canchaId, dia, estado: { in: ['pendiente', 'confirmado'] } },
@@ -242,9 +244,10 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), requirePermiso('r
       }
     }
 
-    // Al confirmar: re-verificar conflictos + update dentro de $transaction.
-    // Sin transacción, dos aprobaciones concurrentes podían pasar ambas la re-verificación
-    // antes de que cualquiera escribiera, resultando en dos TF confirmados para el mismo slot.
+    // Al confirmar: re-verificar conflictos + update dentro de una transacción Serializable
+    // (runSerializable). Sin Serializable, dos aprobaciones concurrentes podían pasar ambas la
+    // re-verificación antes de que cualquiera escribiera, resultando en dos TF confirmados
+    // para el mismo slot. Postgres aborta una de las dos y runSerializable reintenta.
     const toMinLocal = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 
     let updated
@@ -266,7 +269,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), requirePermiso('r
         }
       }
 
-      updated = await prisma.$transaction(async (tx) => {
+      updated = await runSerializable(async (tx) => {
         // Otro TF confirmado solapado en la misma cancha+día
         const tfsSolapados = await tx.turnoFijo.findMany({
           where: { canchaId: turno.canchaId, dia: turno.dia, estado: 'confirmado', id: { not: turno.id } },

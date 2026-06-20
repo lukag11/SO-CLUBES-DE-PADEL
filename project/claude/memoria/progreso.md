@@ -1,6 +1,19 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-20 — Recuperación de contraseña del jugador por DNI + email (deploy-ready, falta enchufar el envío por email) + rediseño visual de los logins
+**Última actualización:** 2026-06-20 — Hardening anti doble-booking: `runSerializable` extraído a lib compartido; turnos fijos y clases de profe ahora también lo usan
+
+---
+
+## Hardening anti doble-booking — turnos fijos y clases bajo Serializable (2026-06-20)
+
+Una auditoría del agente `qa-flujos` detectó que **turnos fijos** (solicitud jugador + confirmación admin) y **editar clase de profesor** corrían sus chequeos de conflicto en `prisma.$transaction` **sin** `isolationLevel: Serializable` ni reintento P2034 — a diferencia de `reservas.js`, que ya estaba blindado. Eso dejaba una ventana TOCTOU real: dos solicitudes paralelas al mismo turno fijo recurrente podían pasar ambas la validación y crear/confirmar dos TF sobre el mismo slot. Se cerró el hueco aplicando el mismo patrón Serializable a todos esos caminos y unificando el helper en un lib compartido. Probado e2e. Ver [[project_reservas_serializable]] y [[registro-auditorias]].
+
+- **Lib nuevo (`lib/serializable.js`):** se extrajo `runSerializable(fn, retries=2)` (antes definido inline en `reservas.js`) a su propio módulo (DRY). Corre `$transaction` en nivel Serializable, reintenta hasta 2 veces ante `P2034`/`40001` y re-lanza el resto. `reservas.js` ahora lo importa del lib (se borró la definición local y el `import { Prisma }` que quedó muerto).
+- **`turnos-fijos.js`:** `POST /` (solicitar TF) y `PATCH /:id/estado` (confirmar TF) pasaron de `prisma.$transaction` plano a `runSerializable`. Mismo throw `{status:409}` + catch→409 que ya tenían.
+- **`reservas.js` `PATCH /profesor/:id`** (editar clase de profe): los 3 chequeos de conflicto (reserva en cancha, turno fijo activo, otra clase del mismo profe) + el `update` se envolvieron en `runSerializable`, cada conflicto con `throw Object.assign(new Error(msg), {status:409})` y catch→409.
+- **Comentarios corregidos:** se reemplazaron los comentarios que afirmaban falsamente que un `$transaction` plano prevenía el race por la explicación correcta (READ COMMITTED no impide TOCTOU; Serializable aborta una de las dos y `runSerializable` reintenta).
+- **Probado e2e:** 2 solicitudes paralelas al mismo turno fijo → una 201, otra 409, queda 1 solo TF. Backend recargó limpio.
+- **PENDIENTE (no bloqueante, defense-in-depth):** índice único parcial en DB sobre Reserva/TurnoFijo como red de seguridad por si algún camino futuro saltea el Serializable. Postergado al deploy (requiere dedup previo). Hoy la única defensa es el isolation a nivel app, correctamente aplicado en todos los caminos. Ver [[project_deploy_pendiente]].
 
 ---
 

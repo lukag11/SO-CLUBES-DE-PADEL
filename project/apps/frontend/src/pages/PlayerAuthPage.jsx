@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Zap, Lock, Eye, EyeOff, CreditCard, CalendarCheck, Trophy, BarChart3 } from 'lucide-react'
+import { Zap, Lock, Eye, EyeOff, CreditCard, CalendarCheck, Trophy, BarChart3, KeyRound, Mail, X } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import usePlayerStore from '../store/playerStore'
+import { useToast } from '../components/ui/ToastProvider'
 import { api } from '../lib/api'
 
 // Decoración SVG: cancha de pádel real, vista cenital (proporción 20×10)
@@ -30,10 +31,82 @@ const CourtDecoration = () => (
 const PlayerAuthPage = () => {
   const navigate = useNavigate()
   const login = usePlayerStore((s) => s.login)
+  const toast = useToast()
   const [form, setForm] = useState({ dni: '', password: '' })
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // ── Recuperar contraseña por DNI + email (modal de 2 pasos) ──
+  const [forgotOpen, setForgotOpen] = useState(false)
+  const [forgotStep, setForgotStep] = useState(1) // 1 = identidad, 2 = nueva clave
+  const [fForm, setFForm] = useState({ dni: '', email: '', password: '' })
+  const [resetToken, setResetToken] = useState('')
+  const [fLoading, setFLoading] = useState(false)
+  const [fError, setFError] = useState('')
+  const [fShowPass, setFShowPass] = useState(false)
+
+  const openForgot = () => {
+    setFForm({ dni: form.dni || '', email: '', password: '' })
+    setForgotStep(1)
+    setResetToken('')
+    setFError('')
+    setForgotOpen(true)
+  }
+
+  const closeForgot = () => {
+    if (fLoading) return
+    setForgotOpen(false)
+  }
+
+  const handleFChange = (e) => {
+    setFForm((p) => ({ ...p, [e.target.name]: e.target.value }))
+    setFError('')
+  }
+
+  // Paso 1: validar DNI + email → obtener token de reseteo
+  const handleForgotIdentidad = async (e) => {
+    e.preventDefault()
+    if (fLoading) return
+    if (!fForm.dni || !fForm.email) {
+      setFError('Completá DNI y email')
+      return
+    }
+    setFLoading(true)
+    setFError('')
+    try {
+      const clubId = import.meta.env.VITE_CLUB_ID
+      const data = await api.post('/auth/jugador/forgot', { dni: fForm.dni, email: fForm.email, clubId })
+      setResetToken(data.resetToken)
+      setForgotStep(2)
+    } catch (err) {
+      setFError(err.message || 'No se pudo validar tu identidad')
+    } finally {
+      setFLoading(false)
+    }
+  }
+
+  // Paso 2: definir la contraseña nueva con el token
+  const handleForgotReset = async (e) => {
+    e.preventDefault()
+    if (fLoading) return
+    if (!fForm.password || fForm.password.length < 6) {
+      setFError('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+    setFLoading(true)
+    setFError('')
+    try {
+      await api.post('/auth/jugador/reset', { token: resetToken, password: fForm.password })
+      setForgotOpen(false)
+      setForm((p) => ({ ...p, dni: fForm.dni, password: '' }))
+      toast.success('Contraseña actualizada. Ya podés iniciar sesión.')
+    } catch (err) {
+      setFError(err.message || 'No se pudo cambiar la contraseña')
+    } finally {
+      setFLoading(false)
+    }
+  }
 
   const handleChange = (e) => {
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }))
@@ -162,6 +235,16 @@ const PlayerAuthPage = () => {
               </button>
             </div>
 
+            <div className="flex justify-end -mt-1">
+              <button
+                type="button"
+                onClick={openForgot}
+                className="text-xs text-club hover:brightness-110 font-medium transition-colors"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
+
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3 flex items-start justify-between gap-3">
                 <span>{error}</span>
@@ -190,6 +273,107 @@ const PlayerAuthPage = () => {
           </p>
         </div>
       </div>
+
+      {/* ── Modal recuperar contraseña (DNI + email → nueva clave) ── */}
+      {forgotOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          onClick={closeForgot}
+        >
+          <div
+            className="w-full max-w-sm bg-[#0d1117] border border-white/10 rounded-2xl p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={closeForgot}
+              className="absolute right-4 top-4 text-white/40 hover:text-white transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-11 h-11 bg-club/15 rounded-xl flex items-center justify-center mb-4">
+              <KeyRound size={20} className="text-club" />
+            </div>
+
+            {forgotStep === 1 ? (
+              <>
+                <h3 className="text-lg font-bold text-white">Recuperar contraseña</h3>
+                <p className="text-white/40 text-sm mt-1 mb-5">
+                  Verificá tu identidad con tu DNI y el email con el que te registraste.
+                </p>
+                <form onSubmit={handleForgotIdentidad} className="flex flex-col gap-4">
+                  <Input
+                    label="DNI"
+                    name="dni"
+                    placeholder="12345678"
+                    value={fForm.dni}
+                    onChange={handleFChange}
+                    icon={CreditCard}
+                    maxLength={8}
+                    inputMode="numeric"
+                    required
+                  />
+                  <Input
+                    label="Email registrado"
+                    name="email"
+                    type="email"
+                    placeholder="tu@email.com"
+                    value={fForm.email}
+                    onChange={handleFChange}
+                    icon={Mail}
+                    required
+                  />
+                  {fError && (
+                    <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3">
+                      {fError}
+                    </div>
+                  )}
+                  <Button type="submit" fullWidth loading={fLoading} disabled={fLoading} size="lg" className="!bg-club !text-[#0d1117] hover:!brightness-110">
+                    Continuar
+                  </Button>
+                </form>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold text-white">Nueva contraseña</h3>
+                <p className="text-white/40 text-sm mt-1 mb-5">
+                  Identidad verificada. Elegí tu contraseña nueva.
+                </p>
+                <form onSubmit={handleForgotReset} className="flex flex-col gap-4">
+                  <div className="relative">
+                    <Input
+                      label="Contraseña nueva"
+                      name="password"
+                      type={fShowPass ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={fForm.password}
+                      onChange={handleFChange}
+                      icon={Lock}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFShowPass((v) => !v)}
+                      className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-300 transition-colors"
+                    >
+                      {fShowPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  {fError && (
+                    <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3">
+                      {fError}
+                    </div>
+                  )}
+                  <Button type="submit" fullWidth loading={fLoading} disabled={fLoading} size="lg" className="!bg-club !text-[#0d1117] hover:!brightness-110">
+                    Cambiar contraseña
+                  </Button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

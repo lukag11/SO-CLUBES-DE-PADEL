@@ -1,6 +1,24 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-19 — RBAC "Empleados con permisos" COMPLETO (las 2 olas)
+**Última actualización:** 2026-06-20 — Recuperación de contraseña del jugador por DNI + email (deploy-ready, falta enchufar el envío por email) + rediseño visual de los logins
+
+---
+
+## Recuperar contraseña del jugador — DNI + email (2026-06-20)
+
+El jugador que se olvidó la clave la recupera solo, sin pasar por el admin. Verifica identidad con **DNI + email registrado** (el email es el 2º factor) y define una contraseña nueva vía un token de un solo uso. Diseño **deploy-ready**: hoy el token viaja en la respuesta del `forgot` (sin proveedor de mail todavía), al deployar se manda por email **sin tocar el resto del flujo** — el endpoint `reset` no cambia. Probado e2e con curl: forgot ok, email incorrecto rechazado (anti-enumeración), token single-use, login con la clave nueva ok. Ver [[project_cambio_password_tokenversion.md]] y [[project_deploy_pendiente]].
+
+- **Modelo (`schema.prisma`):** nuevo `PasswordResetToken` (id cuid, `jugadorId`, `tokenHash` único = sha256 del token crudo —el crudo nunca se guarda—, `expiresAt`, `usedAt?`, `createdAt`). Relación `Jugador.resetTokens` con `onDelete: Cascade`. db push hecho en local.
+- **Backend (`routes/auth.js`):** `POST /auth/jugador/forgot` (rate-limited con `loginLimiter`): valida `dni`+`email`+`clubId`; busca por `clubId_dni` y compara email normalizado (trim+lowercase) + exige `cuentaActiva`. Si algo no coincide → **error único** "DNI y email no coinciden" (no distingue cuál falló → no filtra qué DNIs existen). Borra tokens previos sin usar del jugador, genera `crypto.randomBytes(32)`, guarda su hash con expiración **30 min**, y devuelve el token crudo (TODO: mandarlo por email al deployar).
+- **Backend reset:** `POST /auth/jugador/reset` (rate-limited): valida token+password (≥6). Verifica que el token exista, no esté usado y no esté vencido. En una `$transaction`: bcrypt(10) de la clave nueva + `tokenVersion: increment` (invalida sesiones viejas) + marca el token `usedAt`. Este endpoint sirve igual venga el token de la respuesta o del email.
+- **Frontend (`PlayerAuthPage.jsx`):** link "¿Olvidaste tu contraseña?" bajo el campo de clave + modal de 2 pasos (identidad DNI+email → contraseña nueva). Pre-rellena el DNI del login, usa `VITE_CLUB_ID`, guard de doble-submit (`fLoading`), errores inline por paso y `toast.success` al terminar (deja el DNI cargado para loguear al toque). Show/hide password en el paso 2.
+- **PENDIENTE (deploy):** enchufar el envío del token por email (Resend) en el `forgot` y dejar de devolverlo en la respuesta — único cambio que falta, ya marcado con TODO en el código.
+
+---
+
+## Rediseño visual de los logins admin y jugador (2026-06-20)
+
+Refresco estético de las pantallas de login (admin + jugador), ya commiteado en esta sesión (commit `2805aad`). Cancha SVG realista (vista cenital), titulares sin redundancia e ítems de features con íconos. Solo visual, sin cambios de lógica de auth.
 
 ---
 

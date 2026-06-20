@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
 import { signToken } from '../lib/jwt.js'
@@ -135,6 +136,93 @@ router.post('/jugador/login', loginLimiter, async (req, res) => {
 
     const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId, tokenVersion: jugador.tokenVersion ?? 0 })
     res.json({ token, user: jugadorPublico(jugador) })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
+// Hash del token de reseteo: nunca guardamos el token crudo en la DB.
+const hashResetToken = (raw) => crypto.createHash('sha256').update(raw).digest('hex')
+
+// POST /api/auth/jugador/forgot — paso 1: valida DNI + email y genera un token de un solo uso.
+// HOY (sin deploy): devuelve el token en la respuesta para que el jugador defina la clave al toque.
+// AL DEPLOYAR: en vez de devolverlo, se manda por email (mismo flujo, mismo token). Ver resetToken abajo.
+router.post('/jugador/forgot', loginLimiter, async (req, res) => {
+  const { dni, email, clubId } = req.body
+  if (!dni || !email || !clubId) {
+    return res.status(400).json({ error: 'DNI, email y clubId requeridos' })
+  }
+
+  try {
+    const jugador = await prisma.jugador.findUnique({ where: { clubId_dni: { clubId, dni } } })
+
+    // El DNI es la llave; el email es el 2º factor de identidad. Si no coinciden, error único
+    // (no distinguimos cuál falló, para no filtrar qué DNIs existen).
+    const emailOk =
+      jugador?.email &&
+      jugador.email.trim().toLowerCase() === String(email).trim().toLowerCase()
+
+    if (!jugador || !jugador.cuentaActiva || !emailOk) {
+      return res.status(400).json({ error: 'El DNI y el email no coinciden con ninguna cuenta.' })
+    }
+
+    // Invalidamos tokens previos sin usar de este jugador (solo el último vale).
+    await prisma.passwordResetToken.deleteMany({ where: { jugadorId: jugador.id, usedAt: null } })
+
+    const rawToken = crypto.randomBytes(32).toString('hex')
+    await prisma.passwordResetToken.create({
+      data: {
+        jugadorId: jugador.id,
+        tokenHash: hashResetToken(rawToken),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 minutos
+      },
+    })
+
+    // TODO al deployar: mandar el token por email (Resend) y NO devolverlo acá.
+    res.json({ ok: true, resetToken: rawToken })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
+// POST /api/auth/jugador/reset — paso 2: valida el token y cambia la contraseña.
+// Este endpoint NO cambia al deployar: sirve igual venga el token de la respuesta o del email.
+router.post('/jugador/reset', loginLimiter, async (req, res) => {
+  const { token, password } = req.body
+  if (!token || !password) {
+    return res.status(400).json({ error: 'Token y contraseña requeridos' })
+  }
+  if (String(password).length < 6) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' })
+  }
+
+  try {
+    const registro = await prisma.passwordResetToken.findUnique({
+      where: { tokenHash: hashResetToken(token) },
+    })
+
+    if (!registro || registro.usedAt || registro.expiresAt < new Date()) {
+      return res.status(400).json({ error: 'El enlace de recuperación es inválido o expiró. Pedí uno nuevo.' })
+    }
+
+    // Cambiar clave + subir tokenVersion (invalida cualquier sesión vieja) + marcar token usado.
+    await prisma.$transaction([
+      prisma.jugador.update({
+        where: { id: registro.jugadorId },
+        data: {
+          password: await bcrypt.hash(password, 10),
+          tokenVersion: { increment: 1 },
+        },
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: registro.id },
+        data: { usedAt: new Date() },
+      }),
+    ])
+
+    res.json({ ok: true })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error interno del servidor' })

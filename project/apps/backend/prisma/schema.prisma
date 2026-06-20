@@ -139,9 +139,26 @@ model Jugador {
   cargos         Cargo[]
   parejasComoJ1  Pareja[]       @relation("ParejaJugador1")
   parejasComoJ2  Pareja[]       @relation("ParejaJugador2")
+  resetTokens    PasswordResetToken[]
 
   @@unique([clubId, dni])
   @@map("jugadores")
+}
+
+// Token de un solo uso para recuperar contraseña del jugador (por DNI + email).
+// Hoy se entrega en la respuesta; al deployar se manda por email (mismo flujo).
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  jugadorId String
+  tokenHash String    @unique // sha256 del token crudo (el crudo nunca se guarda)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  jugador Jugador @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
+
+  @@index([jugadorId])
+  @@map("password_reset_tokens")
 }
 
 model Cancha {

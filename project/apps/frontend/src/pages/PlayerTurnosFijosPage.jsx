@@ -3,6 +3,7 @@ import usePlayerStore from '../store/playerStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
 import useClubStore from '../store/clubStore'
 import { useState, useEffect, useMemo } from 'react'
+import { useToast } from '../components/ui/ToastProvider'
 import { api } from '../lib/api'
 
 const DIAS_LABEL = {
@@ -56,7 +57,9 @@ const turnoYaTerminoHoy = (diaKey, horaFin) => {
   const ahora = new Date()
   if (ahora.getDay() !== DIAS_INDEX[diaKey]) return false
   const [h, m] = (horaFin || '00:00').split(':').map(Number)
-  const finMs = h * 60 + m
+  // "00:00" = medianoche del día siguiente (1440), no el minuto 0 del día. Sin esto, un turno
+  // que termina a medianoche (ej: 22:30–00:00) figura como "Finalizado" todo el día sin haberse jugado.
+  const finMs = horaFin === '00:00' ? 1440 : h * 60 + m
   const ahoraMs = ahora.getHours() * 60 + ahora.getMinutes()
   return ahoraMs >= finMs
 }
@@ -250,6 +253,7 @@ const ModalCancelarTurno = ({ turno, errorDeuda, procesando, proxFecha, onConfir
 const PlayerTurnosFijosPage = () => {
   const player = usePlayerStore((s) => s.player)
   const token = usePlayerStore((s) => s.token)
+  const toast = useToast()
   const { turnosFijos, setTurnosFijos, registrarAusenciaPendiente, updateTurnoFijo } = useTurnosFijosStore()
   const horasMinimas = useClubStore((s) => s.club?.horasCancelacion ?? 0)
 
@@ -290,6 +294,7 @@ const PlayerTurnosFijosPage = () => {
       await api.delete(`/turnos-fijos/${modalCancelar.turno.id}`, { Authorization: `Bearer ${token}` })
       updateTurnoFijo(modalCancelar.turno.id, { activo: false, estado: 'inactivo' })
       setModalCancelar(null)
+      toast.success('Turno fijo cancelado')
     } catch (err) {
       const msg = err?.error || err?.message || 'No se pudo cancelar el turno fijo'
       setModalCancelar((prev) => ({ ...prev, errorDeuda: msg }))
@@ -304,6 +309,7 @@ const PlayerTurnosFijosPage = () => {
     try {
       await api.delete(`/turnos-fijos/${turno.id}`, { Authorization: `Bearer ${token}` })
       updateTurnoFijo(turno.id, { activo: false, estado: 'inactivo' })
+      toast.success('Solicitud de turno fijo retirada')
     } catch { /* fallback silencioso */ }
     finally { setRetirandoId(null) }
   }
@@ -317,16 +323,28 @@ const PlayerTurnosFijosPage = () => {
           { fecha },
           { Authorization: `Bearer ${token}` }
         )
-        updateTurnoFijo(modalTurno.id, { ausenciasPendientes: updated.ausenciasPendientes })
+        updateTurnoFijo(modalTurno.id, {
+          diasAusentes: updated.diasAusentes,
+          diasAusentesJugador: updated.diasAusentesJugador,
+          ausenciasPendientes: updated.ausenciasPendientes,
+        })
+        const cargoAplicado = !!updated?.cargoAplicado
+        const monto = updated?.monto ?? 0
+        setModalTurno(null)
+        toast.success(cargoAplicado
+          ? `Ausencia registrada · se aplicó un cargo de $${Number(monto).toLocaleString('es-AR')}`
+          : 'Ausencia registrada · el turno quedó liberado ese día')
       } else {
         registrarAusenciaPendiente(modalTurno.id, fecha)
+        setModalTurno(null)
+        toast.success('Ausencia registrada · el turno quedó liberado ese día')
       }
-    } catch {
-      // fallback local si el backend falla
-      registrarAusenciaPendiente(modalTurno.id, fecha)
+    } catch (e) {
+      // El backend rechazó (ej. ya registrada, fuera de plazo): mostrar el error real, no fingir éxito.
+      toast.error(e?.message || 'No se pudo registrar la ausencia')
+    } finally {
+      setEnviando(false)
     }
-    setEnviando(false)
-    setModalTurno(null)
   }
 
   return (
@@ -456,9 +474,7 @@ const PlayerTurnosFijosPage = () => {
                           </p>
                           <p className="text-white/25 text-[10px] mt-0.5">
                             {localISO(proxFecha) === localISO(new Date())
-                              ? yaTermino
-                                ? 'Hoy · Finalizado'
-                                : `Hoy · ${turno.inicio} a ${turno.fin}`
+                              ? `Hoy · ${turno.inicio} a ${turno.fin}`
                               : `Próximo: ${fmtFechaLegible(proxFecha)}`}
                           </p>
                           {esPendiente && (

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { runSerializable } from '../lib/serializable.js'
+import { clubAutoConfirma } from '../lib/autoConfirma.js'
 import { requireAuth, requireRole, requireActive, requireFeature, requirePermiso } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { snapshotProductos } from '../lib/productos.js'
@@ -314,6 +315,13 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
     const [fy, fm, fd] = fecha.split('-').map(Number)
     const dia = DIAS_SEMANA[new Date(fy, fm - 1, fd).getDay()]
 
+    // Auto-confirmación: si el club la tiene activa (default), la reserva nace 'confirmada'.
+    // Si la apagó, vuelve al flujo manual ('pendiente' → admin aprueba). Se decide FUERA de la
+    // transacción: no compite con la reserva del slot (eso lo resuelve el Serializable).
+    const club = await prisma.club.findUnique({ where: { id: clubId } })
+    const autoConfirma = clubAutoConfirma(club)
+    const estadoInicial = autoConfirma ? 'confirmada' : 'pendiente'
+
     // Check de conflicto + create dentro de una transacción Serializable (ver runSerializable):
     // evita que dos requests simultáneos pasen la validación y creen dos reservas (doble-booking).
     const reserva = await runSerializable(async (tx) => {
@@ -347,7 +355,7 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
           precio: precio ? Math.round(parseFloat(precio)) : null,
           esTurnoFijo: !!esTurnoFijo,
           tipo: esTurnoFijo ? 'solicitud_fijo' : 'online',
-          estado: 'pendiente',
+          estado: estadoInicial,
           notas: notas || '',
           jugadores: [],
         },
@@ -355,24 +363,33 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
       })
     })
 
-    // Notificar al admin del club
-    const tipo = esTurnoFijo ? 'solicitud_turno_fijo' : 'nueva_reserva'
-    prisma.notificacion.create({
-      data: {
-        clubId,
-        jugadorId: null,
-        tipo,
-        data: {
-          jugador: reserva.jugador ? `${reserva.jugador.nombre} ${reserva.jugador.apellido}`.trim() : '',
-          canchaNombre: cancha.nombre,
-          fecha,
-          horaInicio,
-          horaFin,
-          precio: precio ? Math.round(parseFloat(precio)) : null,
-          backendReservaId: reserva.id,
-        },
-      },
-    }).catch(() => {})
+    // Notificaciones según el resultado.
+    const dataNotif = {
+      jugador: reserva.jugador ? `${reserva.jugador.nombre} ${reserva.jugador.apellido}`.trim() : '',
+      canchaNombre: cancha.nombre,
+      fecha,
+      dia, // necesario para el cuerpo de las notifs de turno fijo (render usa {dia})
+      horaInicio,
+      horaFin,
+      precio: precio ? Math.round(parseFloat(precio)) : null,
+      backendReservaId: reserva.id,
+    }
+
+    if (autoConfirma) {
+      // Confirmada al instante: avisamos al jugador, y al admin como CONTROL (informativo,
+      // NO tiene que aprobar nada). Tipos nuevos → se renderizan explícitamente en el panel admin.
+      prisma.notificacion.create({
+        data: { clubId, jugadorId, tipo: esTurnoFijo ? 'turno_fijo_confirmado' : 'reserva_confirmada', data: dataNotif },
+      }).catch(() => {})
+      prisma.notificacion.create({
+        data: { clubId, jugadorId: null, tipo: esTurnoFijo ? 'turno_fijo_autoconfirmado' : 'reserva_autoconfirmada', data: dataNotif },
+      }).catch(() => {})
+    } else {
+      // Flujo manual (el dueño apagó la auto-confirmación): el admin debe aprobar, como siempre.
+      prisma.notificacion.create({
+        data: { clubId, jugadorId: null, tipo: esTurnoFijo ? 'solicitud_turno_fijo' : 'nueva_reserva', data: dataNotif },
+      }).catch(() => {})
+    }
 
     res.status(201).json(reserva)
   } catch (err) {
@@ -678,6 +695,26 @@ router.post('/admin', requireAuth, requireRole('admin'), requirePermiso('reserva
         throw Object.assign(new Error('El horario ya está reservado'), { status: 409 })
       }
 
+      // Bloquear si el slot pertenece a un turno fijo confirmado (salvo ese día liberado por ausencia).
+      // Mismo criterio que el flujo del jugador: un turno fijo no liberado ocupa el slot.
+      const tfActivos = await tx.turnoFijo.findMany({
+        where: { canchaId, dia: diaKey, estado: 'confirmado' },
+      })
+      const tfConflicto = tfActivos.some(
+        (tf) =>
+          overlaps(tf.horaInicio, tf.horaFin, horaInicio, horaFin) &&
+          !tf.diasAusentes.includes(fecha) &&
+          (!tf.desde || tf.desde <= fecha)
+      )
+      if (tfConflicto) {
+        throw Object.assign(
+          new Error(esTurnoFijo
+            ? 'Ya existe un turno fijo en esa cancha, día y horario'
+            : 'Ese horario pertenece a un turno fijo reservado'),
+          { status: 409 }
+        )
+      }
+
       const newReserva = await tx.reserva.create({
         data: {
           clubId,
@@ -697,37 +734,39 @@ router.post('/admin', requireAuth, requireRole('admin'), requirePermiso('reserva
       })
 
       if (esTurnoFijo && jugadorId) {
-        // Re-verificar solapamiento TF dentro de la transacción (protección race condition)
-        const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
-        const nsMin = toMin(horaInicio), nfMin = toMin(horaFin)
+        // RN-51: un solo turno fijo por cancha/día/horario. Si ya existe uno (incluso liberado
+        // algún día puntual), NO crear un duplicado en silencio: abortar para que el admin se entere.
+        // Usamos overlaps() (cross-midnight aware) para que un turno 22:30–00:00 detecte el conflicto.
         const tfsDia = await tx.turnoFijo.findMany({
           where: { canchaId, dia: diaKey, estado: { in: ['pendiente', 'confirmado'] } },
           select: { horaInicio: true, horaFin: true },
         })
-        const existeTF = tfsDia.some((t) => {
-          const esMin = toMin(t.horaInicio), efMin = toMin(t.horaFin)
-          return esMin < nfMin && nsMin < efMin
-        })
+        const existeTF = tfsDia.some((t) => overlaps(t.horaInicio, t.horaFin, horaInicio, horaFin))
 
-        if (!existeTF) {
-          await tx.turnoFijo.create({
-            data: {
-              clubId,
-              canchaId,
-              jugadorId,
-              dia: diaKey,
-              horaInicio,
-              horaFin,
-              precio: precio ? Math.round(parseFloat(precio)) : null,
-              estado: 'confirmado',
-              diasAusentes: [],
-              diasAusentesJugador: [],
-              ausenciasPendientes: [],
-              desde: fecha,
-              notas: notas || null,
-            },
-          })
+        if (existeTF) {
+          throw Object.assign(
+            new Error('Ya existe un turno fijo en esa cancha, día y horario'),
+            { status: 409 }
+          )
         }
+
+        await tx.turnoFijo.create({
+          data: {
+            clubId,
+            canchaId,
+            jugadorId,
+            dia: diaKey,
+            horaInicio,
+            horaFin,
+            precio: precio ? Math.round(parseFloat(precio)) : null,
+            estado: 'confirmado',
+            diasAusentes: [],
+            diasAusentesJugador: [],
+            ausenciasPendientes: [],
+            desde: fecha,
+            notas: notas || null,
+          },
+        })
       }
 
       return newReserva
@@ -1174,6 +1213,28 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'La reserva ya está cancelada' })
     }
 
+    // Notifica al admin que el jugador canceló. Se llama en TODAS las salidas de cancelación
+    // del jugador (dentro y fuera de plazo) — antes se salteaba en el caso con cargo.
+    const notifCancelacionAdmin = async () => {
+      if (req.user.role !== 'jugador') return
+      const jugador = await prisma.jugador.findUnique({ where: { id: req.user.id }, select: { nombre: true, apellido: true } })
+      await prisma.notificacion.create({
+        data: {
+          clubId: reserva.clubId,
+          jugadorId: null,
+          tipo: 'cancelacion_reserva',
+          data: {
+            jugador: jugador ? `${jugador.nombre} ${jugador.apellido}`.trim() : '',
+            canchaNombre: reserva.cancha?.nombre ?? '',
+            fecha: reserva.fecha,
+            horaInicio: reserva.horaInicio,
+            horaFin: reserva.horaFin,
+            backendReservaId: id,
+          },
+        },
+      }).catch(() => {})
+    }
+
     // Profesor solo puede cancelar sus propias clases
     if (req.user.role === 'profesor') {
       if (reserva.profesorId !== req.user.id) return res.status(403).json({ error: 'Sin permisos' })
@@ -1225,6 +1286,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
           // Solo registrar cargo si hay un monto a cobrar
           const montoCargo = reserva.precio ?? 0
           if (montoCargo <= 0) {
+            await notifCancelacionAdmin()
             return res.json({ ok: true, cargoAplicado: false })
           }
 
@@ -1256,6 +1318,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
             },
           }).catch(() => {})
 
+          await notifCancelacionAdmin()
           return res.json({ ok: true, cargoAplicado: true, cargo })
         }
       }
@@ -1282,25 +1345,8 @@ router.delete('/:id', requireAuth, async (req, res) => {
       }).catch(() => {})
     }
 
-    // Notificar al admin si el jugador cancela
-    if (req.user.role === 'jugador') {
-      const jugador = await prisma.jugador.findUnique({ where: { id: req.user.id }, select: { nombre: true, apellido: true } })
-      prisma.notificacion.create({
-        data: {
-          clubId: reserva.clubId,
-          jugadorId: null,
-          tipo: 'cancelacion_reserva',
-          data: {
-            jugador: jugador ? `${jugador.nombre} ${jugador.apellido}`.trim() : '',
-            canchaNombre: reserva.cancha?.nombre ?? '',
-            fecha: reserva.fecha,
-            horaInicio: reserva.horaInicio,
-            horaFin: reserva.horaFin,
-            backendReservaId: id,
-          },
-        },
-      }).catch(() => {})
-    }
+    // Notificar al admin si el jugador cancela (dentro de plazo / sin cargo).
+    await notifCancelacionAdmin()
 
     res.json({ ok: true, cargoAplicado: false })
   } catch (err) {

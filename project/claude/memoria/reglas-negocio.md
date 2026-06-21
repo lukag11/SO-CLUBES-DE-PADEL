@@ -25,8 +25,8 @@ Los flujos que las aplican están en `/memoria/flujos/`.
 ## Reservas eventuales
 
 **RN-07** Una reserva eventual corresponde a una fecha específica (un solo día).  
-**RN-08** Toda reserva eventual comienza en estado `pendiente`.  
-**RN-09** Solo el admin puede confirmar una reserva (estado `confirmada` + `_aprobadoPorAdmin: true`).  
+**RN-08** Toda reserva eventual comienza en estado `pendiente` **solo si el club tiene la auto-confirmación apagada** (flujo manual). Con auto-confirmación activa (default), nace `confirmada`. Ver RN-53.  
+**RN-09** Solo el admin puede confirmar una reserva (estado `confirmada` + `_aprobadoPorAdmin: true`) **en el flujo manual**. Con auto-confirmación activa, la confirma el sistema al crearla.  
 **RN-10** Un jugador no puede tener dos reservas activas en el mismo día y horario,
 **RN-11** Cancelar una reserva la pasa a estado `cancelada`. No se elimina.  
 **RN-11d** El botón de cancelación en "Mis próximas reservas" solo aparece en reservas eventuales. Los turnos fijos no muestran ese botón en esa sección — su gestión se hace exclusivamente desde "Mis turnos fijos".  
@@ -50,13 +50,24 @@ Los flujos que las aplican están en `/memoria/flujos/`.
 
 ---
 
+## Auto-confirmación de turnos
+
+**RN-53** La confirmación instantánea de reservas y turnos fijos está disponible en TODOS los planes (sin feature-gating). Es opt-out por club vía `club.config.autoConfirmaReservas` (default `true`).  
+**RN-54** Con auto-confirmación activa: la reserva nace `confirmada` y el turno fijo nace `confirmado` directamente, sin pasar por aprobación admin. El jugador recibe `reserva_confirmada`/`turno_fijo_confirmado` y el admin recibe una notificación-CONTROL `reserva_autoconfirmada`/`turno_fijo_autoconfirmado`.  
+**RN-55** Con auto-confirmación apagada: rige el flujo manual de siempre (reserva/TF `pendiente`, admin recibe `nueva_reserva`/`solicitud_turno_fijo` y aprueba a mano).  
+**RN-56** El `POST /admin` bloquea crear reserva o turno fijo sobre un turno fijo confirmado (salvo día liberado por ausencia) y aplica RN-51 sin saltearlo en silencio.  
+**RN-57** La baja del turno fijo entero (eliminar) es SIEMPRE manual y se bloquea con 409 si el jugador tiene deuda pendiente. No se automatiza, independientemente del toggle de auto-confirmación.
+
+---
+
 ## Ausencias en turnos fijos
 
 **RN-18** El jugador puede avisar ausencia solo para la próxima ocurrencia de su turno fijo.  
 **RN-19** Si hoy es el día del turno y la hora de inicio aún no pasó, el jugador puede avisar ausencia para hoy.  
 **RN-20** Si el turno ya pasó esta semana, se calcula la próxima ocurrencia (máximo 7 días adelante).  
-**RN-21** Una ausencia avisada por el jugador entra en `ausenciasPendientes`. El slot sigue bloqueado para otros jugadores.  
-**RN-22** Solo cuando el admin confirma la ausencia, la fecha pasa a `diasAusentes` y el slot queda libre.  
+**RN-21** Con auto-liberación activa (default, junto a RN-53): la ausencia avisada por el jugador libera el slot **al instante** — la fecha pasa a `diasAusentes` + `diasAusentesJugador`, se cancela la reserva puntual asociada, el admin recibe `turno_liberado_auto` (CONTROL) y el jugador `ausencia_confirmada`. No hay paso de aprobación admin.  
+**RN-22** En el flujo manual (auto-liberación apagada): la ausencia entra en `ausenciasPendientes`, el slot sigue bloqueado, y solo cuando el admin la confirma la fecha pasa a `diasAusentes` y el slot queda libre.  
+**RN-22b** La auto-liberación no altera la política de cancelación: si el jugador avisa fuera de plazo se genera el cargo igual. El aviso de ausencia corre bajo `runSerializable` para no duplicar cargo ante doble-submit.  
 **RN-23** Un turno con ausencia pendiente o ya confirmada desactiva el botón "No puedo ir".
 
 ---

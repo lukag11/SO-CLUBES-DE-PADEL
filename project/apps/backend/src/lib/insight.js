@@ -19,6 +19,19 @@ const franjasDia = (h) => {
   if (ci <= ap) ci += 1440
   return Math.max(0, Math.floor((ci - ap) / 90))
 }
+// Lista de horarios de inicio de las franjas de 1.5h de un día {activo, apertura, cierre}
+const franjaTimes = (h) => {
+  if (!h?.activo) return []
+  const ap = toMin(h.apertura)
+  let ci = h.cierre === '00:00' ? 1440 : toMin(h.cierre)
+  if (ci <= ap) ci += 1440
+  const out = []
+  for (let t = ap; t + 90 <= ci; t += 90) {
+    const m = t % 1440
+    out.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`)
+  }
+  return out
+}
 const fechaMenos = (hoyStr, n) => {
   const [y, m, d] = hoyStr.split('-').map(Number)
   const dt = new Date(Date.UTC(y, m - 1, d - n))
@@ -33,7 +46,7 @@ export async function gatherInsightData(clubId) {
   const dias7 = Array.from({ length: 7 }, (_, i) => fechaMenos(hoyStr, i))       // hoy + 6 atrás
   const dias14 = Array.from({ length: 7 }, (_, i) => fechaMenos(hoyStr, i + 7))  // semana previa
 
-  const [club, canchas, reservas7, reservas14, tfHoy, impagos, cargos, reservasHoy] = await Promise.all([
+  const [club, canchas, reservas7, reservas14, tfHoy, impagos, cargos, reservasHoy, reservasFranja] = await Promise.all([
     prisma.club.findUnique({ where: { id: clubId }, select: { config: true, nombre: true } }),
     prisma.cancha.findMany({ where: { clubId, activo: true }, select: { horarios: true } }),
     prisma.reserva.count({ where: { clubId, estado: 'confirmada', fecha: { in: dias7 } } }),
@@ -42,6 +55,8 @@ export async function gatherInsightData(clubId) {
     turnosImpagosDeuda(clubId),
     prisma.cargo.findMany({ where: { clubId, estado: 'pendiente' }, select: { monto: true } }),
     prisma.reserva.count({ where: { clubId, fecha: hoyStr, estado: 'confirmada' } }),
+    // Reservas de las últimas 2 semanas (por hora de inicio) para detectar franjas flojas
+    prisma.reserva.findMany({ where: { clubId, estado: 'confirmada', fecha: { in: [...dias7, ...dias14] } }, select: { horaInicio: true } }),
   ])
 
   const horarios = club?.config?.horarios || {}
@@ -50,6 +65,17 @@ export async function gatherInsightData(clubId) {
     const h = (c.horarios && c.horarios[DIAS_CFG[wd]]) || horarios[DIAS_CFG[wd]]
     slots += franjasDia(h)
   }
+
+  // ── Horas muertas: franjas de hoy con menos reservas en las últimas 2 semanas ──
+  const horarioRep = (canchas[0]?.horarios && canchas[0].horarios[DIAS_CFG[wd]]) || horarios[DIAS_CFG[wd]]
+  const franjas = franjaTimes(horarioRep)
+  const cuentaFranja = {}
+  franjas.forEach((f) => { cuentaFranja[f] = 0 })
+  reservasFranja.forEach((r) => { if (r.horaInicio in cuentaFranja) cuentaFranja[r.horaInicio]++ })
+  const franjasFlojas = Object.entries(cuentaFranja)
+    .sort((a, b) => a[1] - b[1])
+    .slice(0, 4)
+    .map(([hora, n]) => ({ hora, reservas: n }))
   const tfHoyAct = tfHoy.filter((t) => !t.diasAusentes.includes(hoyStr) && (!t.desde || t.desde <= hoyStr)).length
   const ocupados = slots > 0 ? Math.min(reservasHoy + tfHoyAct, slots) : reservasHoy + tfHoyAct
   const ocupacionPct = slots > 0 ? Math.round((ocupados / slots) * 100) : 0
@@ -66,17 +92,26 @@ export async function gatherInsightData(clubId) {
     reservasSemanaPrevia: reservas14,
     tendenciaReservasPct: tendenciaPct,
     deudaPorCobrar: deuda,
+    franjasFlojas, // [{hora, reservas}] — franjas con menos reservas en 2 semanas
   }
 }
 
 // Le pide a Claude UNA recomendación accionable a partir de los números.
 export async function generarInsightIA(data) {
-  const prompt = `Sos un asesor de negocios experto en clubes de pádel en Argentina. Te paso los números reales de un club. Devolvé UNA sola recomendación accionable y concreta para el dueño, en español rioplatense, en 1 o 2 frases (máximo 35 palabras). Tono directo y práctico, sin saludos, sin relleno, sin repetir los números crudos. Si todo viene bien, felicitá y sugerí cómo sostenerlo.
+  const flojas = (data.franjasFlojas || []).filter((f) => f.reservas <= 2)
+  const flojasTxt = flojas.length
+    ? flojas.map((f) => `${f.hora} (${f.reservas} reservas en 2 semanas)`).join(', ')
+    : 'ninguna franja claramente floja'
 
-Datos de hoy y la última semana (no inventes otros):
+  const prompt = `Sos un asesor de negocios experto en clubes de pádel en Argentina. Te paso los números reales de un club. Devolvé UNA sola recomendación accionable y concreta para el dueño, en español rioplatense, en 1 o 2 frases (máximo 40 palabras). Tono directo y práctico, sin saludos, sin relleno, sin repetir los números crudos.
+
+REGLA CLAVE: si hay franjas/horas muertas (poco reservadas), tu recomendación principal debe ser llenarlas. La mejor forma de llenar horas muertas es organizando un **Super 8** o un **Americano** (modalidades sociales de pádel que juntan 8+ jugadores y llenan canchas en horarios flojos). Mencioná la franja concreta y sugerí armar uno de esos eventos ahí. Si NO hay horas muertas y todo viene bien, felicitá y sugerí cómo sostenerlo.
+
+Datos de hoy y las últimas 2 semanas (no inventes otros):
 - Día de hoy: ${data.dia}
 - Ocupación de hoy: ${data.ocupacionHoyPct}% (${data.slotsOcupados} de ${data.slotsTotales} turnos del día)
 - Reservas en los últimos 7 días: ${data.reservasUlt7dias} (semana previa: ${data.reservasSemanaPrevia}, tendencia ${data.tendenciaReservasPct >= 0 ? '+' : ''}${data.tendenciaReservasPct}%)
+- Horas muertas (franjas con menos reservas): ${flojasTxt}
 - Plata por cobrar (deuda pendiente): $${data.deudaPorCobrar.toLocaleString('es-AR')}
 
 Recomendación:`

@@ -227,8 +227,10 @@ router.get('/me/insight', requireAuth, requireRole('admin'), requireOwner, async
     const hoyStr = hoyArgStr()
     const club = await prisma.club.findUnique({ where: { id: clubId }, select: { config: true } })
     const cache = club?.config?.insightDelDia
-    // Cache: si ya generamos el insight hoy, lo devolvemos sin volver a llamar a la IA.
-    if (cache && cache.fecha === hoyStr && cache.texto) {
+    const forzar = req.query.force === '1' || req.query.force === 'true'
+    // Cache: si ya generamos el insight hoy, lo devolvemos sin volver a llamar a la IA
+    // (salvo que el dueño pida regenerar con ?force=1).
+    if (!forzar && cache && cache.fecha === hoyStr && cache.texto) {
       return res.json({ texto: cache.texto, fecha: cache.fecha, cacheado: true })
     }
     const data = await gatherInsightData(clubId)

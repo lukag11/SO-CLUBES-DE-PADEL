@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CalendarDays, Users, Trophy, TrendingUp, TrendingDown, DollarSign, Activity,
-  Wallet, Clock, ArrowRight, CheckCircle2, AlertCircle, UserPlus, Receipt, Sparkles,
+  Wallet, Clock, ArrowRight, CheckCircle2, AlertCircle, UserPlus, Receipt, Sparkles, RefreshCw,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
@@ -63,6 +63,16 @@ const DashboardPage = () => {
   // Insight del día con IA (solo dueño; si el backend devuelve 403/error, no se muestra la tarjeta)
   const [insight, setInsight] = useState(null)
   const [insightLoading, setInsightLoading] = useState(true)
+  const [insightRegen, setInsightRegen] = useState(false)
+
+  const regenerarInsight = () => {
+    if (insightRegen) return
+    setInsightRegen(true)
+    api.get('/clubs/me/insight?force=1', { Authorization: `Bearer ${token}` })
+      .then((r) => setInsight(r?.texto || null))
+      .catch(() => {})
+      .finally(() => setInsightRegen(false))
+  }
 
   const today = new Date().toLocaleDateString('es-AR', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -156,6 +166,16 @@ const DashboardPage = () => {
             </span>
             <span className="text-sm font-semibold text-white">Insight del día</span>
             <span className="text-[10px] font-bold uppercase tracking-wider text-brand-400 bg-brand-500/15 px-2 py-0.5 rounded-full">IA · PadelwIArk</span>
+            {!insightLoading && (
+              <button
+                onClick={regenerarInsight}
+                disabled={insightRegen}
+                title="Regenerar insight"
+                className="ml-auto w-7 h-7 rounded-lg flex items-center justify-center text-white/40 hover:text-brand-400 hover:bg-white/5 transition-all disabled:opacity-50"
+              >
+                <RefreshCw size={14} className={insightRegen ? 'animate-spin' : ''} />
+              </button>
+            )}
           </div>
           {insightLoading ? (
             <div className="relative flex flex-col gap-2 mt-1">

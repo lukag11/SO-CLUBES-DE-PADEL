@@ -18,7 +18,7 @@ Antes de cualquier tarea, leer en orden:
 ## Estado actual (actualizar en progreso.md al terminar cada sesión)
 
 - Frontend base completo con design system
-- Área admin: dashboard, notificaciones, aprobación turnos fijos
+- Área admin: dashboard "pulso en tiempo real" (% ocupación, agenda hoy, tendencia 7d, cobros — con gating financiero por permiso), notificaciones, aprobación turnos fijos
 - Área jugador: login, registro stepper, reservas, turnos fijos, estadísticas
 - Flujo turno fijo: pendiente → aprobación admin → confirmada
 

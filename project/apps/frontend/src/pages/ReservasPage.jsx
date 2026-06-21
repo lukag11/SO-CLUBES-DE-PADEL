@@ -2311,14 +2311,16 @@ const PanelAlertas = ({
             const esTurnoLiberadoAuto = n.tipo === 'turno_liberado_auto'
             const dotColor = n.leida ? 'bg-slate-300'
               : esSolicitudFijo ? 'bg-amber-500'
-              : esReservaAuto || esTurnoFijoAuto ? 'bg-emerald-500'
+              : esTurnoFijoAuto ? 'bg-violet-500'
+              : esReservaAuto ? 'bg-emerald-500'
               : esTurnoLiberadoAuto ? 'bg-red-500'
               : esNuevaClaseProf ? 'bg-orange-400'
               : esCancelClaseProf ? 'bg-orange-600'
               : 'bg-red-500'
             const rowBg = n.leida ? ''
               : esSolicitudFijo ? 'bg-amber-50/40'
-              : esReservaAuto || esTurnoFijoAuto ? 'bg-emerald-50/40'
+              : esTurnoFijoAuto ? 'bg-violet-50/40'
+              : esReservaAuto ? 'bg-emerald-50/40'
               : esTurnoLiberadoAuto ? 'bg-red-50/40'
               : esNuevaClaseProf || esCancelClaseProf ? 'bg-orange-50/40'
               : 'bg-red-50/30'
@@ -2443,7 +2445,7 @@ const PanelAlertas = ({
                   {esTurnoFijoAuto && (
                     <>
                       <p className="text-slate-700 text-sm font-medium">
-                        <span className="text-emerald-600 font-semibold">Turno fijo confirmado automáticamente</span>
+                        <span className="text-violet-600 font-semibold">Turno fijo confirmado automáticamente</span>
                         {n.jugador && <span className="text-slate-700 font-semibold"> · {n.jugador}</span>}
                         {n.precio && <span className="text-slate-400 font-normal"> · ${Number(n.precio).toLocaleString('es-AR')}</span>}
                       </p>

@@ -1,6 +1,6 @@
 # Features — Estado actual
 
-**Actualizado:** 2026-05-17 (sesión 3)
+**Actualizado:** 2026-06-21 (rediseño dashboard admin)
 
 ---
 
@@ -77,6 +77,18 @@
 - Notificación de cargo por cancelación fuera de plazo
 - Notificaciones separadas: reservas vs torneos (badges independientes)
 - Polling cada 30s en PlayerLayout + AdminDashboardLayout
+
+## Dashboard / Resumen Admin ✅ Completo (backend real)
+
+- Panel "pulso del club en tiempo real" en `/dashboardAdmin` (`AdminDashboardPage.jsx`), backend `GET /clubs/me/dashboard`
+- **% ocupación del día** (slots ocupados / disponibles según horario del club) con barra y marca del benchmark 50%
+- **Agenda de hoy**: reservas + turnos fijos virtuales ordenados, con tipo real y badges de tiempo (EN JUEGO / PRÓXIMO) y de pago
+- **Tendencia 7 días**: ingresos + reservas por día en barras
+- **Deltas vs ayer** (reservas e ingresos) + **cobros pendientes** accionables ("Necesita tu atención")
+- **Gating financiero por permiso**: `verCaja` (ingresos/totales) y `verCobros` (estado de cobro/deuda) — los datos que el rol no puede ver NO viajan en el payload
+- Auto-refresh cada 45s + indicador "● En vivo"; hero adaptativo según permisos
+- Ítem "Resumen" en el sidebar admin (antes solo se llegaba tocando el logo)
+- **Pendiente**: "Insight del día con IA" (primer feature de IA, premium — no construido)
 
 ## Dashboard Profesor ✅ Frontend completo
 

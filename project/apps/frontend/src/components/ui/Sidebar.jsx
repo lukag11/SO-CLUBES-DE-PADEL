@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
-import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X, Users, GraduationCap, Star, Crown, Sparkles, ArrowUpRight, UserCog } from 'lucide-react'
+import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X, Users, GraduationCap, Star, Crown, Sparkles, ArrowUpRight, UserCog, LayoutDashboard } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
 import useClubStore from '../../store/clubStore'
@@ -16,6 +16,7 @@ const PLAN_INFO = {
 // feature: módulo del gating de plan · permiso/permisoAny: permiso del empleado
 // (el dueño ve todo) · ownerOnly: solo el dueño (config/diseño/equipo)
 const navItems = [
+  { to: '/dashboardAdmin',           label: 'Resumen',   icon: LayoutDashboard, end: true },
   { to: '/dashboardAdmin/club',      label: 'Club',      icon: Info,          ownerOnly: true },
   { to: '/dashboardAdmin/reservas',  label: 'Reservas',  icon: CalendarDays,  permiso: 'reservas' },
   { to: '/dashboardAdmin/jugadores', label: 'Jugadores', icon: Users,         permiso: 'jugadores' },
@@ -128,10 +129,11 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
 
       {/* Navegación */}
       <nav className="flex-1 px-2 py-4 flex flex-col gap-1">
-        {items.map(({ to, label, icon: Icon }) => (
+        {items.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
+            end={end}
             title={!expanded ? label : undefined}
             className={({ isActive }) =>
               [

@@ -2,9 +2,39 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireOwner } from '../middleware/auth.js'
 import { tienePermiso } from '../lib/permisos.js'
-import { inicioDiaArg, inicioMesArg, hoyArgStr, ahoraArgHHMM } from '../lib/tiempo.js'
+import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg } from '../lib/tiempo.js'
+import { turnosImpagosDeuda } from '../lib/deudas.js'
 
 const router = Router()
+
+// Convenciones de día: config.horarios usa capitalizado con acento; turnoFijo.dia usa minúscula sin acento.
+const DIAS_CFG = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+const DIAS_TF  = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+const DIAS_LBL = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+const toMinT = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m }
+// Cantidad de franjas de 1.5h en un horario {activo, apertura, cierre} ("00:00" = medianoche siguiente).
+const franjasDia = (h) => {
+  if (!h?.activo) return 0
+  const ap = toMinT(h.apertura)
+  let ci = h.cierre === '00:00' ? 1440 : toMinT(h.cierre)
+  if (ci <= ap) ci += 1440
+  return Math.max(0, Math.floor((ci - ap) / 90))
+}
+// 'YYYY-MM-DD' de hace N días (en ARG) a partir del string de hoy.
+const fechaArgMenos = (hoyStr, n) => {
+  const [y, m, d] = hoyStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d - n))
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+}
+// Día ARG ('YYYY-MM-DD') de un instante UTC (pagadoAt/createdAt).
+const argDayStr = (date) => {
+  const a = new Date(new Date(date).getTime() - 3 * 60 * 60 * 1000)
+  return `${a.getUTCFullYear()}-${String(a.getUTCMonth() + 1).padStart(2, '0')}-${String(a.getUTCDate()).padStart(2, '0')}`
+}
+const pct = (hoy, ayer) => {
+  if (!ayer) return hoy > 0 ? 100 : 0
+  return Math.round(((hoy - ayer) / ayer) * 100)
+}
 
 // GET /api/clubs/me   — admin obtiene la config de su club
 router.get('/me', requireAuth, requireRole('admin'), async (req, res) => {
@@ -28,70 +58,160 @@ router.get('/me/dashboard', requireAuth, requireRole('admin'), async (req, res) 
     // Resumen adaptativo: lo financiero solo se incluye si el admin tiene 'caja'
     // (o es dueño). El empleado de mostrador ve lo operativo, sin números de plata.
     const admin = await prisma.admin.findUnique({ where: { id: req.user.id }, select: { rol: true, permisos: true } })
-    const verCaja = tienePermiso(admin, 'caja')
+    const verCaja = tienePermiso(admin, 'caja')                                  // totales/ingresos/márgenes (SENSIBLE)
+    const verCobros = verCaja || tienePermiso(admin, 'ventas')                    // estado de cobro: pago de turnos, deuda por cobrar
 
     // Límites de fecha/hora en hora local Argentina (el server corre en UTC)
-    const inicioDia = inicioDiaArg()
     const inicioMes = inicioMesArg()
     const hoyStr = hoyArgStr()
     const ahoraHHMM = ahoraArgHHMM()
 
+    // Día de hoy (ARG) + día de la semana en ambas convenciones
+    const ayerStr = fechaArgMenos(hoyStr, 1)
+    const [hy, hm, hd] = hoyStr.split('-').map(Number)
+    const wd = new Date(Date.UTC(hy, hm - 1, hd)).getUTCDay()
+    const diaCfg = DIAS_CFG[wd]
+    const diaTF = DIAS_TF[wd]
+    // Ventana de los últimos 7 días (para la serie de tendencia)
+    const dias7 = Array.from({ length: 7 }, (_, i) => fechaArgMenos(hoyStr, 6 - i)) // viejo→hoy
+    const inicio7d = rangoDiaArg(dias7[0]).desde
+
     const [
-      reservasPagadasDia, cargosPagadosDia,
       reservasPagadasMes, cargosPagadosMes,
-      reservasHoy, jugadoresActivos, canchasActivas,
-      torneosActivos, deudaPendiente,
+      reservasHoyList, turnosFijosHoy,
+      jugadoresActivos, canchas,
+      torneosActivos, torneosAbiertos, deudaCargos,
+      turnosFijosPendientes, reservasPendientes,
       ultimasReservas, ultimosJugadores, ultimosCargos,
+      reservasPagadas7d, cargosPagados7d, reservas7d,
+      reservasAyer, club, impagos,
     ] = await Promise.all([
-      prisma.reserva.findMany({ where: { clubId, pagado: true, pagadoAt: { gte: inicioDia } }, select: { precio: true } }),
-      prisma.cargo.findMany({ where: { clubId, estado: 'pagado', pagadoAt: { gte: inicioDia } }, select: { monto: true } }),
       prisma.reserva.findMany({ where: { clubId, pagado: true, pagadoAt: { gte: inicioMes } }, select: { precio: true } }),
       prisma.cargo.findMany({ where: { clubId, estado: 'pagado', pagadoAt: { gte: inicioMes } }, select: { monto: true } }),
-      prisma.reserva.findMany({ where: { clubId, fecha: hoyStr, estado: 'confirmada' }, select: { horaInicio: true, horaFin: true } }),
+      prisma.reserva.findMany({ where: { clubId, fecha: hoyStr, estado: 'confirmada' }, select: { canchaId: true, horaInicio: true, horaFin: true, esTurnoFijo: true, tipo: true, pagado: true, jugadores: true, cancha: { select: { nombre: true } }, jugador: { select: { nombre: true, apellido: true } } } }),
+      prisma.turnoFijo.findMany({ where: { clubId, dia: diaTF, estado: 'confirmado' }, select: { canchaId: true, horaInicio: true, horaFin: true, diasAusentes: true, desde: true, cancha: { select: { nombre: true } }, jugador: { select: { nombre: true, apellido: true } } } }),
       prisma.jugador.count({ where: { clubId, activo: true } }),
-      prisma.cancha.findMany({ where: { clubId, activo: true }, select: { id: true } }),
+      prisma.cancha.findMany({ where: { clubId, activo: true }, select: { id: true, horarios: true } }),
       prisma.torneo.count({ where: { clubId, estado: { in: ['in_progress', 'open'] } } }),
+      prisma.torneo.count({ where: { clubId, estado: 'open' } }),
       prisma.cargo.findMany({ where: { clubId, estado: 'pendiente' }, select: { monto: true } }),
+      prisma.turnoFijo.count({ where: { clubId, estado: 'pendiente' } }),
+      prisma.reserva.count({ where: { clubId, estado: 'pendiente' } }),
       prisma.reserva.findMany({ where: { clubId }, orderBy: { createdAt: 'desc' }, take: 5, select: { createdAt: true, fecha: true, horaInicio: true, cancha: { select: { nombre: true } }, jugador: { select: { nombre: true, apellido: true } } } }),
       prisma.jugador.findMany({ where: { clubId }, orderBy: { createdAt: 'desc' }, take: 5, select: { createdAt: true, nombre: true, apellido: true } }),
       prisma.cargo.findMany({ where: { clubId, estado: 'pagado' }, orderBy: { pagadoAt: 'desc' }, take: 5, select: { pagadoAt: true, monto: true, concepto: true } }),
+      prisma.reserva.findMany({ where: { clubId, pagado: true, pagadoAt: { gte: inicio7d } }, select: { pagadoAt: true, precio: true } }),
+      prisma.cargo.findMany({ where: { clubId, estado: 'pagado', pagadoAt: { gte: inicio7d } }, select: { pagadoAt: true, monto: true } }),
+      prisma.reserva.findMany({ where: { clubId, estado: 'confirmada', fecha: { in: dias7 } }, select: { fecha: true } }),
+      prisma.reserva.count({ where: { clubId, fecha: ayerStr, estado: 'confirmada' } }),
+      prisma.club.findUnique({ where: { id: clubId }, select: { config: true } }),
+      turnosImpagosDeuda(clubId),
     ])
 
     const sumPrecio = (arr) => arr.reduce((s, r) => s + (r.precio ?? 0), 0)
     const sumMonto = (arr) => arr.reduce((s, r) => s + (r.monto ?? 0), 0)
 
-    const ingresosDia = sumPrecio(reservasPagadasDia) + sumMonto(cargosPagadosDia)
+    // ── Ingresos día/mes (el del día se recalcula desde la serie 7d, abajo) ──
     const ingresosMes = sumPrecio(reservasPagadasMes) + sumMonto(cargosPagadosMes)
-    // Cross-midnight aware: "00:00" como fin = 1440 (medianoche siguiente). Comparar en minutos,
-    // no strings ("23:45" < "00:00" daría false lexicográficamente y un turno 22:30–00:00 nunca contaría).
-    const aMinOcup = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m }
-    const ahoraMinOcup = aMinOcup(ahoraHHMM)
-    const ocupadasAhora = reservasHoy.filter((r) => {
-      const ini = aMinOcup(r.horaInicio)
-      const fin = r.horaFin === '00:00' ? 1440 : aMinOcup(r.horaFin)
-      return ini <= ahoraMinOcup && ahoraMinOcup < fin
-    }).length
+
+    // ── Ocupación del día: slots ocupados / slots disponibles ──
+    const horariosClub = club?.config?.horarios || {}
+    let slotsTotales = 0
+    for (const c of canchas) {
+      const h = (c.horarios && c.horarios[diaCfg]) || horariosClub[diaCfg]
+      slotsTotales += franjasDia(h)
+    }
+    // Turnos fijos vigentes hoy, deduplicando los que ya tienen una reserva materializada
+    // (un TF puntual creado por el admin genera una Reserva esTurnoFijo + el TF virtual → no contar dos veces).
+    const reservaTFKeys = new Set(reservasHoyList.filter((r) => r.esTurnoFijo).map((r) => `${r.canchaId}|${r.horaInicio}`))
+    const tfHoyActivos = turnosFijosHoy
+      .filter((t) => !t.diasAusentes.includes(hoyStr) && (!t.desde || t.desde <= hoyStr))
+      .filter((t) => !reservaTFKeys.has(`${t.canchaId}|${t.horaInicio}`))
+    const slotsOcupados = Math.min(reservasHoyList.length + tfHoyActivos.length, slotsTotales || Infinity)
+    const ocupacionPct = slotsTotales > 0 ? Math.round((slotsOcupados / slotsTotales) * 100) : 0
+
+    // ── Canchas en uso AHORA (snapshot) ──
+    const ahoraMinOcup = toMinT(ahoraHHMM)
+    const enCurso = (ini, fin) => {
+      const i = toMinT(ini), f = fin === '00:00' ? 1440 : toMinT(fin)
+      return i <= ahoraMinOcup && ahoraMinOcup < f
+    }
+    const ocupadasAhora = reservasHoyList.filter((r) => enCurso(r.horaInicio, r.horaFin)).length
+      + tfHoyActivos.filter((t) => enCurso(t.horaInicio, t.horaFin)).length
+
+    // ── Agenda de hoy (reservas + turnos fijos), ordenada por hora ──
+    const nombreDe = (x) => x.jugador ? `${x.jugador.nombre} ${x.jugador.apellido ?? ''}`.trim() : (x.jugadores?.[0] ?? '')
+    // El estado de pago solo se expone a quien puede cobrar (ventas/caja); sino va null (sin badge).
+    const agenda = [
+      ...reservasHoyList.map((r) => ({ horaInicio: r.horaInicio, horaFin: r.horaFin, cancha: r.cancha?.nombre ?? '', jugador: nombreDe(r), pagado: verCobros ? !!r.pagado : null, tipo: r.esTurnoFijo ? 'fijo' : (r.tipo || 'eventual') })),
+      // Un turno fijo virtual (sin reserva materializada) no tiene cobro de hoy → impago.
+      ...tfHoyActivos.map((t) => ({ horaInicio: t.horaInicio, horaFin: t.horaFin, cancha: t.cancha?.nombre ?? '', jugador: nombreDe(t), pagado: verCobros ? false : null, tipo: 'fijo' })),
+    ].sort((a, b) => toMinT(a.horaInicio) - toMinT(b.horaInicio)).slice(0, 12)
+
+    // ── Tendencia y serie de 7 días ──
+    const ingDia = {}, resDia = {}
+    dias7.forEach((d) => { ingDia[d] = 0; resDia[d] = 0 })
+    reservasPagadas7d.forEach((r) => { const d = argDayStr(r.pagadoAt); if (d in ingDia) ingDia[d] += (r.precio ?? 0) })
+    cargosPagados7d.forEach((c) => { const d = argDayStr(c.pagadoAt); if (d in ingDia) ingDia[d] += (c.monto ?? 0) })
+    reservas7d.forEach((r) => { if (r.fecha in resDia) resDia[r.fecha] += 1 })
+    const serie7d = dias7.map((d) => {
+      const [yy, mm, dd] = d.split('-').map(Number)
+      const lbl = DIAS_LBL[new Date(Date.UTC(yy, mm - 1, dd)).getUTCDay()]
+      // Los ingresos por día solo viajan si tiene 'caja' (sino ni se exponen en el payload).
+      return { dia: lbl, fecha: d, reservas: resDia[d], ...(verCaja ? { ingresos: ingDia[d] } : {}) }
+    })
+    const ingresosDia = ingDia[hoyStr] ?? 0
+    const ingresosAyer = ingDia[ayerStr] ?? 0
+
+    // ── Necesita tu atención ──
+    const montoImpagos = impagos.reduce((s, t) => s + (t.monto ?? 0), 0)
+    const deudaCargosMonto = sumMonto(deudaCargos)
+    const atencion = {
+      turnosFijosPendientes,
+      reservasPendientes,
+      porCobrarCount: impagos.length + deudaCargos.length,
+      torneosAbiertos,
+    }
 
     // Feed de actividad reciente (mezcla y ordena por fecha)
     const actividad = [
       ...ultimasReservas.map((r) => ({
         createdAt: r.createdAt,
         text: `Reserva — ${r.cancha?.nombre ?? 'Cancha'} ${r.fecha} ${r.horaInicio}${r.jugador ? ` · ${r.jugador.nombre} ${r.jugador.apellido}` : ''}`,
+        tipo: 'reserva',
       })),
-      ...ultimosJugadores.map((j) => ({ createdAt: j.createdAt, text: `Nuevo jugador: ${j.nombre} ${j.apellido}` })),
-      // Los "Pago recibido" solo para quien puede ver caja
-      ...(verCaja ? ultimosCargos.filter((c) => c.pagadoAt).map((c) => ({ createdAt: c.pagadoAt, text: `Pago recibido: $${(c.monto ?? 0).toLocaleString('es-AR')} — ${c.concepto}` })) : []),
+      ...ultimosJugadores.map((j) => ({ createdAt: j.createdAt, text: `Nuevo jugador: ${j.nombre} ${j.apellido}`, tipo: 'jugador' })),
+      ...(verCaja ? ultimosCargos.filter((c) => c.pagadoAt).map((c) => ({ createdAt: c.pagadoAt, text: `Pago recibido: $${(c.monto ?? 0).toLocaleString('es-AR')} — ${c.concepto}`, tipo: 'pago' })) : []),
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6)
 
     res.json({
-      reservasHoy: reservasHoy.length,
+      reservasHoy: reservasHoyList.length,
+      reservasAyer,
+      reservasHoyPct: pct(reservasHoyList.length, reservasAyer),
       jugadoresActivos,
-      canchasActivas: canchasActivas.length,
+      canchasActivas: canchas.length,
       ocupadasAhora,
+      ocupacionPct,
+      slotsOcupados,
+      slotsTotales,
       torneosActivos,
+      agenda,
+      ahora: ahoraHHMM,
+      serie7d,
+      atencion,
       actividad,
-      // Datos financieros: SOLO si tiene permiso de caja (sino ni se mandan)
-      ...(verCaja ? { ingresosDia, ingresosMes, deudaPendiente: sumMonto(deudaPendiente) } : {}),
+      // Flags de permiso para que el front sepa qué puede pintar
+      verCaja,
+      verCobros,
+      // Por cobrar / deuda: visible para quien cobra (ventas o caja)
+      ...(verCobros ? { deudaPendiente: deudaCargosMonto + montoImpagos } : {}),
+      // Ingresos / totales: SOLO caja (SENSIBLE) — sino ni se mandan
+      ...(verCaja ? {
+        ingresosDia,
+        ingresosMes,
+        ingresosAyer,
+        ingresosDiaPct: pct(ingresosDia, ingresosAyer),
+      } : {}),
     })
   } catch (err) {
     console.error(err)

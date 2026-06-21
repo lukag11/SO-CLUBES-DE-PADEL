@@ -1,8 +1,36 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bell, ChevronDown, Menu, Check, CheckCheck, LogOut } from 'lucide-react'
+import { Bell, ChevronDown, Menu, Check, CheckCheck, LogOut, Repeat, CalendarDays, CalendarCheck, XCircle, GraduationCap, Trophy, Package, Clock } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
+
+// Icono + color por tipo de notificación (respeta la convención de la grilla: fijo=violeta, online=verde, etc.)
+const NOTIF_META = {
+  nueva_reserva:                        { Icon: CalendarDays,  color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  reserva_autoconfirmada:               { Icon: CalendarCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  reserva_confirmada:                   { Icon: CalendarCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  turno_fijo_autoconfirmado:            { Icon: Repeat,        color: 'text-violet-600',  bg: 'bg-violet-50'  },
+  turno_fijo_pendiente:                 { Icon: Repeat,        color: 'text-amber-600',   bg: 'bg-amber-50'   },
+  solicitud_turno_fijo:                 { Icon: Repeat,        color: 'text-amber-600',   bg: 'bg-amber-50'   },
+  turno_liberado_auto:                  { Icon: XCircle,       color: 'text-red-600',     bg: 'bg-red-50'     },
+  cancelacion_reserva:                  { Icon: XCircle,       color: 'text-red-600',     bg: 'bg-red-50'     },
+  nueva_clase_profesor:                 { Icon: GraduationCap, color: 'text-orange-600',  bg: 'bg-orange-50'  },
+  cancelacion_clase_profesor:           { Icon: GraduationCap, color: 'text-orange-600',  bg: 'bg-orange-50'  },
+  actualizacion_disponibilidad_profesor:{ Icon: Clock,         color: 'text-slate-500',   bg: 'bg-slate-100'  },
+  inscripcion_torneo:                   { Icon: Trophy,        color: 'text-amber-600',   bg: 'bg-amber-50'   },
+  stock_bajo:                           { Icon: Package,       color: 'text-red-600',     bg: 'bg-red-50'     },
+}
+const notifMeta = (tipo) => NOTIF_META[tipo] || { Icon: Bell, color: 'text-brand-600', bg: 'bg-brand-50' }
+
+const haceTexto = (fecha) => {
+  if (!fecha) return ''
+  const min = Math.floor((Date.now() - new Date(fecha).getTime()) / 60000)
+  if (min < 1) return 'ahora'
+  if (min < 60) return `${min}m`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h}h`
+  return `${Math.floor(h / 24)}d`
+}
 
 const formatNotif = (n) => {
   switch (n.tipo) {
@@ -123,23 +151,36 @@ const Navbar = ({ title, onMenuClick }) => {
                   <div className="px-4 py-8 text-center text-slate-400 text-sm">Sin notificaciones</div>
                 ) : recientes.map((n) => {
                   const { title: tit, body } = formatNotif(n)
+                  const meta = notifMeta(n.tipo)
                   return (
                     <div
                       key={n.id}
-                      className={['flex items-start gap-3 px-4 py-3 transition-colors', n.leida ? 'bg-white' : 'bg-brand-50/60'].join(' ')}
+                      className={['group relative flex items-start gap-3 pl-4 pr-3 py-3 transition-colors', n.leida ? 'bg-white hover:bg-slate-50/60' : 'bg-brand-50/40 hover:bg-brand-50/70'].join(' ')}
                     >
-                      <div className={['w-2 h-2 rounded-full mt-1.5 shrink-0', n.leida ? 'bg-slate-200' : 'bg-brand-500'].join(' ')} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-slate-800">{tit}</p>
-                        {body && <p className="text-xs text-slate-500 truncate mt-0.5">{body}</p>}
+                      {/* Acento de no leída */}
+                      {!n.leida && <span className="absolute left-0 top-2 bottom-2 w-1 bg-brand-500 rounded-r-full" />}
+
+                      {/* Chip de icono por tipo */}
+                      <div className={['w-9 h-9 rounded-xl flex items-center justify-center shrink-0', meta.bg].join(' ')}>
+                        <meta.Icon size={16} className={meta.color} />
                       </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className={['text-xs truncate flex-1', n.leida ? 'font-medium text-slate-600' : 'font-semibold text-slate-800'].join(' ')}>{tit}</p>
+                          <span className="text-[10px] text-slate-400 shrink-0">{haceTexto(n.timestamp)}</span>
+                        </div>
+                        {body && <p className="text-[11px] text-slate-400 truncate mt-0.5">{body}</p>}
+                      </div>
+
+                      {/* Marcar como leída — aparece al hover */}
                       {!n.leida && (
                         <button
                           onClick={() => marcarLeida(n.id, token)}
                           title="Marcar como leída"
-                          className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-slate-300 hover:text-brand-500 hover:bg-brand-100 transition-all"
+                          className="shrink-0 self-center w-6 h-6 rounded-lg flex items-center justify-center text-slate-300 hover:text-brand-600 hover:bg-brand-100 opacity-0 group-hover:opacity-100 transition-all"
                         >
-                          <Check size={12} />
+                          <Check size={13} />
                         </button>
                       )}
                     </div>

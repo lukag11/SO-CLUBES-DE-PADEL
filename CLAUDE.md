@@ -27,8 +27,8 @@ Antes de cualquier tarea, leer en orden:
 ## Reglas críticas de negocio
 
 - Turnos SIEMPRE 1.5h (ej: 10:00 → 11:30). Nunca +1h.
-- Turno fijo = `pendiente` hasta aprobación admin
-- Reserva normal = `confirmada` inmediato
+- Auto-confirmación ON por default (todos los planes, toggle `club.config.autoConfirmaReservas`): reserva y turno fijo nacen `confirmada`/`confirmado` al instante. Con el toggle apagado vuelve el flujo manual (turno fijo y reserva quedan `pendiente` hasta aprobación admin).
+- Ausencia de turno fijo se auto-libera al instante; baja del turno fijo entero sigue manual y bloqueada por deuda.
 
 ## Rutas actuales
 

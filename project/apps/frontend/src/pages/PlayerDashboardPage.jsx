@@ -319,7 +319,10 @@ const PlayerDashboardPage = () => {
                   {(() => {
                     const [y, m, d] = r.fecha.split('-').map(Number)
                     const [h, min] = (r.horaFin || r.hora).split(':').map(Number)
-                    const yaJugo = new Date(y, m - 1, d, h, min) < new Date()
+                    const finDt = new Date(y, m - 1, d, h, min)
+                    // "00:00" es medianoche del día siguiente: sin esto, un turno 22:30–00:00 figura "Finalizado" todo el día.
+                    if (r.horaFin === '00:00') finDt.setDate(finDt.getDate() + 1)
+                    const yaJugo = finDt < new Date()
                     if (yaJugo) return (
                       <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/8 text-white/25 text-xs font-medium shrink-0">
                         <CheckCircle size={11} />

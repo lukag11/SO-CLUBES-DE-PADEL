@@ -248,6 +248,7 @@ const PlayerReservasPage = () => {
   const [canchaId, setCanchaId] = useState(canchasActivas[0]?.id ?? 1)
   const [slotSeleccionado, setSlotSeleccionado] = useState(null)
   const [confirmaciones, setConfirmaciones] = useState([]) // [{ uid, esFijo, backendId, cancha, hora, horaFin, dia }]
+  const [exitoReserva, setExitoReserva] = useState(null) // pantalla de éxito dentro del modal tras confirmar
   const [esTurnoFijo, setEsTurnoFijo] = useState(false)
   const [modalAbierto, setModalAbierto] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -455,6 +456,7 @@ const PlayerReservasPage = () => {
     setModalAbierto(false)
     setSlotSeleccionado(null)
     setEsTurnoFijo(false)
+    setExitoReserva(null)
   }
 
   const handleConfirmar = async () => {
@@ -462,9 +464,11 @@ const PlayerReservasPage = () => {
     if (esTurnoFijo && yaTimeTurnoFijoEnCancha) return
 
     setSubmitting(true)
+    let exito = null // datos para la pantalla de éxito del modal (se setea recién tras confirmar la API)
 
     if (esTurnoFijo) {
       // ── Solicitud de turno fijo → POST /turnos-fijos ──────────────────────
+      let turnoConfirmado = false
       if (canchaDBId && token) {
         try {
           const turno = await api.post(
@@ -473,9 +477,11 @@ const PlayerReservasPage = () => {
             { Authorization: `Bearer ${token}` }
           )
           addTurnoFijoFromApi(turno)
+          turnoConfirmado = turno.estado === 'confirmado' // auto-confirmado → al instante
           setConfirmaciones((prev) => [...prev, {
             uid: Date.now(),
             esFijo: true,
+            confirmado: turnoConfirmado,
             backendId: turno.id ?? null,
             cancha: canchaActual.nombre,
             hora: slotSeleccionado,
@@ -488,10 +494,15 @@ const PlayerReservasPage = () => {
           return
         }
       }
-      addSolicitudEnviada({ canchaNombre: canchaActual.nombre, fecha: fechaSeleccionada, hora: slotSeleccionado, horaFin: slotFin })
+      // El notif local "solicitud enviada" solo aplica si NO se confirmó solo (si se confirmó, el jugador recibe la notif de backend).
+      if (!turnoConfirmado) {
+        addSolicitudEnviada({ canchaNombre: canchaActual.nombre, fecha: fechaSeleccionada, hora: slotSeleccionado, horaFin: slotFin })
+      }
+      exito = { esFijo: true, confirmado: turnoConfirmado, cancha: canchaActual.nombre, hora: slotSeleccionado, horaFin: slotFin, dia: getDiaSemanaKey(fechaSeleccionada) }
     } else {
       // ── Reserva eventual → POST /reservas ────────────────────────────────
       let backendReservaId = null
+      let reservaConfirmada = false
       if (canchaDBId && token) {
         try {
           const reservaBackend = await api.post(
@@ -500,9 +511,11 @@ const PlayerReservasPage = () => {
             { Authorization: `Bearer ${token}` }
           )
           backendReservaId = reservaBackend?.id ?? null
+          reservaConfirmada = reservaBackend?.estado === 'confirmada' // auto-confirmada → al instante
           setConfirmaciones((prev) => [...prev, {
             uid: Date.now(),
             esFijo: false,
+            confirmado: reservaConfirmada,
             backendId: backendReservaId,
             cancha: canchaActual.nombre,
             hora: slotSeleccionado,
@@ -528,10 +541,20 @@ const PlayerReservasPage = () => {
         esTurnoFijo: false,
         backendReservaId,
       })
-      addSolicitudEnviada({ canchaNombre: canchaActual.nombre, fecha: fechaSeleccionada, hora: slotSeleccionado, horaFin: slotFin })
+      // El notif local "solicitud enviada" solo aplica si NO se confirmó sola (si se confirmó, el jugador recibe la notif de backend).
+      if (!reservaConfirmada) {
+        addSolicitudEnviada({ canchaNombre: canchaActual.nombre, fecha: fechaSeleccionada, hora: slotSeleccionado, horaFin: slotFin })
+      }
+      exito = { esFijo: false, confirmado: reservaConfirmada, cancha: canchaActual.nombre, hora: slotSeleccionado, horaFin: slotFin, fecha: fechaSeleccionada }
     }
-    setModalAbierto(false)
-    setSlotSeleccionado(null)
+
+    // Pantalla de éxito DENTRO del modal (la mutación ya ocurrió). El botón "Listo" cierra.
+    if (exito) {
+      setExitoReserva(exito)
+    } else {
+      setModalAbierto(false)
+      setSlotSeleccionado(null)
+    }
     setErrorReserva(null)
     setSubmitting(false)
   }
@@ -627,19 +650,23 @@ const PlayerReservasPage = () => {
           <div className="flex-1 min-w-0">
             {c.esFijo ? (
               <>
-                <p className="text-amber-300 text-sm font-semibold">Turno fijo enviado</p>
+                <p className="text-amber-300 text-sm font-semibold">{c.confirmado ? '¡Turno fijo confirmado!' : 'Turno fijo enviado'}</p>
                 <p className="text-amber-300/70 text-xs mt-0.5">
                   {c.cancha} · {c.dia} {c.hora}–{c.horaFin} · Semanal
                 </p>
-                <p className="text-amber-300/50 text-xs mt-1">Pendiente de aprobación · Lo gestionás en <span className="text-amber-300/80 font-medium">"Mis turnos fijos"</span></p>
+                <p className="text-amber-300/50 text-xs mt-1">
+                  {c.confirmado ? 'Confirmado al instante' : 'Pendiente de aprobación'} · Lo gestionás en <span className="text-amber-300/80 font-medium">"Mis turnos fijos"</span>
+                </p>
               </>
             ) : (
               <>
-                <p className="text-club text-sm font-semibold">Reserva enviada</p>
+                <p className="text-club text-sm font-semibold">{c.confirmado ? '¡Reserva confirmada!' : 'Reserva enviada'}</p>
                 <p className="text-club/70 text-xs mt-0.5">
                   {c.cancha} · {c.hora}–{c.horaFin} · {c.fecha}
                 </p>
-                <p className="text-club/50 text-xs mt-1">Pendiente de confirmación admin · La ves en <span className="text-club/80 font-medium">"Mis reservas"</span></p>
+                <p className="text-club/50 text-xs mt-1">
+                  {c.confirmado ? 'Confirmada al instante' : 'Pendiente de confirmación admin'} · La ves en <span className="text-club/80 font-medium">"Mis reservas"</span>
+                </p>
               </>
             )}
           </div>
@@ -910,6 +937,37 @@ const PlayerReservasPage = () => {
             className="relative w-full max-w-md bg-[#0d1117] border border-white/10 rounded-3xl overflow-hidden shadow-2xl shadow-black/60"
             onClick={(e) => e.stopPropagation()}
           >
+            {exitoReserva ? (
+            /* ── Pantalla de éxito (la mutación ya ocurrió; "Listo" solo cierra) ── */
+            <div className="px-6 py-8 flex flex-col items-center text-center gap-4">
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${exitoReserva.confirmado ? 'bg-club/15 border border-club/30' : 'bg-amber-500/15 border border-amber-500/30'}`}>
+                <CheckCircle size={32} className={exitoReserva.confirmado ? 'text-club' : 'text-amber-400'} />
+              </div>
+              <div>
+                <p className="text-white font-bold text-xl">
+                  {exitoReserva.confirmado
+                    ? (exitoReserva.esFijo ? '¡Turno fijo confirmado!' : '¡Reserva confirmada!')
+                    : (exitoReserva.esFijo ? 'Solicitud enviada' : 'Reserva enviada')}
+                </p>
+                <p className="text-white/50 text-sm mt-1">
+                  {exitoReserva.cancha} · {exitoReserva.hora}–{exitoReserva.horaFin}
+                  {exitoReserva.esFijo ? ` · todos los ${exitoReserva.dia}` : ` · ${exitoReserva.fecha}`}
+                </p>
+              </div>
+              <p className="text-white/35 text-xs max-w-xs">
+                {exitoReserva.confirmado
+                  ? `Quedó confirmado al instante. Lo ves en ${exitoReserva.esFijo ? '"Mis turnos fijos"' : '"Mis reservas"'}.`
+                  : 'El club la revisará y te avisamos cuando la confirme.'}
+              </p>
+              <button
+                onClick={handleCerrarModal}
+                className="w-full mt-2 bg-club text-[#0d1117] font-bold text-base py-3.5 rounded-2xl hover:brightness-110 transition-all active:scale-[0.98]"
+              >
+                Listo
+              </button>
+            </div>
+            ) : (
+            <>
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/8">
               <div className="flex items-center gap-3">
@@ -1027,6 +1085,8 @@ const PlayerReservasPage = () => {
                 Cancelar
               </button>
             </div>
+            </>
+            )}
           </div>
         </div>
       )}

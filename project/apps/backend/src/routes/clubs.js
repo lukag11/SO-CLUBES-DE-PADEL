@@ -62,7 +62,15 @@ router.get('/me/dashboard', requireAuth, requireRole('admin'), async (req, res) 
 
     const ingresosDia = sumPrecio(reservasPagadasDia) + sumMonto(cargosPagadosDia)
     const ingresosMes = sumPrecio(reservasPagadasMes) + sumMonto(cargosPagadosMes)
-    const ocupadasAhora = reservasHoy.filter((r) => r.horaInicio <= ahoraHHMM && ahoraHHMM < r.horaFin).length
+    // Cross-midnight aware: "00:00" como fin = 1440 (medianoche siguiente). Comparar en minutos,
+    // no strings ("23:45" < "00:00" daría false lexicográficamente y un turno 22:30–00:00 nunca contaría).
+    const aMinOcup = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m }
+    const ahoraMinOcup = aMinOcup(ahoraHHMM)
+    const ocupadasAhora = reservasHoy.filter((r) => {
+      const ini = aMinOcup(r.horaInicio)
+      const fin = r.horaFin === '00:00' ? 1440 : aMinOcup(r.horaFin)
+      return ini <= ahoraMinOcup && ahoraMinOcup < fin
+    }).length
 
     // Feed de actividad reciente (mezcla y ordena por fecha)
     const actividad = [

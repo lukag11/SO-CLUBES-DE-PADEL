@@ -8,6 +8,12 @@ const formatNotif = (n) => {
   switch (n.tipo) {
     case 'nueva_reserva':
       return { title: 'Nueva reserva', body: [n.jugador, n.cancha, n.fecha, n.inicio && n.fin ? `${n.inicio}–${n.fin}` : ''].filter(Boolean).join(' · ') }
+    case 'reserva_autoconfirmada':
+      return { title: 'Reserva confirmada automáticamente', body: [n.jugador, n.cancha, n.fecha, n.inicio && n.fin ? `${n.inicio}–${n.fin}` : ''].filter(Boolean).join(' · ') }
+    case 'turno_fijo_autoconfirmado':
+      return { title: 'Turno fijo confirmado automáticamente', body: [n.jugador, n.cancha, n.dia, n.inicio && n.fin ? `${n.inicio}–${n.fin}` : ''].filter(Boolean).join(' · ') }
+    case 'turno_liberado_auto':
+      return { title: 'Turno liberado automáticamente', body: [n.jugador, n.cancha, n.fecha, n.inicio && n.fin ? `${n.inicio}–${n.fin}` : ''].filter(Boolean).join(' · ') }
     case 'turno_fijo_pendiente':
       return { title: 'Turno fijo pendiente', body: [n.jugador, n.cancha, n.dia, n.inicio && n.fin ? `${n.inicio}–${n.fin}` : ''].filter(Boolean).join(' · ') }
     case 'nueva_clase_profesor':

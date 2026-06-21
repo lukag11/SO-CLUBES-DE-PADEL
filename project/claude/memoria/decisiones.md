@@ -2,6 +2,17 @@
 
 ---
 
+## [2026-06-20] Auto-confirmación de turnos — higiene de mercado, NO premium
+
+- La **confirmación instantánea** de reservas y turnos fijos está disponible en **TODOS los planes**, sin feature-gating. Default ON.
+- Es **opt-out por club**: `club.config.autoConfirmaReservas` (default `true`). El dueño que quiera el flujo manual (admin aprueba a mano) lo recupera apagando el toggle.
+- La **ausencia de un turno fijo se auto-libera al instante** (sin paso intermedio de aprobación admin). La política de cancelación con cargo sigue intacta.
+- La **baja del turno fijo entero (eliminar) sigue MANUAL** y bloqueada por deuda: "primero pagá, después se da de baja". No se automatiza.
+
+**Motivo:** Investigación de mercado — Playtomic, MATCHi, CourtReserve, CanchaYa dan la confirmación instantánea de base. Cobrarla como premium nos dejaría por debajo del estándar del rubro. El upsell premium se mueve a MercadoPago / políticas de cancelación / IA, que sí son diferenciales. El admin no pierde control: recibe una notificación-CONTROL por cada auto-confirmación y auto-liberación.
+
+---
+
 ## [2026-06-09] Vista pública de torneos — listado dedicado + sin gate de días
 
 - La **landing** muestra SOLO el hero del torneo en curso (`in_progress`). No más listado embebido ni cards de finalizados en el scroll principal.

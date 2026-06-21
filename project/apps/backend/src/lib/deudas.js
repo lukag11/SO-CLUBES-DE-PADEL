@@ -19,7 +19,12 @@ export const turnosImpagosDeuda = async (clubId, where = {}) => {
     include: { jugador: SEL_JUGADOR, cancha: { select: { nombre: true } } },
   })
   return reservas
-    .filter((r) => (r.fecha < hoyStr || (r.fecha === hoyStr && aMin(r.horaFin) + MIN_GRACIA_COBRO <= ahoraMin)) && (r.precio ?? 0) > 0)
+    .filter((r) => {
+      // "00:00" = medianoche del día siguiente (1440), no minuto 0: si no, un turno de hoy que
+      // termina a medianoche se contaría como deuda desde la madrugada, sin haberse jugado todavía.
+      const finMin = r.horaFin === '00:00' ? 1440 : aMin(r.horaFin)
+      return (r.fecha < hoyStr || (r.fecha === hoyStr && finMin + MIN_GRACIA_COBRO <= ahoraMin)) && (r.precio ?? 0) > 0
+    })
     .map((r) => ({
       id: `reserva_${r.id}`, refId: r.id, origen: 'reserva',
       jugador: r.jugador,

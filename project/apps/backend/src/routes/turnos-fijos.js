@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { runSerializable } from '../lib/serializable.js'
+import { clubAutoConfirma } from '../lib/autoConfirma.js'
 import { requireAuth, requireRole, requireActive, requirePermiso } from '../middleware/auth.js'
 
 const router = Router()
@@ -147,8 +148,11 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
     }
 
     // Validar duración exacta de 90 minutos (regla de negocio central)
+    // "00:00" es medianoche del día siguiente (1440 min), no el minuto 0 → si no, un turno
+    // 22:30–00:00 daría duración negativa y rechazaría un turno válido de 1.5h.
     const toMinBE = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
-    const duracion = toMinBE(horaFin) - toMinBE(horaInicio)
+    const finMin = horaFin === '00:00' ? 1440 : toMinBE(horaFin)
+    const duracion = finMin - toMinBE(horaInicio)
     if (duracion !== 90) {
       return res.status(400).json({ error: 'El turno fijo debe durar exactamente 1.5h (90 minutos)' })
     }
@@ -156,17 +160,24 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
     const hoy = new Date()
     const desde = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
 
+    // Auto-confirmación (mismo criterio que las reservas, por decisión de producto). Fuera de la TX.
+    const club = await prisma.club.findUnique({ where: { id: req.user.clubId } })
+    const autoConfirma = clubAutoConfirma(club)
+    const estadoInicial = autoConfirma ? 'confirmado' : 'pendiente'
+
     // RN-51 + create dentro de una transacción Serializable (runSerializable): evita que dos
     // solicitudes simultáneas al mismo slot pasen ambas la validación (TOCTOU) y generen dos TF
     // pendientes para la misma cancha+día+horario. READ COMMITTED no alcanza para esto.
     const turno = await runSerializable(async (tx) => {
-      const nsMin = toMinBE(horaInicio), nfMin = toMinBE(horaFin)
+      // "00:00" como FIN = medianoche siguiente (1440), no minuto 0. Sin esto, dos turnos
+      // 22:30–00:00 no se detectan como solapados (nfMin=0) y se permite el doble booking.
+      const nsMin = toMinBE(horaInicio), nfMin = horaFin === '00:00' ? 1440 : toMinBE(horaFin)
       const existentes = await tx.turnoFijo.findMany({
         where: { canchaId, dia, estado: { in: ['pendiente', 'confirmado'] } },
         select: { horaInicio: true, horaFin: true },
       })
       if (existentes.some((t) => {
-        const esMin = toMinBE(t.horaInicio), efMin = toMinBE(t.horaFin)
+        const esMin = toMinBE(t.horaInicio), efMin = t.horaFin === '00:00' ? 1440 : toMinBE(t.horaFin)
         return esMin < nfMin && nsMin < efMin
       })) {
         throw Object.assign(
@@ -184,7 +195,7 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
           horaInicio,
           horaFin,
           precio: precio ? Math.round(Number(precio)) : null,
-          estado: 'pendiente',
+          estado: estadoInicial,
           diasAusentes: [],
           diasAusentesJugador: [],
           ausenciasPendientes: [],
@@ -195,22 +206,28 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
       })
     })
 
-    prisma.notificacion.create({
-      data: {
-        clubId: req.user.clubId,
-        jugadorId: null,
-        tipo: 'solicitud_turno_fijo',
-        data: {
-          jugador: turno.jugador ? `${turno.jugador.nombre} ${turno.jugador.apellido ?? ''}`.trim() : '',
-          canchaNombre: turno.cancha?.nombre ?? '',
-          dia,
-          horaInicio,
-          horaFin,
-          precio: precio ? Math.round(Number(precio)) : null,
-          turnoFijoId: turno.id,
-        },
-      },
-    }).catch(() => {})
+    const dataNotif = {
+      jugador: turno.jugador ? `${turno.jugador.nombre} ${turno.jugador.apellido ?? ''}`.trim() : '',
+      canchaNombre: turno.cancha?.nombre ?? '',
+      dia,
+      horaInicio,
+      horaFin,
+      precio: precio ? Math.round(Number(precio)) : null,
+      turnoFijoId: turno.id,
+    }
+
+    if (autoConfirma) {
+      // Confirmado al instante: jugador ("aprobado") + admin como CONTROL (informativo).
+      crearNotifTurnoFijo(turno, 'turno_fijo_confirmado')
+      prisma.notificacion.create({
+        data: { clubId: req.user.clubId, jugadorId: null, tipo: 'turno_fijo_autoconfirmado', data: dataNotif },
+      }).catch(() => {})
+    } else {
+      // Flujo manual (auto-confirmación apagada): el admin debe aprobar, como siempre.
+      prisma.notificacion.create({
+        data: { clubId: req.user.clubId, jugadorId: null, tipo: 'solicitud_turno_fijo', data: dataNotif },
+      }).catch(() => {})
+    }
 
     res.status(201).json(mapTurno(turno))
   } catch (e) {
@@ -253,7 +270,8 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), requirePermiso('r
     let updated
     if (estado === 'confirmado') {
       const nsMin = toMinLocal(turno.horaInicio)
-      const nfMin = toMinLocal(turno.horaFin)
+      // "00:00" como FIN = medianoche siguiente (1440), no minuto 0 (evita falsos negativos de solapamiento).
+      const nfMin = turno.horaFin === '00:00' ? 1440 : toMinLocal(turno.horaFin)
 
       // Calcular fechas de próximas ocurrencias (fuera de TX — es solo aritmética de fechas)
       const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
@@ -276,7 +294,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), requirePermiso('r
           select: { horaInicio: true, horaFin: true },
         })
         if (tfsSolapados.some((t) => {
-          const esMin = toMinLocal(t.horaInicio), efMin = toMinLocal(t.horaFin)
+          const esMin = toMinLocal(t.horaInicio), efMin = t.horaFin === '00:00' ? 1440 : toMinLocal(t.horaFin)
           return esMin < nfMin && nsMin < efMin
         })) {
           throw Object.assign(
@@ -291,7 +309,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), requirePermiso('r
           select: { horaInicio: true, horaFin: true, fecha: true, tipo: true },
         })
         const conflictoReserva = reservasConflicto.find((r) => {
-          const esMin = toMinLocal(r.horaInicio), efMin = toMinLocal(r.horaFin)
+          const esMin = toMinLocal(r.horaInicio), efMin = r.horaFin === '00:00' ? 1440 : toMinLocal(r.horaFin)
           return esMin < nfMin && nsMin < efMin
         })
         if (conflictoReserva) {
@@ -389,83 +407,100 @@ router.post('/:id/ausencia', requireAuth, requireRole('jugador'), requireActive,
     const { fecha } = req.body
     if (!fecha) return res.status(400).json({ error: 'fecha requerida (YYYY-MM-DD)' })
 
-    const turno = await prisma.turnoFijo.findUnique({ where: { id: req.params.id } })
-    if (!turno) return res.status(404).json({ error: 'Turno fijo no encontrado' })
-    if (turno.jugadorId !== req.user.id) return res.status(403).json({ error: 'Acceso denegado' })
-    if (turno.estado !== 'confirmado') return res.status(400).json({ error: 'Solo se pueden pedir ausencias en turnos confirmados' })
-
-    if (turno.ausenciasPendientes.includes(fecha) || turno.diasAusentes.includes(fecha)) {
-      return res.status(409).json({ error: 'La ausencia para esa fecha ya fue registrada' })
-    }
-
-    // Política de cancelación: verificar ventana horaria
-    const club = await prisma.club.findUnique({ where: { id: turno.clubId }, select: { config: true } })
-    const horasMinimas = club?.config?.horasCancelacion ?? 0
-    let cargoAplicado = false
-    let cargo = null
-
-    if (horasMinimas > 0) {
-      // Interpretar fecha+horaInicio como Argentina UTC-3 (sin DST) para calcular horas restantes
-      const [y, m, d] = fecha.split('-').map(Number)
-      const [h, min] = turno.horaInicio.split(':').map(Number)
-      const fechaTurnoUtc = Date.UTC(y, m - 1, d, h + 3, min)  // +3h ARG→UTC
-      const horasRestantes = (fechaTurnoUtc - Date.now()) / (1000 * 60 * 60)
-
-      if (horasRestantes >= 0 && horasRestantes < horasMinimas) {
-        cargoAplicado = true
-        cargo = await prisma.cargo.create({
-          data: {
-            clubId: turno.clubId,
-            jugadorId: req.user.id,
-            concepto: `Ausencia fuera de plazo — turno fijo ${turno.dia} ${turno.horaInicio} (${fecha})`,
-            monto: turno.precio ?? 0,
-            estado: 'pendiente',
-          },
-        })
-
-        prisma.notificacion.create({
-          data: {
-            clubId: turno.clubId,
-            jugadorId: req.user.id,
-            tipo: 'cargo_cancelacion',
-            data: {
-              fecha,
-              horaInicio: turno.horaInicio,
-              horaFin: turno.horaFin,
-              monto: turno.precio ?? 0,
-              horasMinimas,
-            },
-          },
-        }).catch(() => {})
+    // Lectura + validación + escrituras atómicas bajo Serializable: evita que dos requests
+    // concurrentes (doble-submit fuera de plazo) pasen ambos el check y dupliquen el cargo
+    // o pusheen dos veces la fecha a diasAusentes. Mismo patrón que el resto de los caminos.
+    const result = await runSerializable(async (tx) => {
+      const turno = await tx.turnoFijo.findUnique({ where: { id: req.params.id } })
+      if (!turno) throw Object.assign(new Error('Turno fijo no encontrado'), { status: 404 })
+      if (turno.jugadorId !== req.user.id) throw Object.assign(new Error('Acceso denegado'), { status: 403 })
+      if (turno.estado !== 'confirmado') throw Object.assign(new Error('Solo se pueden pedir ausencias en turnos confirmados'), { status: 400 })
+      if (turno.ausenciasPendientes.includes(fecha) || turno.diasAusentes.includes(fecha)) {
+        throw Object.assign(new Error('La ausencia para esa fecha ya fue registrada'), { status: 409 })
       }
-    }
 
-    const updated = await prisma.turnoFijo.update({
-      where: { id: req.params.id },
-      data: { ausenciasPendientes: { push: fecha } },
-      include: INCLUDE_CANCHA,
+      // Política de cancelación: verificar ventana horaria
+      const club = await tx.club.findUnique({ where: { id: turno.clubId }, select: { config: true } })
+      const horasMinimas = club?.config?.horasCancelacion ?? 0
+      let cargoAplicado = false
+
+      if (horasMinimas > 0) {
+        // Interpretar fecha+horaInicio como Argentina UTC-3 (sin DST) para calcular horas restantes
+        const [y, m, d] = fecha.split('-').map(Number)
+        const [h, min] = turno.horaInicio.split(':').map(Number)
+        const fechaTurnoUtc = Date.UTC(y, m - 1, d, h + 3, min)  // +3h ARG→UTC
+        const horasRestantes = (fechaTurnoUtc - Date.now()) / (1000 * 60 * 60)
+
+        if (horasRestantes >= 0 && horasRestantes < horasMinimas) {
+          cargoAplicado = true
+          await tx.cargo.create({
+            data: {
+              clubId: turno.clubId,
+              jugadorId: req.user.id,
+              concepto: `Ausencia fuera de plazo — turno fijo ${turno.dia} ${turno.horaInicio} (${fecha})`,
+              monto: turno.precio ?? 0,
+              estado: 'pendiente',
+            },
+          })
+        }
+      }
+
+      // Auto-liberación: el día queda liberado AL INSTANTE (antes el admin tenía que confirmarlo
+      // a mano). Lo marcamos en diasAusentes (+ diasAusentesJugador porque lo inició el jugador).
+      const updated = await tx.turnoFijo.update({
+        where: { id: req.params.id },
+        data: {
+          diasAusentes: { push: fecha },
+          diasAusentesJugador: { push: fecha },
+        },
+        include: INCLUDE_CANCHA,
+      })
+
+      // Cancelar la Reserva puntual asociada a ese día (si existe), igual que cuando liberaba el admin.
+      const reservaAsociada = await tx.reserva.findFirst({
+        where: { canchaId: turno.canchaId, fecha, jugadorId: req.user.id, esTurnoFijo: true, estado: { not: 'cancelada' } },
+      })
+      if (reservaAsociada) {
+        await tx.reserva.update({ where: { id: reservaAsociada.id }, data: { estado: 'cancelada' } })
+      }
+
+      return { turno, updated, cargoAplicado, horasMinimas }
     })
 
-    prisma.notificacion.create({
-      data: {
-        clubId: turno.clubId,
-        jugadorId: null,
-        tipo: 'liberacion_turno',
+    const { turno, updated, cargoAplicado, horasMinimas } = result
+
+    // Notificaciones fire-and-forget FUERA de la transacción (no deben abortar/retrasar la TX).
+    if (cargoAplicado) {
+      prisma.notificacion.create({
         data: {
-          turnoFijoId: turno.id,
-          fecha,
-          jugador: updated.jugador ? `${updated.jugador.nombre} ${updated.jugador.apellido ?? ''}`.trim() : '',
-          canchaNombre: updated.cancha?.nombre ?? '',
-          dia: turno.dia,
-          horaInicio: turno.horaInicio,
-          horaFin: turno.horaFin,
+          clubId: turno.clubId,
+          jugadorId: req.user.id,
+          tipo: 'cargo_cancelacion',
+          data: { fecha, horaInicio: turno.horaInicio, horaFin: turno.horaFin, monto: turno.precio ?? 0, horasMinimas },
         },
-      },
+      }).catch(() => {})
+    }
+
+    const dataNotif = {
+      turnoFijoId: turno.id,
+      fecha,
+      jugador: updated.jugador ? `${updated.jugador.nombre} ${updated.jugador.apellido ?? ''}`.trim() : '',
+      canchaNombre: updated.cancha?.nombre ?? '',
+      dia: turno.dia,
+      horaInicio: turno.horaInicio,
+      horaFin: turno.horaFin,
+    }
+    // Al admin: CONTROL (ya está liberado, no tiene que hacer nada). Al jugador: confirmación.
+    prisma.notificacion.create({
+      data: { clubId: turno.clubId, jugadorId: null, tipo: 'turno_liberado_auto', data: dataNotif },
+    }).catch(() => {})
+    prisma.notificacion.create({
+      data: { clubId: turno.clubId, jugadorId: req.user.id, tipo: 'ausencia_confirmada', data: dataNotif },
     }).catch(() => {})
 
     res.json({ ...mapTurno(updated), cargoAplicado, monto: turno.precio ?? 0 })
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    res.status(e.status || 500).json({ error: e.message })
   }
 })
 

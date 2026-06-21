@@ -1,6 +1,22 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-20 — Hardening anti doble-booking: `runSerializable` extraído a lib compartido; turnos fijos y clases de profe ahora también lo usan
+**Última actualización:** 2026-06-20 — Automatización de turnos: auto-confirmación de reservas/TF (default ON, todos los planes, toggle por club) + auto-liberación de ausencias al instante + barrido completo de la familia de bugs de medianoche (00:00)
+
+---
+
+## Automatización de turnos — auto-confirmación + auto-liberación de ausencias (2026-06-20)
+
+El club ya **no necesita aprobar a mano** cada reserva ni cada turno fijo: por default todo se **auto-confirma al instante**, en TODOS los planes (sin gating). Decisión de producto respaldada por investigación de mercado: la confirmación instantánea es **higiene estándar del rubro** (Playtomic, MATCHi, CourtReserve, CanchaYa la dan de base), no un premium — el upsell premium se mueve a MercadoPago / políticas / IA. El dueño que prefiera el flujo manual de siempre lo recupera apagando un toggle. En paralelo se barrió y CERRÓ una familia entera de bugs de medianoche (`00:00`) que eran pre-existentes (no introducidos por este bloque). Auditado por `qa-flujos` en 3 pasadas (general + notificaciones + doble-booking/plata adversarial), veredicto APTO, cero hallazgos críticos/altos, y probado e2e con concurrencia real. Ver [[project_auto_aprobacion_turnos]], [[project_reservas_serializable]] y [[registro-auditorias]].
+
+- **Helper nuevo (`lib/autoConfirma.js`):** `clubAutoConfirma(club)` lee `club.config.autoConfirmaReservas` (default `true` si no está seteado). Única fuente de verdad del comportamiento, opt-out por club.
+- **Auto-confirmación (`reservas.js` POST `/` + `turnos-fijos.js` POST `/`):** si auto → reserva/TF nace `confirmada`/`confirmado` + notif al jugador (`reserva_confirmada`/`turno_fijo_confirmado`) y al admin como CONTROL (`reserva_autoconfirmada`/`turno_fijo_autoconfirmado`). Si el dueño apagó el toggle → flujo manual de siempre intacto (`nueva_reserva`/`solicitud_turno_fijo`, queda `pendiente` para aprobación admin).
+- **Auto-liberación de ausencia (`turnos-fijos.js` POST `/:id/ausencia`):** cuando el jugador avisa que no asiste un día, el slot se libera **al instante** (push a `diasAusentes` + `diasAusentesJugador`), se cancela la reserva puntual asociada, y se notifica al admin como CONTROL (`turno_liberado_auto`) + al jugador (`ausencia_confirmada`). Ya no hay paso intermedio de aprobación admin de la ausencia. La política de cancelación (cargo si avisa fuera de plazo) sigue **intacta**. El endpoint quedó envuelto en `runSerializable` → anti cargo duplicado por doble-submit, probado con 2 ausencias simultáneas (1 solo cargo).
+- **Baja del turno fijo entero (eliminar) sigue MANUAL:** bloqueada por deuda (409 si hay cargos pendientes). Decisión explícita de Luca: *"primero pagá, después se da de baja"*. NO se automatizó.
+- **Bloqueo admin (`POST /admin`):** ahora bloquea crear reserva/TF sobre un turno fijo confirmado (salvo día liberado por ausencia) y aplica RN-51 (un solo TF por cancha/día/horario) sin saltear en silencio.
+- **Familia de bugs de medianoche (`00:00`) — CERRADA:** `00:00` como hora de FIN se trataba como minuto 0 en vez de 1440 (medianoche siguiente). Afectaba: validación de duración 1.5h del TF, `turnoYaTerminoHoy`, `venceCobro`, corte de cancelación, `deudas.js` (turnos impagos contados como deuda antes de tiempo), `clubs.js` (`ocupadasAhora`) y TODOS los checks de solapamiento de TF (creación jugador, creación admin, aprobación admin, reserva-vs-TF). Todos corregidos con guard `=== '00:00' ? 1440`. Eran bugs PRE-EXISTENTES.
+- **Frontend:** los 3 tipos nuevos de notificación renderizan bien en `ReservasPage.jsx` (panel admin) y `Navbar.jsx` (campana) sin fila en blanco; `turno_liberado_auto` en rojo. Pantalla de éxito en el modal del jugador al confirmar (`PlayerReservasPage.jsx`). Toasts al cancelar/liberar (`PlayerMisReservasPage.jsx`, `PlayerTurnosFijosPage.jsx`).
+- **Calidad:** e2e con datos descartables (limpieza por id) + concurrencia real → 2 reservas simultáneas mismo slot (gana 1), 2 TF simultáneos (gana 1), 2 ausencias simultáneas (1 solo cargo).
+- **PENDIENTE (no bloqueante, deuda vieja):** índice único parcial en DB como defensa extra anti doble-booking — no es de este bloque, postergado al deploy. Ver [[project_deploy_pendiente]].
 
 ---
 

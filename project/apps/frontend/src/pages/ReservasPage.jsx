@@ -86,7 +86,10 @@ const venceCobro = (fecha, horaFin) => {
   const hoy = todayISO()
   if (fecha < hoy) return true
   if (fecha > hoy) return false
-  return toMin(horaFin) + MIN_GRACIA_COBRO <= toMin(horaActual())
+  // Cruce de medianoche: horaFin '00:00' = medianoche del día siguiente (1440), no el arranque
+  // del día → un turno que termina a las 00:00 no vence para cobro durante su propia jornada.
+  const finMin = horaFin === '00:00' ? 1440 : toMin(horaFin)
+  return finMin + MIN_GRACIA_COBRO <= toMin(horaActual())
 }
 
 // Devuelve el día de semana de una fecha ISO en formato normalizado ('lunes', 'miercoles', etc.)
@@ -1350,8 +1353,12 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar, onChe
   const tipoCfg = TIPO_CONFIG[reserva.tipo]
   const pagoCfg = reserva.pago ? PAGO_CONFIG[reserva.pago] : null
   const estadoCfg = ESTADO_CONFIG[reserva.estado]
-  // Turno ya terminó: bloquear acciones destructivas para preservar historial y cargos
-  const yaTermino = reserva.fecha && reserva.fin ? esPasado(reserva.fecha, reserva.fin) : false
+  // Turno ya terminó: bloquear acciones destructivas para preservar historial y cargos.
+  // Cruce de medianoche: un turno que termina a las '00:00' termina a la medianoche del día
+  // siguiente, no al arranque del día → lo tratamos como '24:00' (1440 min) para no marcarlo
+  // terminado durante su propia jornada.
+  const finParaCorte = reserva.fin === '00:00' ? '24:00' : reserva.fin
+  const yaTermino = reserva.fecha && reserva.fin ? esPasado(reserva.fecha, finParaCorte) : false
 
   return (
     <div className="flex flex-col">
@@ -2299,13 +2306,20 @@ const PanelAlertas = ({
             const esCancelClaseProf = n.tipo === 'cancelacion_clase_profesor'
             const esCancelFijoJugador = n.tipo === 'turno_fijo_cancelado_jugador'
             const esRetiroSolicitud = n.tipo === 'turno_fijo_retirado_jugador'
+            const esReservaAuto = n.tipo === 'reserva_autoconfirmada'
+            const esTurnoFijoAuto = n.tipo === 'turno_fijo_autoconfirmado'
+            const esTurnoLiberadoAuto = n.tipo === 'turno_liberado_auto'
             const dotColor = n.leida ? 'bg-slate-300'
               : esSolicitudFijo ? 'bg-amber-500'
+              : esReservaAuto || esTurnoFijoAuto ? 'bg-emerald-500'
+              : esTurnoLiberadoAuto ? 'bg-red-500'
               : esNuevaClaseProf ? 'bg-orange-400'
               : esCancelClaseProf ? 'bg-orange-600'
               : 'bg-red-500'
             const rowBg = n.leida ? ''
               : esSolicitudFijo ? 'bg-amber-50/40'
+              : esReservaAuto || esTurnoFijoAuto ? 'bg-emerald-50/40'
+              : esTurnoLiberadoAuto ? 'bg-red-50/40'
               : esNuevaClaseProf || esCancelClaseProf ? 'bg-orange-50/40'
               : 'bg-red-50/30'
             const esClickeable = (esLiberacion || esSolicitudFijo) && !n.leida
@@ -2416,7 +2430,36 @@ const PanelAlertas = ({
                       <p className="text-slate-400 text-[10px] mt-1">El jugador retiró su solicitud de turno fijo antes de ser aprobada</p>
                     </>
                   )}
-                  {!esSolicitudFijo && !esLiberacion && !esCancelacion && !esNuevaClaseProf && !esCancelClaseProf && !esCancelFijoJugador && !esRetiroSolicitud && (
+                  {esReservaAuto && (
+                    <>
+                      <p className="text-slate-700 text-sm font-medium">
+                        <span className="text-emerald-600 font-semibold">Reserva confirmada automáticamente</span>
+                        {n.jugador && <span className="text-slate-700 font-semibold"> · {n.jugador}</span>}
+                        {n.precio && <span className="text-slate-400 font-normal"> · ${Number(n.precio).toLocaleString('es-AR')}</span>}
+                      </p>
+                      <p className="text-slate-400 text-xs mt-0.5">{n.cancha} · {n.inicio}–{n.fin} · {fechaReserva}</p>
+                    </>
+                  )}
+                  {esTurnoFijoAuto && (
+                    <>
+                      <p className="text-slate-700 text-sm font-medium">
+                        <span className="text-emerald-600 font-semibold">Turno fijo confirmado automáticamente</span>
+                        {n.jugador && <span className="text-slate-700 font-semibold"> · {n.jugador}</span>}
+                        {n.precio && <span className="text-slate-400 font-normal"> · ${Number(n.precio).toLocaleString('es-AR')}</span>}
+                      </p>
+                      <p className="text-slate-400 text-xs mt-0.5">{n.cancha} · {n.inicio}–{n.fin} · semanal · {DIAS_LABEL[n.dia] ?? n.dia}</p>
+                    </>
+                  )}
+                  {esTurnoLiberadoAuto && (
+                    <>
+                      <p className="text-slate-700 text-sm font-medium">
+                        <span className="text-red-600 font-semibold">Turno liberado automáticamente</span>
+                        {n.jugador && <span className="text-slate-700 font-semibold"> · {n.jugador}</span>}
+                      </p>
+                      <p className="text-slate-400 text-xs mt-0.5">{n.cancha} · {n.inicio}–{n.fin} · {fechaReserva} · el jugador avisó que no asiste</p>
+                    </>
+                  )}
+                  {!esSolicitudFijo && !esLiberacion && !esCancelacion && !esNuevaClaseProf && !esCancelClaseProf && !esCancelFijoJugador && !esRetiroSolicitud && !esReservaAuto && !esTurnoFijoAuto && !esTurnoLiberadoAuto && (
                     <p className="text-slate-500 text-sm">{n.jugador}</p>
                   )}
                 </div>

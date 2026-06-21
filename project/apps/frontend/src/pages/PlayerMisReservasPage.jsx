@@ -3,6 +3,7 @@ import { CalendarDays, Clock, XCircle, Info, X, CheckCircle } from 'lucide-react
 import usePlayerStore from '../store/playerStore'
 import useClubStore from '../store/clubStore'
 import useReservasStore from '../store/reservasStore'
+import { useToast } from '../components/ui/ToastProvider'
 import { api } from '../lib/api'
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
@@ -96,6 +97,7 @@ export default function PlayerMisReservasPage() {
   const token = usePlayerStore((s) => s.token)
   const club = useClubStore((s) => s.club)
   const { cancelarReserva } = useReservasStore()
+  const toast = useToast()
 
   const [reservas, setReservas] = useState([])
   const [canchas, setCanchas] = useState([])
@@ -134,6 +136,8 @@ export default function PlayerMisReservasPage() {
         const [y, m, d] = r.fecha.split('-').map(Number)
         const [hh, mm] = (r.horaFin || r.horaInicio || '23:59').split(':').map(Number)
         const finDt = new Date(y, m - 1, d, hh, mm)
+        // "00:00" es medianoche del día siguiente: sin esto, un turno 22:30–00:00 se marca "pasado" todo el día.
+        if (r.horaFin === '00:00') finDt.setDate(finDt.getDate() + 1)
         return {
           id: r.id,
           canchaNombre: r.cancha?.nombre ?? canchaDB?.nombre ?? 'Cancha',
@@ -185,12 +189,16 @@ export default function PlayerMisReservasPage() {
     if (cancelando || !reservaACancelar) return
     setCancelando(true)
     try {
-      await api.delete(`/reservas/${reservaACancelar.id}`, { Authorization: `Bearer ${token}` })
+      const res = await api.delete(`/reservas/${reservaACancelar.id}`, { Authorization: `Bearer ${token}` })
       cancelarReserva(reservaACancelar.id)
       setReservas((prev) => prev.filter((r) => r.id !== reservaACancelar.id))
       setReservaACancelar(null)
+      toast.success(res?.cargoAplicado
+        ? 'Reserva cancelada · se aplicó un cargo por cancelar fuera de plazo'
+        : 'Reserva cancelada')
     } catch (err) {
       console.error('Error al cancelar reserva:', err)
+      toast.error(err?.message || 'No se pudo cancelar la reserva')
     } finally {
       setCancelando(false)
     }

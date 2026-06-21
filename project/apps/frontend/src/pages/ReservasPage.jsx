@@ -3497,9 +3497,9 @@ const ReservasPage = () => {
             <p className="text-xs font-semibold text-slate-600 mb-2.5">Tipos de reserva</p>
             <div className="flex flex-col gap-2">
               {[
-                { color: 'bg-emerald-500', nombre: 'Online', desc: 'El jugador reservó desde la app. Requiere aprobación del admin.' },
+                { color: 'bg-emerald-500', nombre: 'Online', desc: 'El jugador reservó desde la app. Se confirma al instante.' },
                 { color: 'bg-blue-500',    nombre: 'Eventual', desc: 'Reserva manual creada por el admin para un día puntual, sin recurrencia.' },
-                { color: 'bg-violet-500',  nombre: 'Fijo', desc: 'Turno semanal recurrente aprobado por el admin. Se repite cada semana en el mismo horario.' },
+                { color: 'bg-violet-500',  nombre: 'Fijo', desc: 'Turno semanal recurrente. Se confirma al instante y se repite cada semana en el mismo horario.' },
                 { color: 'bg-red-400',     nombre: 'Bloqueado', desc: 'Franja cerrada. Impide reservas en ese horario. Se puede indicar el motivo.' },
                 { color: 'bg-orange-400',  nombre: 'Clase', desc: 'Clase con profesor registrada. Se gestiona desde la pestaña "Clases del profesor".' },
               ].map(({ color, nombre, desc }) => (

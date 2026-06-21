@@ -609,7 +609,7 @@ const PlayerReservasPage = () => {
               <div>
                 <p className="text-white/80 text-xs font-semibold">Reserva puntual</p>
                 <p className="text-white/40 text-[11px] mt-0.5 leading-relaxed">
-                  Reservás la cancha para un día específico. Una vez enviada, queda pendiente hasta que el administrador la confirme. La encontrás en <span className="text-white/60 font-medium">"Mis reservas"</span> del menú.
+                  Reservás la cancha para un día específico. Queda confirmada al instante. La encontrás en <span className="text-white/60 font-medium">"Mis reservas"</span> del menú.
                 </p>
               </div>
             </div>
@@ -620,7 +620,7 @@ const PlayerReservasPage = () => {
               <div>
                 <p className="text-white/80 text-xs font-semibold">Turno fijo semanal</p>
                 <p className="text-white/40 text-[11px] mt-0.5 leading-relaxed">
-                  Reservás ese mismo día y horario <span className="text-white/60 font-medium">todas las semanas</span>. Activá el toggle <span className="text-amber-400 font-medium">"Turno fijo semanal"</span> al seleccionar el slot. El admin debe aprobarlo. Lo gestionás desde <span className="text-white/60 font-medium">"Mis turnos fijos"</span> del menú.
+                  Reservás ese mismo día y horario <span className="text-white/60 font-medium">todas las semanas</span>. Activá el toggle <span className="text-amber-400 font-medium">"Turno fijo semanal"</span> al seleccionar el slot. Queda confirmado al instante. Lo gestionás desde <span className="text-white/60 font-medium">"Mis turnos fijos"</span> del menú.
                 </p>
               </div>
             </div>

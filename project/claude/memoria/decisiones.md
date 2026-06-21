@@ -2,6 +2,25 @@
 
 ---
 
+## [2026-06-21] "Insight del día con IA" — primer ladrillo de IA del SaaS, feature premium
+
+- El dashboard admin queda preparado para un bloque de **"Insight del día con IA"**: un resumen/recomendación en lenguaje natural **grounded en la data del propio dashboard** (% ocupación, agenda, tendencia 7d, cobros).
+- Será el **primer ladrillo de IA** del producto y se ofrecerá como **feature premium** (no en planes inferiores).
+- **NO se construyó en este bloque.** El rediseño del dashboard dejó la data y el lugar; la IA va en un bloque posterior.
+
+**Motivo:** El upsell premium del SaaS se apoya en diferenciales reales (IA, MercadoPago, políticas), no en higiene de mercado. El dashboard ya genera la data estructurada que un insight necesitaría, así que es el punto natural para enchufar el primer feature de IA sin inventar fuentes nuevas. Coherente con la marca PadelwIArk (IA embebida). Ver [[project_dashboard_resumen_admin]].
+
+---
+
+## [2026-06-21] Datos financieros del dashboard — gating en el backend, no en el front
+
+- El endpoint `GET /me/dashboard` **no manda** las claves financieras que el rol no puede ver (ingresos/totales/serie → permiso `caja`; estado de cobro/deuda → `ventas` o `caja`). El front no las recibe, no las esconde.
+- Flags `verCaja` y `verCobros` deciden qué se serializa. El hero del dashboard se adapta a lo que llega.
+
+**Motivo:** Esconder datos sensibles en el cliente es inseguro (viajan igual y se ven en la red). La fuente de verdad del RBAC es el backend, que ya resuelve permisos por request. Patrón consistente con el resto del módulo de empleados/permisos.
+
+---
+
 ## [2026-06-20] Auto-confirmación de turnos — higiene de mercado, NO premium
 
 - La **confirmación instantánea** de reservas y turnos fijos está disponible en **TODOS los planes**, sin feature-gating. Default ON.

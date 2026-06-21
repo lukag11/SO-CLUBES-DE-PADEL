@@ -1,6 +1,20 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-20 — Automatización de turnos: auto-confirmación de reservas/TF (default ON, todos los planes, toggle por club) + auto-liberación de ausencias al instante + barrido completo de la familia de bugs de medianoche (00:00)
+**Última actualización:** 2026-06-21 — Rediseño del dashboard admin: de 6 tarjetas estáticas a panel "pulso del club en tiempo real" (% ocupación, agenda de hoy, tendencia 7d, cobros accionables) con gating de datos financieros por permiso + ítem "Resumen" en el sidebar + rediseño de notificaciones por tipo
+
+---
+
+## Rediseño del dashboard del administrador (2026-06-21)
+
+El dashboard admin (`/dashboardAdmin`, `AdminDashboardPage.jsx`) pasó de **6 tarjetas estáticas** a un panel dinámico **"pulso del club en tiempo real"**. La estructura sale del research del agente `bibliotecario`: el KPI rey del rubro es el **% de ocupación** (benchmark 50% = rentable), más un bloque accionable, agenda forward (qué viene hoy) y una tendencia. Lo más importante del bloque es el **gating de datos sensibles a nivel backend**: los números financieros que el rol no puede ver **no viajan en el payload** (no se ocultan en el front). Probado e2e con los 3 niveles de rol. Ver [[project_dashboard_resumen_admin]], [[project_empleados_permisos]] y [[project_agente_bibliotecario]].
+
+- **Backend (`routes/clubs.js`, `GET /me/dashboard`, additivo):** nuevo cálculo de **% ocupación del día** = slots ocupados / disponibles, donde disponibles = canchas activas × franjas de 1.5h según `config.horarios` del club (fallback por cancha). Dedup de turnos fijos materializados (un TF con su reserva `esTurnoFijo` no se cuenta dos veces) y guard de medianoche en las franjas. **Agenda de hoy**: reservas + TF virtuales del día, ordenada, con tipo real (online/eventual/fijo) y estado de pago (el TF virtual cuenta impago hasta cobrarse). **Tendencia 7 días**: serie de ingresos + reservas por día. **Deltas vs ayer** (reservas e ingresos), **contador de cobros pendientes** (impagos + cargos) y torneos.
+- **Gating de datos financieros (lo central):** dos flags — `verCaja` (permiso `caja` → ingresos/totales/serie de ingresos, SENSIBLE) y `verCobros` (`ventas` o `caja` → estado de pago en agenda + "por cobrar"/deuda). El payload **omite** las claves que el rol no puede ver (`...(verCaja ? {...} : {})`), no las manda en `null` para que el front las esconda. Verificado e2e: empleado solo-reservas no ve **nada** financiero; empleado con `ventas` ve cobros pero no ingresos; dueño (`caja`) ve todo. Apila con el RBAC ya existente.
+- **Frontend (`AdminDashboardPage.jsx`):** hero con Ocupación (barra + marca del 50%) · Ingresos (▲▼ vs ayer, solo si `verCaja`) · Por cobrar (accionable, solo si `verCobros`); stats secundarias; bloque **"Necesita tu atención"** centrado en cobros pendientes (decisión de Luca); agenda con badges de tiempo (EN JUEGO / PRÓXIMO) y de pago; tendencia 7 días en barras; actividad con iconos. **Auto-refresh cada 45s** + indicador "● En vivo". El hero **adapta su ancho según permisos** (sin tarjetas duplicadas cuando faltan datos).
+- **Sidebar (`Sidebar.jsx`):** nuevo ítem **"Resumen"** (icono `LayoutDashboard`) → `/dashboardAdmin`. Antes solo se llegaba tocando el logo. Visible para todos los admins.
+- **Notificaciones (`Navbar.jsx` campana + `ReservasPage.jsx` panel de avisos):** rediseño con chips de iconos por tipo + colores de la convención de la grilla (turno fijo = violeta, online = verde, liberado = rojo, solicitud = ámbar, clase = naranja). El **turno fijo confirmado automáticamente** pasó de verde a **violeta** (coherencia con la grilla). La campana ahora tiene acento de no-leída, hora relativa y botón al hover.
+- **DECISIÓN (documentada aparte, NO construida):** el **"Insight del día con IA"** será el **primer ladrillo de IA** del SaaS, grounded en la data de este dashboard y ofrecido como **feature premium** — se construye después de este bloque. Ver [[project_dashboard_resumen_admin]].
+- **PENDIENTE:** el insight de IA sigue sin construirse (decisión tomada, implementación posterior). El bloque es additivo y no rompe nada del flujo existente.
 
 ---
 

@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  CalendarDays, Users, Trophy, TrendingUp, DollarSign, Activity, Wallet,
+  CalendarDays, Users, Trophy, TrendingUp, TrendingDown, DollarSign, Activity,
+  Wallet, Clock, ArrowRight, CheckCircle2, AlertCircle, UserPlus, Receipt,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
+const REFRESH_MS = 45000
 
 const hace = (fecha) => {
   if (!fecha) return ''
@@ -19,15 +22,36 @@ const hace = (fecha) => {
   return `hace ${d} día${d > 1 ? 's' : ''}`
 }
 
-const StatCard = ({ label, value, sub, icon: Icon, color, bg }) => (
-  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-5 flex items-start gap-3 md:gap-4 hover:shadow-md transition-shadow duration-200">
-    <div className={`${bg} rounded-xl p-2.5 md:p-3 shrink-0`}>
-      <Icon size={20} className={color} />
+const toMin = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m }
+
+// Convención de colores de la grilla de reservas (tipo de reserva)
+const TIPO_BAR = { fijo: 'bg-violet-500', online: 'bg-emerald-500', eventual: 'bg-blue-500', manual: 'bg-blue-500', bloqueado: 'bg-red-400', clase: 'bg-orange-400' }
+const TIPO_LABEL = { fijo: 'Turno fijo', online: 'Online', eventual: 'Eventual', manual: 'Eventual', bloqueado: 'Bloqueo', clase: 'Clase' }
+
+// Badge de tendencia (+X% / -X% vs ayer)
+const Delta = ({ pct }) => {
+  if (pct === undefined || pct === null) return null
+  const up = pct >= 0
+  const Icon = up ? TrendingUp : TrendingDown
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${up ? 'text-emerald-600' : 'text-rose-500'}`}>
+      <Icon size={12} /> {up ? '+' : ''}{pct}%
+    </span>
+  )
+}
+
+// Tarjeta de stat secundaria
+const StatCard = ({ label, value, sub, icon: Icon, color, bg, delta }) => (
+  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-start gap-3 hover:shadow-md transition-shadow duration-200">
+    <div className={`${bg} rounded-xl p-2.5 shrink-0`}>
+      <Icon size={18} className={color} />
     </div>
     <div className="flex-1 min-w-0">
-      <p className="text-xs md:text-sm text-slate-500 font-medium truncate">{label}</p>
-      <p className="text-xl md:text-2xl font-bold text-slate-800 mt-0.5 leading-tight truncate">{value}</p>
-      <p className="text-xs text-slate-400 mt-1">{sub}</p>
+      <p className="text-xs text-slate-500 font-medium truncate">{label}</p>
+      <p className="text-xl font-bold text-slate-800 mt-0.5 leading-tight truncate flex items-center gap-2">
+        {value} {delta !== undefined && <Delta pct={delta} />}
+      </p>
+      <p className="text-xs text-slate-400 mt-0.5">{sub}</p>
     </div>
   </div>
 )
@@ -43,25 +67,51 @@ const DashboardPage = () => {
 
   useEffect(() => {
     if (!token) return
-    api.get('/clubs/me/dashboard', { Authorization: `Bearer ${token}` })
-      .then((d) => setData(d))
+    let activo = true
+    const fetchData = () => api.get('/clubs/me/dashboard', { Authorization: `Bearer ${token}` })
+      .then((d) => { if (activo) setData(d) })
       .catch(() => {})
-      .finally(() => setLoading(false))
+      .finally(() => { if (activo) setLoading(false) })
+    fetchData()
+    const id = setInterval(fetchData, REFRESH_MS)
+    return () => { activo = false; clearInterval(id) }
   }, [token])
 
-  // El backend omite lo financiero si el admin no tiene permiso de 'caja'.
-  const verFinanzas = data?.ingresosMes !== undefined
+  // Permisos: 'caja' = ingresos/totales (SENSIBLE) · 'ventas o caja' = estado de cobro/deuda
+  const verCaja = !!data?.verCaja
+  const verCobros = !!data?.verCobros
 
-  const stats = [
-    { label: 'Canchas en uso', value: data ? `${data.ocupadasAhora}/${data.canchasActivas}` : '—', sub: 'ocupadas ahora', icon: Activity, color: 'text-brand-500', bg: 'bg-brand-500/10' },
-    { label: 'Reservas de hoy', value: data?.reservasHoy ?? '—', sub: 'confirmadas', icon: CalendarDays, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { label: 'Jugadores activos', value: data?.jugadoresActivos ?? '—', sub: 'en el club', icon: Users, color: 'text-violet-500', bg: 'bg-violet-500/10' },
-    { label: 'Torneos activos', value: data?.torneosActivos ?? '—', sub: 'en curso o abiertos', icon: Trophy, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-    ...(verFinanzas ? [
-      { label: 'Ingresos del día', value: money(data?.ingresosDia), sub: 'cobrado hoy', icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-      { label: 'Ingresos del mes', value: money(data?.ingresosMes), sub: 'cobrado este mes', icon: TrendingUp, color: 'text-rose-500', bg: 'bg-rose-500/10' },
-    ] : []),
-  ]
+  // ── Ocupación: color según rentabilidad (benchmark de industria ~50%) ──
+  const ocu = data?.ocupacionPct ?? 0
+  const ocuColor = ocu >= 60 ? 'bg-emerald-500' : ocu >= 35 ? 'bg-amber-500' : 'bg-rose-500'
+  const ocuText = ocu >= 60 ? 'text-emerald-600' : ocu >= 35 ? 'text-amber-600' : 'text-rose-500'
+  // Cuántas tarjetas de plata se muestran (Ingresos=caja, Por cobrar=cobros) → la ocupación rellena el resto
+  const moneyCount = (verCaja ? 1 : 0) + (verCobros ? 1 : 0)
+  const ocuSpan = moneyCount === 0 ? 'lg:col-span-3' : moneyCount === 1 ? 'lg:col-span-2' : ''
+
+  // ── Necesita tu atención: foco en lo que falta cobrar (deuda + impagos) ──
+  const at = data?.atencion ?? {}
+  const atencion = [
+    verCobros && at.porCobrarCount > 0 && {
+      texto: `${at.porCobrarCount} ${at.porCobrarCount > 1 ? 'cobros pendientes' : 'cobro pendiente'}`,
+      monto: data?.deudaPendiente,
+      to: '/dashboardAdmin/pagos',
+      color: 'text-amber-700', bg: 'bg-amber-50', Icon: Receipt,
+    },
+  ].filter(Boolean)
+
+  // ── Agenda: marcar en curso / próximo ──
+  const ahoraMin = toMin(data?.ahora)
+  const agenda = (data?.agenda ?? []).map((a) => {
+    const ini = toMin(a.horaInicio)
+    const fin = a.horaFin === '00:00' ? 1440 : toMin(a.horaFin)
+    return { ...a, enCurso: ini <= ahoraMin && ahoraMin < fin, futuro: ini > ahoraMin }
+  })
+  const idxProximo = agenda.findIndex((a) => a.futuro)
+
+  // ── Tendencia 7 días: normalizar barras ──
+  const serie = data?.serie7d ?? []
+  const maxIng = Math.max(1, ...serie.map((s) => s.ingresos || 0))
 
   return (
     <div className="flex flex-col gap-6">
@@ -71,39 +121,207 @@ const DashboardPage = () => {
           <h2 className="text-xl md:text-2xl font-bold text-slate-800">Resumen del club</h2>
           <p className="text-sm text-slate-400 mt-1 capitalize">{today}</p>
         </div>
-        {data?.deudaPendiente > 0 && (
-          <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3.5 py-2">
-            <Wallet size={15} className="text-amber-500" />
-            <span className="text-sm text-amber-700 font-medium">{money(data.deudaPendiente)} por cobrar</span>
+        {data?.ahora && (
+          <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-xl px-3 py-1.5 shadow-sm">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span className="text-xs font-semibold text-slate-600">En vivo · {data.ahora}</span>
           </div>
         )}
       </div>
 
-      {/* Grid de tarjetas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {loading
-          ? [...Array(6)].map((_, i) => <div key={i} className="bg-white rounded-2xl border border-slate-100 h-24 animate-pulse" />)
-          : stats.map((stat) => <StatCard key={stat.label} {...stat} />)}
-      </div>
-
-      {/* Actividad reciente */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-6">
-        <h3 className="text-base font-semibold text-slate-800 mb-4">Actividad reciente</h3>
-        {loading ? (
-          <div className="flex flex-col gap-3">{[...Array(4)].map((_, i) => <div key={i} className="h-5 bg-slate-50 rounded animate-pulse" />)}</div>
-        ) : !data?.actividad?.length ? (
-          <p className="text-sm text-slate-400">Sin actividad reciente todavía.</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {data.actividad.map((item, i) => (
-              <div key={i} className="flex items-start justify-between gap-3 py-2 border-b border-slate-50 last:border-0">
-                <p className="text-sm text-slate-600 min-w-0 break-words">{item.text}</p>
-                <span className="text-xs text-slate-400 shrink-0 mt-0.5">{hace(item.createdAt)}</span>
+      {loading ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => <div key={i} className="bg-white rounded-2xl border border-slate-100 h-36 animate-pulse" />)}
+        </div>
+      ) : (
+        <>
+          {/* ── HERO: Ocupación (+ Ingresos si caja, + Por cobrar si cobros) ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Ocupación del día — rellena el ancho según cuántas tarjetas de plata haya */}
+            <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col ${ocuSpan}`}>
+              <div className="flex items-center gap-2 text-slate-500">
+                <Activity size={16} className="text-brand-500" />
+                <span className="text-sm font-medium">Ocupación de hoy</span>
               </div>
-            ))}
+              <div className="flex items-end gap-2 mt-2">
+                <span className={`text-4xl font-bold ${ocuText}`}>{ocu}%</span>
+                <span className="text-sm text-slate-400 mb-1.5">{data?.slotsOcupados ?? 0}/{data?.slotsTotales ?? 0} turnos</span>
+              </div>
+              <div className="mt-3 relative h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                <div className={`h-full rounded-full transition-all duration-500 ${ocuColor}`} style={{ width: `${Math.min(ocu, 100)}%` }} />
+                {/* marca del 50% (benchmark de rentabilidad) */}
+                <div className="absolute top-0 h-full w-px bg-slate-300" style={{ left: '50%' }} />
+              </div>
+              <p className="text-xs text-slate-400 mt-2">{ocu >= 50 ? '✓ por encima del 50% (rentable)' : 'meta: 50% para rentabilidad'}</p>
+            </div>
+
+            {/* Ingresos hoy — solo permiso de caja */}
+            {verCaja && (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col">
+                <div className="flex items-center gap-2 text-slate-500">
+                  <DollarSign size={16} className="text-emerald-500" />
+                  <span className="text-sm font-medium">Ingresos de hoy</span>
+                </div>
+                <div className="flex items-end gap-2 mt-2">
+                  <span className="text-4xl font-bold text-slate-800">{money(data?.ingresosDia)}</span>
+                  <span className="mb-1.5"><Delta pct={data?.ingresosDiaPct} /></span>
+                </div>
+                <p className="text-xs text-slate-400 mt-auto pt-3">Mes: <span className="font-semibold text-slate-600">{money(data?.ingresosMes)}</span> · ayer {money(data?.ingresosAyer)}</p>
+              </div>
+            )}
+
+            {/* Por cobrar — permiso de cobros (ventas o caja) */}
+            {verCobros && (
+              <Link to="/dashboardAdmin/pagos" className="group bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col hover:shadow-md hover:border-amber-200 transition-all">
+                <div className="flex items-center gap-2 text-slate-500">
+                  <Wallet size={16} className="text-amber-500" />
+                  <span className="text-sm font-medium">Por cobrar</span>
+                </div>
+                <div className="flex items-end gap-2 mt-2">
+                  <span className="text-4xl font-bold text-slate-800">{money(data?.deudaPendiente)}</span>
+                </div>
+                <p className="text-xs text-amber-600 mt-auto pt-3 flex items-center gap-1 font-medium">
+                  Ir a Cobranzas <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+                </p>
+              </Link>
+            )}
           </div>
-        )}
-      </div>
+
+          {/* ── Stats secundarias ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Reservas de hoy" value={data?.reservasHoy ?? '—'} sub="confirmadas" icon={CalendarDays} color="text-blue-500" bg="bg-blue-500/10" delta={data?.reservasHoyPct} />
+            <StatCard label="Canchas en uso" value={data ? `${data.ocupadasAhora}/${data.canchasActivas}` : '—'} sub="ahora mismo" icon={Activity} color="text-brand-500" bg="bg-brand-500/10" />
+            <StatCard label="Jugadores activos" value={data?.jugadoresActivos ?? '—'} sub="en el club" icon={Users} color="text-violet-500" bg="bg-violet-500/10" />
+            <StatCard label="Torneos activos" value={data?.torneosActivos ?? '—'} sub="en curso o abiertos" icon={Trophy} color="text-amber-500" bg="bg-amber-500/10" />
+          </div>
+
+          {/* ── Atención + Tendencia ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Necesita tu atención */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-5">
+              <h3 className="text-base font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                <AlertCircle size={16} className="text-amber-500" /> Necesita tu atención
+              </h3>
+              {atencion.length === 0 ? (
+                <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
+                  <CheckCircle2 size={16} className="text-emerald-500" /> Todo al día. Nada pendiente.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {atencion.map((a, i) => (
+                    <Link key={i} to={a.to} className={`group flex items-center gap-3 px-3 py-3 rounded-xl ${a.bg} hover:brightness-95 transition-all`}>
+                      <a.Icon size={18} className={a.color} />
+                      <span className={`text-sm font-medium ${a.color}`}>{a.texto}</span>
+                      {a.monto > 0 && <span className={`text-base font-bold ${a.color}`}>{money(a.monto)}</span>}
+                      <ArrowRight size={14} className={`${a.color} opacity-50 group-hover:translate-x-0.5 transition-transform ml-auto`} />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tendencia 7 días */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-5">
+              <h3 className="text-base font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                <TrendingUp size={16} className="text-brand-500" /> Últimos 7 días
+              </h3>
+              <div className="flex items-end justify-between gap-2 h-28">
+                {serie.map((s, i) => {
+                  const esHoy = i === serie.length - 1
+                  const h = verCaja ? Math.round((s.ingresos / maxIng) * 100) : Math.round((s.reservas / Math.max(1, ...serie.map((x) => x.reservas))) * 100)
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1.5 h-full group relative">
+                      <div className="w-full flex items-end justify-center h-full">
+                        <div
+                          className={`w-full max-w-[28px] rounded-t-md transition-all ${esHoy ? 'bg-brand-500' : 'bg-brand-500/30 group-hover:bg-brand-500/50'}`}
+                          style={{ height: `${Math.max(h, 3)}%` }}
+                        />
+                      </div>
+                      <span className={`text-[10px] ${esHoy ? 'text-brand-600 font-semibold' : 'text-slate-400'}`}>{s.dia}</span>
+                      {/* tooltip */}
+                      <span className="pointer-events-none absolute bottom-full mb-1 whitespace-nowrap bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                        {verCaja ? money(s.ingresos) : `${s.reservas} reservas`}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-slate-400 mt-2">{verCaja ? 'Ingresos cobrados por día' : 'Reservas por día'}</p>
+            </div>
+          </div>
+
+          {/* ── Agenda de hoy + Actividad ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Agenda de hoy */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+                  <Clock size={16} className="text-blue-500" /> Agenda de hoy
+                </h3>
+                <Link to="/dashboardAdmin/reservas" className="text-xs text-brand-600 font-medium hover:text-brand-700 flex items-center gap-1">
+                  Ver grilla <ArrowRight size={12} />
+                </Link>
+              </div>
+              {agenda.length === 0 ? (
+                <p className="text-sm text-slate-400 py-4">No hay turnos agendados para hoy.</p>
+              ) : (
+                <div className="flex flex-col">
+                  {agenda.map((a, i) => (
+                    <div key={i} className={`flex items-center gap-3 py-2.5 border-b border-slate-50 last:border-0 ${a.enCurso ? 'bg-emerald-50/40 -mx-2 px-2 rounded-lg' : ''}`}>
+                      <div className="text-center shrink-0 w-12">
+                        <p className={`text-sm font-bold ${a.enCurso ? 'text-emerald-600' : 'text-slate-700'}`}>{a.horaInicio}</p>
+                        <p className="text-[10px] text-slate-400">{a.horaFin}</p>
+                      </div>
+                      <div className={`w-1 h-8 rounded-full shrink-0 ${TIPO_BAR[a.tipo] || 'bg-blue-400'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-700 truncate">{a.jugador || 'Sin nombre'}</p>
+                        <p className="text-xs text-slate-400">{a.cancha} · {TIPO_LABEL[a.tipo] || 'Reserva'}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* Estado de pago (solo reservas; los turnos fijos no tienen pago por día) */}
+                        {a.pagado === true && <span className="text-[10px] font-medium text-emerald-600">Pagado</span>}
+                        {a.pagado === false && <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-500"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" />Impago</span>}
+                        {/* Estado de tiempo */}
+                        {a.enCurso ? (
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">EN JUEGO</span>
+                        ) : i === idxProximo ? (
+                          <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">PRÓXIMO</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Actividad reciente */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-5">
+              <h3 className="text-base font-semibold text-slate-800 mb-3">Actividad reciente</h3>
+              {!data?.actividad?.length ? (
+                <p className="text-sm text-slate-400 py-4">Sin actividad reciente todavía.</p>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {data.actividad.map((item, i) => {
+                    const meta = item.tipo === 'pago' ? { Icon: DollarSign, c: 'text-emerald-500', bg: 'bg-emerald-50' }
+                      : item.tipo === 'jugador' ? { Icon: UserPlus, c: 'text-violet-500', bg: 'bg-violet-50' }
+                      : { Icon: CalendarDays, c: 'text-blue-500', bg: 'bg-blue-50' }
+                    return (
+                      <div key={i} className="flex items-start gap-3 py-1">
+                        <div className={`${meta.bg} rounded-lg p-1.5 shrink-0 mt-0.5`}><meta.Icon size={13} className={meta.c} /></div>
+                        <p className="text-sm text-slate-600 min-w-0 break-words flex-1">{item.text}</p>
+                        <span className="text-xs text-slate-400 shrink-0 mt-0.5">{hace(item.createdAt)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

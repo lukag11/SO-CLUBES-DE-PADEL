@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CalendarDays, Users, Trophy, TrendingUp, TrendingDown, DollarSign, Activity,
-  Wallet, Clock, ArrowRight, CheckCircle2, AlertCircle, UserPlus, Receipt,
+  Wallet, Clock, ArrowRight, CheckCircle2, AlertCircle, UserPlus, Receipt, Sparkles,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
@@ -60,6 +60,9 @@ const DashboardPage = () => {
   const token = useAuthStore((s) => s.token)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Insight del día con IA (solo dueño; si el backend devuelve 403/error, no se muestra la tarjeta)
+  const [insight, setInsight] = useState(null)
+  const [insightLoading, setInsightLoading] = useState(true)
 
   const today = new Date().toLocaleDateString('es-AR', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -75,6 +78,17 @@ const DashboardPage = () => {
     fetchData()
     const id = setInterval(fetchData, REFRESH_MS)
     return () => { activo = false; clearInterval(id) }
+  }, [token])
+
+  // El insight es una llamada a la IA (más lenta): se carga aparte, una vez, sin bloquear el dashboard.
+  useEffect(() => {
+    if (!token) return
+    let activo = true
+    api.get('/clubs/me/insight', { Authorization: `Bearer ${token}` })
+      .then((r) => { if (activo) setInsight(r?.texto || null) })
+      .catch(() => { if (activo) setInsight(null) })
+      .finally(() => { if (activo) setInsightLoading(false) })
+    return () => { activo = false }
   }, [token])
 
   // Permisos: 'caja' = ingresos/totales (SENSIBLE) · 'ventas o caja' = estado de cobro/deuda
@@ -131,6 +145,29 @@ const DashboardPage = () => {
           </div>
         )}
       </div>
+
+      {/* ── Insight del día con IA (Court Noir: oscuro + neón lima, marca PadelwIArk) ── */}
+      {(insightLoading || insight) && (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/60 p-5 shadow-sm">
+          <div className="absolute -right-8 -top-8 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl" />
+          <div className="relative flex items-center gap-2 mb-2.5">
+            <span className="w-7 h-7 rounded-lg bg-brand-500/20 flex items-center justify-center shrink-0">
+              <Sparkles size={15} className="text-brand-400" />
+            </span>
+            <span className="text-sm font-semibold text-white">Insight del día</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-brand-400 bg-brand-500/15 px-2 py-0.5 rounded-full">IA · PadelwIArk</span>
+          </div>
+          {insightLoading ? (
+            <div className="relative flex flex-col gap-2 mt-1">
+              <div className="h-3.5 bg-white/10 rounded animate-pulse w-3/4" />
+              <div className="h-3.5 bg-white/10 rounded animate-pulse w-1/2" />
+              <span className="text-[11px] text-white/30 mt-1">Analizando los números del club…</span>
+            </div>
+          ) : (
+            <p className="relative text-white/90 text-sm md:text-[15px] leading-relaxed">{insight}</p>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

@@ -1,8 +1,17 @@
 # Features — Estado actual
 
-**Actualizado:** 2026-06-21 (rediseño dashboard admin)
+**Actualizado:** 2026-06-21 (Insight del día con IA — primer feature de IA)
 
 ---
+
+## IA (PadelwIArk) ✅ Primer feature en producción
+
+- **Insight del día con IA** — tarjeta en el dashboard admin con una recomendación de negocio accionable en rioplatense, generada por **Claude Haiku 4.5**
+- Grounded en **agregados reales del club** (ocupación de hoy, tendencia de reservas 7d vs semana previa, deuda por cobrar) — **sin PII** (no se mandan nombres de jugadores)
+- Backend `lib/insight.js` (`gatherInsightData` + `generarInsightIA`) + endpoint `GET /clubs/me/insight` (**solo dueño**, `requireOwner`)
+- **Cache 24h** en `club.config.insightDelDia` → 1 llamada a la IA por club por día (~$0.0003 c/u)
+- Frontend: carga async con shimmer, estética Court Noir (neón lima + chip "IA · PadelwIArk"); 403/error → la tarjeta no se muestra
+- **Pendiente**: gating como feature premium por plan; capa de abstracción de proveedor; A/B Haiku vs Sonnet
 
 ## Reservas / Turnos ✅ Completo
 

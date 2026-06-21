@@ -4,6 +4,7 @@ import { requireAuth, requireRole, requireOwner } from '../middleware/auth.js'
 import { tienePermiso } from '../lib/permisos.js'
 import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg } from '../lib/tiempo.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
+import { gatherInsightData, generarInsightIA } from '../lib/insight.js'
 
 const router = Router()
 
@@ -216,6 +217,31 @@ router.get('/me/dashboard', requireAuth, requireRole('admin'), async (req, res) 
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al calcular el dashboard' })
+  }
+})
+
+// GET /api/clubs/me/insight — "Insight del día" con IA (solo dueño). Cacheado 24h por club.
+router.get('/me/insight', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const hoyStr = hoyArgStr()
+    const club = await prisma.club.findUnique({ where: { id: clubId }, select: { config: true } })
+    const cache = club?.config?.insightDelDia
+    // Cache: si ya generamos el insight hoy, lo devolvemos sin volver a llamar a la IA.
+    if (cache && cache.fecha === hoyStr && cache.texto) {
+      return res.json({ texto: cache.texto, fecha: cache.fecha, cacheado: true })
+    }
+    const data = await gatherInsightData(clubId)
+    const { texto } = await generarInsightIA(data)
+    // Guardar en config (preservando el resto de la config del club)
+    await prisma.club.update({
+      where: { id: clubId },
+      data: { config: { ...(club?.config || {}), insightDelDia: { fecha: hoyStr, texto } } },
+    })
+    res.json({ texto, fecha: hoyStr, cacheado: false })
+  } catch (err) {
+    console.error('Error insight IA:', err.message)
+    res.status(500).json({ error: 'No se pudo generar el insight' })
   }
 })
 

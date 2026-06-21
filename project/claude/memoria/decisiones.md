@@ -2,13 +2,23 @@
 
 ---
 
+## [2026-06-21] IA — proveedor, modelo y privacidad del "Insight del día"
+
+- **Proveedor/modelo:** Anthropic **Claude Haiku 4.5** (`claude-haiku-4-5`) vía SDK oficial `@anthropic-ai/sdk`. Cuenta Individual de Luca con $5 de crédito y **auto-recarga OFF** (techo de gasto duro). API key fuera del repo (`.env` local hoy, env vars de Railway en prod). Para Haiku se llama `messages.create` **plano** (sin `effort`/`thinking`, que dan error en ese modelo).
+- **Privacidad como argumento de venta:** a la IA se le mandan **solo agregados** (ocupación, tendencias, deuda total), **nunca PII** (sin nombres de jugadores). Se **descartaron los free tiers que entrenan con la data** del usuario (Gemini/Mistral free).
+- **Costo/arquitectura:** el insight se **cachea 24h** por club → 1 llamada por club por día (~$0.0003 c/u). Grounded en data real para minimizar alucinación.
+
+**Motivo:** El insight es el **wedge** de IA: barato, demostrable y con baja alucinación por estar atado a data real del dashboard. Privacidad real (agregados, no PII) es vendible a clubes y descarta de entrada proveedores que entrenan con la data. Techo de gasto duro evita sorpresas de facturación en esta etapa. Capa de abstracción de proveedor queda **pendiente** (no casarse con uno). Ver [[project_insight_dia_ia]].
+
+---
+
 ## [2026-06-21] "Insight del día con IA" — primer ladrillo de IA del SaaS, feature premium
 
-- El dashboard admin queda preparado para un bloque de **"Insight del día con IA"**: un resumen/recomendación en lenguaje natural **grounded en la data del propio dashboard** (% ocupación, agenda, tendencia 7d, cobros).
-- Será el **primer ladrillo de IA** del producto y se ofrecerá como **feature premium** (no en planes inferiores).
-- **NO se construyó en este bloque.** El rediseño del dashboard dejó la data y el lugar; la IA va en un bloque posterior.
+- **CONSTRUIDO (2026-06-21):** tarjeta "Insight del día" en el dashboard admin con **una recomendación de negocio** en lenguaje natural **grounded en la data del propio dashboard** (% ocupación, tendencia 7d, deuda por cobrar), generada por Claude Haiku 4.5.
+- Es el **primer ladrillo de IA** del producto. Hoy es **solo-dueño** (`requireOwner`); el gating como **feature premium por plan** queda pendiente.
+- Secuencia de IA planeada: **insight → chat → voz**.
 
-**Motivo:** El upsell premium del SaaS se apoya en diferenciales reales (IA, MercadoPago, políticas), no en higiene de mercado. El dashboard ya genera la data estructurada que un insight necesitaría, así que es el punto natural para enchufar el primer feature de IA sin inventar fuentes nuevas. Coherente con la marca PadelwIArk (IA embebida). Ver [[project_dashboard_resumen_admin]].
+**Motivo:** El upsell premium del SaaS se apoya en diferenciales reales (IA, MercadoPago, políticas), no en higiene de mercado. El dashboard ya genera la data estructurada que el insight necesita, así que fue el punto natural para enchufar el primer feature de IA sin inventar fuentes nuevas. Coherente con la marca PadelwIArk (IA embebida). Ver [[project_insight_dia_ia]] y [[project_dashboard_resumen_admin]].
 
 ---
 

@@ -1,6 +1,18 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-21 — Rediseño del dashboard admin: de 6 tarjetas estáticas a panel "pulso del club en tiempo real" (% ocupación, agenda de hoy, tendencia 7d, cobros accionables) con gating de datos financieros por permiso + ítem "Resumen" en el sidebar + rediseño de notificaciones por tipo
+**Última actualización:** 2026-06-21 — Primer feature de IA de PadelwIArk en producción: "Insight del día con IA" (Claude Haiku 4.5) — recomendación de negocio diaria grounded en agregados del club (sin PII), cacheada 24h, solo-dueño, estética Court Noir en el dashboard admin
+
+---
+
+## "Insight del día con IA" — primer ladrillo de IA de PadelwIArk (2026-06-21)
+
+Se construyó y dejó andando e2e en `main` el **primer feature de IA** del SaaS: una tarjeta "Insight del día" en el dashboard admin que muestra **una recomendación de negocio accionable** en rioplatense, generada por **Claude Haiku 4.5** a partir de agregados reales del club (ocupación de hoy, tendencia de reservas 7d vs semana previa, deuda por cobrar). Es el wedge de IA elegido a propósito: **grounded en data real** (poca alucinación), barato (~$0.0003 por insight) y demostrable. Se montó la infraestructura de IA del backend de cero (cuenta Anthropic, SDK, API key fuera del repo) y se respetó privacidad como argumento de venta: **se mandan solo agregados, nunca PII** (sin nombres de jugadores). Cierra el PENDIENTE que el bloque del dashboard había dejado abierto. Ver [[project_insight_dia_ia]], [[project_dashboard_resumen_admin]] y [[project_padelwiark_marca]].
+
+- **Infraestructura de IA (montada hoy):** cuenta en console.anthropic.com (Individual, $5 de crédito, **auto-recarga OFF** → no puede sobregastar). `ANTHROPIC_API_KEY` en `project/apps/backend/.env` (**NO en el repo**; en prod va a env vars de Railway). SDK oficial `@anthropic-ai/sdk` v0.105 instalado en el backend. Modelo **Claude Haiku 4.5** (`claude-haiku-4-5`, $1/$5 por millón). Nota técnica: para Haiku se usa `messages.create` **plano** — `effort`/`thinking` tiran error en ese modelo.
+- **Backend (`lib/insight.js`, nuevo):** `gatherInsightData(clubId)` junta agregados del club (ocupación de hoy, tendencia de reservas 7d vs semana previa, deuda por cobrar) — **solo agregados, sin PII**. `generarInsightIA(data)` arma un prompt de "asesor de negocios de pádel" y llama a Haiku pidiendo **UNA** recomendación accionable en rioplatense (máx 35 palabras).
+- **Endpoint (`routes/clubs.js`):** `GET /me/insight`, **solo dueño** (`requireOwner`). **Cachea el insight 24h** en `club.config.insightDelDia` (`{fecha, texto}`) → **1 llamada a la IA por club por día**, no por carga: si ya existe el de hoy, lo devuelve sin pegarle a la IA.
+- **Frontend (`AdminDashboardPage.jsx`):** tarjeta "Insight del día" arriba del dashboard, estética **Court Noir** (oscuro + neón lima, marca PadelwIArk, icono `Sparkles` + chip "IA · PadelwIArk"). Carga **async** (no bloquea el dashboard), con shimmer mientras genera. Si el backend devuelve **403** (empleado no dueño) o error, la tarjeta **no se muestra**.
+- **PENDIENTE (no bloqueante):** gating como **feature premium** (hoy es solo-dueño, sin gating de plan); **capa de abstracción** (Vercel AI SDK / OpenRouter) para no casarse con un proveedor; **A/B Haiku vs Sonnet** para calibrar tono. Secuencia futura de IA: insight → chat → voz.
 
 ---
 

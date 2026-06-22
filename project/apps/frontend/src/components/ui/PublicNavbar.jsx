@@ -7,6 +7,7 @@ const navLinks = [
   { to: '/#quienes-somos', label: 'Quiénes Somos' },
   { to: '/#reservas', label: 'Reservas' },
   { to: '/torneos', label: 'Torneos', route: true },
+  { to: '/eventos', label: 'Americano y Super 8', route: true },
   { to: '/#contacto', label: 'Contacto' },
 ]
 

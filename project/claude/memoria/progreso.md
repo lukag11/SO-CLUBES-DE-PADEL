@@ -1,6 +1,19 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-21 — Primer feature de IA de PadelwIArk en producción: "Insight del día con IA" (Claude Haiku 4.5) — recomendación de negocio diaria grounded en agregados del club (sin PII), cacheada 24h, solo-dueño, estética Court Noir en el dashboard admin
+**Última actualización:** 2026-06-21 — Herramienta pública self-service "Americano y Super 8": arma fixture + ranking en vivo desde el celu, sin login. Motor client-side con validación real (Americano a N puntos gana x2 / Super 8 set de pádel). Estética Court Noir + banner promocional en la landing del club
+
+---
+
+## Herramienta pública "Americano y Super 8" — self-service sin login (2026-06-21)
+
+Se construyó una **herramienta gratuita y pública** (`/eventos`, sin login, client-side) para que los **visitantes del club** armen su propio Americano o Super 8 desde el celular: cargan jugadores/parejas, se genera el fixture y se lleva el **ranking en vivo** mientras cargan resultados. Es un **wedge de marketing** de PadelwIArk (cara pública de la marca, "gratis") que no le roba tiempo al dueño/admin. Decisión de arranque: versión **simple en el celu** (estado en `localStorage`, dato social transitorio — NO data de negocio, excepción consciente a la regla anti-localStorage); el "link compartido multi-dispositivo" queda para el futuro (requiere backend). El diseño lo elevó un agente de diseño frontend senior al sistema **Court Noir** (oscuro premium + neón lima, Space Grotesk, JetBrains Mono en los números). Ver [[project_americano_super8]].
+
+- **Motor (`lib/eventos.js`, nuevo):** `generarFixtureAmericano(jugadores, canchas, puntosLimite=21)` — rotación greedy (cada uno juega con/contra la mayor variedad). `generarFixtureSuper8(parejas, canchas)` — round-robin circle-method (todos contra todos). `rankingAmericano` (suma de puntos individuales) y `rankingSuper8` (PG → dif. de games). **Validadores con reglas reales:** `validarPartidoAmericano(a,b,limite)` — se juega a N puntos y se gana por **diferencia de 2** (llega al límite con dif≥2, o se extiende exacto a +2 si se empata cerca); `validarSetPadel(a,b)` — **un set** de pádel (6-0…6-4, 7-5, 7-6; rechaza 6-5, 8-6). Los rankings **ignoran resultados inválidos** hasta que se corrigen. Probado con suite de casos (regla de 2, sets, ranking salteando inválidos) → todo verde.
+- **Modalidades (definición de Luca, no la del bibliotecario):** **Americano** = inscripción individual, parejas rotan, **por puntos** (límite configurable: 16/21/24/32 o el que ponga), ranking individual. **Super 8** = pareja fija, todos contra todos, **un solo set** validado, ranking por pareja. Se usan los **nombres reales** (AMERICANO / SUPER 8) a pedido de Luca para que el jugador lo entienda al toque.
+- **Página (`pages/EventosPage.jsx`, nueva):** mobile-first, Court Noir. **Setup** (cards de modalidad, carga dinámica de jugadores/parejas, stepper de canchas, campo "Puntos por partido" solo-Americano con presets) + acordeón **"¿Cómo funciona?"** explicando reglas por modalidad. **Jugar**: ranking en vivo (el #1 premiado con corona + glow), rondas con inputs de marcador tipo scoreboard (JetBrains Mono, 48×48px), hint por partido (`a 21 · gana x2` / `1 set`), **ganador resaltado en lima con corona**, e inválido en **rojo con motivo** (no suma al ranking).
+- **Ruta (`router/index.jsx`):** `/eventos` como ruta pública **standalone** (fuera de `PublicLayout` → sin navbar del club, pantalla completa enfocada). Decisión consensuada con Luca.
+- **Descubrimiento desde el club:** ítem **"Americano y Super 8"** en el navbar público (`PublicNavbar.jsx`, desktop + mobile) + **banner promocional** en la landing. Banner = componente reutilizable **`AmericanoSuper8Section`** (`features/landing/LandingSections.jsx`) insertado en los **5 templates** después de Reservas; respeta `colorPrimario` + `dark` (claro/oscuro) del club, con CTA "Armá tu evento" → `/eventos`.
+- **PENDIENTE (no bloqueante):** link compartido multi-dispositivo con ranking en vivo (requiere backend); Americano con jugadores no-múltiplos de 4 (bye + promedio de puntos). Ambos diferidos por Luca.
 
 ---
 

@@ -29,6 +29,7 @@ import ProfesorAgendaPage from '../pages/ProfesorAgendaPage'
 import ProfesorDisponibilidadPage from '../pages/ProfesorDisponibilidadPage'
 import TorneoPublicoPage from '../pages/TorneoPublicoPage'
 import TorneosPublicosPage from '../pages/TorneosPublicosPage'
+import EventosPage from '../pages/EventosPage'
 import JugadoresAdminPage from '../pages/JugadoresAdminPage'
 import ClasesProfesorAdminPage from '../pages/ClasesProfesorAdminPage'
 import AdminSponsorsPage from '../pages/AdminSponsorsPage'
@@ -131,6 +132,9 @@ const router = createBrowserRouter([
   // Ruta pública del torneo (seguimiento sin login)
   { path: '/torneos', element: <TorneosPublicosPage /> },
   { path: '/torneos/:id', element: <TorneoPublicoPage /> },
+
+  // Herramienta pública self-service: Americano / Super 8 (sin login)
+  { path: '/eventos', element: <EventosPage /> },
 
   // Redirects de rutas viejas → nuevas (compatibilidad)
   { path: '/jugadores',           element: <Navigate to="/dashboardJugadores" replace /> },

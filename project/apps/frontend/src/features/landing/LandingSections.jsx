@@ -80,6 +80,75 @@ export const TorneoBanner = ({ colorPrimario = '#afca0b', dark = true }) => {
   )
 }
 
+// ─── AmericanoSuper8Section ───────────────────────────────────────────────────
+// Publicidad de la herramienta gratuita self-service (/eventos). Sin login.
+// Respeta colorPrimario + dark para encajar en cualquier template.
+export const AmericanoSuper8Section = ({ colorPrimario = '#afca0b', dark = true }) => {
+  const navigate = useNavigate()
+
+  const modos = [
+    { icon: Zap, titulo: 'Americano', desc: 'Jugás con todos, las parejas rotan. Ranking individual.' },
+    { icon: Users, titulo: 'Super 8', desc: 'Parejas fijas, todos contra todos. Ranking por pareja.' },
+  ]
+
+  return (
+    <section id="americano-super8" className="py-14 px-6 relative overflow-hidden"
+      style={{ background: dark ? 'linear-gradient(135deg,#0a0a12 0%,#0d1117 100%)' : 'linear-gradient(135deg,#f1f5f9 0%,#ffffff 100%)' }}>
+      <div className="max-w-5xl mx-auto">
+        <div className={`relative rounded-3xl overflow-hidden border p-8 md:p-10 ${dark ? 'border-white/8 bg-white/3' : 'border-slate-200 bg-white shadow-sm'}`}>
+          <div className="absolute -top-24 -right-10 w-96 h-96 rounded-full blur-3xl pointer-events-none" style={{ backgroundColor: colorPrimario, opacity: 0.08 }} />
+
+          <div className="relative flex flex-col md:flex-row gap-8 md:items-center">
+            {/* Pitch */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] px-2 py-1 rounded-full"
+                  style={{ color: colorPrimario, backgroundColor: `${colorPrimario}18`, border: `1px solid ${colorPrimario}30` }}>
+                  Gratis · sin registrarte
+                </span>
+              </div>
+              <h2 className={`text-2xl md:text-3xl font-bold leading-tight ${dark ? 'text-white' : 'text-slate-900'}`}>
+                Armá tu <span style={{ color: colorPrimario }}>Americano</span> o <span style={{ color: colorPrimario }}>Super 8</span>
+              </h2>
+              <p className={`text-sm md:text-base mt-3 leading-relaxed ${dark ? 'text-white/50' : 'text-slate-600'}`}>
+                ¿Se juntan a jugar? Organizá el fixture y llevá el ranking en vivo desde el celu, en segundos. Sin planillas, sin cuentas.
+              </p>
+
+              {/* Modalidades */}
+              <div className="grid sm:grid-cols-2 gap-3 mt-6">
+                {modos.map(({ icon: Icon, titulo, desc }) => (
+                  <div key={titulo} className={`rounded-2xl p-4 border ${dark ? 'border-white/8 bg-white/4' : 'border-slate-200 bg-slate-50'}`}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${colorPrimario}18` }}>
+                        <Icon size={15} style={{ color: colorPrimario }} />
+                      </span>
+                      <span className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>{titulo}</span>
+                    </div>
+                    <p className={`text-xs leading-snug ${dark ? 'text-white/40' : 'text-slate-500'}`}>{desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* CTA */}
+            <div className="shrink-0 md:w-52">
+              <button onClick={() => navigate('/eventos')}
+                className="w-full font-bold py-4 px-6 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm"
+                style={{ backgroundColor: colorPrimario, color: '#080b0f', boxShadow: `0 12px 32px -10px ${colorPrimario}99` }}>
+                <Zap size={17} /> Armá tu evento
+              </button>
+              <p className={`text-[11px] text-center mt-3 ${dark ? 'text-white/30' : 'text-slate-400'}`}>
+                Listo en menos de un minuto
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 // ─── TorneosSection ──────────────────────────────────────────────────────────
 
 const DIAS_FLYER = 14

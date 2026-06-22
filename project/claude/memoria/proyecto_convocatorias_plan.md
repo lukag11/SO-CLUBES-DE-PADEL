@@ -4,7 +4,8 @@
 
 ## Avance por bloques
 - **Bloque 1 — Fundación: ✅ HECHO (2026-06-22).** Modelos `Convocatoria` + `ConvocatoriaCupo` migrados (additivo, `db push`). Reutiliza `Jugador.posicion` (Drive/Revés/Ambas) — NO se agregó campo nuevo (ya existía). `ConvocatoriaCupo.posicion` opcional para capturar lado en el evento/no-registrados. Router `routes/convocatorias.js` montado en `/api/convocatorias`: `POST /` (crear, admin), `GET /` (listar con conteo voy/espera, admin), `GET /:id` (detalle con anotados), `POST /:id/voy` (sumarse, cupo o espera, bajo `runSerializable`), `POST /:id/baja` (bajarse + promueve primero en espera), `PATCH /:id/estado` (admin). Cupo/espera/promote probados e2e. De paso se limpió un drift de DB (columna muerta `requiereAprobManual` en jugadores, sin uso → dropeada con OK de Luca).
-- **Bloque 2 — Canal + descubrimiento:** PENDIENTE. Mensaje WhatsApp + link público "Voy" + notif in-app por categoría + botón "Convocar" desde WIarky.
+- **Bloque 2 — Canal + descubrimiento:** EN CURSO. Link público de descubrimiento + mensaje WhatsApp + notif in-app por categoría + botón "Convocar" desde WIarky.
+  - **DECISIÓN (Luca, 2026-06-22): anotarse REQUIERE login (jugador registrado).** El link público es para **descubrir/ver** la convocatoria (cualquiera la abre); para anotarse hay que iniciar sesión o registrarse. Motivo: el "Voy" anónimo por nombre libre = sin accountability → truchos, no-shows, quilombo en la cancha. Login da identidad real + permite trackear no-shows, y **cada convocatoria crece la base de jugadores registrados** (el objetivo del módulo). El admin puede agregar invitados a mano (él responde por ellos). El anónimo se descarta. Alinea con Playtomic/MATCHi (unirse con cuenta).
 - **Bloque 3 — Cierre del loop:** PENDIENTE. Deadline + política → fixture (`lib/eventos.js`, con balanceo por `posicion` drive/revés) + reserva canchas.
 - **Bloque 4 — UI admin:** PENDIENTE.
 - **Bloque 5 — QA + pulido:** PENDIENTE.
@@ -61,10 +62,13 @@ crear con rango de nivel → descubrir por lista filtrada → unirse → **organ
 
 **Ancla de compromiso (sin MercadoPago todavía):** estado "confirmado" + registro de no-shows. A futuro, `Cargo` (como torneos) para cobrar seña.
 
-## FASE B — Matching jugador→jugador (capa viral, necesita densidad)
-- En el dash jugador: "Armar / Buscar partido" → abrir Americano/Super 8 de su categoría (**±1**), invitar/alertar a perfiles compatibles, otros se suman.
-- Reusa todo lo de Fase A (modelo, RSVP, fixture). Cambia el creador (jugador) y el descubrimiento (lista de partidas abiertas filtrada por categoría/horario).
-- **No lanzar con la base vacía** — quema la feature. Activar cuando los clubes tengan densidad demostrada.
+## FASE B — Matching jugador→jugador (capa viral) — idea de Luca 2026-06-22
+- **El jugador organiza su propio Americano/Super 8 sin depender del admin.** Sección dedicada **"Eventos" en el sidebar del jugador** (organizar + mis eventos + descubrir abiertos). Hoy "Mis eventos" vive en el resumen del dash; la sección dedicada es el hogar de Fase B.
+- **GUARDRAIL CLAVE (Luca): solo se puede organizar si hay disponibilidad real** — ej. un Super 8 necesita dos canchas a la misma hora. Se valida con `gatherDisponibilidad` antes de dejar crear. Ata la creación a la realidad de las canchas.
+- **Reusa toda la maquinaria de Fase A** (modelo, RSVP, fixture). Solo cambia el creador (jugador) y el descubrimiento. → **Construir DESPUÉS del Bloque 3** (cierre del loop), porque la reserva-de-canchas-al-confirmar es la misma; hacer Fase B antes duplicaría esa lógica.
+- **Responsabilidad / canchas:** las canchas se reservan **recién al llenarse** (no al abrir el evento), y el **organizador queda responsable** (a su nombre, como una reserva). Evita que un jugador bloquee canchas porque sí. Anti-abuso: límite de eventos activos por jugador, etc.
+- **Matching por categoría ±1** para no matar el match por falta de gente. **Liquidez:** Fase B normalmente la necesita, pero el caso de Luca la resuelve — el organizador trae su grupo por el link de WhatsApp.
+- **No lanzar con la base vacía** como descubrimiento masivo; pero el "organizá con tu grupo" funciona aun con red chica.
 
 ---
 

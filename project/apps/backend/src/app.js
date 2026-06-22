@@ -22,6 +22,7 @@ import devResetRouter from './routes/dev-reset.js'
 import platformRouter from './routes/platform.js'
 import empleadosRouter from './routes/empleados.js'
 import convocatoriasRouter from './routes/convocatorias.js'
+import convocatoriasPublicasRouter from './routes/convocatorias-publicas.js'
 import { requireAuth, requireRole, requireFeature, requireClubActivo, requirePermiso } from './middleware/auth.js'
 
 const app = express()
@@ -65,6 +66,7 @@ app.use('/api/sponsors', requireAuth, requireRole('admin'), requireFeature('spon
 app.use('/api/dev', devResetRouter)
 app.use('/api/platform', platformRouter)
 app.use('/api/empleados', empleadosRouter)
+app.use('/api/convocatorias/publica', convocatoriasPublicasRouter) // público (sin auth) — debe ir ANTES del router autenticado
 app.use('/api/convocatorias', requireAuth, requireClubActivo, convocatoriasRouter)
 
 export default app

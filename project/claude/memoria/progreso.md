@@ -1,6 +1,20 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-22 — Arrancó el **módulo Convocatorias** (loop social del club). Bloque 1 (fundación) hecho: modelos `Convocatoria` + `ConvocatoriaCupo` migrados + endpoints core (crear/listar/ver/Voy/baja/estado) con cupos + lista de espera + promote, bajo Serializable.
+**Última actualización:** 2026-06-22 — Convocatorias Bloque 2 (canal + descubrimiento, en curso): página pública `/convocatoria/:id` (ver sin login, anotarse con login), `/eventos` convertido en HUB (Jugá ahora + Eventos del club), endpoints públicos, baja con promote, y "Mis eventos" en el dash jugador. Decisión: anotarse REQUIERE login (accountability + crece la red).
+
+---
+
+## Módulo Convocatorias — Bloque 2: canal + descubrimiento (en curso) (2026-06-22)
+
+Se construyó la cara pública del módulo: el **link que circula por WhatsApp** y el **descubrimiento**. Decisión de producto clave (con Luca): **anotarse REQUIERE login** de jugador registrado — el "Voy" anónimo por nombre libre genera quilombo (sin accountability → no-shows, truchos, jugadores de más en la cancha); con login hay identidad real, se puede trackear no-shows, y **cada convocatoria crece la base de jugadores** (el objetivo del módulo). El link público es solo para **ver/descubrir**. Ver [[proyecto_convocatorias_plan]].
+
+- **Página pública (`pages/ConvocatoriaPublicaPage.jsx`, ruta `/convocatoria/:id`, standalone Court Noir):** ver la convocatoria sin login (modalidad, categoría, fecha, hora, barra de cupos). Logueado como jugador → botón **"¡Voy!"** (cupo o lista de espera) y, si ya está anotado, muestra el estado al entrar + botón **"Ya no voy"** (baja → promueve al primero en espera). Sin login → CTA "Iniciá sesión para anotarte".
+- **`/eventos` ahora es un HUB "Americano y Super 8"** (`EventosPage.jsx`) con dos caminos: **"Jugá ahora"** (la herramienta instantánea de fixture/ranking de siempre) y **"Sumate a un evento del club"** (lista de convocatorias abiertas). Unifica organizar ↔ jugar bajo un mismo techo (idea de Luca). El navbar del club ("Americano y Super 8") cae acá.
+- **Endpoints públicos (`routes/convocatorias-publicas.js`, montado en `/api/convocatorias/publica` ANTES del router autenticado):** `GET /:id` (detalle público, agregados sin PII) + `GET /club/:slug` (lista de abiertas del club, de hoy en adelante).
+- **Endpoints jugador (en `routes/convocatorias.js`):** `GET /:id/mi-estado` (¿estoy anotado?) + `GET /mias` (mis convocatorias voy/espera) — `/mias` definido ANTES de `/:id` para no quedar sombreado.
+- **"Mis eventos" en el dash jugador (`PlayerDashboardPage.jsx`):** tarjeta con las convocatorias donde el jugador está anotado (chip Anotado/En espera), link a la página. Solo aparece si tiene al menos uno.
+- **DECISIÓN futura anotada (Luca): Fase B = el JUGADOR organiza** su propio Americano/Super 8 sin depender del admin, **con guardrail de disponibilidad real** (ej. 2 canchas a la misma hora, validado con `gatherDisponibilidad`). Sección "Eventos" en el sidebar jugador. Se construye DESPUÉS del Bloque 3 (reusa la reserva-de-canchas-al-confirmar). Detalle en [[proyecto_convocatorias_plan]].
+- **PENDIENTE Bloque 2:** (C) mensaje de WhatsApp con el link (motor IA) + (D) notif in-app a jugadores de la categoría. Luego Bloque 3 (cierre del loop: fixture + reserva canchas).
 
 ---
 

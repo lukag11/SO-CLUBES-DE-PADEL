@@ -1,0 +1,183 @@
+import { useState, useEffect } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { Trophy, Users, Repeat, Zap, CalendarDays, Clock, MapPin, Check, LogIn } from 'lucide-react'
+import { api } from '../lib/api'
+import usePlayerStore from '../store/playerStore'
+
+// Página PÚBLICA de una convocatoria (lo que se abre desde el link de WhatsApp).
+// Ver = cualquiera. Anotarse ("Voy") = requiere login de jugador (decisión de producto).
+const C = { bg: '#0a0f0d', surface: '#141c18', line: 'rgba(244,245,239,0.08)', lima: '#afca0b', neon: '#d4ff3f', cream: '#f4f5ef', muted: '#9ba89f' }
+const FONT_DISPLAY = "'Space Grotesk', sans-serif"
+const FONT_MONO = "'JetBrains Mono', monospace"
+
+const fmtFecha = (f) => {
+  if (!f) return ''
+  const [y, m, d] = f.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
+export default function ConvocatoriaPublicaPage() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const isAuth = usePlayerStore((s) => s.isAuthenticated)
+  const token = usePlayerStore((s) => s.token)
+
+  const [conv, setConv] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [anotando, setAnotando] = useState(false)
+  const [miEstado, setMiEstado] = useState(null) // 'voy' | 'espera' tras anotarme
+
+  const cargar = () => {
+    api.get(`/convocatorias/publica/${id}`)
+      .then((c) => setConv(c))
+      .catch(() => setError('No encontramos esta convocatoria.'))
+      .finally(() => setLoading(false))
+  }
+  useEffect(() => { cargar() }, [id])
+
+  // Si estoy logueado, ver si ya estoy anotado (para mostrar el estado al entrar/recargar)
+  useEffect(() => {
+    if (!isAuth || !token) return
+    api.get(`/convocatorias/${id}/mi-estado`, { Authorization: `Bearer ${token}` })
+      .then((r) => setMiEstado(r?.estado || null))
+      .catch(() => {})
+  }, [id, isAuth, token])
+
+  const anotarme = () => {
+    if (anotando) return
+    setAnotando(true)
+    setError('')
+    api.post(`/convocatorias/${id}/voy`, {}, { Authorization: `Bearer ${token}` })
+      .then((r) => { setMiEstado(r?.estado || 'voy'); cargar() })
+      .catch((e) => setError(e?.message || 'No se pudo anotar.'))
+      .finally(() => setAnotando(false))
+  }
+
+  const bajarme = () => {
+    if (anotando) return
+    setAnotando(true)
+    setError('')
+    api.post(`/convocatorias/${id}/baja`, {}, { Authorization: `Bearer ${token}` })
+      .then(() => { setMiEstado(null); cargar() })
+      .catch((e) => setError(e?.message || 'No se pudo dar de baja.'))
+      .finally(() => setAnotando(false))
+  }
+
+  if (loading) return <Centro><p style={{ color: C.muted }}>Cargando…</p></Centro>
+  if (error && !conv) return <Centro><p style={{ color: C.muted }}>{error}</p></Centro>
+
+  const esAmericano = conv.modalidad !== 'super8'
+  const Icon = esAmericano ? Repeat : Users
+  const cerrada = conv.estado !== 'abierta'
+  const lleno = conv.lugares <= 0
+
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: C.bg, color: C.cream }}>
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-64" style={{ background: `radial-gradient(60% 100% at 50% 0%, rgba(175,202,11,0.10), transparent 70%)` }} />
+      <div className="relative max-w-md mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex items-center gap-2.5 mb-6">
+          <span className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0" style={{ background: `linear-gradient(140deg, ${C.lima}, ${C.neon})`, boxShadow: `0 8px 24px -6px rgba(175,202,11,0.5)` }}>
+            <Trophy size={19} style={{ color: C.bg }} strokeWidth={2.4} />
+          </span>
+          <div>
+            <p className="text-sm font-bold leading-tight" style={{ color: C.cream, fontFamily: FONT_DISPLAY }}>{conv.club}</p>
+            <p className="text-[11px] leading-tight" style={{ color: C.muted }}>te invita a jugar</p>
+          </div>
+        </div>
+
+        {/* Tarjeta */}
+        <div className="rounded-3xl p-5" style={{ backgroundColor: C.surface, border: `1px solid ${C.line}` }}>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-9 h-9 rounded-xl grid place-items-center" style={{ backgroundColor: 'rgba(175,202,11,0.15)' }}>
+              <Icon size={18} style={{ color: C.lima }} />
+            </span>
+            <div>
+              <h1 className="text-lg font-bold leading-tight" style={{ color: C.cream, fontFamily: FONT_DISPLAY }}>
+                {esAmericano ? 'Americano' : 'Super 8'}
+              </h1>
+              {conv.categorias?.length > 0 && (
+                <p className="text-xs" style={{ color: C.lima }}>{conv.categorias.join(' · ')}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 mb-4">
+            <Dato icon={CalendarDays} texto={fmtFecha(conv.fecha)} />
+            <Dato icon={Clock} texto={`${conv.horaInicio} hs`} />
+            <Dato icon={MapPin} texto={`${conv.canchas} ${conv.canchas === 1 ? 'cancha' : 'canchas'}`} />
+          </div>
+
+          {/* Cupos */}
+          <div className="rounded-2xl p-3.5 mb-4" style={{ backgroundColor: 'rgba(244,245,239,0.04)', border: `1px solid ${C.line}` }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold" style={{ color: C.muted }}>Anotados</span>
+              <span className="text-sm font-bold tabular-nums" style={{ fontFamily: FONT_MONO, color: C.cream }}>{conv.voy} / {conv.cupoMax}</span>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(244,245,239,0.08)' }}>
+              <div className="h-full rounded-full" style={{ width: `${Math.min(100, (conv.voy / conv.cupoMax) * 100)}%`, background: `linear-gradient(90deg, ${C.lima}, ${C.neon})` }} />
+            </div>
+            <p className="text-[11px] mt-2" style={{ color: C.muted }}>
+              {lleno ? `Cupos llenos · ${conv.espera} en lista de espera` : `${conv.lugares} ${conv.lugares === 1 ? 'lugar' : 'lugares'} disponibles`}
+            </p>
+          </div>
+
+          {/* CTA */}
+          {miEstado ? (
+            <div className="flex flex-col gap-2">
+              <div className="rounded-2xl py-3.5 px-4 text-center" style={{ backgroundColor: 'rgba(175,202,11,0.12)', border: `1px solid ${C.lima}` }}>
+                <p className="text-sm font-bold flex items-center justify-center gap-1.5" style={{ color: C.lima }}>
+                  <Check size={16} /> {miEstado === 'voy' ? '¡Estás anotado!' : 'Estás en lista de espera'}
+                </p>
+              </div>
+              <button onClick={bajarme} disabled={anotando}
+                className="py-2.5 rounded-xl text-xs font-semibold transition-all active:scale-[0.98] disabled:opacity-60"
+                style={{ color: C.muted, backgroundColor: 'rgba(244,245,239,0.04)', border: `1px solid ${C.line}` }}>
+                {anotando ? 'Procesando…' : 'Ya no voy (bajarme)'}
+              </button>
+            </div>
+          ) : cerrada ? (
+            <div className="rounded-2xl py-3.5 text-center text-sm" style={{ backgroundColor: 'rgba(244,245,239,0.04)', color: C.muted }}>
+              Esta convocatoria está cerrada.
+            </div>
+          ) : isAuth ? (
+            <button onClick={anotarme} disabled={anotando}
+              className="w-full font-bold py-4 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ background: `linear-gradient(135deg, ${C.lima}, ${C.neon})`, color: C.bg, fontFamily: FONT_DISPLAY, boxShadow: `0 10px 30px -8px rgba(175,202,11,0.55)` }}>
+              <Zap size={18} strokeWidth={2.5} /> {anotando ? 'Anotándote…' : (lleno ? 'Anotarme a la espera' : '¡Voy!')}
+            </button>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <button onClick={() => navigate('/dashboardJugadores')}
+                className="w-full font-bold py-4 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                style={{ background: `linear-gradient(135deg, ${C.lima}, ${C.neon})`, color: C.bg, fontFamily: FONT_DISPLAY }}>
+                <LogIn size={17} /> Iniciá sesión para anotarte
+              </button>
+              <p className="text-[11px] text-center" style={{ color: C.muted }}>Necesitás tu cuenta del club para sumarte.</p>
+            </div>
+          )}
+
+          {error && <p className="text-[12px] text-center mt-2" style={{ color: '#ffb4ab' }}>{error}</p>}
+        </div>
+
+        <p className="text-center text-[11px] mt-6" style={{ color: 'rgba(155,168,159,0.55)' }}>
+          Organizado con <Link to="/" style={{ color: C.lima, fontWeight: 600 }}>PadelwIArk</Link>
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function Dato({ icon: Icon, texto }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <Icon size={15} style={{ color: C.muted }} className="shrink-0" />
+      <span className="text-sm capitalize" style={{ color: 'rgba(244,245,239,0.9)' }}>{texto}</span>
+    </div>
+  )
+}
+
+function Centro({ children }) {
+  return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#0a0f0d' }}>{children}</div>
+}

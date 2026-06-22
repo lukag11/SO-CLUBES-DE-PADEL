@@ -1,4 +1,4 @@
-import { Trophy, Swords, CheckCircle, XCircle, Flame, Target, TrendingUp, CalendarDays, ArrowRight, Clock, Repeat, X, Info, BarChart3, CalendarPlus, Wallet } from 'lucide-react'
+import { Trophy, Swords, CheckCircle, XCircle, Flame, Target, TrendingUp, CalendarDays, ArrowRight, Clock, Repeat, X, Info, BarChart3, CalendarPlus, Wallet, Users, Megaphone } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useState, useMemo } from 'react'
 import usePlayerStore from '../store/playerStore'
@@ -84,6 +84,15 @@ const PlayerDashboardPage = () => {
     api.get('/cargos/me', { Authorization: `Bearer ${token}` })
       .then((data) => { if (Array.isArray(data)) setDeudas(data.filter((c) => c.estado === 'pendiente')) })
       .catch(() => {})
+  }, [token])
+
+  // Convocatorias (Americano/Super 8) en las que me anoté
+  const [misEventos, setMisEventos] = useState([])
+  useEffect(() => {
+    if (!token) return
+    api.get('/convocatorias/mias', { Authorization: `Bearer ${token}` })
+      .then((data) => setMisEventos(Array.isArray(data) ? data : []))
+      .catch(() => setMisEventos([]))
   }, [token])
 
   // Carga mis reservas desde el backend al montar (fuente de verdad para "Próximas reservas")
@@ -232,6 +241,41 @@ const PlayerDashboardPage = () => {
           </button>
         ))}
       </div>
+
+      {/* ── Mis eventos (convocatorias Americano/Super 8 donde me anoté) ── */}
+      {misEventos.length > 0 && (
+        <div className="rounded-2xl overflow-hidden border border-club/25 bg-club/5">
+          <div className="px-5 py-3.5 flex items-center justify-between border-b border-white/6">
+            <div className="flex items-center gap-2">
+              <Megaphone size={15} className="text-club" />
+              <h3 className="text-white font-semibold text-sm">Mis eventos</h3>
+            </div>
+            <span className="text-white/40 text-xs">{misEventos.length}</span>
+          </div>
+          <div className="divide-y divide-white/5">
+            {misEventos.map((e) => {
+              const esAme = e.modalidad !== 'super8'
+              const fecha = new Date(`${e.fecha}T12:00:00`).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
+              return (
+                <button key={e.id} onClick={() => navigate(`/convocatoria/${e.id}`)}
+                  className="w-full px-5 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors text-left">
+                  <span className="w-9 h-9 rounded-xl bg-club/15 grid place-items-center shrink-0">
+                    {esAme ? <Repeat size={15} className="text-club" /> : <Users size={15} className="text-club" />}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium truncate">{esAme ? 'Americano' : 'Super 8'}{e.categorias?.length ? ` · ${e.categorias.join('/')}` : ''}</p>
+                    <p className="text-white/40 text-xs capitalize">{fecha} · {e.horaInicio} hs</p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${e.miEstado === 'voy' ? 'bg-club/15 text-club' : 'bg-amber-500/15 text-amber-400'}`}>
+                    {e.miEstado === 'voy' ? 'Anotado' : 'En espera'}
+                  </span>
+                  <ArrowRight size={15} className="text-white/30 shrink-0" />
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Widget deudas (solo si hay cargos pendientes) ── */}
       {deudas.length > 0 && (() => {

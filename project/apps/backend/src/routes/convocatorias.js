@@ -55,6 +55,28 @@ router.get('/', requireRole('admin'), async (req, res) => {
   }
 })
 
+// GET /api/convocatorias/mias — convocatorias en las que está anotado el jugador (voy/espera)
+router.get('/mias', requireRole('jugador'), async (req, res) => {
+  try {
+    const cupos = await prisma.convocatoriaCupo.findMany({
+      where: { jugadorId: req.user.id, estado: { in: ['voy', 'espera'] } },
+      include: { convocatoria: { include: { cupos: { select: { estado: true } } } } },
+      orderBy: { createdAt: 'desc' },
+    })
+    const out = cupos
+      .filter((c) => c.convocatoria && ['abierta', 'confirmada'].includes(c.convocatoria.estado))
+      .map((c) => {
+        const conv = c.convocatoria
+        const voy = conv.cupos.filter((x) => x.estado === 'voy').length
+        return { id: conv.id, modalidad: conv.modalidad, categorias: conv.categorias, fecha: conv.fecha, horaInicio: conv.horaInicio, cupoMax: conv.cupoMax, estado: conv.estado, voy, miEstado: c.estado }
+      })
+    res.json(out)
+  } catch (err) {
+    console.error('Error mis convocatorias:', err.message)
+    res.status(500).json({ error: 'Error al obtener tus eventos' })
+  }
+})
+
 // GET /api/convocatorias/:id — detalle con anotados (admin o jugador del club)
 router.get('/:id', async (req, res) => {
   const clubId = req.user.clubId
@@ -73,6 +95,20 @@ router.get('/:id', async (req, res) => {
   } catch (err) {
     console.error('Error detalle convocatoria:', err.message)
     res.status(500).json({ error: 'Error al obtener la convocatoria' })
+  }
+})
+
+// GET /api/convocatorias/:id/mi-estado — el jugador consulta si ya está anotado
+router.get('/:id/mi-estado', requireRole('jugador'), async (req, res) => {
+  try {
+    const cupo = await prisma.convocatoriaCupo.findFirst({
+      where: { convocatoriaId: req.params.id, jugadorId: req.user.id, estado: { not: 'baja' } },
+      select: { estado: true },
+    })
+    res.json({ estado: cupo?.estado ?? null })
+  } catch (err) {
+    console.error('Error mi-estado convocatoria:', err.message)
+    res.status(500).json({ error: 'Error' })
   }
 })
 

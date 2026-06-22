@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Trophy, Users, Repeat, Plus, Trash2, ArrowLeft, Crown, Zap, Minus, ChevronDown, HelpCircle, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Trophy, Users, Repeat, Plus, Trash2, ArrowLeft, Crown, Zap, Minus, ChevronDown, HelpCircle, CheckCircle2, AlertCircle, CalendarDays, Clock, ArrowRight, Megaphone } from 'lucide-react'
 import {
   generarFixtureAmericano, rankingAmericano, validarPartidoAmericano,
   generarFixtureSuper8, rankingSuper8, validarSetPadel,
 } from '../lib/eventos'
+import { api } from '../lib/api'
 
 // Herramienta pública self-service: un grupo arma su Americano o Super 8 desde el celu.
 // Estado client-side, persistido en localStorage (dato transitorio de un evento social, no
@@ -33,6 +35,8 @@ export default function EventosPage() {
   const [fixture, setFixture] = useState(() => {
     try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null } catch { return null }
   })
+  // Vista: 'hub' (elegir) | 'jugar' (la herramienta instantánea) | 'eventos' (convocatorias del club)
+  const [modo, setModo] = useState(fixture ? 'jugar' : 'hub')
 
   useEffect(() => {
     if (fixture) localStorage.setItem(LS_KEY, JSON.stringify(fixture))
@@ -41,59 +45,128 @@ export default function EventosPage() {
 
   const reset = () => { if (confirm('¿Empezar un evento nuevo? Se borra el actual.')) setFixture(null) }
 
+  const titulo = modo === 'jugar' ? 'Jugá ahora' : modo === 'eventos' ? 'Eventos del club' : 'Americano y Super 8'
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: C.bg, color: C.cream }}>
-      {/* Glow ambiental sutil */}
-      <div
-        className="pointer-events-none fixed inset-x-0 top-0 h-64"
-        style={{ background: `radial-gradient(60% 100% at 50% 0%, rgba(175,202,11,0.10), transparent 70%)` }}
-      />
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-64" style={{ background: `radial-gradient(60% 100% at 50% 0%, rgba(175,202,11,0.10), transparent 70%)` }} />
 
       <div className="relative max-w-2xl mx-auto px-4 py-6">
         <header className="flex items-center gap-3 mb-7">
-          <span
-            className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
-            style={{
-              background: `linear-gradient(140deg, ${C.lima}, ${C.neon})`,
-              boxShadow: `0 8px 24px -6px rgba(175,202,11,0.5)`,
-            }}
-          >
+          <span className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: `linear-gradient(140deg, ${C.lima}, ${C.neon})`, boxShadow: `0 8px 24px -6px rgba(175,202,11,0.5)` }}>
             <Trophy size={20} style={{ color: C.bg }} strokeWidth={2.4} />
           </span>
           <div className="min-w-0">
-            <h1
-              className="text-xl font-bold leading-tight"
-              style={{ fontFamily: FONT_DISPLAY, letterSpacing: '-0.02em', color: C.cream }}
-            >
-              Armá tu evento
-            </h1>
+            <h1 className="text-xl font-bold leading-tight" style={{ fontFamily: FONT_DISPLAY, letterSpacing: '-0.02em', color: C.cream }}>{titulo}</h1>
             <div className="flex items-center gap-2 mt-0.5">
-              <span
-                className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                style={{ color: C.lima, backgroundColor: 'rgba(175,202,11,0.12)', border: `1px solid ${C.line}` }}
-              >
-                PadelwIArk
-              </span>
-              <span className="text-xs leading-none" style={{ color: C.muted }}>Americano · Super 8 · gratis</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ color: C.lima, backgroundColor: 'rgba(175,202,11,0.12)', border: `1px solid ${C.line}` }}>PadelwIArk</span>
+              <span className="text-xs leading-none" style={{ color: C.muted }}>Americano · Super 8</span>
             </div>
           </div>
-          {fixture && (
-            <button
-              onClick={reset}
-              className="ml-auto text-xs font-semibold flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all active:scale-95"
-              style={{ color: C.muted, ...surface }}
-            >
-              <ArrowLeft size={14} /> Nuevo
-            </button>
-          )}
+          <div className="ml-auto flex items-center gap-2">
+            {modo === 'jugar' && fixture && (
+              <button onClick={reset} className="text-xs font-semibold flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all active:scale-95" style={{ color: C.muted, ...surface }}>
+                <ArrowLeft size={14} /> Nuevo
+              </button>
+            )}
+            {modo !== 'hub' && (
+              <button onClick={() => setModo('hub')} className="text-xs font-semibold flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all active:scale-95" style={{ color: C.muted, ...surface }}>
+                Inicio
+              </button>
+            )}
+          </div>
         </header>
 
-        {fixture ? <Jugar fixture={fixture} setFixture={setFixture} /> : <Setup onGenerar={setFixture} />}
+        {modo === 'hub' && <Hub onJugar={() => setModo('jugar')} onEventos={() => setModo('eventos')} />}
+        {modo === 'jugar' && (fixture ? <Jugar fixture={fixture} setFixture={setFixture} /> : <Setup onGenerar={setFixture} />)}
+        {modo === 'eventos' && <EventosClub />}
 
         <p className="text-center text-[11px] mt-10" style={{ color: 'rgba(155,168,159,0.55)' }}>
           Hecho con <span style={{ color: C.lima, fontWeight: 600 }}>PadelwIArk</span>
         </p>
       </div>
+    </div>
+  )
+}
+
+// ─────────────────────── HUB: elegir camino ───────────────────────
+function Hub({ onJugar, onEventos }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm leading-relaxed mb-1" style={{ color: C.muted }}>
+        ¿Ya están en el club listos para jugar, o querés sumarte a un evento que organizó el club?
+      </p>
+      <button onClick={onJugar} className="text-left rounded-2xl p-5 transition-all active:scale-[0.99] flex items-center gap-4" style={{ ...surface }}>
+        <span className="w-12 h-12 rounded-2xl grid place-items-center shrink-0" style={{ background: `linear-gradient(140deg, ${C.lima}, ${C.neon})` }}>
+          <Zap size={22} style={{ color: C.bg }} strokeWidth={2.4} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-bold" style={{ color: C.cream, fontFamily: FONT_DISPLAY }}>Jugá ahora</p>
+          <p className="text-[13px] leading-snug mt-0.5" style={{ color: C.muted }}>Armá el fixture y llevá el ranking en el momento. Sin cuenta, al toque.</p>
+        </div>
+        <ArrowRight size={18} style={{ color: C.lima }} className="shrink-0" />
+      </button>
+      <button onClick={onEventos} className="text-left rounded-2xl p-5 transition-all active:scale-[0.99] flex items-center gap-4" style={{ ...surface }}>
+        <span className="w-12 h-12 rounded-2xl grid place-items-center shrink-0" style={{ backgroundColor: 'rgba(20,184,166,0.18)' }}>
+          <Megaphone size={22} style={{ color: C.teal }} strokeWidth={2.2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-bold" style={{ color: C.cream, fontFamily: FONT_DISPLAY }}>Sumate a un evento del club</p>
+          <p className="text-[13px] leading-snug mt-0.5" style={{ color: C.muted }}>Mirá los Americano y Super 8 que organizó el club y anotate.</p>
+        </div>
+        <ArrowRight size={18} style={{ color: C.teal }} className="shrink-0" />
+      </button>
+    </div>
+  )
+}
+
+// ─────────────────────── EVENTOS DEL CLUB (convocatorias abiertas) ───────────────────────
+function EventosClub() {
+  const slug = import.meta.env.VITE_CLUB_SLUG
+  const [lista, setLista] = useState(null)
+
+  useEffect(() => {
+    if (!slug) { setLista([]); return }
+    api.get(`/convocatorias/publica/club/${slug}`)
+      .then((r) => setLista(Array.isArray(r) ? r : []))
+      .catch(() => setLista([]))
+  }, [slug])
+
+  const fmt = (f) => { if (!f) return ''; const [y, m, d] = f.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }) }
+
+  if (lista === null) return <p className="text-sm" style={{ color: C.muted }}>Cargando eventos…</p>
+  if (!lista.length) return (
+    <div className="rounded-2xl p-6 text-center" style={surface}>
+      <Megaphone size={26} className="mx-auto mb-2" style={{ color: C.muted }} />
+      <p className="text-sm" style={{ color: C.muted }}>No hay eventos abiertos por ahora. Cuando el club organice un Americano o Super 8, va a aparecer acá.</p>
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      {lista.map((c) => {
+        const esAme = c.modalidad !== 'super8'
+        return (
+          <Link key={c.id} to={`/convocatoria/${c.id}`} className="rounded-2xl p-4 flex items-center gap-3 transition-all active:scale-[0.99]" style={surface}>
+            <span className="w-10 h-10 rounded-xl grid place-items-center shrink-0" style={{ backgroundColor: 'rgba(175,202,11,0.15)' }}>
+              {esAme ? <Repeat size={18} style={{ color: C.lima }} /> : <Users size={18} style={{ color: C.lima }} />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold" style={{ color: C.cream, fontFamily: FONT_DISPLAY }}>
+                {esAme ? 'Americano' : 'Super 8'}{c.categorias?.length ? ` · ${c.categorias.join('/')}` : ''}
+              </p>
+              <p className="text-[12px] mt-0.5 flex items-center gap-2" style={{ color: C.muted }}>
+                <span className="flex items-center gap-1 capitalize"><CalendarDays size={12} /> {fmt(c.fecha)}</span>
+                <span className="flex items-center gap-1"><Clock size={12} /> {c.horaInicio}</span>
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-sm font-bold tabular-nums" style={{ fontFamily: FONT_MONO, color: c.lugares > 0 ? C.lima : C.muted }}>{c.voy}/{c.cupoMax}</p>
+              <p className="text-[10px]" style={{ color: C.muted }}>{c.lugares > 0 ? `${c.lugares} lib.` : 'lleno'}</p>
+            </div>
+          </Link>
+        )
+      })}
     </div>
   )
 }

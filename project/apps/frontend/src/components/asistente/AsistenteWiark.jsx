@@ -221,6 +221,10 @@ function ConfirmAccion({ artefacto }) {
   const token = useAuthStore((s) => s.token)
   const [estado, setEstado] = useState('idle') // idle | cargando | hecho | cancelado
   const [mensaje, setMensaje] = useState('')
+  const [copiable, setCopiable] = useState(null) // { titulo, texto } — ej. mensaje de WhatsApp
+  const [copiado, setCopiado] = useState(false)
+
+  const labelConfirmar = { crear_reserva: 'Sí, reservar', crear_jugador: 'Sí, registrar', crear_convocatoria: 'Sí, convocar' }[artefacto.accion] || 'Sí, cargar'
 
   const confirmar = () => {
     if (estado !== 'idle') return
@@ -239,8 +243,13 @@ function ConfirmAccion({ artefacto }) {
       crear_jugador: 'No se pudo (¿el DNI ya está registrado?).',
     }[artefacto.accion] || 'No se pudo. Probá de nuevo.'
     req
-      .then((r) => { setEstado('hecho'); setMensaje(r?.mensaje || 'Listo ✅') })
+      .then((r) => { setEstado('hecho'); setMensaje(r?.mensaje || 'Listo ✅'); setCopiable(r?.copiable || null) })
       .catch(() => { setEstado('idle'); setMensaje(errMsg) })
+  }
+
+  const copiar = () => {
+    if (!copiable?.texto) return
+    navigator.clipboard?.writeText(copiable.texto).then(() => { setCopiado(true); setTimeout(() => setCopiado(false), 2000) }).catch(() => {})
   }
 
   return (
@@ -248,14 +257,25 @@ function ConfirmAccion({ artefacto }) {
       <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1.5">Confirmá la acción</p>
       <p className="text-[13px] text-white/90 mb-2.5">{artefacto.resumen}</p>
       {estado === 'hecho' ? (
-        <p className="text-[13px] font-semibold text-brand-300 flex items-center gap-1.5"><Check size={14} /> {mensaje}</p>
+        <div className="flex flex-col gap-2">
+          <p className="text-[13px] font-semibold text-brand-300 flex items-center gap-1.5"><Check size={14} /> {mensaje}</p>
+          {copiable && (
+            <div className="rounded-lg bg-white/5 border border-white/10 p-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-brand-300 mb-1.5">{copiable.titulo}</p>
+              <p className="text-[13px] text-white/90 whitespace-pre-wrap leading-relaxed">{copiable.texto}</p>
+              <button onClick={copiar} className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-brand-300 hover:text-brand-200 transition-colors">
+                {copiado ? <><Check size={12} /> ¡Copiado!</> : <><Copy size={12} /> Copiar</>}
+              </button>
+            </div>
+          )}
+        </div>
       ) : estado === 'cancelado' ? (
         <p className="text-[13px] text-white/40">Cancelado.</p>
       ) : (
         <div className="flex items-center gap-2">
           <button onClick={confirmar} disabled={estado === 'cargando'}
             className="flex-1 py-2 rounded-lg bg-brand-500 hover:bg-brand-400 text-white text-[13px] font-bold transition-all disabled:opacity-50">
-            {estado === 'cargando' ? 'Cargando…' : 'Sí, cargar'}
+            {estado === 'cargando' ? 'Procesando…' : labelConfirmar}
           </button>
           <button onClick={() => setEstado('cancelado')} disabled={estado === 'cargando'}
             className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/60 text-[13px] hover:text-white/90 transition-all">

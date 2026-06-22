@@ -2,6 +2,7 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireRole } from '../middleware/auth.js'
 import { runSerializable } from '../lib/serializable.js'
+import { cancelarConvocatoria } from '../lib/convocatorias.js'
 
 const router = Router()
 
@@ -172,6 +173,11 @@ router.patch('/:id/estado', requireRole('admin'), async (req, res) => {
   try {
     const c = await prisma.convocatoria.findFirst({ where: { id: req.params.id, clubId } })
     if (!c) return res.status(404).json({ error: 'Convocatoria no encontrada' })
+    // Cancelar libera las canchas reservadas del evento (cancela las reservas linkeadas).
+    if (estado === 'cancelada') {
+      const upd = await cancelarConvocatoria(clubId, c.id)
+      return res.json(upd)
+    }
     const upd = await prisma.convocatoria.update({ where: { id: c.id }, data: { estado } })
     res.json(upd)
   } catch (err) {

@@ -307,15 +307,20 @@ const WIARK_TOOLS = [
     input_schema: { type: 'object', properties: { fecha: { type: 'string', description: 'Fecha YYYY-MM-DD (si no se aclara, es hoy)' } }, required: [] },
   },
   {
-    name: 'armar_convocatoria',
-    description: 'Genera un mensaje de WhatsApp para convocar un Americano o Super 8 (para llenar canchas). Usala cuando el dueño pide armar o convocar un Americano o Super 8.',
+    name: 'crear_convocatoria',
+    description: 'Crea una convocatoria a un Americano o Super 8: reserva las canchas a nombre del jugador organizador y abre cupos para que se anoten. Genera el mensaje de WhatsApp con el link. NO la crea sola: el dueño confirma con un botón. Usala cuando el dueño pide convocar, organizar o armar un Americano/Super 8.',
     input_schema: {
       type: 'object',
       properties: {
         modalidad: { type: 'string', enum: ['americano', 'super8'] },
-        dia: { type: 'string' }, horario: { type: 'string' }, categoria: { type: 'string' }, cupos: { type: 'string' },
+        organizador: { type: 'string', description: 'Nombre del jugador organizador (las canchas quedan reservadas a su nombre; debe estar registrado)' },
+        fecha: { type: 'string', description: 'Fecha YYYY-MM-DD' },
+        horario: { type: 'string', description: 'Hora de inicio HH:MM' },
+        categorias: { type: 'string', description: 'Categorías objetivo separadas por coma (ej: "6ta, 7ma")' },
+        cupos: { type: 'number', description: 'Cantidad de jugadores que entran' },
+        canchas: { type: 'number', description: 'Canchas a reservar (ej: 2 para un Super 8)' },
       },
-      required: ['modalidad'],
+      required: ['modalidad', 'organizador', 'fecha', 'horario', 'cupos', 'canchas'],
     },
   },
   {
@@ -386,10 +391,29 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
     const texto = (await generarPostDisponibilidad(d)).texto
     return { paraModelo: 'Posteo generado OK. Se le muestra al usuario abajo para copiar; no lo repitas.', artefacto: { tipo: 'Posteo de turnos libres', texto } }
   }
-  if (name === 'armar_convocatoria') {
-    const club = await prisma.club.findUnique({ where: { id: clubId }, select: { nombre: true } })
-    const texto = (await generarConvocatoriaWhatsapp({ club: club?.nombre, modalidad: input.modalidad, dia: input.dia, horario: input.horario, categoria: input.categoria, cupos: input.cupos })).texto
-    return { paraModelo: 'Convocatoria generada OK. Se le muestra al usuario abajo para copiar; no la repitas.', artefacto: { tipo: 'Convocatoria', texto } }
+  if (name === 'crear_convocatoria') {
+    const fecha = /^\d{4}-\d{2}-\d{2}$/.test(input.fecha) ? input.fecha : null
+    const horaInicio = /^\d{1,2}:\d{2}$/.test(input.horario || '') ? input.horario.padStart(5, '0') : null
+    const cupoMax = Math.round(Number(input.cupos) || 0)
+    if (!fecha || !horaInicio || cupoMax < 2) return { paraModelo: 'Para convocar necesito modalidad, fecha (YYYY-MM-DD), horario (HH:MM) y cupos (mínimo 2). Pedí lo que falte.' }
+    if (fecha < hoyArgStr()) return { paraModelo: `Esa fecha (${fecha}) ya pasó. Confirmá el día con el dueño.` }
+    // Organizador: las canchas se reservan a su nombre. Debe ser un jugador registrado.
+    const nombreOrg = (input.organizador || '').toString().trim()
+    if (!nombreOrg) return { paraModelo: '¿A nombre de qué jugador organizamos? Las canchas se reservan a su nombre (tiene que estar registrado).' }
+    const norm = (s) => s.toLowerCase().replace(/\s+/g, ' ').trim()
+    const js = await prisma.jugador.findMany({ where: { clubId }, select: { id: true, nombre: true, apellido: true } })
+    const matches = js.filter((j) => norm(`${j.nombre} ${j.apellido}`) === norm(nombreOrg))
+    if (matches.length === 0) return { paraModelo: `"${nombreOrg}" no figura como jugador registrado. Para organizar, primero registralo (herramienta crear_jugador, necesitás el DNI) y después convocá. Avisale esto al usuario.` }
+    if (matches.length > 1) return { paraModelo: `Hay más de un jugador llamado "${nombreOrg}". Pedile al usuario que aclare cuál (o el apellido completo).` }
+    const organizadorJugadorId = matches[0].id
+    const categorias = (input.categorias || '').toString().split(',').map((c) => c.trim()).filter(Boolean)
+    const canchas = Math.max(1, Math.round(Number(input.canchas) || 1))
+    const nombreMod = input.modalidad === 'super8' ? 'Super 8' : 'Americano'
+    const resumen = `Convocar ${nombreMod}${categorias.length ? ` ${categorias.join('/')}` : ''} · ${fecha} ${horaInicio} · ${cupoMax} cupos · ${canchas} ${canchas === 1 ? 'cancha' : 'canchas'} · a nombre de ${nombreOrg}`
+    return {
+      paraModelo: 'Le muestro al usuario un botón para confirmar; todavía NO está creada. Al confirmar: se reservan las canchas a nombre del organizador, se abre la convocatoria, se arma el mensaje de WhatsApp con el link y se avisa a los jugadores de la categoría. Si no hay canchas libres a esa hora, no se crea.',
+      artefacto: { tipo: 'confirmacion', accion: 'crear_convocatoria', resumen, datos: { modalidad: input.modalidad === 'super8' ? 'super8' : 'americano', fecha, horaInicio, categorias, cupoMax, canchas, organizadorJugadorId } },
+    }
   }
   if (name === 'consultar_deudores') {
     const { lista, total, cantidad } = await gatherDeudores(clubId)
@@ -468,7 +492,8 @@ export async function responderChatAgente(clubId, mensajes) {
 Reglas:
 - Para responder preguntas usá SOLO los datos reales de abajo; si falta un dato, decílo con honestidad (no inventes números).
 - Tenés HERRAMIENTAS para consultar disponibilidad de una fecha, GENERAR un posteo de turnos libres, y GENERAR un mensaje de convocatoria de Americano/Super 8. Cuando el dueño te pida "armá/pasá/publicá los turnos libres" o "convocá/armá un Americano o Super 8", USÁ la herramienta correspondiente (no lo redactes vos a mano).
-- Cuando usás una herramienta que GENERA un posteo o una convocatoria, ese texto se le muestra al usuario automáticamente ABAJO de tu mensaje, con un botón para copiar. Por eso NO repitas ese texto en tu respuesta: escribí solo una línea corta presentándolo (ej. "Te armé el posteo, lo tenés acá abajo para copiar 👇").
+- Cuando usás una herramienta que GENERA un posteo (turnos libres o aviso de liberado), ese texto se le muestra al usuario automáticamente ABAJO de tu mensaje, con un botón para copiar. Por eso NO repitas ese texto en tu respuesta: escribí solo una línea corta presentándolo (ej. "Te armé el posteo, lo tenés acá abajo para copiar 👇").
+- Para convocar/organizar un Americano o Super 8 usá crear_convocatoria. Necesitás: modalidad, **organizador** (jugador registrado a cuyo nombre quedan las canchas; un Super 8 son 2 canchas), fecha, horario, cupos y canchas. NO se crea hasta que el dueño confirme. Al confirmar: se reservan las canchas a nombre del organizador, se abre la convocatoria, se arma el mensaje de WhatsApp con el link y se avisa a los jugadores de la categoría. Si el organizador no está registrado, avisá que primero hay que registrarlo (crear_jugador). Si falta algún dato, pedíselo.
 - Para cargar un gasto usá la herramienta cargar_gasto con el monto y el concepto. El gasto NO se guarda hasta que el dueño confirme con un botón que aparece abajo de tu mensaje; vos solo decí una línea corta (ej. "Te dejo el gasto para confirmar 👇"). Si falta el monto o el concepto, pediselo.
 - Para "quién me debe" usá consultar_deudores y para "cuánto facturé" usá consultar_ingresos. La lista de deudores (con nombres) se le muestra al usuario abajo: NUNCA repitas nombres de jugadores en tu texto (privacidad); referite al total y la cantidad.
 - Para reservar un turno usá crear_reserva (cancha + fecha + hora de inicio; el turno dura 1.5h, la hora de fin se calcula sola). NO se crea hasta que el dueño confirme con el botón. Si falta la cancha, la fecha o la hora, pediselas.

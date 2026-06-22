@@ -1,6 +1,18 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-22 — Convocatorias Bloque 2 (canal + descubrimiento, en curso): página pública `/convocatoria/:id` (ver sin login, anotarse con login), `/eventos` convertido en HUB (Jugá ahora + Eventos del club), endpoints públicos, baja con promote, y "Mis eventos" en el dash jugador. Decisión: anotarse REQUIERE login (accountability + crece la red).
+**Última actualización:** 2026-06-22 — Convocatorias Bloque 2 (C+D) + Bloque 3a: WIarky crea la convocatoria de verdad (skill `crear_convocatoria`) → **reserva N canchas a nombre del organizador (jugador registrado), con las mismas reglas que una reserva normal** (Serializable, sin tipo nuevo) → arma el mensaje de WhatsApp con link + notifica a la categoría. Cancelar libera las canchas. `Reserva.convocatoriaId` linkea evento↔canchas.
+
+---
+
+## Convocatorias — Bloque 2 (C+D) + Bloque 3a: la convocatoria reserva las canchas (2026-06-22)
+
+Se cerró el canal (mensaje + notif) y se enganchó el cierre del loop con las canchas. **Decisión de arquitectura clave (Luca):** una convocatoria NO es un "bloqueo" raro fuera del sistema — son **reservas normales a nombre de un jugador registrado**, con TODAS las reglas existentes (anti-doble-booking, dueño = jugador, slot 1.5h). Si se hiciera "libre/anónimo" se romperían las reglas ya construidas. Un Super 8 = el organizador reserva **2 canchas** al mismo horario. Ver [[proyecto_convocatorias_plan]].
+
+- **(C+D) WIarky `crear_convocatoria` (write con confirmación):** reemplazó al viejo `armar_convocatoria` (que solo generaba texto). Pide modalidad + **organizador** (jugador registrado) + fecha + horario + cupos + canchas (+ categorías). Resuelve el organizador por nombre; si no está registrado, avisa que primero hay que registrarlo (crear_jugador). Al confirmar (`POST /me/insight/accion`, acción `crear_convocatoria`): **(3a)** reserva las canchas + crea la convocatoria, **(C)** arma el mensaje de WhatsApp con el **link público** (`APP_PUBLIC_URL` env, default localhost:5173), **(D)** notifica in-app a los jugadores de la categoría (`convocatoria_abierta`). El front (`ConfirmAccion`) muestra el mensaje con botón Copiar.
+- **(3a) Motor `lib/convocatorias.js`:** `organizarConvocatoria()` — bajo `runSerializable`, busca N canchas libres a esa fecha+hora (overlap cross-midnight aware, contra reservas + TF activos), y crea atómicamente la Convocatoria + N Reservas (tipo `eventual`, dueño = organizador, `convocatoriaId` linkeado). Si no hay N libres → 409 "no hay N canchas libres". `cancelarConvocatoria()` — cancela la convocatoria y libera (cancela) sus reservas linkeadas. El PATCH `/:id/estado` a `cancelada` lo usa.
+- **Schema:** `Reserva.convocatoriaId String?` (additivo, migrado) + relación inversa `Convocatoria.reservas`. Es el hilo evento↔canchas (para cancelar/liberar y no perder el rastro). Sin tipo nuevo en la grilla (decisión de Luca: era "al vicio"; las canchas del evento se ven como reservas normales del organizador).
+- **Probado e2e:** WIarky resuelve organizador → reserva 2 canchas (1.5h, dueño organizador, linkeadas) → cancelar libera las 2. Limpieza por id.
+- **PENDIENTE Bloque 3b:** generar el **fixture** (`lib/eventos.js`, con balanceo drive/revés = `Jugador.posicion`) cuando se llena. Bloque 4: UI admin (ver/cancelar convocatorias) + botón "Hacer Super 8" en el dash jugador (Fase B, reusa `organizarConvocatoria` con el jugador como organizador). Render lindo de la notif `convocatoria_abierta` en el panel del jugador.
 
 ---
 

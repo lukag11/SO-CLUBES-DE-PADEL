@@ -199,6 +199,7 @@ model Reserva {
   tipo        String   @default("online")
   jugadores   String[]
   notas       String?
+  convocatoriaId String?  // si la reserva es una de las canchas de una convocatoria (evento)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -206,6 +207,7 @@ model Reserva {
   cancha   Cancha    @relation(fields: [canchaId], references: [id])
   jugador  Jugador?  @relation(fields: [jugadorId], references: [id])
   profesor Profesor? @relation(fields: [profesorId], references: [id])
+  convocatoria Convocatoria? @relation(fields: [convocatoriaId], references: [id], onDelete: SetNull)
 
   @@map("reservas")
 }
@@ -476,8 +478,9 @@ model Convocatoria {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  club  Club               @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  cupos ConvocatoriaCupo[]
+  club     Club               @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  cupos    ConvocatoriaCupo[]
+  reservas Reserva[]
 
   @@map("convocatorias")
 }

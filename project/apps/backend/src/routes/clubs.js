@@ -4,7 +4,7 @@ import { requireAuth, requireRole, requireOwner } from '../middleware/auth.js'
 import { tienePermiso } from '../lib/permisos.js'
 import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg } from '../lib/tiempo.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
-import { gatherInsightData, generarInsightIA } from '../lib/insight.js'
+import { gatherInsightData, generarInsightIA, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado } from '../lib/insight.js'
 
 const router = Router()
 
@@ -244,6 +244,90 @@ router.get('/me/insight', requireAuth, requireRole('admin'), requireOwner, async
   } catch (err) {
     console.error('Error insight IA:', err.message)
     res.status(500).json({ error: 'No se pudo generar el insight' })
+  }
+})
+
+// POST /api/clubs/me/insight/convocatoria-mensaje — redacta un mensaje de WhatsApp para
+// convocar un Americano/Super 8 y llenar una franja (solo dueño). On-demand, no cacheado.
+router.post('/me/insight/convocatoria-mensaje', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const { modalidad = 'americano', dia, horario, categoria, cupos } = req.body || {}
+    const club = await prisma.club.findUnique({ where: { id: clubId }, select: { nombre: true } })
+    const { texto } = await generarConvocatoriaWhatsapp({ club: club?.nombre, modalidad, dia, horario, categoria, cupos })
+    res.json({ mensaje: texto })
+  } catch (err) {
+    console.error('Error convocatoria WhatsApp:', err.message)
+    res.status(500).json({ error: 'No se pudo generar el mensaje' })
+  }
+})
+
+// POST /api/clubs/me/insight/post-disponibilidad — la IA redacta el posteo de turnos
+// libres de una fecha para difundir en redes/WhatsApp (solo dueño). On-demand, no cacheado.
+router.post('/me/insight/post-disponibilidad', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const fecha = (req.body && req.body.fecha) || hoyArgStr()
+    const data = await gatherDisponibilidad(clubId, fecha)
+    const { texto } = await generarPostDisponibilidad(data)
+    res.json({ mensaje: texto, total: data.total, libres: data.libres, fecha })
+  } catch (err) {
+    console.error('Error post disponibilidad:', err.message)
+    res.status(500).json({ error: 'No se pudo generar el posteo' })
+  }
+})
+
+// GET /api/clubs/me/insight/liberados — turnos liberados recientemente (cancelación/ausencia)
+// que siguen LIBRES hoy o en adelante, listos para re-publicar (solo dueño).
+router.get('/me/insight/liberados', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const hoyStr = hoyArgStr()
+    const notifs = await prisma.notificacion.findMany({
+      where: { clubId, jugadorId: null, profesorId: null, tipo: { in: ['turno_liberado_auto', 'cancelacion_reserva'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+      select: { data: true },
+    })
+    // Candidatos: deduplicados, de hoy en adelante
+    const vistos = new Set()
+    const candidatos = []
+    for (const n of notifs) {
+      const d = n.data || {}
+      if (!d.fecha || d.fecha < hoyStr || !d.horaInicio) continue
+      const key = `${d.canchaNombre}|${d.fecha}|${d.horaInicio}`
+      if (vistos.has(key)) continue
+      vistos.add(key)
+      candidatos.push({ canchaNombre: d.canchaNombre || '', fecha: d.fecha, horaInicio: d.horaInicio, dia: d.dia || null })
+      if (candidatos.length >= 20) break
+    }
+    // Cruce contra disponibilidad real: solo los que SIGUEN libres (no re-tomados)
+    const fechas = [...new Set(candidatos.map((c) => c.fecha))]
+    const dispPorFecha = {}
+    for (const f of fechas) dispPorFecha[f] = await gatherDisponibilidad(clubId, f)
+    const libres = candidatos.filter((c) => {
+      const disp = dispPorFecha[c.fecha]
+      const cancha = disp?.libres.find((x) => x.cancha === c.canchaNombre)
+      return cancha && cancha.horas.includes(c.horaInicio)
+    })
+    res.json(libres)
+  } catch (err) {
+    console.error('Error liberados:', err.message)
+    res.status(500).json({ error: 'No se pudo obtener los turnos liberados' })
+  }
+})
+
+// POST /api/clubs/me/insight/post-liberado — la IA arma el aviso de un turno liberado (solo dueño).
+router.post('/me/insight/post-liberado', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const { canchaNombre, dia, horario } = req.body || {}
+    const club = await prisma.club.findUnique({ where: { id: clubId }, select: { nombre: true } })
+    const { texto } = await generarPostLiberado({ club: club?.nombre, canchaNombre, dia, horario })
+    res.json({ mensaje: texto })
+  } catch (err) {
+    console.error('Error post liberado:', err.message)
+    res.status(500).json({ error: 'No se pudo generar el aviso' })
   }
 })
 

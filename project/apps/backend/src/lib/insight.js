@@ -124,3 +124,110 @@ Recomendación:`
   const texto = resp.content.find((b) => b.type === 'text')?.text?.trim() ?? ''
   return { texto, tokens: { in: resp.usage.input_tokens, out: resp.usage.output_tokens } }
 }
+
+// Redacta un mensaje de WhatsApp listo para pegar en el grupo del club, invitando a
+// un Americano o Super 8 para llenar una franja. On-demand (no cacheado). Semilla del
+// futuro módulo de convocatorias — hoy el admin copia y pega el texto a mano.
+export async function generarConvocatoriaWhatsapp({ club, modalidad, dia, horario, categoria, cupos }) {
+  const esSuper8 = modalidad === 'super8'
+  const nombreMod = esSuper8 ? 'Super 8' : 'Americano'
+  const reglas = esSuper8
+    ? 'Super 8: venís con tu pareja fija y juegan todos contra todos, ranking por pareja.'
+    : 'Americano: te anotás solo, las parejas rotan toda la tarde y hay ranking individual; ideal para jugar con todos y conocer gente.'
+
+  const partes = [`Club: ${club || 'el club'}`, `Modalidad: ${nombreMod}`]
+  if (dia) partes.push(`Día: ${dia}`)
+  if (horario) partes.push(`Horario: ${horario}`)
+  if (categoria) partes.push(`Categorías: ${categoria}`)
+  if (cupos) partes.push(`Cupos: ${cupos}`)
+
+  const prompt = `Sos el community manager de un club de pádel en Argentina. Escribí UN mensaje de WhatsApp, listo para pegar en el grupo del club, invitando a sumarse a un ${nombreMod}. Tono cercano y entusiasta en rioplatense, con algunos emojis bien puestos (sin exagerar). Entre 4 y 7 líneas. Incluí: un gancho, en una línea qué es (${reglas}), los datos que te paso (día/horario/categorías/cupos), y un cierre claro pidiendo que confirmen respondiendo este mensaje para reservar el lugar. No inventes datos que no te di: si falta el día o el horario, dejalo abierto o pedí que avisen su disponibilidad. Para resaltar usá el formato de WhatsApp (*texto* para negrita), nunca markdown. No pongas encabezados tipo "Asunto:" ni comillas alrededor del mensaje.
+
+Datos:
+${partes.join('\n')}
+
+Mensaje:`
+
+  const resp = await client.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 320,
+    messages: [{ role: 'user', content: prompt }],
+  })
+  const texto = resp.content.find((b) => b.type === 'text')?.text?.trim() ?? ''
+  return { texto, tokens: { in: resp.usage.input_tokens, out: resp.usage.output_tokens } }
+}
+
+// Junta los turnos LIBRES de una fecha: franjas del club por cancha menos lo ocupado
+// (reservas pendientes/confirmadas + turnos fijos confirmados, descontando ausencias).
+export async function gatherDisponibilidad(clubId, fecha) {
+  const [fy, fm, fd] = fecha.split('-').map(Number)
+  const wd = new Date(Date.UTC(fy, fm - 1, fd)).getUTCDay()
+
+  const [club, canchas, reservas, turnosFijos] = await Promise.all([
+    prisma.club.findUnique({ where: { id: clubId }, select: { config: true, nombre: true } }),
+    prisma.cancha.findMany({ where: { clubId, activo: true }, orderBy: { nombre: 'asc' }, select: { id: true, nombre: true, horarios: true } }),
+    prisma.reserva.findMany({ where: { clubId, fecha, estado: { in: ['pendiente', 'confirmada'] } }, select: { canchaId: true, horaInicio: true } }),
+    prisma.turnoFijo.findMany({ where: { clubId, dia: DIAS_TF[wd], estado: 'confirmado' }, select: { canchaId: true, horaInicio: true, diasAusentes: true, desde: true } }),
+  ])
+
+  const horarios = club?.config?.horarios || {}
+  const ocupadas = {} // canchaId -> Set(horaInicio)
+  const add = (cid, h) => { (ocupadas[cid] ||= new Set()).add(h) }
+  reservas.forEach((r) => add(r.canchaId, r.horaInicio))
+  turnosFijos
+    .filter((t) => !t.diasAusentes.includes(fecha) && (!t.desde || t.desde <= fecha))
+    .forEach((t) => add(t.canchaId, t.horaInicio))
+
+  const libres = []
+  let total = 0
+  for (const c of canchas) {
+    const h = (c.horarios && c.horarios[DIAS_CFG[wd]]) || horarios[DIAS_CFG[wd]]
+    const ocup = ocupadas[c.id] || new Set()
+    const horas = franjaTimes(h).filter((f) => !ocup.has(f))
+    if (horas.length) { libres.push({ cancha: c.nombre, horas }); total += horas.length }
+  }
+  return { club: club?.nombre ?? 'el club', dia: DIAS_NOM[wd], fecha, libres, total }
+}
+
+// La IA redacta el posteo de turnos disponibles para difundir (WhatsApp / IG / FB). On-demand.
+export async function generarPostDisponibilidad(data) {
+  const { club, dia, libres, total } = data
+  if (!total) {
+    const promptLleno = `Sos el community manager de un club de pádel en Argentina (${club}). Escribí UN posteo corto y simpático para redes/WhatsApp avisando que para ${dia} NO quedan turnos disponibles (está todo reservado), invitando a estar atentos por si se libera alguno. Rioplatense, 2-3 líneas, un par de emojis. Para resaltar usá *texto* (WhatsApp), nunca markdown. Sin comillas alrededor.`
+    const r = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 180, messages: [{ role: 'user', content: promptLleno }] })
+    return { texto: r.content.find((b) => b.type === 'text')?.text?.trim() ?? '', tokens: { in: r.usage.input_tokens, out: r.usage.output_tokens } }
+  }
+
+  const lista = libres.map((l) => `${l.cancha}: ${l.horas.join(', ')}`).join('\n')
+  const prompt = `Sos el community manager de un club de pádel en Argentina. Escribí UN posteo para difundir (sirve para WhatsApp, Instagram y Facebook) con los turnos disponibles de ${dia}. Tono cercano y entusiasta en rioplatense, con emojis bien puestos (sin exagerar). Empezá con un saludo/gancho, listá los turnos libres de forma clara y prolija (por cancha y horario, tal cual te los paso), remarcá que los lugares son limitados y cerrá con un llamado claro a reservar (que escriban o respondan). No inventes turnos ni datos que no te di. Para resaltar usá *texto* (formato WhatsApp), nunca markdown. No pongas "Asunto:" ni comillas alrededor del posteo.
+
+Club: ${club}
+Día: ${dia}
+Turnos libres (${total}):
+${lista}
+
+Posteo:`
+
+  const resp = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 500, messages: [{ role: 'user', content: prompt }] })
+  const texto = resp.content.find((b) => b.type === 'text')?.text?.trim() ?? ''
+  return { texto, tokens: { in: resp.usage.input_tokens, out: resp.usage.output_tokens } }
+}
+
+// La IA arma un aviso corto para re-publicar un turno que se acaba de liberar (cancelación). On-demand.
+export async function generarPostLiberado({ club, canchaNombre, dia, horario }) {
+  const detalle = [
+    canchaNombre && `Cancha: ${canchaNombre}`,
+    dia && `Día: ${dia}`,
+    horario && `Horario: ${horario}`,
+  ].filter(Boolean).join('\n')
+
+  const prompt = `Sos el community manager de un club de pádel en Argentina (${club}). Se acaba de LIBERAR un turno (alguien lo canceló) y querés volver a ofrecerlo rápido para que no quede vacío. Escribí UN aviso corto con urgencia simpática para WhatsApp/redes, anunciando que se liberó ese turno y está disponible ahora. Rioplatense, 2 a 4 líneas, un par de emojis, con un llamado claro a quien lo quiera (que escriba o responda rápido). No inventes datos que no te di. Para resaltar usá *texto* (formato WhatsApp), nunca markdown. Sin comillas alrededor del aviso.
+
+${detalle}
+
+Aviso:`
+
+  const resp = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 200, messages: [{ role: 'user', content: prompt }] })
+  const texto = resp.content.find((b) => b.type === 'text')?.text?.trim() ?? ''
+  return { texto, tokens: { in: resp.usage.input_tokens, out: resp.usage.output_tokens } }
+}

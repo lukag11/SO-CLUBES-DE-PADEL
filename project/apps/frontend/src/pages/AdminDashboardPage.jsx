@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   CalendarDays, Users, Trophy, TrendingUp, TrendingDown, DollarSign, Activity,
   Wallet, Clock, ArrowRight, CheckCircle2, AlertCircle, UserPlus, Receipt, Sparkles, RefreshCw,
+  MessageCircle, Copy, Check, Zap, Users2, Megaphone, Bell,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
@@ -72,6 +73,107 @@ const DashboardPage = () => {
       .then((r) => setInsight(r?.texto || null))
       .catch(() => {})
       .finally(() => setInsightRegen(false))
+  }
+
+  // Convocatoria por WhatsApp: la IA redacta un mensaje para pegar al grupo del club.
+  const [convoOpen, setConvoOpen] = useState(false)
+  const [convoForm, setConvoForm] = useState({ modalidad: 'americano', dia: '', horario: '', categoria: '', cupos: '' })
+  const [convoMsg, setConvoMsg] = useState('')
+  const [convoLoading, setConvoLoading] = useState(false)
+  const [convoCopied, setConvoCopied] = useState(false)
+
+  const generarConvocatoria = () => {
+    if (convoLoading) return
+    setConvoLoading(true)
+    setConvoMsg('')
+    setConvoCopied(false)
+    api.post('/clubs/me/insight/convocatoria-mensaje', convoForm, { Authorization: `Bearer ${token}` })
+      .then((r) => setConvoMsg(r?.mensaje || ''))
+      .catch(() => setConvoMsg('No se pudo generar el mensaje. Probá de nuevo.'))
+      .finally(() => setConvoLoading(false))
+  }
+
+  const copiarConvocatoria = () => {
+    if (!convoMsg) return
+    navigator.clipboard?.writeText(convoMsg).then(() => {
+      setConvoCopied(true)
+      setTimeout(() => setConvoCopied(false), 2000)
+    }).catch(() => {})
+  }
+
+  // Post de turnos disponibles: la IA arma el posteo con los turnos libres reales del día.
+  const [dispOpen, setDispOpen] = useState(false)
+  const [dispMsg, setDispMsg] = useState('')
+  const [dispLoading, setDispLoading] = useState(false)
+  const [dispCopied, setDispCopied] = useState(false)
+  const [dispTotal, setDispTotal] = useState(null)
+  const [dispFecha, setDispFecha] = useState('hoy')
+
+  const fechaOffset = (off) => {
+    const d = new Date()
+    d.setDate(d.getDate() + off)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  const generarPostDisp = (cual) => {
+    if (dispLoading) return
+    setDispFecha(cual)
+    setDispLoading(true)
+    setDispMsg('')
+    setDispCopied(false)
+    setDispTotal(null)
+    api.post('/clubs/me/insight/post-disponibilidad', { fecha: fechaOffset(cual === 'manana' ? 1 : 0) }, { Authorization: `Bearer ${token}` })
+      .then((r) => { setDispMsg(r?.mensaje || ''); setDispTotal(typeof r?.total === 'number' ? r.total : null) })
+      .catch(() => setDispMsg('No se pudo generar el posteo. Probá de nuevo.'))
+      .finally(() => setDispLoading(false))
+  }
+
+  const copiarDisp = () => {
+    if (!dispMsg) return
+    navigator.clipboard?.writeText(dispMsg).then(() => {
+      setDispCopied(true)
+      setTimeout(() => setDispCopied(false), 2000)
+    }).catch(() => {})
+  }
+
+  // Aviso de turno liberado: lista los turnos que se liberaron (y siguen libres) para re-publicarlos.
+  const [libOpen, setLibOpen] = useState(false)
+  const [libList, setLibList] = useState([])
+  const [libListLoading, setLibListLoading] = useState(false)
+  const [libMsg, setLibMsg] = useState('')
+  const [libLoading, setLibLoading] = useState(false)
+  const [libCopied, setLibCopied] = useState(false)
+  const [libSel, setLibSel] = useState(null)
+
+  const abrirLiberados = () => {
+    setLibOpen(true)
+    setLibMsg('')
+    setLibSel(null)
+    setLibListLoading(true)
+    api.get('/clubs/me/insight/liberados', { Authorization: `Bearer ${token}` })
+      .then((r) => setLibList(Array.isArray(r) ? r : []))
+      .catch(() => setLibList([]))
+      .finally(() => setLibListLoading(false))
+  }
+
+  const generarAvisoLiberado = (slot, idx) => {
+    if (libLoading) return
+    setLibSel(idx)
+    setLibLoading(true)
+    setLibMsg('')
+    setLibCopied(false)
+    api.post('/clubs/me/insight/post-liberado', { canchaNombre: slot.canchaNombre, dia: slot.dia, horario: slot.horaInicio }, { Authorization: `Bearer ${token}` })
+      .then((r) => setLibMsg(r?.mensaje || ''))
+      .catch(() => setLibMsg('No se pudo generar el aviso. Probá de nuevo.'))
+      .finally(() => setLibLoading(false))
+  }
+
+  const copiarLib = () => {
+    if (!libMsg) return
+    navigator.clipboard?.writeText(libMsg).then(() => {
+      setLibCopied(true)
+      setTimeout(() => setLibCopied(false), 2000)
+    }).catch(() => {})
   }
 
   const today = new Date().toLocaleDateString('es-AR', {
@@ -185,6 +287,206 @@ const DashboardPage = () => {
             </div>
           ) : (
             <p className="relative text-white/90 text-sm md:text-[15px] leading-relaxed">{insight}</p>
+          )}
+
+          {/* Acciones IA — convocatoria + post de disponibilidad */}
+          {!insightLoading && (
+            <div className="relative mt-4 pt-4 border-t border-white/10 flex flex-col gap-4">
+              {!convoOpen ? (
+                <button
+                  onClick={() => setConvoOpen(true)}
+                  className="flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200 transition-colors"
+                >
+                  <MessageCircle size={15} /> Armar convocatoria para WhatsApp
+                </button>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle size={15} className="text-brand-400" />
+                    <span className="text-sm font-semibold text-white">Convocatoria para WhatsApp</span>
+                    <button onClick={() => { setConvoOpen(false); setConvoMsg('') }} className="ml-auto text-[11px] text-white/40 hover:text-white/70">Cerrar</button>
+                  </div>
+
+                  {/* Modalidad */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'americano', label: 'Americano', icon: Zap },
+                      { id: 'super8', label: 'Super 8', icon: Users2 },
+                    ].map(({ id, label, icon: Icon }) => (
+                      <button key={id} onClick={() => setConvoForm((f) => ({ ...f, modalidad: id }))}
+                        className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold border transition-all ${
+                          convoForm.modalidad === id
+                            ? 'border-brand-400 bg-brand-500/15 text-brand-300'
+                            : 'border-white/10 bg-white/5 text-white/60 hover:border-white/20'
+                        }`}>
+                        <Icon size={14} /> {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Datos */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={convoForm.dia} onChange={(e) => setConvoForm((f) => ({ ...f, dia: e.target.value }))}
+                      placeholder="Día (ej: el martes)" className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30 focus:border-brand-400 focus:outline-none" />
+                    <input value={convoForm.horario} onChange={(e) => setConvoForm((f) => ({ ...f, horario: e.target.value }))}
+                      placeholder="Horario (ej: 20:00)" className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30 focus:border-brand-400 focus:outline-none" />
+                    <input value={convoForm.categoria} onChange={(e) => setConvoForm((f) => ({ ...f, categoria: e.target.value }))}
+                      placeholder="Categorías (ej: 6ta y 7ma)" className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30 focus:border-brand-400 focus:outline-none" />
+                    <input value={convoForm.cupos} onChange={(e) => setConvoForm((f) => ({ ...f, cupos: e.target.value }))}
+                      placeholder="Cupos (ej: 8)" className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30 focus:border-brand-400 focus:outline-none" />
+                  </div>
+
+                  <button onClick={generarConvocatoria} disabled={convoLoading}
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-400 text-white text-sm font-bold transition-all disabled:opacity-50">
+                    <Sparkles size={15} className={convoLoading ? 'animate-pulse' : ''} />
+                    {convoLoading ? 'Redactando…' : 'Generar mensaje'}
+                  </button>
+
+                  {/* Mensaje generado — editable: la IA da el borrador, el admin lo ajusta */}
+                  {convoMsg && (
+                    <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+                      <textarea
+                        value={convoMsg}
+                        onChange={(e) => { setConvoMsg(e.target.value); setConvoCopied(false) }}
+                        rows={8}
+                        className="w-full resize-y bg-transparent text-sm text-white/90 leading-relaxed focus:outline-none placeholder:text-white/30"
+                      />
+                      <div className="flex items-center gap-4 mt-2 pt-2.5 border-t border-white/10">
+                        <button onClick={copiarConvocatoria}
+                          className="flex items-center gap-1.5 text-xs font-bold text-brand-300 hover:text-brand-200 transition-colors">
+                          {convoCopied ? <><Check size={13} /> ¡Copiado!</> : <><Copy size={13} /> Copiar</>}
+                        </button>
+                        <button onClick={generarConvocatoria} disabled={convoLoading}
+                          className="flex items-center gap-1.5 text-xs font-medium text-white/50 hover:text-white/80 transition-colors disabled:opacity-50">
+                          <RefreshCw size={13} className={convoLoading ? 'animate-spin' : ''} /> Regenerar
+                        </button>
+                        <span className="ml-auto text-[10px] text-white/30">Editable · revisalo antes de enviar</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Post de turnos disponibles — la IA arma el posteo con los libres reales */}
+              {!dispOpen ? (
+                <button
+                  onClick={() => setDispOpen(true)}
+                  className="flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200 transition-colors"
+                >
+                  <Megaphone size={15} /> Publicar turnos disponibles
+                </button>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <Megaphone size={15} className="text-brand-400" />
+                    <span className="text-sm font-semibold text-white">Turnos disponibles</span>
+                    <button onClick={() => { setDispOpen(false); setDispMsg('') }} className="ml-auto text-[11px] text-white/40 hover:text-white/70">Cerrar</button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {[{ id: 'hoy', label: 'Hoy' }, { id: 'manana', label: 'Mañana' }].map(({ id, label }) => (
+                      <button key={id} onClick={() => generarPostDisp(id)} disabled={dispLoading}
+                        className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold border transition-all disabled:opacity-50 ${
+                          dispFecha === id
+                            ? 'border-brand-400 bg-brand-500/15 text-brand-300'
+                            : 'border-white/10 bg-white/5 text-white/60 hover:border-white/20'
+                        }`}>
+                        <CalendarDays size={14} /> {label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-white/30 -mt-1">Tomamos los turnos libres reales del día y la IA arma el posteo.</p>
+
+                  {dispLoading && (
+                    <div className="flex items-center gap-2 text-xs text-white/40 py-1">
+                      <Sparkles size={14} className="animate-pulse text-brand-400" /> Armando el posteo…
+                    </div>
+                  )}
+
+                  {dispMsg && !dispLoading && (
+                    <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+                      {typeof dispTotal === 'number' && (
+                        <p className="text-[11px] font-semibold text-brand-300 mb-2">{dispTotal === 0 ? 'No hay turnos libres' : `${dispTotal} turnos libres`}</p>
+                      )}
+                      <textarea
+                        value={dispMsg}
+                        onChange={(e) => { setDispMsg(e.target.value); setDispCopied(false) }}
+                        rows={9}
+                        className="w-full resize-y bg-transparent text-sm text-white/90 leading-relaxed focus:outline-none placeholder:text-white/30"
+                      />
+                      <div className="flex items-center gap-4 mt-2 pt-2.5 border-t border-white/10">
+                        <button onClick={copiarDisp}
+                          className="flex items-center gap-1.5 text-xs font-bold text-brand-300 hover:text-brand-200 transition-colors">
+                          {dispCopied ? <><Check size={13} /> ¡Copiado!</> : <><Copy size={13} /> Copiar</>}
+                        </button>
+                        <button onClick={() => generarPostDisp(dispFecha)} disabled={dispLoading}
+                          className="flex items-center gap-1.5 text-xs font-medium text-white/50 hover:text-white/80 transition-colors disabled:opacity-50">
+                          <RefreshCw size={13} className={dispLoading ? 'animate-spin' : ''} /> Regenerar
+                        </button>
+                        <span className="ml-auto text-[10px] text-white/30">Editable · WhatsApp / IG / FB</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Aviso de turno liberado — re-publicar un slot que se canceló */}
+              {!libOpen ? (
+                <button
+                  onClick={abrirLiberados}
+                  className="flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200 transition-colors"
+                >
+                  <Bell size={15} /> Avisar turno liberado
+                </button>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <Bell size={15} className="text-brand-400" />
+                    <span className="text-sm font-semibold text-white">Turnos liberados</span>
+                    <button onClick={() => { setLibOpen(false); setLibMsg('') }} className="ml-auto text-[11px] text-white/40 hover:text-white/70">Cerrar</button>
+                  </div>
+
+                  {libListLoading ? (
+                    <div className="flex items-center gap-2 text-xs text-white/40 py-1">
+                      <RefreshCw size={14} className="animate-spin" /> Buscando turnos liberados…
+                    </div>
+                  ) : libList.length === 0 ? (
+                    <p className="text-xs text-white/40">No hay turnos liberados para re-publicar por ahora. Cuando alguien cancele, aparecen acá.</p>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      <p className="text-[11px] text-white/30">Elegí el turno que se liberó:</p>
+                      {libList.map((s, i) => (
+                        <button key={i} onClick={() => generarAvisoLiberado(s, i)} disabled={libLoading}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border text-left transition-all disabled:opacity-50 ${
+                            libSel === i ? 'border-brand-400 bg-brand-500/15 text-brand-300' : 'border-white/10 bg-white/5 text-white/70 hover:border-white/20'
+                          }`}>
+                          <Clock size={13} className="shrink-0" /> {s.canchaNombre} · {s.dia ? `${s.dia} ` : ''}{s.horaInicio}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {libLoading && (
+                    <div className="flex items-center gap-2 text-xs text-white/40 py-1">
+                      <Sparkles size={14} className="animate-pulse text-brand-400" /> Armando el aviso…
+                    </div>
+                  )}
+
+                  {libMsg && !libLoading && (
+                    <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+                      <textarea value={libMsg} onChange={(e) => { setLibMsg(e.target.value); setLibCopied(false) }} rows={5}
+                        className="w-full resize-y bg-transparent text-sm text-white/90 leading-relaxed focus:outline-none placeholder:text-white/30" />
+                      <div className="flex items-center gap-4 mt-2 pt-2.5 border-t border-white/10">
+                        <button onClick={copiarLib} className="flex items-center gap-1.5 text-xs font-bold text-brand-300 hover:text-brand-200 transition-colors">
+                          {libCopied ? <><Check size={13} /> ¡Copiado!</> : <><Copy size={13} /> Copiar</>}
+                        </button>
+                        <span className="ml-auto text-[10px] text-white/30">Editable · WhatsApp / IG / FB</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

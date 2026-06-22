@@ -1,6 +1,21 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-21 — Rediseño del navbar público del club (3 zonas reales en grid, destacado "Americano y Super 8", ancho ampliado) + se sacó "Área Privada" de la landing del club (el login de admin vive en la landing de ventas /padelwiark)
+**Última actualización:** 2026-06-22 — El asistente IA suma 3 acciones de difusión sobre el motor Haiku: convocatoria Americano/Super 8 para WhatsApp, post de turnos disponibles (libres reales hoy/mañana) y aviso de turno liberado (re-publicar al cancelarse, con cruce de disponibilidad real). Plan del asistente + hoja de ruta de proactividad documentados.
+
+---
+
+## Asistente IA — 3 acciones de difusión (convocatoria + disponibilidad + liberados) (2026-06-22)
+
+El asistente IA (tarjeta "Insight del día" del dashboard admin) dejó de ser solo una recomendación diaria y pasó a tener **acciones que generan textos listos para difundir**, todas sobre el mismo motor Haiku 4.5 y solo para el dueño (`requireOwner`). Resuelven tareas tediosas reales del dueño: pasar los turnos libres a WhatsApp/redes, convocar partidos sociales y re-publicar lo que se libera. Cada acción muestra el texto **editable** (la IA da el borrador, el admin es el editor final) + **Copiar** — nunca publica nada automático. Probadas e2e con datos reales + IA. Ver [[proyecto_asistente_ia_plan]], [[project_insight_dia_ia]] y [[project_convocatorias_matching]].
+
+- **Backend (`lib/insight.js` + `routes/clubs.js`, additivo):** tres funciones nuevas + endpoints solo-dueño:
+  - `generarConvocatoriaWhatsapp()` → `POST /me/insight/convocatoria-mensaje`. Redacta un mensaje para convocar un Americano/Super 8 (modalidad + día + horario + categoría + cupos). Semilla del módulo Convocatorias.
+  - `gatherDisponibilidad(clubId, fecha)` + `generarPostDisponibilidad()` → `POST /me/insight/post-disponibilidad`. Junta los turnos LIBRES reales de una fecha (franjas del club por cancha menos reservas + TF confirmados, descontando ausencias) y la IA arma el posteo (WhatsApp/IG/FB). Selector hoy/mañana. **No inventa turnos**, solo redacta lo calculado.
+  - `generarPostLiberado()` → `GET /me/insight/liberados` + `POST /me/insight/post-liberado`. El GET lista los turnos liberados (notifs `turno_liberado_auto` / `cancelacion_reserva`) de hoy en adelante y **cruza contra `gatherDisponibilidad` para descartar los que ya se re-tomaron**; el POST arma el aviso de re-publicación.
+- **Frontend (`AdminDashboardPage.jsx`):** la tarjeta del insight suma **3 acciones colapsables** (Court Noir): "Armar convocatoria para WhatsApp", "Publicar turnos disponibles" (hoy/mañana) y "Avisar turno liberado" (lista los liberados reales, click → genera el aviso). Cada una: panel con form/lista → genera → **textarea editable** + Copiar + Regenerar. Mensaje del insight también pasó a ser editable.
+- **Decisión de canal (verdad de producto):** el cuello no es escribir sino PUBLICAR. WhatsApp se resuelve copiar-y-pegar; auto-postear a IG/FB es Meta API (pesado, futuro). El MVP correcto es "la IA redacta, el dueño pega".
+- **Roadmap de proactividad (documentado, NO construido):** pasar de pull (abrir y clickear) a push (motor de **nudges**: la campana/insight avisa "12 libres hoy, ¿publico?" / "se liberó un turno, ¿lo publicamos?"). Disparador mañana = cron Railway; disparador cancelación = evento (ya existe la notif, se le agrega la acción). Canal externo (push/WhatsApp al dueño) = inversión grande posterior. Detalle completo en [[proyecto_asistente_ia_plan]].
+- **PENDIENTE:** gating premium de las acciones; nudges in-app (Paso 1); WhatsApp al dueño; auto-post a redes con imagen (Satori).
 
 ---
 

@@ -1,6 +1,23 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-22 — WIarky pasó de "asistente que sabe" a "asistente que ejecuta": **tool use** (function calling de Claude). Desde el chat genera posteos de disponibilidad y convocatorias (artefactos copiables) y **carga gastos con confirmación** (el chat NUNCA escribe solo; la escritura corre en endpoint aparte solo si el dueño confirma).
+**Última actualización:** 2026-06-22 — WIarky sumó skills: consultar deudores (lista PII-safe) e ingresos, **crear reserva** y **registrar jugador** (ambas escritura con confirmación, reusando los endpoints blindados). + 3 fixes del flujo de reserva: fecha real (no inventa), tipo `eventual` (no rompe grilla) y nombre libre visible en la grilla.
+
+---
+
+## WIarky — más skills: deudores, ingresos, crear reserva, registrar jugador + fixes (2026-06-22)
+
+WIarky escaló de 6 a 8 skills y se afinó el flujo de creación de reservas. Las acciones de escritura siguen la regla de oro: **el chat nunca escribe; toda mutación pasa por una card de confirmación** y reusa los endpoints ya blindados del sistema (no se reimplementa lógica sensible). Ver [[project_wiarky_mascota]] y [[proyecto_asistente_ia_plan]].
+
+- **`consultar_deudores` (lectura, PII-safe):** lista quién debe (turnos impagos + cargos pendientes) agrupado por jugador. **Privacidad:** la IA solo recibe el agregado ("3 deudores, $X"); los **nombres NO pasan por la IA** — se mandan del backend al front como **artefacto tipo `lista`** y se renderizan ahí (`ListaArtefacto`). Mantiene la regla "sin PII a la IA".
+- **`consultar_ingresos` (lectura):** facturado (reservas pagadas + cargos pagados) hoy / 7 días / mes. Agregado, sin PII.
+- **`crear_reserva` (escritura + confirmación):** arma la reserva (resuelve cancha por nombre, calcula horaFin a 1.5h, **pre-chequea disponibilidad real**). Al confirmar, el front llama al endpoint EXISTENTE `POST /reservas/admin` (con su `runSerializable` anti-doble-booking) — no se reimplementa la creación. **Mejora 1:** si el nombre coincide con UN jugador registrado, vincula su `jugadorId`; si no, queda nombre suelto y WIarky avisa.
+- **`crear_jugador` (escritura + confirmación):** registra un jugador (nombre + apellido + **DNI obligatorio**). Al confirmar, el front llama a `POST /jugadores` (reusa la validación de DNI único). Si el DNI ya existe, error claro.
+- **3 fixes del flujo de reserva (descubiertos probando con Luca):**
+  1. **Fecha inventada:** el contexto del chat no incluía la fecha real (solo el día de semana) → WIarky alucinaba fechas (creó una reserva en 2024-01-08). Fix: se inyecta `hoy` y `mañana` reales en el contexto + guard anti-fecha-pasada en `crear_reserva`.
+  2. **Grilla crasheaba (`Cannot read .dot`):** WIarky mandaba `tipo:'manual'`, que `TIPO_CONFIG` de la grilla no conoce. Fix: usa `tipo:'eventual'` (como el modal admin). (Deuda latente anotada: la grilla no tiene fallback para tipos desconocidos.)
+  3. **Nombre libre no se mostraba:** la grilla solo mostraba el nombre del jugador VINCULADO (`jugadorId`), ignorando el array `jugadores` de texto libre. Fix de 1 línea en `ReservasPage.jsx` (mapeo `reservasBackendDia`): fallback a `r.jugadores` cuando no hay jugador vinculado (aditivo, no cambia nada para reservas con jugador).
+- **Frontend (`AsistenteWiark.jsx`):** nuevo artefacto `lista` (`ListaArtefacto`) + `ConfirmAccion` enruta por acción: `crear_reserva`→`/reservas/admin`, `crear_jugador`→`/jugadores`, resto→`/me/insight/accion`.
+- **PRÓXIMO:** más writes (cobrar deuda, bloquear turno), y la **voz**. WIarky hoy tiene lectura + generación + escritura confirmada sobre 8 skills.
 
 ---
 

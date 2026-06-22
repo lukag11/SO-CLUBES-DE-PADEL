@@ -103,7 +103,9 @@ export default function AsistenteWiark() {
                   </div>
                   {m.artefactos?.map((a, j) => a.accion
                     ? <ConfirmAccion key={j} artefacto={a} />
-                    : <CopyArtefacto key={j} tipo={a.tipo} texto={a.texto} />)}
+                    : a.tipo === 'lista'
+                      ? <ListaArtefacto key={j} titulo={a.titulo} items={a.items} total={a.total} />
+                      : <CopyArtefacto key={j} tipo={a.tipo} texto={a.texto} />)}
                 </div>
               )
             ))}
@@ -193,6 +195,26 @@ function CopyArtefacto({ tipo, texto }) {
   )
 }
 
+// Lista de items (ej. deudores) — se muestra en el front; los nombres NO pasan por la IA.
+function ListaArtefacto({ titulo, items, total }) {
+  return (
+    <div className="ml-7 rounded-xl bg-white/5 border border-white/10 p-2.5">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-brand-300">{titulo}</p>
+        {typeof total === 'number' && <p className="text-[11px] font-bold text-white/80">${total.toLocaleString('es-AR')}</p>}
+      </div>
+      <div className="flex flex-col divide-y divide-white/5">
+        {items.map((it, i) => (
+          <div key={i} className="flex items-center justify-between py-1.5 gap-2">
+            <span className="text-[13px] text-white/85 truncate">{it.nombre}</span>
+            <span className="text-[13px] font-semibold text-white/90 shrink-0">{it.detalle}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // Card de confirmación de una acción que escribe en la base (ej. cargar gasto).
 // WIarky NUNCA escribe solo: el dueño confirma acá.
 function ConfirmAccion({ artefacto }) {
@@ -204,9 +226,21 @@ function ConfirmAccion({ artefacto }) {
     if (estado !== 'idle') return
     setEstado('cargando')
     setMensaje('')
-    api.post('/clubs/me/insight/accion', { accion: artefacto.accion, datos: artefacto.datos }, { Authorization: `Bearer ${token}` })
+    // crear_reserva usa el endpoint admin existente (con su anti-doble-booking Serializable);
+    // el resto de las acciones van por /me/insight/accion.
+    const h = { Authorization: `Bearer ${token}` }
+    const req = artefacto.accion === 'crear_reserva'
+      ? api.post('/reservas/admin', artefacto.datos, h).then(() => ({ mensaje: 'Reserva creada ✅' }))
+      : artefacto.accion === 'crear_jugador'
+        ? api.post('/jugadores', artefacto.datos, h).then(() => ({ mensaje: 'Jugador registrado ✅' }))
+        : api.post('/clubs/me/insight/accion', { accion: artefacto.accion, datos: artefacto.datos }, h)
+    const errMsg = {
+      crear_reserva: 'No se pudo (¿el turno ya está ocupado?).',
+      crear_jugador: 'No se pudo (¿el DNI ya está registrado?).',
+    }[artefacto.accion] || 'No se pudo. Probá de nuevo.'
+    req
       .then((r) => { setEstado('hecho'); setMensaje(r?.mensaje || 'Listo ✅') })
-      .catch(() => { setEstado('idle'); setMensaje('No se pudo. Probá de nuevo.') })
+      .catch(() => { setEstado('idle'); setMensaje(errMsg) })
   }
 
   return (

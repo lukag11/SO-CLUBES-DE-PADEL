@@ -2,7 +2,7 @@
 // UNA recomendación accionable. Modelo Haiku 4.5 (barato; sin effort/thinking).
 import Anthropic from '@anthropic-ai/sdk'
 import prisma from './prisma.js'
-import { hoyArgStr } from './tiempo.js'
+import { hoyArgStr, inicioDiaArg, inicioMesArg } from './tiempo.js'
 import { turnosImpagosDeuda } from './deudas.js'
 
 const client = new Anthropic() // toma ANTHROPIC_API_KEY del entorno
@@ -239,7 +239,8 @@ async function armarContextoClub(clubId) {
     ? torneos.map((t) => `${t.nombre} (${t.estado === 'open' ? 'inscripción abierta' : 'en curso'})`).join(', ')
     : 'ninguno activo'
 
-  const contexto = `Datos REALES del club "${info.club}" (hoy es ${info.dia}):
+  const contexto = `Hoy es ${info.dia} ${hoyStr} (mañana: ${mananaStr}). Usá estas fechas reales para interpretar "hoy", "mañana" o cualquier día; nunca inventes una fecha.
+Datos REALES del club "${info.club}":
 - Ocupación de hoy: ${info.ocupacionHoyPct}% (${info.slotsOcupados} de ${info.slotsTotales} turnos)
 - Turnos libres hoy: ${libresTxt}
 - Turnos libres mañana: ${libresMananaTxt}
@@ -250,6 +251,47 @@ async function armarContextoClub(clubId) {
 - Torneos activos: ${torneosTxt}`
 
   return contexto
+}
+
+// Junta los deudores del club (turnos impagos + cargos pendientes) agrupados por jugador.
+// Devuelve nombres para mostrar EN EL FRONT (no se mandan a la IA).
+async function gatherDeudores(clubId) {
+  const [turnos, cargos] = await Promise.all([
+    turnosImpagosDeuda(clubId),
+    prisma.cargo.findMany({ where: { clubId, estado: 'pendiente', jugadorId: { not: null } }, include: { jugador: { select: { nombre: true, apellido: true } } } }),
+  ])
+  const map = new Map() // jugadorId -> { nombre, monto }
+  for (const t of turnos) {
+    if (!t.jugador) continue
+    const cur = map.get(t.jugador.id) || { nombre: `${t.jugador.nombre} ${t.jugador.apellido ?? ''}`.trim(), monto: 0 }
+    cur.monto += t.monto || 0
+    map.set(t.jugador.id, cur)
+  }
+  for (const c of cargos) {
+    const cur = map.get(c.jugadorId) || { nombre: c.jugador ? `${c.jugador.nombre} ${c.jugador.apellido ?? ''}`.trim() : 'Jugador', monto: 0 }
+    cur.monto += c.monto || 0
+    map.set(c.jugadorId, cur)
+  }
+  const lista = [...map.values()].filter((x) => x.monto > 0).sort((a, b) => b.monto - a.monto)
+  return { lista, total: lista.reduce((s, x) => s + x.monto, 0), cantidad: lista.length }
+}
+
+// Ingresos cobrados (reservas pagadas + cargos pagados) hoy / últimos 7 días / mes.
+async function gatherIngresos(clubId) {
+  const inicioHoy = inicioDiaArg()
+  const inicioMes = inicioMesArg()
+  const inicio7 = inicioDiaArg(); inicio7.setDate(inicio7.getDate() - 6)
+  const [rHoy, cHoy, r7, c7, rMes, cMes] = await Promise.all([
+    prisma.reserva.findMany({ where: { clubId, pagado: true, pagadoAt: { gte: inicioHoy } }, select: { precio: true } }),
+    prisma.cargo.findMany({ where: { clubId, estado: 'pagado', pagadoAt: { gte: inicioHoy } }, select: { monto: true } }),
+    prisma.reserva.findMany({ where: { clubId, pagado: true, pagadoAt: { gte: inicio7 } }, select: { precio: true } }),
+    prisma.cargo.findMany({ where: { clubId, estado: 'pagado', pagadoAt: { gte: inicio7 } }, select: { monto: true } }),
+    prisma.reserva.findMany({ where: { clubId, pagado: true, pagadoAt: { gte: inicioMes } }, select: { precio: true } }),
+    prisma.cargo.findMany({ where: { clubId, estado: 'pagado', pagadoAt: { gte: inicioMes } }, select: { monto: true } }),
+  ])
+  const sp = (a) => a.reduce((s, r) => s + (r.precio ?? 0), 0)
+  const sm = (a) => a.reduce((s, c) => s + (c.monto ?? 0), 0)
+  return { hoy: sp(rHoy) + sm(cHoy), semana: sp(r7) + sm(c7), mes: sp(rMes) + sm(cMes) }
 }
 
 // ── Herramientas de WIarky: acciones que GENERAN texto (no escriben en la base) ──
@@ -277,6 +319,16 @@ const WIARK_TOOLS = [
     },
   },
   {
+    name: 'consultar_deudores',
+    description: 'Lista los jugadores que deben plata (turnos impagos + cargos pendientes) y el total adeudado. Usala cuando el dueño pregunta quién le debe, por las deudas o las cuentas pendientes.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'consultar_ingresos',
+    description: 'Devuelve cuánto se facturó (ingresos efectivamente cobrados) hoy, en los últimos 7 días y en el mes. Usala cuando el dueño pregunta cuánto facturó, recaudó o cobró.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
     name: 'cargar_gasto',
     description: 'Prepara la carga de un gasto/factura del club. NO lo guarda: el dueño lo confirma después con un botón. Usala cuando el dueño pide cargar, anotar o registrar un gasto o una factura.',
     input_schema: {
@@ -287,6 +339,36 @@ const WIARK_TOOLS = [
         categoria: { type: 'string', description: 'Opcional: categoría del gasto' },
       },
       required: ['monto', 'concepto'],
+    },
+  },
+  {
+    name: 'crear_jugador',
+    description: 'Registra un nuevo jugador en el club. NO lo crea: el dueño lo confirma con un botón. Necesita nombre, apellido y DNI (los tres obligatorios). Usala cuando el dueño pide registrar o dar de alta a un jugador.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nombre: { type: 'string' },
+        apellido: { type: 'string' },
+        dni: { type: 'string', description: 'DNI, solo números' },
+        categoria: { type: 'string', description: 'Opcional: categoría (ej: 6ta)' },
+        telefono: { type: 'string', description: 'Opcional' },
+      },
+      required: ['nombre', 'apellido', 'dni'],
+    },
+  },
+  {
+    name: 'crear_reserva',
+    description: 'Prepara una reserva de cancha (el turno dura 1.5h). NO la crea: el dueño la confirma con un botón. Usala cuando el dueño pide reservar o anotar un turno en una cancha. Necesitás la cancha, la fecha y la hora de inicio.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        canchaNombre: { type: 'string', description: 'Nombre de la cancha (ej: Cancha 1)' },
+        fecha: { type: 'string', description: 'Fecha YYYY-MM-DD' },
+        horaInicio: { type: 'string', description: 'Hora de inicio HH:MM (debe ser un horario de turno válido)' },
+        jugador: { type: 'string', description: 'Opcional: nombre de quien reserva' },
+        precio: { type: 'number', description: 'Opcional: precio del turno' },
+      },
+      required: ['canchaNombre', 'fecha', 'horaInicio'],
     },
   },
 ]
@@ -309,6 +391,18 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
     const texto = (await generarConvocatoriaWhatsapp({ club: club?.nombre, modalidad: input.modalidad, dia: input.dia, horario: input.horario, categoria: input.categoria, cupos: input.cupos })).texto
     return { paraModelo: 'Convocatoria generada OK. Se le muestra al usuario abajo para copiar; no la repitas.', artefacto: { tipo: 'Convocatoria', texto } }
   }
+  if (name === 'consultar_deudores') {
+    const { lista, total, cantidad } = await gatherDeudores(clubId)
+    if (!cantidad) return { paraModelo: 'No hay deudores: nadie debe plata en este momento.' }
+    return {
+      paraModelo: `Hay ${cantidad} deudor(es), total $${total.toLocaleString('es-AR')}. La lista con los nombres se le muestra al usuario abajo; NO repitas los nombres vos.`,
+      artefacto: { tipo: 'lista', titulo: 'Quién te debe', total, items: lista.map((x) => ({ nombre: x.nombre, detalle: `$${x.monto.toLocaleString('es-AR')}` })) },
+    }
+  }
+  if (name === 'consultar_ingresos') {
+    const ing = await gatherIngresos(clubId)
+    return { paraModelo: `Ingresos cobrados — hoy: $${ing.hoy.toLocaleString('es-AR')}; últimos 7 días: $${ing.semana.toLocaleString('es-AR')}; este mes: $${ing.mes.toLocaleString('es-AR')}.` }
+  }
   if (name === 'cargar_gasto') {
     const monto = Math.round(Number(input.monto) || 0)
     const concepto = (input.concepto || '').toString().trim()
@@ -316,6 +410,51 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
     const categoria = input.categoria ? input.categoria.toString().trim() : null
     const resumen = `Cargar gasto de $${monto.toLocaleString('es-AR')} — ${concepto}${categoria ? ` (${categoria})` : ''}`
     return { paraModelo: 'Le muestro al usuario un botón para confirmar; el gasto NO está cargado todavía.', artefacto: { tipo: 'confirmacion', accion: 'cargar_gasto', datos: { monto, concepto, categoria }, resumen } }
+  }
+  if (name === 'crear_reserva') {
+    const fecha = /^\d{4}-\d{2}-\d{2}$/.test(input.fecha) ? input.fecha : null
+    const horaInicio = /^\d{1,2}:\d{2}$/.test(input.horaInicio || '') ? input.horaInicio.padStart(5, '0') : null
+    if (!fecha || !horaInicio) return { paraModelo: 'Necesito la fecha (YYYY-MM-DD) y la hora de inicio (HH:MM). Pediselas al usuario.' }
+    if (fecha < hoyArgStr()) return { paraModelo: `Esa fecha (${fecha}) ya pasó. Confirmá con el usuario para qué día es la reserva (hoy es ${hoyArgStr()}).` }
+    const canchas = await prisma.cancha.findMany({ where: { clubId, activo: true }, select: { id: true, nombre: true } })
+    const q = (input.canchaNombre || '').toLowerCase().trim()
+    const cancha = canchas.find((c) => c.nombre.toLowerCase() === q) || (q && canchas.find((c) => c.nombre.toLowerCase().includes(q)))
+    if (!cancha) return { paraModelo: `No encontré esa cancha. Las canchas del club son: ${canchas.map((c) => c.nombre).join(', ')}. Preguntale al usuario en cuál.` }
+    const finTotal = toMin(horaInicio) + 90
+    const fm = finTotal % 1440
+    const horaFin = `${String(Math.floor(fm / 60)).padStart(2, '0')}:${String(fm % 60).padStart(2, '0')}`
+    const disp = await gatherDisponibilidad(clubId, fecha)
+    const cDisp = disp.libres.find((x) => x.cancha === cancha.nombre)
+    if (!cDisp || !cDisp.horas.includes(horaInicio)) {
+      return { paraModelo: `El turno ${cancha.nombre} ${fecha} ${horaInicio} no está disponible (ya reservado o no es un horario de turno válido del club). Avisale al usuario; podés ofrecer consultar la disponibilidad.` }
+    }
+    const precio = input.precio ? Math.round(Number(input.precio)) : null
+    const jugador = (input.jugador || '').toString().trim()
+    // Mejora 1: si el nombre coincide con UN jugador registrado, vinculamos su jugadorId.
+    let jugadorId = null
+    let nota = ''
+    if (jugador) {
+      const norm = (s) => s.toLowerCase().replace(/\s+/g, ' ').trim()
+      const js = await prisma.jugador.findMany({ where: { clubId }, select: { id: true, nombre: true, apellido: true } })
+      const matches = js.filter((j) => norm(`${j.nombre} ${j.apellido}`) === norm(jugador))
+      if (matches.length === 1) jugadorId = matches[0].id
+      else if (matches.length === 0) nota = ` Avisale al usuario que "${jugador}" no figura como jugador registrado: la reserva queda con el nombre suelto. Si quiere registrarlo, ofrecé hacerlo (necesitás el DNI).`
+    }
+    const resumen = `Reservar ${cancha.nombre} — ${fecha} ${horaInicio} a ${horaFin}${jugador ? ` · ${jugador}${jugadorId ? ' (registrado)' : ''}` : ''}${precio ? ` · $${precio.toLocaleString('es-AR')}` : ''}`
+    return {
+      paraModelo: 'Le muestro al usuario un botón para confirmar la reserva; todavía NO está creada.' + nota,
+      artefacto: { tipo: 'confirmacion', accion: 'crear_reserva', resumen, datos: { canchaId: cancha.id, fecha, horaInicio, horaFin, tipo: 'eventual', precio, jugadores: jugador ? [jugador] : [], ...(jugadorId && { jugadorId }), notas: 'Reserva via WIarky' } },
+    }
+  }
+  if (name === 'crear_jugador') {
+    const nombre = (input.nombre || '').toString().trim()
+    const apellido = (input.apellido || '').toString().trim()
+    const dni = (input.dni || '').toString().replace(/\D/g, '')
+    if (!nombre || !apellido || !dni) return { paraModelo: 'Para registrar un jugador necesito nombre, apellido y DNI (obligatorio). Pedí lo que falte.' }
+    const categoria = input.categoria ? input.categoria.toString().trim() : undefined
+    const telefono = input.telefono ? input.telefono.toString().trim() : undefined
+    const resumen = `Registrar jugador: ${nombre} ${apellido} · DNI ${dni}${categoria ? ` · ${categoria}` : ''}`
+    return { paraModelo: 'Le muestro al usuario un botón para confirmar el alta; el jugador NO está registrado todavía.', artefacto: { tipo: 'confirmacion', accion: 'crear_jugador', resumen, datos: { nombre, apellido, dni, categoria, telefono } } }
   }
   return { paraModelo: 'Herramienta desconocida.' }
 }
@@ -331,6 +470,9 @@ Reglas:
 - Tenés HERRAMIENTAS para consultar disponibilidad de una fecha, GENERAR un posteo de turnos libres, y GENERAR un mensaje de convocatoria de Americano/Super 8. Cuando el dueño te pida "armá/pasá/publicá los turnos libres" o "convocá/armá un Americano o Super 8", USÁ la herramienta correspondiente (no lo redactes vos a mano).
 - Cuando usás una herramienta que GENERA un posteo o una convocatoria, ese texto se le muestra al usuario automáticamente ABAJO de tu mensaje, con un botón para copiar. Por eso NO repitas ese texto en tu respuesta: escribí solo una línea corta presentándolo (ej. "Te armé el posteo, lo tenés acá abajo para copiar 👇").
 - Para cargar un gasto usá la herramienta cargar_gasto con el monto y el concepto. El gasto NO se guarda hasta que el dueño confirme con un botón que aparece abajo de tu mensaje; vos solo decí una línea corta (ej. "Te dejo el gasto para confirmar 👇"). Si falta el monto o el concepto, pediselo.
+- Para "quién me debe" usá consultar_deudores y para "cuánto facturé" usá consultar_ingresos. La lista de deudores (con nombres) se le muestra al usuario abajo: NUNCA repitas nombres de jugadores en tu texto (privacidad); referite al total y la cantidad.
+- Para reservar un turno usá crear_reserva (cancha + fecha + hora de inicio; el turno dura 1.5h, la hora de fin se calcula sola). NO se crea hasta que el dueño confirme con el botón. Si falta la cancha, la fecha o la hora, pediselas.
+- Para registrar/dar de alta un jugador usá crear_jugador (nombre + apellido + DNI; el DNI es OBLIGATORIO). NO se crea hasta que el dueño confirme. Si falta el DNI, pediselo. El nombre completo separalo en nombre y apellido.
 - En tus propios mensajes del chat escribí en texto plano, sin markdown.
 
 ${contexto}`

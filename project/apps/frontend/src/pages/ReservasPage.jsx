@@ -3119,7 +3119,7 @@ const ReservasPage = () => {
       inicio: r.horaInicio,
       fin: r.horaFin,
       tipo: r.tipo || 'online',
-      jugadores: r.jugador ? [`${r.jugador.nombre} ${r.jugador.apellido}`] : [],
+      jugadores: r.jugador ? [`${r.jugador.nombre} ${r.jugador.apellido}`] : (r.jugadores ?? []),
       jugadorId: r.jugador?.id ?? r.jugadorId ?? null,
       profesor: r.profesor || null,
       estado: r.estado,

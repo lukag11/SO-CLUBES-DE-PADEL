@@ -18,7 +18,9 @@ Todo vive en el backend `lib/insight.js` (motor) + rutas en `routes/clubs.js` (s
 
 Patrón común: `gather*` junta datos reales (sin PII) → `generar*` llama a Haiku → el front muestra el texto **editable** (la IA da el borrador, el admin es el editor final) + **Copiar**. Nunca se publica nada automático: el admin controla el texto y dónde lo pega. Las 3 acciones (2, 3, 4) son **on-demand** (no cacheadas); solo el insight (1) se cachea 24h.
 
-5. **WIarky — mascota + chat (paso "chat" ARRANCADO, 2026-06-22).** El asistente tiene cara: **WIarky**, pelotita de pádel (`components/asistente/AsistentePelota.jsx` + `AsistenteWiark.jsx`, FAB flotante en el panel admin, NO invasivo). Su panel es un **chat grounded de LECTURA**: `responderChat(clubId, mensajes)` arma un snapshot real del club (ocupación, libres hoy/mañana, tendencia, horas muertas, deuda, jugadores, torneos) como `system` de Haiku con regla de no-inventar; `POST /me/insight/chat` (solo dueño). Multi-turno. Ver [[project_wiarky_mascota]]. **Falta:** que el chat *haga* acciones (tool use) y voz.
+5. **WIarky — mascota + chat (paso "chat" ARRANCADO, 2026-06-22).** El asistente tiene cara: **WIarky**, pelotita de pádel (`components/asistente/AsistentePelota.jsx` + `AsistenteWiark.jsx`, FAB flotante en el panel admin, NO invasivo). Su panel es un chat grounded multi-turno; `POST /me/insight/chat` (solo dueño). Ver [[project_wiarky_mascota]].
+
+6. **WIarky — TOOL USE (paso "acciones" ARRANCADO, 2026-06-22).** El chat dejó de solo responder: `responderChatAgente` corre el loop de function calling de Claude con `WIARK_TOOLS` (4 herramientas): `consultar_disponibilidad`, `armar_posteo_disponibilidad`, `armar_convocatoria` (las 3 devuelven **artefactos** copiables al front) y `cargar_gasto` (**escritura con confirmación**). Regla de oro: el chat NUNCA escribe; la escritura corre en `POST /me/insight/accion` (separado) solo si el dueño confirma con la card `ConfirmAccion`. Extensible: cada acción nueva = una herramienta + (si escribe) una rama en `/accion`. **Falta:** más writes (crear reserva, cobrar) y voz.
 
 ---
 

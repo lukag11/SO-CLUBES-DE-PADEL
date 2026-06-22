@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Send } from 'lucide-react'
+import { X, Send, Copy, Check } from 'lucide-react'
 import AsistentePelota from './AsistentePelota'
 import useAuthStore from '../../store/authStore'
 import { api } from '../../lib/api'
@@ -57,7 +57,11 @@ export default function AsistenteWiark() {
     setSending(true)
     const historial = next.map((m) => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text }))
     api.post('/clubs/me/insight/chat', { mensajes: historial }, { Authorization: `Bearer ${token}` })
-      .then((r) => setMessages((m) => [...m, { from: 'wiark', text: r?.respuesta || 'No te entendí, probá de otra forma.' }]))
+      .then((r) => {
+        const artefactos = Array.isArray(r?.artefactos) ? r.artefactos : []
+        const text = r?.respuesta || (artefactos.length ? 'Te lo dejo acá abajo para copiar 👇' : 'No te entendí, probá de otra forma.')
+        setMessages((m) => [...m, { from: 'wiark', text, artefactos }])
+      })
       .catch(() => setMessages((m) => [...m, { from: 'wiark', text: 'Uy, no pude responder ahora. Probá de nuevo en un toque 🙈' }]))
       .finally(() => setSending(false))
   }
@@ -90,11 +94,16 @@ export default function AsistenteWiark() {
                   {m.text}
                 </div>
               ) : (
-                <div key={i} className="self-start flex items-end gap-1.5 max-w-[88%]">
-                  <span className="shrink-0 mb-0.5"><AsistentePelota size={22} flotar={false} /></span>
-                  <div className="bg-white/8 border border-white/10 text-white/90 text-sm rounded-2xl rounded-bl-sm px-3 py-2 leading-relaxed whitespace-pre-wrap">
-                    {m.text}
+                <div key={i} className="self-start flex flex-col gap-1.5 max-w-[92%]">
+                  <div className="flex items-end gap-1.5">
+                    <span className="shrink-0 mb-0.5"><AsistentePelota size={22} flotar={false} /></span>
+                    <div className="bg-white/8 border border-white/10 text-white/90 text-sm rounded-2xl rounded-bl-sm px-3 py-2 leading-relaxed whitespace-pre-wrap">
+                      {m.text}
+                    </div>
                   </div>
+                  {m.artefactos?.map((a, j) => a.accion
+                    ? <ConfirmAccion key={j} artefacto={a} />
+                    : <CopyArtefacto key={j} tipo={a.tipo} texto={a.texto} />)}
                 </div>
               )
             ))}
@@ -160,6 +169,67 @@ export default function AsistenteWiark() {
       >
         <AsistentePelota size={64} expresion={open ? 'feliz' : 'idle'} />
       </button>
+    </div>
+  )
+}
+
+// Bloque de un artefacto generado por WIarky (posteo / convocatoria) con botón de copiar.
+function CopyArtefacto({ tipo, texto }) {
+  const [copied, setCopied] = useState(false)
+  const copiar = () => {
+    navigator.clipboard?.writeText(texto).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {})
+  }
+  return (
+    <div className="ml-7 rounded-xl bg-white/5 border border-brand-500/20 p-2.5">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-brand-300 mb-1.5">{tipo}</p>
+      <p className="text-[13px] text-white/90 whitespace-pre-wrap leading-relaxed">{texto}</p>
+      <button onClick={copiar} className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-brand-300 hover:text-brand-200 transition-colors">
+        {copied ? <><Check size={12} /> ¡Copiado!</> : <><Copy size={12} /> Copiar</>}
+      </button>
+    </div>
+  )
+}
+
+// Card de confirmación de una acción que escribe en la base (ej. cargar gasto).
+// WIarky NUNCA escribe solo: el dueño confirma acá.
+function ConfirmAccion({ artefacto }) {
+  const token = useAuthStore((s) => s.token)
+  const [estado, setEstado] = useState('idle') // idle | cargando | hecho | cancelado
+  const [mensaje, setMensaje] = useState('')
+
+  const confirmar = () => {
+    if (estado !== 'idle') return
+    setEstado('cargando')
+    setMensaje('')
+    api.post('/clubs/me/insight/accion', { accion: artefacto.accion, datos: artefacto.datos }, { Authorization: `Bearer ${token}` })
+      .then((r) => { setEstado('hecho'); setMensaje(r?.mensaje || 'Listo ✅') })
+      .catch(() => { setEstado('idle'); setMensaje('No se pudo. Probá de nuevo.') })
+  }
+
+  return (
+    <div className="ml-7 rounded-xl bg-white/5 border border-amber-400/30 p-3">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1.5">Confirmá la acción</p>
+      <p className="text-[13px] text-white/90 mb-2.5">{artefacto.resumen}</p>
+      {estado === 'hecho' ? (
+        <p className="text-[13px] font-semibold text-brand-300 flex items-center gap-1.5"><Check size={14} /> {mensaje}</p>
+      ) : estado === 'cancelado' ? (
+        <p className="text-[13px] text-white/40">Cancelado.</p>
+      ) : (
+        <div className="flex items-center gap-2">
+          <button onClick={confirmar} disabled={estado === 'cargando'}
+            className="flex-1 py-2 rounded-lg bg-brand-500 hover:bg-brand-400 text-white text-[13px] font-bold transition-all disabled:opacity-50">
+            {estado === 'cargando' ? 'Cargando…' : 'Sí, cargar'}
+          </button>
+          <button onClick={() => setEstado('cancelado')} disabled={estado === 'cargando'}
+            className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/60 text-[13px] hover:text-white/90 transition-all">
+            Cancelar
+          </button>
+        </div>
+      )}
+      {mensaje && estado !== 'hecho' && <p className="text-[11px] text-red-300 mt-1.5">{mensaje}</p>}
     </div>
   )
 }

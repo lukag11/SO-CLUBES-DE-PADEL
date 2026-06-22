@@ -4,7 +4,7 @@ import { requireAuth, requireRole, requireOwner } from '../middleware/auth.js'
 import { tienePermiso } from '../lib/permisos.js'
 import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg } from '../lib/tiempo.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
-import { gatherInsightData, generarInsightIA, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado, responderChat } from '../lib/insight.js'
+import { gatherInsightData, generarInsightIA, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado, responderChatAgente } from '../lib/insight.js'
 
 const router = Router()
 
@@ -346,11 +346,34 @@ router.post('/me/insight/chat', requireAuth, requireRole('admin'), requireOwner,
     if (!limpios.length || limpios[limpios.length - 1].role !== 'user') {
       return res.status(400).json({ error: 'Mensaje inválido' })
     }
-    const { texto } = await responderChat(clubId, limpios)
-    res.json({ respuesta: texto })
+    const { texto, artefactos } = await responderChatAgente(clubId, limpios)
+    res.json({ respuesta: texto, artefactos: artefactos || [] })
   } catch (err) {
     console.error('Error chat WIarky:', err.message)
     res.status(500).json({ error: 'No pude responder ahora' })
+  }
+})
+
+// POST /api/clubs/me/insight/accion — ejecuta una acción de WIarky CONFIRMADA por el dueño
+// (write de verdad, separado del chat para que nunca escriba sin confirmación). Solo dueño.
+router.post('/me/insight/accion', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const { accion, datos } = req.body || {}
+    if (accion === 'cargar_gasto') {
+      const monto = Math.round(Number(datos?.monto) || 0)
+      const concepto = (datos?.concepto || '').toString().trim()
+      if (monto <= 0 || !concepto) return res.status(400).json({ error: 'Monto o concepto inválido' })
+      const categoria = datos?.categoria ? datos.categoria.toString().trim() : null
+      const g = await prisma.gasto.create({
+        data: { clubId, concepto, monto, categoria, fecha: hoyArgStr(), pagado: true, pagadoAt: new Date(), fuente: 'manual' },
+      })
+      return res.json({ ok: true, mensaje: `Gasto de $${monto.toLocaleString('es-AR')} cargado ✅`, id: g.id })
+    }
+    return res.status(400).json({ error: 'Acción desconocida' })
+  } catch (err) {
+    console.error('Error acción WIarky:', err.message)
+    res.status(500).json({ error: 'No se pudo ejecutar la acción' })
   }
 })
 

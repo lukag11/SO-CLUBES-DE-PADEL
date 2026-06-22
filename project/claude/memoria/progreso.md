@@ -1,6 +1,20 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-22 — Nació **WIarky**, la mascota del asistente IA (pelotita de pádel con ojos/boca, estilo Clippy pero no invasivo): launcher flotante en el panel admin + **chat con IA grounded** que responde preguntas sobre el club con datos reales (ocupación, turnos libres hoy/mañana, tendencia, horas muertas, deuda, jugadores, torneos) sin inventar.
+**Última actualización:** 2026-06-22 — WIarky pasó de "asistente que sabe" a "asistente que ejecuta": **tool use** (function calling de Claude). Desde el chat genera posteos de disponibilidad y convocatorias (artefactos copiables) y **carga gastos con confirmación** (el chat NUNCA escribe solo; la escritura corre en endpoint aparte solo si el dueño confirma).
+
+---
+
+## WIarky — tool use: genera posteos/convocatorias + carga gastos con confirmación (2026-06-22)
+
+WIarky dio el salto de **"sabe" a "ejecuta"**: se implementó el **loop de tool use (function calling)** de Claude. Desde el mismo chat, WIarky entiende el pedido en lenguaje natural, **elige la herramienta y extrae los parámetros**, el backend la ejecuta (reusando los generadores ya hechos) y devuelve el resultado. Es la arquitectura extensible del asistente: cada cosa nueva que WIarky haga = una herramienta más. Ver [[project_wiarky_mascota]] y [[proyecto_asistente_ia_plan]].
+
+- **Loop de tool use (`lib/insight.js`, `responderChatAgente`):** arma el contexto real del club (helper `armarContextoClub`) + define `WIARK_TOOLS` + corre el ciclo `messages.create` → si `stop_reason==='tool_use'`, ejecuta cada `tool_use`, devuelve `tool_result` y vuelve a llamar (guard de 4 iteraciones). Modelo Haiku 4.5.
+- **Herramientas (4):** `consultar_disponibilidad(fecha)` (lectura de cualquier fecha), `armar_posteo_disponibilidad(fecha)` (genera el posteo de turnos libres), `armar_convocatoria(modalidad, dia, horario, categoria, cupos)` (genera el mensaje de convocatoria), y `cargar_gasto(monto, concepto, categoria)` (**escritura, con confirmación**).
+- **Artefactos (clave de UX):** el resultado de una herramienta lo ve la IA, NO el usuario. Por eso los textos generados (posteo/convocatoria) vuelven como **`artefacto`** aparte y el front los muestra en un bloque con botón **Copiar** (`CopyArtefacto`) — no se depende de que la IA los repita. `responderChatAgente` devuelve `{ texto, artefactos }`.
+- **Escritura con confirmación (regla de oro):** `cargar_gasto` **NO escribe**: devuelve un artefacto `{ tipo:'confirmacion', accion:'cargar_gasto', datos, resumen }`. El front lo muestra como card con **[Sí, cargar] [Cancelar]** (`ConfirmAccion`). Recién al confirmar, el front llama a `POST /me/insight/accion` (endpoint SEPARADO del chat) que crea el `Gasto` real. Verificado e2e: pedir cargar un gasto por chat NO toca la base (gastos 2→2); el gasto se crea solo al confirmar. Probado creando + borrando por id (sin dejar basura).
+- **Endpoints nuevos (`routes/clubs.js`):** `POST /me/insight/chat` ahora usa `responderChatAgente` (devuelve artefactos) + `POST /me/insight/accion` (ejecuta acciones confirmadas, solo dueño).
+- **Frontend (`AsistenteWiark.jsx`):** los mensajes de WIarky pueden traer artefactos; se discrimina `artefacto.accion ? ConfirmAccion : CopyArtefacto`. WIarky ahora tiene **lectura + generación + escritura confirmada**.
+- **PRÓXIMO:** más acciones de escritura (crear reserva, cobrar) — todas detrás de confirmación; y la **voz** (STT/TTS) como capa encima del cerebro. Detalle en [[proyecto_asistente_ia_plan]].
 
 ---
 

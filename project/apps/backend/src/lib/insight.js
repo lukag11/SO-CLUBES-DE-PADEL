@@ -213,9 +213,8 @@ Posteo:`
   return { texto, tokens: { in: resp.usage.input_tokens, out: resp.usage.output_tokens } }
 }
 
-// Chat de WIarky: responde preguntas del dueño sobre su club, grounded en datos reales
-// (agregados, sin PII). `mensajes` = historial [{role:'user'|'assistant', content}].
-export async function responderChat(clubId, mensajes) {
+// Arma el snapshot de datos reales del club (agregados, sin PII) para el contexto del chat.
+async function armarContextoClub(clubId) {
   const hoyStr = hoyArgStr()
   const [yy, mm, dd] = hoyStr.split('-').map(Number)
   const mDate = new Date(Date.UTC(yy, mm - 1, dd + 1))
@@ -250,18 +249,114 @@ export async function responderChat(clubId, mensajes) {
 - Jugadores registrados en el club: ${jugadores}
 - Torneos activos: ${torneosTxt}`
 
-  const system = `Sos WIarky, el asistente IA de un club de pádel (marca PadelwIArk). Hablás en español rioplatense, cercano y breve (1 a 3 frases), con alguna emoji con moderación. Ayudás al dueño a entender sus números y a llenar canchas. Reglas: respondé SOLO con los datos reales que te paso abajo; si te preguntan algo que no está en esos datos, decí con honestidad que todavía no tenés ese dato (no inventes números). Cuando venga al caso, sugerí una acción concreta (ej. armar un Americano/Super 8 en una franja floja, o pasar los turnos libres). No des respuestas largas. Escribí en texto plano, SIN markdown (nada de asteriscos para negrita): es un chat simple.
+  return contexto
+}
+
+// ── Herramientas de WIarky: acciones que GENERAN texto (no escriben en la base) ──
+const WIARK_TOOLS = [
+  {
+    name: 'consultar_disponibilidad',
+    description: 'Devuelve los turnos LIBRES de una fecha puntual (canchas y horarios). Usala cuando el dueño pregunta por la disponibilidad de un día distinto a hoy o mañana.',
+    input_schema: { type: 'object', properties: { fecha: { type: 'string', description: 'Fecha en formato YYYY-MM-DD' } }, required: ['fecha'] },
+  },
+  {
+    name: 'armar_posteo_disponibilidad',
+    description: 'Genera un posteo listo para difundir (WhatsApp/Instagram/Facebook) con los turnos libres de una fecha. Usala cuando el dueño pide "armá/pasá/publicá los turnos libres" o "publicá la disponibilidad".',
+    input_schema: { type: 'object', properties: { fecha: { type: 'string', description: 'Fecha YYYY-MM-DD (si no se aclara, es hoy)' } }, required: [] },
+  },
+  {
+    name: 'armar_convocatoria',
+    description: 'Genera un mensaje de WhatsApp para convocar un Americano o Super 8 (para llenar canchas). Usala cuando el dueño pide armar o convocar un Americano o Super 8.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        modalidad: { type: 'string', enum: ['americano', 'super8'] },
+        dia: { type: 'string' }, horario: { type: 'string' }, categoria: { type: 'string' }, cupos: { type: 'string' },
+      },
+      required: ['modalidad'],
+    },
+  },
+  {
+    name: 'cargar_gasto',
+    description: 'Prepara la carga de un gasto/factura del club. NO lo guarda: el dueño lo confirma después con un botón. Usala cuando el dueño pide cargar, anotar o registrar un gasto o una factura.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        monto: { type: 'number', description: 'Monto en pesos, solo el número (sin $ ni puntos)' },
+        concepto: { type: 'string', description: 'Qué se gastó (ej: pelotas, luz, sueldos)' },
+        categoria: { type: 'string', description: 'Opcional: categoría del gasto' },
+      },
+      required: ['monto', 'concepto'],
+    },
+  },
+]
+
+// Devuelve { paraModelo } (lo que ve la IA) y opcionalmente { artefacto } (texto que se
+// le muestra al usuario abajo, con botón de copiar — NO lo repite la IA).
+async function ejecutarHerramientaWiark(name, input, clubId) {
+  const fechaOk = (f) => (/^\d{4}-\d{2}-\d{2}$/.test(f) ? f : hoyArgStr())
+  if (name === 'consultar_disponibilidad') {
+    const d = await gatherDisponibilidad(clubId, fechaOk(input.fecha))
+    return { paraModelo: d.total ? `${d.total} libres — ${d.libres.map((l) => `${l.cancha}: ${l.horas.join(', ')}`).join(' | ')}` : 'No hay turnos libres esa fecha.' }
+  }
+  if (name === 'armar_posteo_disponibilidad') {
+    const d = await gatherDisponibilidad(clubId, fechaOk(input.fecha))
+    const texto = (await generarPostDisponibilidad(d)).texto
+    return { paraModelo: 'Posteo generado OK. Se le muestra al usuario abajo para copiar; no lo repitas.', artefacto: { tipo: 'Posteo de turnos libres', texto } }
+  }
+  if (name === 'armar_convocatoria') {
+    const club = await prisma.club.findUnique({ where: { id: clubId }, select: { nombre: true } })
+    const texto = (await generarConvocatoriaWhatsapp({ club: club?.nombre, modalidad: input.modalidad, dia: input.dia, horario: input.horario, categoria: input.categoria, cupos: input.cupos })).texto
+    return { paraModelo: 'Convocatoria generada OK. Se le muestra al usuario abajo para copiar; no la repitas.', artefacto: { tipo: 'Convocatoria', texto } }
+  }
+  if (name === 'cargar_gasto') {
+    const monto = Math.round(Number(input.monto) || 0)
+    const concepto = (input.concepto || '').toString().trim()
+    if (monto <= 0 || !concepto) return { paraModelo: 'Faltan datos: necesito el monto (mayor a 0) y el concepto. Pedíselos al usuario.' }
+    const categoria = input.categoria ? input.categoria.toString().trim() : null
+    const resumen = `Cargar gasto de $${monto.toLocaleString('es-AR')} — ${concepto}${categoria ? ` (${categoria})` : ''}`
+    return { paraModelo: 'Le muestro al usuario un botón para confirmar; el gasto NO está cargado todavía.', artefacto: { tipo: 'confirmacion', accion: 'cargar_gasto', datos: { monto, concepto, categoria }, resumen } }
+  }
+  return { paraModelo: 'Herramienta desconocida.' }
+}
+
+// Chat de WIarky con TOOL USE: responde preguntas Y puede generar posteos/convocatorias.
+// `mensajes` = historial [{role:'user'|'assistant', content}]. Grounded, sin PII.
+export async function responderChatAgente(clubId, mensajes) {
+  const contexto = await armarContextoClub(clubId)
+  const system = `Sos WIarky, el asistente IA de un club de pádel (marca PadelwIArk). Hablás en español rioplatense, cercano y breve, con alguna emoji con moderación. Ayudás al dueño a entender sus números y a llenar canchas.
+
+Reglas:
+- Para responder preguntas usá SOLO los datos reales de abajo; si falta un dato, decílo con honestidad (no inventes números).
+- Tenés HERRAMIENTAS para consultar disponibilidad de una fecha, GENERAR un posteo de turnos libres, y GENERAR un mensaje de convocatoria de Americano/Super 8. Cuando el dueño te pida "armá/pasá/publicá los turnos libres" o "convocá/armá un Americano o Super 8", USÁ la herramienta correspondiente (no lo redactes vos a mano).
+- Cuando usás una herramienta que GENERA un posteo o una convocatoria, ese texto se le muestra al usuario automáticamente ABAJO de tu mensaje, con un botón para copiar. Por eso NO repitas ese texto en tu respuesta: escribí solo una línea corta presentándolo (ej. "Te armé el posteo, lo tenés acá abajo para copiar 👇").
+- Para cargar un gasto usá la herramienta cargar_gasto con el monto y el concepto. El gasto NO se guarda hasta que el dueño confirme con un botón que aparece abajo de tu mensaje; vos solo decí una línea corta (ej. "Te dejo el gasto para confirmar 👇"). Si falta el monto o el concepto, pediselo.
+- En tus propios mensajes del chat escribí en texto plano, sin markdown.
 
 ${contexto}`
 
-  const resp = await client.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 320,
-    system,
-    messages: mensajes,
-  })
+  let msgs = mensajes.map((m) => ({ role: m.role, content: m.content }))
+  let resp = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: WIARK_TOOLS, messages: msgs })
+
+  const artefactos = []
+  let guard = 0
+  while (resp.stop_reason === 'tool_use' && guard++ < 4) {
+    msgs.push({ role: 'assistant', content: resp.content })
+    const results = []
+    for (const b of resp.content) {
+      if (b.type !== 'tool_use') continue
+      let r
+      try { r = await ejecutarHerramientaWiark(b.name, b.input || {}, clubId) }
+      catch (e) { r = { paraModelo: 'No se pudo ejecutar la herramienta.' } }
+      if (r.artefacto) artefactos.push(r.artefacto)
+      results.push({ type: 'tool_result', tool_use_id: b.id, content: r.paraModelo })
+    }
+    msgs.push({ role: 'user', content: results })
+    resp = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: WIARK_TOOLS, messages: msgs })
+  }
+
   const texto = resp.content.find((b) => b.type === 'text')?.text?.trim() ?? ''
-  return { texto, tokens: { in: resp.usage.input_tokens, out: resp.usage.output_tokens } }
+  return { texto, artefactos }
 }
 
 // La IA arma un aviso corto para re-publicar un turno que se acaba de liberar (cancelación). On-demand.

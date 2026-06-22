@@ -4,7 +4,7 @@ import { requireAuth, requireRole, requireOwner } from '../middleware/auth.js'
 import { tienePermiso } from '../lib/permisos.js'
 import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg } from '../lib/tiempo.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
-import { gatherInsightData, generarInsightIA, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado } from '../lib/insight.js'
+import { gatherInsightData, generarInsightIA, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado, responderChat } from '../lib/insight.js'
 
 const router = Router()
 
@@ -328,6 +328,29 @@ router.post('/me/insight/post-liberado', requireAuth, requireRole('admin'), requ
   } catch (err) {
     console.error('Error post liberado:', err.message)
     res.status(500).json({ error: 'No se pudo generar el aviso' })
+  }
+})
+
+// POST /api/clubs/me/insight/chat — chat de WIarky: responde preguntas sobre el club
+// grounded en datos reales (solo dueño). Body: { mensajes: [{role, content}] }.
+router.post('/me/insight/chat', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const entrada = Array.isArray(req.body?.mensajes) ? req.body.mensajes : []
+    let limpios = entrada
+      .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+      .map((m) => ({ role: m.role, content: m.content.slice(0, 1000) }))
+      .slice(-10)
+    // La API exige que arranque con 'user': descarto turnos 'assistant' al principio.
+    while (limpios.length && limpios[0].role === 'assistant') limpios.shift()
+    if (!limpios.length || limpios[limpios.length - 1].role !== 'user') {
+      return res.status(400).json({ error: 'Mensaje inválido' })
+    }
+    const { texto } = await responderChat(clubId, limpios)
+    res.json({ respuesta: texto })
+  } catch (err) {
+    console.error('Error chat WIarky:', err.message)
+    res.status(500).json({ error: 'No pude responder ahora' })
   }
 })
 

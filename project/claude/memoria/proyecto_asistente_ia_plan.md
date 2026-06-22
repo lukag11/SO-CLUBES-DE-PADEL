@@ -18,6 +18,8 @@ Todo vive en el backend `lib/insight.js` (motor) + rutas en `routes/clubs.js` (s
 
 Patrón común: `gather*` junta datos reales (sin PII) → `generar*` llama a Haiku → el front muestra el texto **editable** (la IA da el borrador, el admin es el editor final) + **Copiar**. Nunca se publica nada automático: el admin controla el texto y dónde lo pega. Las 3 acciones (2, 3, 4) son **on-demand** (no cacheadas); solo el insight (1) se cachea 24h.
 
+5. **WIarky — mascota + chat (paso "chat" ARRANCADO, 2026-06-22).** El asistente tiene cara: **WIarky**, pelotita de pádel (`components/asistente/AsistentePelota.jsx` + `AsistenteWiark.jsx`, FAB flotante en el panel admin, NO invasivo). Su panel es un **chat grounded de LECTURA**: `responderChat(clubId, mensajes)` arma un snapshot real del club (ocupación, libres hoy/mañana, tendencia, horas muertas, deuda, jugadores, torneos) como `system` de Haiku con regla de no-inventar; `POST /me/insight/chat` (solo dueño). Multi-turno. Ver [[project_wiarky_mascota]]. **Falta:** que el chat *haga* acciones (tool use) y voz.
+
 ---
 
 ## ROADMAP — Proactividad (motor de nudges)

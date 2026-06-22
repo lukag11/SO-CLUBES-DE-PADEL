@@ -7,6 +7,7 @@ import useClubStore from '../store/clubStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
 import Sidebar from '../components/ui/Sidebar'
 import Navbar from '../components/ui/Navbar'
+import AsistenteWiark from '../components/asistente/AsistenteWiark'
 import usePageTitle from '../hooks/usePageTitle'
 import { useFeatures } from '../hooks/useFeature'
 import { puedeVerItem } from '../components/ui/Sidebar'
@@ -176,6 +177,7 @@ const DashboardLayout = () => {
         </main>
       </div>
       <BottomNav visible={navVisible} />
+      <AsistenteWiark />
     </div>
   )
 }

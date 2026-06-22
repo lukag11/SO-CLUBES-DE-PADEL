@@ -213,6 +213,57 @@ Posteo:`
   return { texto, tokens: { in: resp.usage.input_tokens, out: resp.usage.output_tokens } }
 }
 
+// Chat de WIarky: responde preguntas del dueño sobre su club, grounded en datos reales
+// (agregados, sin PII). `mensajes` = historial [{role:'user'|'assistant', content}].
+export async function responderChat(clubId, mensajes) {
+  const hoyStr = hoyArgStr()
+  const [yy, mm, dd] = hoyStr.split('-').map(Number)
+  const mDate = new Date(Date.UTC(yy, mm - 1, dd + 1))
+  const mananaStr = `${mDate.getUTCFullYear()}-${String(mDate.getUTCMonth() + 1).padStart(2, '0')}-${String(mDate.getUTCDate()).padStart(2, '0')}`
+
+  const [info, dispHoy, dispManana, jugadores, torneos] = await Promise.all([
+    gatherInsightData(clubId),
+    gatherDisponibilidad(clubId, hoyStr),
+    gatherDisponibilidad(clubId, mananaStr),
+    prisma.jugador.count({ where: { clubId } }),
+    prisma.torneo.findMany({ where: { clubId, estado: { in: ['open', 'in_progress'] } }, select: { nombre: true, estado: true } }),
+  ])
+
+  const libresTxt = dispHoy.total
+    ? dispHoy.libres.map((l) => `${l.cancha}: ${l.horas.join(', ')}`).join(' | ')
+    : 'no quedan turnos libres hoy'
+  const libresMananaTxt = dispManana.total
+    ? `${dispManana.total} (${dispManana.libres.map((l) => `${l.cancha}: ${l.horas.join(', ')}`).join(' | ')})`
+    : 'no hay turnos libres'
+  const flojasTxt = (info.franjasFlojas || []).map((f) => `${f.hora} (${f.reservas} en 2 sem)`).join(', ') || 'sin datos'
+  const torneosTxt = torneos.length
+    ? torneos.map((t) => `${t.nombre} (${t.estado === 'open' ? 'inscripción abierta' : 'en curso'})`).join(', ')
+    : 'ninguno activo'
+
+  const contexto = `Datos REALES del club "${info.club}" (hoy es ${info.dia}):
+- Ocupación de hoy: ${info.ocupacionHoyPct}% (${info.slotsOcupados} de ${info.slotsTotales} turnos)
+- Turnos libres hoy: ${libresTxt}
+- Turnos libres mañana: ${libresMananaTxt}
+- Reservas últimos 7 días: ${info.reservasUlt7dias} (semana previa ${info.reservasSemanaPrevia}, tendencia ${info.tendenciaReservasPct >= 0 ? '+' : ''}${info.tendenciaReservasPct}%)
+- Horas muertas (franjas flojas): ${flojasTxt}
+- Plata por cobrar (deuda pendiente): $${info.deudaPorCobrar.toLocaleString('es-AR')}
+- Jugadores registrados en el club: ${jugadores}
+- Torneos activos: ${torneosTxt}`
+
+  const system = `Sos WIarky, el asistente IA de un club de pádel (marca PadelwIArk). Hablás en español rioplatense, cercano y breve (1 a 3 frases), con alguna emoji con moderación. Ayudás al dueño a entender sus números y a llenar canchas. Reglas: respondé SOLO con los datos reales que te paso abajo; si te preguntan algo que no está en esos datos, decí con honestidad que todavía no tenés ese dato (no inventes números). Cuando venga al caso, sugerí una acción concreta (ej. armar un Americano/Super 8 en una franja floja, o pasar los turnos libres). No des respuestas largas. Escribí en texto plano, SIN markdown (nada de asteriscos para negrita): es un chat simple.
+
+${contexto}`
+
+  const resp = await client.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 320,
+    system,
+    messages: mensajes,
+  })
+  const texto = resp.content.find((b) => b.type === 'text')?.text?.trim() ?? ''
+  return { texto, tokens: { in: resp.usage.input_tokens, out: resp.usage.output_tokens } }
+}
+
 // La IA arma un aviso corto para re-publicar un turno que se acaba de liberar (cancelación). On-demand.
 export async function generarPostLiberado({ club, canchaNombre, dia, horario }) {
   const detalle = [

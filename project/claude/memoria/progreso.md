@@ -1,6 +1,18 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-22 — El asistente IA suma 3 acciones de difusión sobre el motor Haiku: convocatoria Americano/Super 8 para WhatsApp, post de turnos disponibles (libres reales hoy/mañana) y aviso de turno liberado (re-publicar al cancelarse, con cruce de disponibilidad real). Plan del asistente + hoja de ruta de proactividad documentados.
+**Última actualización:** 2026-06-22 — Nació **WIarky**, la mascota del asistente IA (pelotita de pádel con ojos/boca, estilo Clippy pero no invasivo): launcher flotante en el panel admin + **chat con IA grounded** que responde preguntas sobre el club con datos reales (ocupación, turnos libres hoy/mañana, tendencia, horas muertas, deuda, jugadores, torneos) sin inventar.
+
+---
+
+## WIarky — mascota + chat IA del asistente (2026-06-22)
+
+El asistente IA tomó **cara y voz propia**: **WIarky**, una pelotita de pádel con ojitos y boca (idea de Luca, espíritu Clippy de Office pero **nunca invasivo** — flotante, dismissible, el globito se va solo). Pasó de "tarjeta con botones" a un **chat real** donde el dueño pregunta en lenguaje natural y WIarky responde con los **datos reales del club** (grounded, sin PII, sin alucinar). Es el primer pedazo del "cerebro" del asistente (paso "chat" del roadmap). Ver [[project_wiarky_mascota]] y [[proyecto_asistente_ia_plan]].
+
+- **Personaje (`components/asistente/AsistentePelota.jsx`, nuevo):** SVG de la pelotita (verde lima de marca, costuras, cejas, ojos con brillo, cachetes, boca). **Con vida**: parpadea + flota. Reutilizable (`size` + `expresion` idle/feliz/hablando + `flotar`).
+- **Launcher + chat (`components/asistente/AsistenteWiark.jsx`, nuevo):** FAB flotante abajo-derecha con la pelotita + glow lima + globito de saludo que se va solo. Al abrir: saluda + dice el **insight del día** + chips de sugerencias. Chat multi-turno con burbujas, avatar mini de WIarky, indicador "pensando" (puntitos), auto-scroll. Montado en `layouts/AdminDashboardLayout.jsx` → presente en todo el panel admin (en mobile se levanta para no chocar con la bottom-nav).
+- **Backend del chat (`lib/insight.js` + `routes/clubs.js`):** `responderChat(clubId, mensajes)` junta un **snapshot real del club** (ocupación hoy, turnos libres hoy y mañana, tendencia 7d, horas muertas, deuda, jugadores registrados, torneos activos — agregados, sin PII) y lo pasa a Haiku como `system` con instrucción de **NO inventar** (si falta el dato, lo dice) y texto plano sin markdown. `POST /me/insight/chat` (solo dueño); el backend sanea el historial (arranca en `user`, capa de seguridad). Probado e2e: responde turnos libres, tendencia, jugadores, torneos, y rechaza datos que no tiene (ej. precio de una paleta).
+- **No invasivo (regla de Luca):** WIarky nunca interrumpe ni tapa el laburo. Aplicar siempre.
+- **Próximo gran paso:** **tool use** — que WIarky no solo responda sino que *haga* (armá el posteo, cargá un gasto) con confirmación, y encima la **voz** (STT/TTS). Detalle en [[proyecto_asistente_ia_plan]].
 
 ---
 

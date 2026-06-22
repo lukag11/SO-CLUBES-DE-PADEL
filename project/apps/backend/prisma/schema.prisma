@@ -37,6 +37,7 @@ model Club {
   comandas       Comanda[]
   movimientosStock MovimientoStock[]
   categorias     Categoria[]
+  convocatorias  Convocatoria[]
 
   @@map("clubs")
 }
@@ -140,6 +141,7 @@ model Jugador {
   parejasComoJ1  Pareja[]       @relation("ParejaJugador1")
   parejasComoJ2  Pareja[]       @relation("ParejaJugador2")
   resetTokens    PasswordResetToken[]
+  convocatoriaCupos ConvocatoriaCupo[]
 
   @@unique([clubId, dni])
   @@map("jugadores")
@@ -452,4 +454,46 @@ model Pareja {
   jugador2R Jugador? @relation("ParejaJugador2", fields: [jugador2Id], references: [id], onDelete: SetNull)
 
   @@map("parejas")
+}
+
+// Convocatoria a un Americano / Super 8: el admin la abre, los jugadores se suman ("Voy").
+// Al llenarse → genera fixture (lib/eventos.js) + reserva canchas. Loop social del club.
+model Convocatoria {
+  id              String   @id @default(cuid())
+  clubId          String
+  modalidad       String   // 'americano' | 'super8'
+  categorias      String[] // categorías objetivo (ej: ["6ta","7ma"])
+  fecha           String   // YYYY-MM-DD
+  horaInicio      String   // HH:MM (franja de 1.5h)
+  canchas         Int      @default(1)
+  cupoMax         Int      // jugadores que entran
+  deadline        DateTime?
+  politicaNoLlena String   @default("avisar") // cancelar | jugar_igual | avisar
+  estado          String   @default("abierta") // abierta | confirmada | cancelada | jugada
+  fixture         Json?    // fixture generado al confirmarse
+  notas           String?
+  createdBy       String?  // admin id
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  club  Club               @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  cupos ConvocatoriaCupo[]
+
+  @@map("convocatorias")
+}
+
+// Un anotado a una convocatoria. Jugador registrado (jugadorId) o nombre libre (link público).
+model ConvocatoriaCupo {
+  id             String   @id @default(cuid())
+  convocatoriaId String
+  jugadorId      String?  // null = anotado por nombre libre (sin cuenta)
+  nombre         String?  // nombre si no es jugador registrado
+  posicion       String?  // 'Drive' | 'Revés' | 'Ambas' (para armar parejas equilibradas)
+  estado         String   @default("voy") // voy | espera | baja
+  createdAt      DateTime @default(now())
+
+  convocatoria Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
+  jugador      Jugador?     @relation(fields: [jugadorId], references: [id], onDelete: SetNull)
+
+  @@map("convocatoria_cupos")
 }

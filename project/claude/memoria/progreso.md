@@ -1,6 +1,18 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-22 — WIarky sumó skills: consultar deudores (lista PII-safe) e ingresos, **crear reserva** y **registrar jugador** (ambas escritura con confirmación, reusando los endpoints blindados). + 3 fixes del flujo de reserva: fecha real (no inventa), tipo `eventual` (no rompe grilla) y nombre libre visible en la grilla.
+**Última actualización:** 2026-06-22 — Arrancó el **módulo Convocatorias** (loop social del club). Bloque 1 (fundación) hecho: modelos `Convocatoria` + `ConvocatoriaCupo` migrados + endpoints core (crear/listar/ver/Voy/baja/estado) con cupos + lista de espera + promote, bajo Serializable.
+
+---
+
+## Módulo Convocatorias — Bloque 1: fundación (modelos + endpoints) (2026-06-22)
+
+Arrancó el módulo **Convocatorias** — la capa que convierte a PadelwIArk en la **red de jugadores del club** (el admin convoca un Americano/Super 8, los jugadores se suman con "Voy", y al llenarse se genera el fixture + reserva canchas). Plan por bloques en [[proyecto_convocatorias_plan]]. Este bloque es la **fundación** (data + endpoints core); el canal (WhatsApp/link público) y el cierre del loop vienen después. Ver [[project_convocatorias_matching]] y [[project_super8_americano]].
+
+- **Modelos nuevos (Prisma, additivo, `db push`):** `Convocatoria` (modalidad, categorias[], fecha, horaInicio, canchas, cupoMax, deadline, politicaNoLlena, estado abierta|confirmada|cancelada|jugada, fixture Json) + `ConvocatoriaCupo` (jugadorId? o nombre libre, **posicion?**, estado voy|espera|baja). Relaciones inversas en `Club` y `Jugador`.
+- **Lado de juego = `Jugador.posicion`:** se descubrió que el jugador YA tiene `posicion` (Drive/Revés/Ambas) y `mano` (Diestro/Zurdo) desde el registro (Step2Perfil) → **NO se duplicó**. El cupo guarda `posicion` opcional para capturarlo en el evento. El balanceo de parejas por lado va en el Bloque 3 (motor fixture). Regla de Luca: zurdo siempre drive (guía de UI).
+- **Endpoints (`routes/convocatorias.js`, `/api/convocatorias`):** `POST /` crear (admin), `GET /` listar con conteo voy/espera (admin), `GET /:id` detalle con anotados, `POST /:id/voy` sumarse (cupo o lista de espera, bajo `runSerializable` anti-race), `POST /:id/baja` bajarse (promueve al primero en espera), `PATCH /:id/estado` (admin cancela/cambia). Probado e2e: cupoMax 2 + 3 anotados → 2 voy + 1 espera; baja de un voy promueve la espera.
+- **Limpieza de DB:** de paso se dropeó una columna muerta (`jugadores.requiereAprobManual`, de la feature de auto-aprobación retirada, sin uso en código) — con OK explícito de Luca, vía `db push --accept-data-loss`.
+- **PRÓXIMO (Bloque 2):** mensaje de WhatsApp + **link público "Voy"** + notif in-app a jugadores de la categoría + botón "Convocar" desde WIarky.
 
 ---
 

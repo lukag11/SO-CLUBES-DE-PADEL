@@ -1,6 +1,15 @@
 # Plan de bloque — Convocatorias / Matching (Americano y Super 8)
 
-**Estado:** PLANIFICADO (no construido). Creado 2026-06-21.
+**Estado:** EN CONSTRUCCIÓN. Creado 2026-06-21. **Bloque 1 (fundación) HECHO 2026-06-22.**
+
+## Avance por bloques
+- **Bloque 1 — Fundación: ✅ HECHO (2026-06-22).** Modelos `Convocatoria` + `ConvocatoriaCupo` migrados (additivo, `db push`). Reutiliza `Jugador.posicion` (Drive/Revés/Ambas) — NO se agregó campo nuevo (ya existía). `ConvocatoriaCupo.posicion` opcional para capturar lado en el evento/no-registrados. Router `routes/convocatorias.js` montado en `/api/convocatorias`: `POST /` (crear, admin), `GET /` (listar con conteo voy/espera, admin), `GET /:id` (detalle con anotados), `POST /:id/voy` (sumarse, cupo o espera, bajo `runSerializable`), `POST /:id/baja` (bajarse + promueve primero en espera), `PATCH /:id/estado` (admin). Cupo/espera/promote probados e2e. De paso se limpió un drift de DB (columna muerta `requiereAprobManual` en jugadores, sin uso → dropeada con OK de Luca).
+- **Bloque 2 — Canal + descubrimiento:** PENDIENTE. Mensaje WhatsApp + link público "Voy" + notif in-app por categoría + botón "Convocar" desde WIarky.
+- **Bloque 3 — Cierre del loop:** PENDIENTE. Deadline + política → fixture (`lib/eventos.js`, con balanceo por `posicion` drive/revés) + reserva canchas.
+- **Bloque 4 — UI admin:** PENDIENTE.
+- **Bloque 5 — QA + pulido:** PENDIENTE.
+
+> Decisión de modelo: cupos = jugadores individuales. **`lado` de juego → se reusa `Jugador.posicion`** (valores `Drive`/`Revés`/`Ambas`, ya en registro Step2Perfil). El balanceo de parejas por lado (drive+revés, `Ambas`=comodín) va en el Bloque 3 (motor de fixture). Regla de pádel de Luca: el zurdo siempre juega drive → es guía de UI, no campo aparte (existe `Jugador.mano` Diestro/Zurdo si se quiere inferir a futuro).
 **Resumen:** Convertir PadelwIArk de "software de gestión del dueño" en la **red de jugadores del club**. El admin (ayudado por el insight de IA que detecta franjas muertas) **convoca** un Americano/Super 8 para ciertas categorías; los jugadores registrados se suman ("Voy"); al llenarse, se genera el fixture (motor `/eventos` que ya existe) y se reservan las canchas. Después, una capa de **matching jugador→jugador**.
 
 Es el **loop social del pádel** (el moat de Playtomic/MATCHi). Investigación del bibliotecario en `project/claude/agentes/bibliotecario/` (hallazgos.md + oportunidades.md).

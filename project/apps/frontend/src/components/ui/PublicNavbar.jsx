@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Zap, Menu, X, GraduationCap } from 'lucide-react'
+import { Zap, Menu, X, GraduationCap, User } from 'lucide-react'
 import useClubStore from '../../store/clubStore'
 
+// CENTRO = navegar el sitio. El último (Americano y Super 8) va destacado con el color del club.
 const navLinks = [
   { to: '/#quienes-somos', label: 'Quiénes Somos' },
   { to: '/#reservas', label: 'Reservas' },
   { to: '/torneos', label: 'Torneos', route: true },
-  { to: '/eventos', label: 'Americano y Super 8', route: true },
   { to: '/#contacto', label: 'Contacto' },
+  { to: '/eventos', label: 'Americano y Super 8', route: true, destacado: true },
 ]
 
 const PublicNavbar = () => {
@@ -16,6 +17,7 @@ const PublicNavbar = () => {
   const [scrolled, setScrolled] = useState(false)
   const { templateId, colorPrimario, navbarEstilo, nombre, logo } = useClubStore((s) => s.club)
   const isLight = templateId === 3
+  const esColorSolido = navbarEstilo === 'color-solido' && !isLight
 
   useEffect(() => {
     if (navbarEstilo !== 'transparente') return
@@ -35,121 +37,105 @@ const PublicNavbar = () => {
     return 'bg-[#1E1F23] border-b border-white/5'
   })()
 
-  const headerStyle = navbarEstilo === 'color-solido' && !isLight
-    ? { backgroundColor: colorPrimario }
-    : {}
+  const headerStyle = esColorSolido ? { backgroundColor: colorPrimario } : {}
 
-  const linkColor = (navbarEstilo === 'color-solido' && !isLight)
+  const linkColor = esColorSolido
     ? 'text-black/70 hover:text-black hover:bg-black/10'
     : isLight
       ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
       : 'text-white/70 hover:text-white hover:bg-white/5'
 
-  const logoTextColor = (navbarEstilo === 'color-solido' && !isLight)
-    ? 'text-black'
-    : isLight ? 'text-slate-900' : 'text-white'
+  const logoTextColor = esColorSolido ? 'text-black' : isLight ? 'text-slate-900' : 'text-white'
+  const dividerColor = esColorSolido ? 'bg-black/15' : isLight ? 'bg-slate-200' : 'bg-white/10'
+
+  // Render de un link del centro. `destacado` lo pinta con el acento del club.
+  const renderNavLink = (item, onClick) => {
+    const { to, label, route, destacado } = item
+    const Cmp = route ? Link : 'a'
+    const props = route ? { to } : { href: to }
+    if (destacado) {
+      const cls = 'flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg transition-all duration-150 whitespace-nowrap'
+      const extra = esColorSolido ? 'bg-black/15 hover:bg-black/25 text-black' : 'hover:brightness-110'
+      const style = esColorSolido
+        ? undefined
+        : { color: colorPrimario, backgroundColor: `${colorPrimario}1a`, border: `1px solid ${colorPrimario}40` }
+      return (
+        <Cmp key={to} {...props} onClick={onClick} className={`${cls} ${extra}`} style={style}>
+          <Zap size={14} /> {label}
+        </Cmp>
+      )
+    }
+    return (
+      <Cmp key={to} {...props} onClick={onClick}
+        className={`px-3.5 py-2 text-sm font-medium transition-colors duration-150 rounded-lg whitespace-nowrap ${linkColor}`}>
+        {label}
+      </Cmp>
+    )
+  }
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${headerClass}`} style={headerStyle}>
-      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div className="max-w-[1600px] mx-auto px-8 h-16 grid grid-cols-[auto_1fr_auto] items-center gap-8">
 
-        {/* Logo */}
+        {/* IZQUIERDA — identidad del club */}
         <Link to="/" className="flex items-center gap-2.5 shrink-0">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg overflow-hidden"
-            style={{ backgroundColor: logo ? 'transparent' : (navbarEstilo === 'color-solido' && !isLight ? 'rgba(0,0,0,0.15)' : colorPrimario) }}
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
+            style={{ backgroundColor: logo ? 'transparent' : (esColorSolido ? 'rgba(0,0,0,0.15)' : colorPrimario) }}
           >
             {logo
-              ? <img src={logo} alt={nombre || 'Club'} className="w-full h-full object-cover" />
-              : <Zap size={16} className={navbarEstilo === 'color-solido' && !isLight ? 'text-black/70' : isLight ? 'text-white' : 'text-[#1E1F23]'} />
+              ? <img src={logo} alt={nombre || 'Club'} className="w-full h-full object-contain" />
+              : <Zap size={16} className={esColorSolido ? 'text-black/70' : isLight ? 'text-white' : 'text-[#1E1F23]'} />
             }
           </div>
-          <span className={`font-bold text-lg tracking-tight ${logoTextColor}`}>{nombre || 'PadelwIArk'}</span>
+          <span className={`font-bold text-lg tracking-tight whitespace-nowrap ${logoTextColor}`}>{nombre || 'PadelwIArk'}</span>
         </Link>
 
-        {/* Links desktop */}
-        <nav className="hidden md:flex items-center gap-1">
-          {navLinks.map(({ to, label, route }) => (
-            route ? (
-              <Link key={to} to={to} className={`px-4 py-2 text-sm font-medium transition-colors duration-150 rounded-lg ${linkColor}`}>
-                {label}
-              </Link>
-            ) : (
-              <a key={to} href={to} className={`px-4 py-2 text-sm font-medium transition-colors duration-150 rounded-lg ${linkColor}`}>
-                {label}
-              </a>
-            )
-          ))}
+        {/* CENTRO — navegar el sitio */}
+        <nav className="hidden md:flex items-center justify-center gap-2">
+          {navLinks.map((item) => renderNavLink(item))}
         </nav>
 
-        {/* CTAs derecha */}
-        <div className="hidden md:flex items-center gap-2">
-          <Link to="/dashboardJugadores" className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-150 ${linkColor}`}>
-            Jugadores
-          </Link>
-          <Link
-            to="/dashboardProfesor"
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-150 ${linkColor}`}
-          >
-            <GraduationCap size={15} />
-            Profesores
-          </Link>
-          {navbarEstilo === 'color-solido' && !isLight ? (
-            <Link to="/login" className="px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg bg-black/15 hover:bg-black/25 text-black transition-all duration-150">
-              Área Privada
+        {/* DERECHA — acceder */}
+        <div className="flex items-center justify-end gap-1">
+          <div className="hidden md:flex items-center gap-2">
+            <Link to="/dashboardJugadores" className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg transition-all duration-150 ${linkColor}`}>
+              <User size={15} /> Jugadores
             </Link>
-          ) : (
-            <Link to="/login" className="px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all duration-150"
-              style={{ color: colorPrimario, border: `1px solid ${colorPrimario}40` }}
-            >
-              Área Privada
+            <Link to="/dashboardProfesor" className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg transition-all duration-150 ${linkColor}`}>
+              <GraduationCap size={15} /> Profesores
             </Link>
-          )}
-        </div>
+          </div>
 
-        {/* Hamburguesa mobile */}
-        <button
-          className={`md:hidden ${isLight || (navbarEstilo === 'color-solido') ? 'text-black/60 hover:text-black' : 'text-white/70 hover:text-white'}`}
-          onClick={() => setMenuOpen((v) => !v)}
-        >
-          {menuOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
+          {/* Hamburguesa mobile */}
+          <button
+            className={`md:hidden ${isLight || navbarEstilo === 'color-solido' ? 'text-black/60 hover:text-black' : 'text-white/70 hover:text-white'}`}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            {menuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
       </div>
 
       {/* Menú mobile */}
       {menuOpen && (
-        <div className={`md:hidden border-t px-6 py-4 flex flex-col gap-2`}
-          style={navbarEstilo === 'color-solido' && !isLight
+        <div className="md:hidden border-t px-6 py-4 flex flex-col gap-1"
+          style={esColorSolido
             ? { backgroundColor: colorPrimario, borderColor: 'rgba(0,0,0,0.1)' }
             : isLight
               ? { backgroundColor: 'white', borderColor: '#e2e8f0' }
               : { backgroundColor: '#1E1F23', borderColor: 'rgba(255,255,255,0.05)' }
           }
         >
-          {navLinks.map(({ to, label, route }) => (
-            route ? (
-              <Link key={to} to={to} onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium transition-colors ${linkColor}`}>
-                {label}
-              </Link>
-            ) : (
-              <a key={to} href={to} onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium transition-colors ${linkColor}`}>
-                {label}
-              </a>
-            )
-          ))}
-          <Link to="/dashboardJugadores" onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium transition-colors ${linkColor}`}>
-            Jugadores
+          {navLinks.map((item) => renderNavLink(item, () => setMenuOpen(false)))}
+
+          <span className={`h-px my-2.5 ${dividerColor}`} />
+          <p className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${esColorSolido ? 'text-black/40' : isLight ? 'text-slate-400' : 'text-white/30'}`}>Acceso</p>
+
+          <Link to="/dashboardJugadores" onClick={() => setMenuOpen(false)} className={`flex items-center gap-2 py-2.5 text-sm font-medium transition-colors ${linkColor}`}>
+            <User size={15} /> Jugadores
           </Link>
           <Link to="/dashboardProfesor" onClick={() => setMenuOpen(false)} className={`flex items-center gap-2 py-2.5 text-sm font-medium transition-colors ${linkColor}`}>
-            <GraduationCap size={15} />
-            Profesores
-          </Link>
-          <Link to="/login" onClick={() => setMenuOpen(false)} className="mt-2 py-2.5 text-xs font-bold uppercase tracking-widest text-center rounded-lg border"
-            style={navbarEstilo === 'color-solido' && !isLight
-              ? { color: 'black', borderColor: 'rgba(0,0,0,0.2)' }
-              : { color: colorPrimario, borderColor: `${colorPrimario}40` }
-            }
-          >
-            Área Privada
+            <GraduationCap size={15} /> Profesores
           </Link>
         </div>
       )}

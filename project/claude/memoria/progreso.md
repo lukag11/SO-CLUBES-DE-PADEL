@@ -1,6 +1,16 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-21 — Herramienta pública self-service "Americano y Super 8": arma fixture + ranking en vivo desde el celu, sin login. Motor client-side con validación real (Americano a N puntos gana x2 / Super 8 set de pádel). Estética Court Noir + banner promocional en la landing del club
+**Última actualización:** 2026-06-21 — Rediseño del navbar público del club (3 zonas reales en grid, destacado "Americano y Super 8", ancho ampliado) + se sacó "Área Privada" de la landing del club (el login de admin vive en la landing de ventas /padelwiark)
+
+---
+
+## Rediseño del navbar público del club + separación de capas de acceso (2026-06-21)
+
+Se reordenó el `PublicNavbar.jsx` (landing del club) porque se veía "amontonado": el contenido estaba capado en `max-w-7xl` y centrado, dejando los costados vacíos y apretando todo en el medio. Se pasó a **3 zonas reales en CSS grid `[auto · 1fr · auto]`** (izquierda = identidad, centro = navegar, derecha = acceder), se **amplió el ancho** a 1600px con más padding/gaps, y se tomó una **decisión de arquitectura**: el login de admin ("Área Privada") **NO va en la landing pública del club** (que es marketing para clientes) sino en la **landing de ventas de PadelwIArk** (`/padelwiark`), que ya lo enlaza vía `PwNav`/`PwCTA` ("Entrar" → `/login` → `/dashboardAdmin`). Ver [[project_landing_saas_empresa]].
+
+- **3 zonas (grid):** izquierda logo+nombre (logo a `object-contain`, ya no se recorta); centro los links de navegar (Quiénes Somos · Reservas · Torneos · Contacto · **Americano y Super 8**, este último **destacado** como pill con el `colorPrimario` del club + icono ⚡ para que no se pierda); derecha **Jugadores** (👤) y **Profesores** (🎓), ambos con icono = "portales" de cliente.
+- **Se quitó "Área Privada"** del navbar del club (desktop + mobile). El dueño/admin entra por `padelwiark.com` → "Entrar". Beneficio: navbar más limpio, landing 100% enfocada en el cliente, y no se le anuncia a cada visitante que hay un panel de admin.
+- **Respeta los temas del club** (claro/oscuro/color-sólido); en color-sólido el destacado usa contraste oscuro para no fundirse.
 
 ---
 

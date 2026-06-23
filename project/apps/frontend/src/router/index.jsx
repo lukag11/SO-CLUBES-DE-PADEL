@@ -32,6 +32,7 @@ import TorneosPublicosPage from '../pages/TorneosPublicosPage'
 import EventosPage from '../pages/EventosPage'
 import ConvocatoriaPublicaPage from '../pages/ConvocatoriaPublicaPage'
 import JugadoresAdminPage from '../pages/JugadoresAdminPage'
+import ConvocatoriasAdminPage from '../pages/ConvocatoriasAdminPage'
 import ClasesProfesorAdminPage from '../pages/ClasesProfesorAdminPage'
 import AdminSponsorsPage from '../pages/AdminSponsorsPage'
 import AdminReservasLayout from '../layouts/AdminReservasLayout'
@@ -95,6 +96,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <ReservasPage /> },
           { path: 'estadisticas', element: <AdminReservasEstadisticasPage /> },
+          { path: 'americano-super8', element: <ConvocatoriasAdminPage /> },
         ],
       },
       { path: 'torneos', element: <TorneosPage /> },

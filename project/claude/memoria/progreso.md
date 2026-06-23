@@ -1,6 +1,16 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-22 — Convocatorias Bloque 2 (C+D) + Bloque 3a: WIarky crea la convocatoria de verdad (skill `crear_convocatoria`) → **reserva N canchas a nombre del organizador (jugador registrado), con las mismas reglas que una reserva normal** (Serializable, sin tipo nuevo) → arma el mensaje de WhatsApp con link + notifica a la categoría. Cancelar libera las canchas. `Reserva.convocatoriaId` linkea evento↔canchas.
+**Última actualización:** 2026-06-22 — Convocatorias Bloque 4 (UI admin): pantalla de gestión (lista + anotados + cancelar que libera canchas), ubicada como **pestaña "Americano y Super 8" dentro de Reservas** (no menú aparte — los eventos SON reservas de canchas). Renombrado de "Convocatorias" (jerga) a "Americano y Super 8" (alineado con el lado público).
+
+---
+
+## Convocatorias — Bloque 4: UI admin de gestión (2026-06-22)
+
+Pantalla para que el admin **vea y gestione** las convocatorias (hasta ahora se creaban por WIarky pero no se veían en ningún lado). Reusa los endpoints del Bloque 1 (listar, detalle, cancelar) — fue casi todo frontend. Decisión de IA (con Luca): **NO es un menú aparte** — los eventos son reservas de canchas, así que va como **pestaña dentro de Reservas**; y se **renombró** de "Convocatorias" (jerga interna) a **"Americano y Super 8"** (coherente con el navbar público). Ver [[proyecto_convocatorias_plan]].
+
+- **`pages/ConvocatoriasAdminPage.jsx`:** lista de convocatorias (modalidad, categoría, fecha/hora, cupos voy/cupoMax + espera, estado). Expandible → anotados (nombre + posición Drive/Revés + chip Anotado/Espera). Botón **Cancelar** (abierta) → libera las canchas (con confirmación). Cartelito que recuerda crearlas con WIarky.
+- **Ubicación:** pestaña `americano-super8` en `AdminReservasLayout` (Grilla · Estadísticas · **Americano y Super 8**), ruta `/dashboardAdmin/reservas/americano-super8`. Se quitó el ítem top-level del sidebar.
+- **PENDIENTE:** Bloque 3b (fixture al llenarse) + Fase B (botón "Hacer Super 8" en dash jugador) + render de la notif `convocatoria_abierta`.
 
 ---
 

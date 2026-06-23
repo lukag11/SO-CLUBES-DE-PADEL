@@ -18,7 +18,7 @@ const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 's
 // reglas que una reserva normal) + crea la convocatoria, todo ATÓMICO bajo Serializable
 // (anti doble-booking). Las reservas quedan linkeadas vía convocatoriaId. Lanza {status:409}
 // si no hay N canchas libres a esa hora.
-export async function organizarConvocatoria({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias = [], cupoMax, canchas = 1, precio = null }) {
+export async function organizarConvocatoria({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias = [], cupoMax, canchas = 1, precio = null, visibilidad = 'publica' }) {
   const horaFin = sumar90(horaInicio)
   const [fy, fm, fd] = fecha.split('-').map(Number)
   const diaKey = DIAS[new Date(fy, fm - 1, fd).getDay()]
@@ -39,7 +39,7 @@ export async function organizarConvocatoria({ clubId, organizadorJugadorId, moda
     }
 
     const conv = await tx.convocatoria.create({
-      data: { clubId, modalidad, categorias, fecha, horaInicio, canchas, cupoMax, estado: 'abierta', createdBy: organizadorJugadorId },
+      data: { clubId, modalidad, categorias, fecha, horaInicio, canchas, cupoMax, visibilidad: visibilidad === 'privada' ? 'privada' : 'publica', estado: 'abierta', createdBy: organizadorJugadorId },
     })
     for (const c of libres) {
       await tx.reserva.create({

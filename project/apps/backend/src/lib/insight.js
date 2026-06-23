@@ -319,6 +319,7 @@ const WIARK_TOOLS = [
         categorias: { type: 'string', description: 'Categorías objetivo separadas por coma (ej: "6ta, 7ma")' },
         cupos: { type: 'number', description: 'Cantidad de jugadores que entran' },
         canchas: { type: 'number', description: 'Canchas a reservar (ej: 2 para un Super 8)' },
+        visibilidad: { type: 'string', enum: ['publica', 'privada'], description: 'publica (se lista en el club + notifica a la categoría) o privada (solo por link, para el grupo del organizador). Default publica.' },
       },
       required: ['modalidad', 'organizador', 'fecha', 'horario', 'cupos', 'canchas'],
     },
@@ -408,11 +409,12 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
     const organizadorJugadorId = matches[0].id
     const categorias = (input.categorias || '').toString().split(',').map((c) => c.trim()).filter(Boolean)
     const canchas = Math.max(1, Math.round(Number(input.canchas) || 1))
+    const visibilidad = input.visibilidad === 'privada' ? 'privada' : 'publica'
     const nombreMod = input.modalidad === 'super8' ? 'Super 8' : 'Americano'
-    const resumen = `Convocar ${nombreMod}${categorias.length ? ` ${categorias.join('/')}` : ''} · ${fecha} ${horaInicio} · ${cupoMax} cupos · ${canchas} ${canchas === 1 ? 'cancha' : 'canchas'} · a nombre de ${nombreOrg}`
+    const resumen = `Convocar ${nombreMod}${categorias.length ? ` ${categorias.join('/')}` : ''} · ${fecha} ${horaInicio} · ${cupoMax} cupos · ${canchas} ${canchas === 1 ? 'cancha' : 'canchas'} · a nombre de ${nombreOrg} · ${visibilidad === 'privada' ? '🔒 privada (solo por link)' : '🌐 pública'}`
     return {
-      paraModelo: 'Le muestro al usuario un botón para confirmar; todavía NO está creada. Al confirmar: se reservan las canchas a nombre del organizador, se abre la convocatoria, se arma el mensaje de WhatsApp con el link y se avisa a los jugadores de la categoría. Si no hay canchas libres a esa hora, no se crea.',
-      artefacto: { tipo: 'confirmacion', accion: 'crear_convocatoria', resumen, datos: { modalidad: input.modalidad === 'super8' ? 'super8' : 'americano', fecha, horaInicio, categorias, cupoMax, canchas, organizadorJugadorId } },
+      paraModelo: `Le muestro al usuario un botón para confirmar; todavía NO está creada. Al confirmar: se reservan las canchas a nombre del organizador, se abre la convocatoria y se arma el mensaje de WhatsApp con el link.${visibilidad === 'privada' ? ' Es PRIVADA: no se lista en el club ni se notifica a la categoría (el organizador comparte el link con su gente).' : ' Es pública: se lista en el club y se avisa a los jugadores de la categoría.'} Si no hay canchas libres a esa hora, no se crea.`,
+      artefacto: { tipo: 'confirmacion', accion: 'crear_convocatoria', resumen, datos: { modalidad: input.modalidad === 'super8' ? 'super8' : 'americano', fecha, horaInicio, categorias, cupoMax, canchas, organizadorJugadorId, visibilidad } },
     }
   }
   if (name === 'consultar_deudores') {
@@ -493,7 +495,7 @@ Reglas:
 - Para responder preguntas usá SOLO los datos reales de abajo; si falta un dato, decílo con honestidad (no inventes números).
 - Tenés HERRAMIENTAS para consultar disponibilidad de una fecha, GENERAR un posteo de turnos libres, y GENERAR un mensaje de convocatoria de Americano/Super 8. Cuando el dueño te pida "armá/pasá/publicá los turnos libres" o "convocá/armá un Americano o Super 8", USÁ la herramienta correspondiente (no lo redactes vos a mano).
 - Cuando usás una herramienta que GENERA un posteo (turnos libres o aviso de liberado), ese texto se le muestra al usuario automáticamente ABAJO de tu mensaje, con un botón para copiar. Por eso NO repitas ese texto en tu respuesta: escribí solo una línea corta presentándolo (ej. "Te armé el posteo, lo tenés acá abajo para copiar 👇").
-- Para convocar/organizar un Americano o Super 8 usá crear_convocatoria. Necesitás: modalidad, **organizador** (jugador registrado a cuyo nombre quedan las canchas; un Super 8 son 2 canchas), fecha, horario, cupos y canchas. NO se crea hasta que el dueño confirme. Al confirmar: se reservan las canchas a nombre del organizador, se abre la convocatoria, se arma el mensaje de WhatsApp con el link y se avisa a los jugadores de la categoría. Si el organizador no está registrado, avisá que primero hay que registrarlo (crear_jugador). Si falta algún dato, pedíselo.
+- Para convocar/organizar un Americano o Super 8 usá crear_convocatoria. Necesitás: modalidad, **organizador** (jugador registrado a cuyo nombre quedan las canchas; un Super 8 son 2 canchas), fecha, horario, cupos y canchas. Opcional **visibilidad**: pública (se lista en el club + notifica a la categoría, default) o privada (solo por link, para el grupo del organizador — si el dueño dice "privado" usá privada). NO se crea hasta que el dueño confirme. Si el organizador no está registrado, avisá que primero hay que registrarlo (crear_jugador). Si falta algún dato, pedíselo.
 - Para cargar un gasto usá la herramienta cargar_gasto con el monto y el concepto. El gasto NO se guarda hasta que el dueño confirme con un botón que aparece abajo de tu mensaje; vos solo decí una línea corta (ej. "Te dejo el gasto para confirmar 👇"). Si falta el monto o el concepto, pediselo.
 - Para "quién me debe" usá consultar_deudores y para "cuánto facturé" usá consultar_ingresos. La lista de deudores (con nombres) se le muestra al usuario abajo: NUNCA repitas nombres de jugadores en tu texto (privacidad); referite al total y la cantidad.
 - Para reservar un turno usá crear_reserva (cancha + fecha + hora de inicio; el turno dura 1.5h, la hora de fin se calcula sola). NO se crea hasta que el dueño confirme con el botón. Si falta la cancha, la fecha o la hora, pediselas.

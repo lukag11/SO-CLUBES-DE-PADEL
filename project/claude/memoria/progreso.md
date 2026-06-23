@@ -1,6 +1,19 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-22 — Convocatorias Bloque 3b: el FIXTURE. Al llenarse el cupo (o manual con ≥4) se arma el fixture con **emparejado balanceado drive/revés** (`Jugador.posicion`) — motor porteado al backend. El loop quedó COMPLETO: convocar → reservar canchas → anotarse → fixture → ver. Falta solo Fase B (jugador organiza) + detalles (resultados/ranking, render notif, fixture en página pública).
+**Última actualización:** 2026-06-23 — Convocatorias: cierre del bloque. **Visibilidad pública/privada** (pública se lista + notifica; privada solo por link, para el grupo del organizador). **Sección "Americano y Super 8" en el dash jugador** (Abiertos + Mis eventos). **Login con retorno + auto-anotado**: "Voy" sin login → te registrás → volvés anotado solo (embudo de socios). El bloque quedó operable de punta a punta.
+
+---
+
+## Convocatorias — cierre: visibilidad pública/privada + sección jugador + auto-anotado (2026-06-23)
+
+Se cerró el bloque con tres piezas que completan el flujo y lo hacen un **motor de captación de socios**. Ver [[proyecto_convocatorias_plan]].
+
+- **Visibilidad pública/privada (`Convocatoria.visibilidad`, additivo, migrado):** idea de Luca. **Pública** = se lista en el hub del club + notifica a la categoría (el dueño llena la cancha con cualquiera). **Privada** = NO se lista ni notifica; solo se llega por el link, que el organizador comparte con su grupo (sin que se anote un random). El hub (`/club/:slug`) filtra `visibilidad:'publica'`; la notif a la categoría solo en públicas. WIarky `crear_convocatoria` gana el param `visibilidad` (default pública; "privado" → privada); chip 🔒 Privada en la UI admin. Probado: pública aparece en hub, privada no (pero sí por id/link).
+- **REGLA estratégica (Luca): anotarse REQUIERE login** = cada evento (incluso privado) **convierte jugadores en socios registrados** → la red del club crece sola con cada partido (embudo tipo Playtomic). El admin puede agregar invitados a mano como escape hatch.
+- **Sección "Americano y Super 8" en el dash jugador (`PlayerEventosPage.jsx`, `/dashboardJugadores/eventos`, ítem 📣 en el sidebar):** "Mis eventos" (anotado/espera + bajarme) + "Eventos abiertos del club" (públicos → botón "¡Voy!"). Reusa `/convocatorias/mias` + `/convocatorias/publica/club/:slug`.
+- **Login con retorno + auto-anotado:** en la página del evento, "Voy" sin login guarda el id en `localStorage.pending_convocatoria` y manda a loguearse/registrarse. `PlayerLayout` detecta el pendiente al haber token → `POST /voy` automático → avisa "¡Quedaste anotado!" → lleva a la sección de eventos. Cierra el embudo sin dejar al jugador colgado.
+- **El bloque quedó operable end-to-end:** WIarky convoca (pública/privada) → reserva canchas a nombre del organizador → mensaje + link → jugador entra → "Voy" → se registra → vuelve anotado solo → lo ve en su sección → al llenarse, fixture balanceado.
+- **PENDIENTE (corregir sobre la versión completa):** Fase B (botón "Organizar" en la sección del jugador, reusa `organizarConvocatoria`); cargar resultados del fixture + ranking; render lindo de la notif `convocatoria_abierta`; flujo de registro-con-retorno más pulido (hoy usa alert); fixture en la página pública. Pendiente de PRUEBA e2e en el navegador (Luca).
 
 ---
 

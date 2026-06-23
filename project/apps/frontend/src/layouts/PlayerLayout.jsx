@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate, Link } from 'react-router-dom'
-import { Zap, BarChart2, Trophy, Users, LogOut, LayoutDashboard, UserCircle, Repeat, CalendarDays, Bell, Menu, X, ClipboardList, Wallet } from 'lucide-react'
+import { Zap, BarChart2, Trophy, Users, LogOut, LayoutDashboard, UserCircle, Repeat, CalendarDays, Bell, Menu, X, ClipboardList, Wallet, Megaphone } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 import useReservasStore from '../store/reservasStore'
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/dashboardJugadores/dashboard',    label: 'Mi resumen',       icon: LayoutDashboard },
   { to: '/dashboardJugadores/reservas',     label: 'Reservar cancha',  icon: CalendarDays },
   { to: '/dashboardJugadores/mis-reservas', label: 'Mis reservas',     icon: ClipboardList },
+  { to: '/dashboardJugadores/eventos',      label: 'Americano y Super 8', icon: Megaphone },
   { to: '/dashboardJugadores/turnos-fijos', label: 'Mis turnos fijos', icon: Repeat },
   { to: '/dashboardJugadores/mis-pagos',    label: 'Mis pagos',        icon: Wallet },
   { to: '/dashboardJugadores/estadisticas', label: 'Estadísticas',     icon: BarChart2 },
@@ -125,6 +126,19 @@ const PlayerLayout = () => {
     fetchNotificaciones()
     const interval = setInterval(fetchNotificaciones, 30_000)
     return () => clearInterval(interval)
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-anotado: si el jugador venía de un link de convocatoria ("Voy" sin login),
+  // al terminar de loguearse lo anotamos solo y lo llevamos a su sección de eventos.
+  useEffect(() => {
+    if (!token) return
+    let pendiente = null
+    try { pendiente = localStorage.getItem('pending_convocatoria') } catch {}
+    if (!pendiente) return
+    try { localStorage.removeItem('pending_convocatoria') } catch {}
+    api.post(`/convocatorias/${pendiente}/voy`, {}, { Authorization: `Bearer ${token}` })
+      .then((r) => { alert(r?.estado === 'espera' ? '¡Listo! Quedaste en la lista de espera del evento. 🎾' : '¡Listo! Quedaste anotado al evento. 🎾'); navigate('/dashboardJugadores/eventos') })
+      .catch(() => navigate('/dashboardJugadores/eventos'))
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isAuthenticated) {

@@ -469,6 +469,7 @@ model Convocatoria {
   horaInicio      String   // HH:MM (franja de 1.5h)
   canchas         Int      @default(1)
   cupoMax         Int      // jugadores que entran
+  visibilidad     String   @default("publica") // publica (se lista + notifica) | privada (solo por link)
   deadline        DateTime?
   politicaNoLlena String   @default("avisar") // cancelar | jugar_igual | avisar
   estado          String   @default("abierta") // abierta | confirmada | cancelada | jugada

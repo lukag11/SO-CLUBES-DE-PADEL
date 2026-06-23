@@ -14,7 +14,7 @@ router.get('/club/:slug', async (req, res) => {
     const hoy = new Date()
     const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
     const cs = await prisma.convocatoria.findMany({
-      where: { clubId: club.id, estado: 'abierta', fecha: { gte: hoyStr } },
+      where: { clubId: club.id, estado: 'abierta', visibilidad: 'publica', fecha: { gte: hoyStr } },
       orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
       include: { cupos: { select: { estado: true } } },
     })

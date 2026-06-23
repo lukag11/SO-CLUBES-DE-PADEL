@@ -382,18 +382,19 @@ router.post('/me/insight/accion', requireAuth, requireRole('admin'), requireOwne
       const canchas = Math.max(1, Math.round(Number(d.canchas) || 1))
       const organizadorJugadorId = d.organizadorJugadorId
       if (!organizadorJugadorId) return res.status(400).json({ error: 'Falta el jugador organizador' })
+      const visibilidad = d.visibilidad === 'privada' ? 'privada' : 'publica'
 
       // Reserva las canchas a nombre del organizador + crea la convocatoria (atómico, anti doble-booking)
       let conv, canchasReservadas
       try {
-        const r = await organizarConvocatoria({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias, cupoMax, canchas })
+        const r = await organizarConvocatoria({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias, cupoMax, canchas, visibilidad })
         conv = r.convocatoria; canchasReservadas = r.canchasReservadas
       } catch (e) {
         return res.status(e.status === 409 ? 409 : 500).json({ error: e.message || 'No se pudo reservar las canchas' })
       }
 
-      // (D) Notif in-app a los jugadores de las categorías objetivo
-      if (categorias.length) {
+      // (D) Notif in-app a los jugadores de la categoría — SOLO si es pública (la privada es para el grupo del organizador)
+      if (visibilidad === 'publica' && categorias.length) {
         const jugadores = await prisma.jugador.findMany({ where: { clubId, activo: true, categoria: { in: categorias } }, select: { id: true } })
         if (jugadores.length) {
           await prisma.notificacion.createMany({

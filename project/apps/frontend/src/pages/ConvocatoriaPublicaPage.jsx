@@ -149,12 +149,12 @@ export default function ConvocatoriaPublicaPage() {
             </button>
           ) : (
             <div className="flex flex-col gap-2">
-              <button onClick={() => navigate('/dashboardJugadores')}
+              <button onClick={() => { try { localStorage.setItem('pending_convocatoria', id) } catch {} ; navigate('/dashboardJugadores') }}
                 className="w-full font-bold py-4 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 style={{ background: `linear-gradient(135deg, ${C.lima}, ${C.neon})`, color: C.bg, fontFamily: FONT_DISPLAY }}>
                 <LogIn size={17} /> Iniciá sesión para anotarte
               </button>
-              <p className="text-[11px] text-center" style={{ color: C.muted }}>Necesitás tu cuenta del club para sumarte.</p>
+              <p className="text-[11px] text-center" style={{ color: C.muted }}>Necesitás tu cuenta del club para sumarte. Al iniciar sesión te anotamos solo.</p>
             </div>
           )}
 

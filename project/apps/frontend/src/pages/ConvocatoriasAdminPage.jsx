@@ -103,6 +103,9 @@ export default function ConvocatoriasAdminPage() {
                     <p className="text-sm font-bold text-slate-700 tabular-nums">{c.voy}/{c.cupoMax}</p>
                     {c.espera > 0 && <p className="text-[10px] text-amber-500">+{c.espera} espera</p>}
                   </div>
+                  {c.visibilidad === 'privada' && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-200 bg-slate-100 text-slate-500 shrink-0">🔒 Privada</span>
+                  )}
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 capitalize ${ESTADO_CHIP[c.estado] || ESTADO_CHIP.jugada}`}>{c.estado}</span>
                   <ChevronDown size={16} className={`text-slate-300 shrink-0 transition-transform ${exp ? 'rotate-180' : ''}`} />
                 </button>

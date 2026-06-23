@@ -2673,5 +2673,9 @@ El backend corría con código viejo (proceso Node.js iniciado antes de aplicar 
 - **Fechas**: próximos 8 días (día→fecha) en el contexto (erraba el día de semana).
 - **Tras alta de jugador**: el chat sigue solo (mensaje oculto) → tira el botón de convocar.
 
-### Pendiente
-- Resultados/ranking del fixture. Fase B (jugador organiza). Fixture en página pública. Borrar convocatorias de prueba (21:00 Enrique Diaz, etc.).
+### ▶️ ARRANCAR PRÓXIMA SESIÓN POR (pedido de Luca, 2026-06-23):
+1. **Probar la creación de convocatoria con WIarky** de punta a punta (ya quedó endurecido; falta validar el flujo completo en vivo: pide hora → verifica → organizador → género → categoría → pública/privada → botón → crea + reserva canchas).
+2. **Fase B — el jugador organiza su propio Super 8/Americano** (sin depender del admin). Reusa toda la maquinaria de Fase A. Guardrail: solo si hay disponibilidad real (2+ canchas). Ver plan en `proyecto_convocatorias_plan.md` (sección FASE B).
+
+### Otros pendientes
+- Resultados/ranking del fixture. Fixture en página pública. Borrar convocatorias de prueba (21:00 Enrique Diaz, etc.).

@@ -5,7 +5,7 @@ import { tienePermiso } from '../lib/permisos.js'
 import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg } from '../lib/tiempo.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
 import { gatherInsightData, generarInsightIA, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado, responderChatAgente } from '../lib/insight.js'
-import { organizarConvocatoria } from '../lib/convocatorias.js'
+import { organizarConvocatoria, crearConvocatoriaCompleta } from '../lib/convocatorias.js'
 
 const router = Router()
 
@@ -379,39 +379,17 @@ router.post('/me/insight/accion', requireAuth, requireRole('admin'), requireOwne
       const cupoMax = Math.round(Number(d.cupoMax) || 0)
       if (!fecha || !horaInicio || cupoMax < 2) return res.status(400).json({ error: 'Datos de convocatoria inválidos' })
       const categorias = Array.isArray(d.categorias) ? d.categorias.map((c) => `${c}`.trim()).filter(Boolean) : []
+      const genero = ['masculino', 'femenino', 'mixto'].includes(d.genero) ? d.genero : null
       const canchas = Math.max(1, Math.round(Number(d.canchas) || 1))
       const organizadorJugadorId = d.organizadorJugadorId
       if (!organizadorJugadorId) return res.status(400).json({ error: 'Falta el jugador organizador' })
       const visibilidad = d.visibilidad === 'privada' ? 'privada' : 'publica'
-
-      // Reserva las canchas a nombre del organizador + crea la convocatoria (atómico, anti doble-booking)
-      let conv, canchasReservadas
       try {
-        const r = await organizarConvocatoria({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias, cupoMax, canchas, visibilidad })
-        conv = r.convocatoria; canchasReservadas = r.canchasReservadas
+        const r = await crearConvocatoriaCompleta({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias, genero, cupoMax, canchas, visibilidad })
+        return res.json({ ok: true, mensaje: `Convocatoria creada ✅ Canchas reservadas: ${(r.canchasReservadas || []).join(', ')}`, copiable: { titulo: 'Mensaje para WhatsApp', texto: r.mensajeWhatsapp } })
       } catch (e) {
-        return res.status(e.status === 409 ? 409 : 500).json({ error: e.message || 'No se pudo reservar las canchas' })
+        return res.status(e.status === 409 ? 409 : 500).json({ error: e.message || 'No se pudo crear la convocatoria' })
       }
-
-      // (D) Notif in-app a los jugadores de la categoría — SOLO si es pública (la privada es para el grupo del organizador)
-      if (visibilidad === 'publica' && categorias.length) {
-        const jugadores = await prisma.jugador.findMany({ where: { clubId, activo: true, categoria: { in: categorias } }, select: { id: true } })
-        if (jugadores.length) {
-          await prisma.notificacion.createMany({
-            data: jugadores.map((j) => ({ clubId, jugadorId: j.id, tipo: 'convocatoria_abierta', data: { convocatoriaId: conv.id, modalidad, fecha, horaInicio, categorias } })),
-          })
-        }
-      }
-
-      // (C) Mensaje de WhatsApp con el link público
-      const club = await prisma.club.findUnique({ where: { id: clubId }, select: { nombre: true } })
-      const { texto } = await generarConvocatoriaWhatsapp({ club: club?.nombre, modalidad, dia: fecha, horario: horaInicio, categoria: categorias.join(', '), cupos: cupoMax })
-      const base = process.env.APP_PUBLIC_URL || 'http://localhost:5173'
-      const link = `${base}/convocatoria/${conv.id}`
-      const mensajeWhatsapp = `${texto}\n\n👉 Anotate acá: ${link}`
-
-      const canchasTxt = (canchasReservadas || []).join(', ')
-      return res.json({ ok: true, mensaje: `Convocatoria creada ✅ Canchas reservadas: ${canchasTxt}`, copiable: { titulo: 'Mensaje para WhatsApp', texto: mensajeWhatsapp } })
     }
     return res.status(400).json({ error: 'Acción desconocida' })
   } catch (err) {

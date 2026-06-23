@@ -465,6 +465,7 @@ model Convocatoria {
   clubId          String
   modalidad       String   // 'americano' | 'super8'
   categorias      String[] // categorías objetivo (ej: ["6ta","7ma"])
+  genero          String?  // 'masculino' | 'femenino' | 'mixto'
   fecha           String   // YYYY-MM-DD
   horaInicio      String   // HH:MM (franja de 1.5h)
   canchas         Int      @default(1)

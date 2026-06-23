@@ -17,11 +17,18 @@ const TITULOS = {
   torneo_baja_admin:            'El club canceló tu inscripción',
   torneo_alta_admin:            'El club te inscribió en un torneo',
   torneo_promovido_espera:      '¡Pasaste a la lista principal!',
+  convocatoria_abierta:         '¡Nuevo evento en el club!',
 }
 
 const formatCuerpo = (tipo, data = {}) => {
   const { canchaNombre = '', fecha = '', horaInicio = '', horaFin = '', dia = '', monto,
-          torneoNombre = '', categoria = '', jugador1 = '', jugador2 = '' } = data
+          torneoNombre = '', categoria = '', jugador1 = '', jugador2 = '',
+          modalidad = '', categorias = [] } = data
+  if (tipo === 'convocatoria_abierta') {
+    const mod = modalidad === 'super8' ? 'Super 8' : 'Americano'
+    const cats = Array.isArray(categorias) && categorias.length ? ` · ${categorias.join('/')}` : ''
+    return `${mod}${cats} · ${fecha} ${horaInicio} · ¡Anotate!`
+  }
   if (tipo === 'reserva_confirmada')      return `${canchaNombre} · ${horaInicio} a ${horaFin} · ${fecha}`
   if (tipo === 'reserva_cancelada_admin') return `${canchaNombre} · ${horaInicio} a ${horaFin} · ${fecha}`
   if (tipo === 'reserva_admin_manual')    return `${canchaNombre} · ${horaInicio} a ${horaFin} · ${fecha}`

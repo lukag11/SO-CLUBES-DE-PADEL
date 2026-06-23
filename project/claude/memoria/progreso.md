@@ -1,6 +1,8 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-23 — Convocatorias: cierre del bloque. **Visibilidad pública/privada** (pública se lista + notifica; privada solo por link, para el grupo del organizador). **Sección "Americano y Super 8" en el dash jugador** (Abiertos + Mis eventos). **Login con retorno + auto-anotado**: "Voy" sin login → te registrás → volvés anotado solo (embudo de socios). El bloque quedó operable de punta a punta.
+**Última actualización:** 2026-06-23 (tarde) — Convocatorias: form admin DINÁMICO (picker de horarios con 2+ canchas, filtra hora actual, tope canchas del club, buscador de organizador igual al de turnos, categorías checkbox 1ra-8va, género). Super 8 = solo parejas sugeridas drive/revés (el fixture se arma en la cancha). Lado jugador ve anotados por Drive/Revés. Notif `convocatoria_abierta` renderizada + clickeable. **WIarky endurecido por código**: verifica disponibilidad real antes de crear, paso por paso obligatorio, herramientas `horarios_para_evento`/`buscar_jugador`, matching sin acentos, validaciones de alta. Detalle abajo.
+
+**Anterior (2026-06-23 mañana):** Convocatorias: cierre del bloque. **Visibilidad pública/privada** (pública se lista + notifica; privada solo por link, para el grupo del organizador). **Sección "Americano y Super 8" en el dash jugador** (Abiertos + Mis eventos). **Login con retorno + auto-anotado**: "Voy" sin login → te registrás → volvés anotado solo (embudo de socios). El bloque quedó operable de punta a punta.
 
 ---
 
@@ -2641,3 +2643,35 @@ El backend corría con código viejo (proceso Node.js iniciado antes de aplicar 
 6. **Backend Bloque 5** — Flyer: mover generación a endpoint Railway (hcti.io o screenshot API) cuando haya backend. Por ahora funciona 100% en browser con Satori.
 7. **Backend Bloque 5** — Stats jugador, mis-reservas, Google OAuth
 7. **Landing SaaS** — cuando haya primer cliente potencial
+
+---
+
+## Sesión 2026-06-23 (tarde) — Convocatorias dinámicas + WIarky robusto
+
+### Form admin DINÁMICO (`ConvocatoriasAdminPage.jsx`)
+- **Picker de horarios**: elegís fecha → muestra SOLO franjas con ≥N canchas libres (botones), no más `input type=time`. `GET /convocatorias/slots-libres?fecha&canchas`.
+- **Filtra hora actual**: si es hoy, descarta franjas pasadas (`ahoraArgHHMM`). Fecha pasada → vacío. `min`=hoy en el date input.
+- **Canchas mín. 2** (1 = turno común) y **tope = canchas activas del club** (`GET /convocatorias/canchas-activas`).
+- **Buscador de organizador = mismo flujo que crear turno**: componente reusable nuevo `components/jugadores/BuscadorJugador.jsx` (input + lupa + modal Todos/Con/Sin cuenta + alta rápida). NO se tocó ReservasPage.
+- **Categorías = checkboxes 1ra–8va** (multi). **Género** masc/fem/mixto (campo nuevo `Convocatoria.genero`, db push aditivo). Va en el mensaje de WhatsApp.
+
+### Super 8 — solo PAREJAS SUGERIDAS, no fixture (decisión Luca)
+- Al llenarse: cierra inscripción + genera **parejas drive/revés** (sin rondas). El fixture se arma EN LA CANCHA. Nivel = categoría + autoselección, no algoritmo. `generarFixtureConvocatoria` super8 → `{ sugeridas:true, parejas }`. Americano sigue con fixture rotativo. `FixtureView` renderiza ambos.
+
+### Lado jugador (`PlayerEventosPage.jsx`)
+- Evento **expandible** → anotados divididos **Drive / Revés / Sin lado** (`GET /convocatorias/:id`).
+
+### Notif `convocatoria_abierta`
+- El backend ya la creaba (por categoría, si pública). Faltaba render: `playerNotificationsStore` + `PlayerNotificacionesPage` (ícono Megáfono, **clickeable → /dashboardJugadores/eventos**).
+
+### WIarky — TODO verificación por código (no prompt)
+- **Regla de oro** + **red de seguridad** en el loop: no afirma "creado" sin generar botón; si lo hace, lo fuerza a reintentar.
+- **crear_convocatoria reordenado**: verifica disponibilidad PRIMERO (solo modalidad+fecha+hora; sacados de `required`), después organizador → cupos(Americano) → género → categoría → pública/privada. Sin todo, NO hay botón. Hora sin 2+ canchas → devuelve horarios reales.
+- **`horarios_para_evento`** (tool): cruza canchas por código (WIarky erraba la intersección mental, ofrecía franjas con 1 cancha).
+- **`buscar_jugador`** (tool) + matching **sin acentos** ("julian"→"Julián") + parcial; si hay varios los lista.
+- **crear_jugador**: valida nombre/apellido sin números, DNI 7-8 dígitos, no duplica.
+- **Fechas**: próximos 8 días (día→fecha) en el contexto (erraba el día de semana).
+- **Tras alta de jugador**: el chat sigue solo (mensaje oculto) → tira el botón de convocar.
+
+### Pendiente
+- Resultados/ranking del fixture. Fase B (jugador organiza). Fixture en página pública. Borrar convocatorias de prueba (21:00 Enrique Diaz, etc.).

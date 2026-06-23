@@ -1,6 +1,7 @@
 // Motor de fixture para convocatorias (backend). Porteo de la lógica del motor público
 // (frontend src/lib/eventos.js) + emparejado balanceado por posición (Drive/Revés/Ambas).
-// AMERICANO: parejas rotan, ranking individual. SUPER 8: parejas fijas, round-robin (1 set).
+// AMERICANO: parejas rotan, ranking individual → fixture rotativo completo.
+// SUPER 8: solo parejas sugeridas (drive/revés); el fixture se arma en la cancha.
 
 // jugadores = array de nombres. Genera rondas con la mayor variedad de parejas/rivales (greedy).
 function generarFixtureAmericano(jugadores, canchas, puntosLimite = 21) {
@@ -36,26 +37,6 @@ function generarFixtureAmericano(jugadores, canchas, puntosLimite = 21) {
   return { modalidad: 'americano', jugadores: [...jugadores], canchas, puntosLimite, rondas }
 }
 
-// parejas = [{ j1, j2 }]. Round-robin: cada pareja juega contra cada otra una vez (1 set).
-function generarFixtureSuper8(parejas, canchas) {
-  const P = parejas.length
-  const arr = parejas.map((_, i) => i)
-  if (P % 2 === 1) arr.push(-1)
-  const n = arr.length
-  const rondas = []
-  for (let r = 0; r < n - 1; r++) {
-    const partidos = []
-    let cancha = 1
-    for (let i = 0; i < n / 2; i++) {
-      const x = arr[i], y = arr[n - 1 - i]
-      if (x !== -1 && y !== -1) { partidos.push({ cancha: ((cancha - 1) % canchas) + 1, parejaA: x, parejaB: y, resultado: null }); cancha++ }
-    }
-    rondas.push({ numero: r + 1, partidos })
-    arr.splice(1, 0, arr.pop())
-  }
-  return { modalidad: 'super8', parejas: parejas.map((p) => ({ ...p })), canchas, rondas }
-}
-
 // Emparejado balanceado por posición: una pareja ideal tiene un Drive + un Revés.
 // Los "Ambas" (y sin dato) son comodines que tapan cualquier lado.
 // jugadores = [{ nombre, posicion }]. Devuelve [{ j1, j2, p1, p2 }].
@@ -77,10 +58,15 @@ export function armarParejasBalanceadas(jugadores) {
 
 // Genera el fixture de una convocatoria según su modalidad.
 // jugadores = [{ nombre, posicion }] (los anotados 'voy').
+// SUPER 8: solo PAREJAS SUGERIDAS (balanceadas drive/revés). El cronograma de quién juega
+//   contra quién se arma EN LA CANCHA (decisión de Luca: el nivel lo da la categoría +
+//   autoselección, y el armado fino lo deciden los jugadores ahí). No generamos rondas.
+// AMERICANO: las parejas rotan toda la tarde → el fixture rotativo SÍ tiene sentido (es el
+//   formato y no produce el problema de pareja fija despareja).
 export function generarFixtureConvocatoria(modalidad, jugadores, canchas) {
   if (modalidad === 'super8') {
     const parejas = armarParejasBalanceadas(jugadores)
-    return generarFixtureSuper8(parejas, Math.max(1, canchas))
+    return { modalidad: 'super8', sugeridas: true, parejas, canchas: Math.max(1, canchas) }
   }
   return generarFixtureAmericano(jugadores.map((j) => j.nombre), Math.max(1, canchas))
 }

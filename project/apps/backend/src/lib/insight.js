@@ -2,7 +2,21 @@
 // UNA recomendación accionable. Modelo Haiku 4.5 (barato; sin effort/thinking).
 import Anthropic from '@anthropic-ai/sdk'
 import prisma from './prisma.js'
-import { hoyArgStr, inicioDiaArg, inicioMesArg } from './tiempo.js'
+import { hoyArgStr, inicioDiaArg, inicioMesArg, ahoraArgHHMM } from './tiempo.js'
+
+// Si la fecha es HOY, deja solo las franjas cuyo horario todavía no pasó (compara con la hora
+// actual argentina). Recalcula total. Para fechas futuras devuelve la disponibilidad tal cual.
+const soloFuturas = (d, fecha) => {
+  if (fecha !== hoyArgStr()) return d
+  const ahora = ahoraArgHHMM()
+  const libres = []
+  let total = 0
+  for (const l of d.libres) {
+    const horas = l.horas.filter((h) => h > ahora)
+    if (horas.length) { libres.push({ ...l, horas }); total += horas.length }
+  }
+  return { ...d, libres, total }
+}
 import { turnosImpagosDeuda } from './deudas.js'
 
 const client = new Anthropic() // toma ANTHROPIC_API_KEY del entorno
@@ -128,7 +142,7 @@ Recomendación:`
 // Redacta un mensaje de WhatsApp listo para pegar en el grupo del club, invitando a
 // un Americano o Super 8 para llenar una franja. On-demand (no cacheado). Semilla del
 // futuro módulo de convocatorias — hoy el admin copia y pega el texto a mano.
-export async function generarConvocatoriaWhatsapp({ club, modalidad, dia, horario, categoria, cupos }) {
+export async function generarConvocatoriaWhatsapp({ club, modalidad, dia, horario, categoria, cupos, genero }) {
   const esSuper8 = modalidad === 'super8'
   const nombreMod = esSuper8 ? 'Super 8' : 'Americano'
   const reglas = esSuper8
@@ -139,6 +153,7 @@ export async function generarConvocatoriaWhatsapp({ club, modalidad, dia, horari
   if (dia) partes.push(`Día: ${dia}`)
   if (horario) partes.push(`Horario: ${horario}`)
   if (categoria) partes.push(`Categorías: ${categoria}`)
+  if (genero) partes.push(`Género: ${genero === 'masculino' ? 'Masculino' : genero === 'femenino' ? 'Femenino' : 'Mixto'}`)
   if (cupos) partes.push(`Cupos: ${cupos}`)
 
   const prompt = `Sos el community manager de un club de pádel en Argentina. Escribí UN mensaje de WhatsApp, listo para pegar en el grupo del club, invitando a sumarse a un ${nombreMod}. Tono cercano y entusiasta en rioplatense, con algunos emojis bien puestos (sin exagerar). Entre 4 y 7 líneas. Incluí: un gancho, en una línea qué es (${reglas}), los datos que te paso (día/horario/categorías/cupos), y un cierre claro pidiendo que confirmen respondiendo este mensaje para reservar el lugar. No inventes datos que no te di: si falta el día o el horario, dejalo abierto o pedí que avisen su disponibilidad. Para resaltar usá el formato de WhatsApp (*texto* para negrita), nunca markdown. No pongas encabezados tipo "Asunto:" ni comillas alrededor del mensaje.
@@ -220,13 +235,14 @@ async function armarContextoClub(clubId) {
   const mDate = new Date(Date.UTC(yy, mm - 1, dd + 1))
   const mananaStr = `${mDate.getUTCFullYear()}-${String(mDate.getUTCMonth() + 1).padStart(2, '0')}-${String(mDate.getUTCDate()).padStart(2, '0')}`
 
-  const [info, dispHoy, dispManana, jugadores, torneos] = await Promise.all([
+  const [info, dispHoyRaw, dispManana, jugadores, torneos] = await Promise.all([
     gatherInsightData(clubId),
     gatherDisponibilidad(clubId, hoyStr),
     gatherDisponibilidad(clubId, mananaStr),
     prisma.jugador.count({ where: { clubId } }),
     prisma.torneo.findMany({ where: { clubId, estado: { in: ['open', 'in_progress'] } }, select: { nombre: true, estado: true } }),
   ])
+  const dispHoy = soloFuturas(dispHoyRaw, hoyStr) // no contar franjas de hoy que ya pasaron
 
   const libresTxt = dispHoy.total
     ? dispHoy.libres.map((l) => `${l.cancha}: ${l.horas.join(', ')}`).join(' | ')
@@ -239,7 +255,21 @@ async function armarContextoClub(clubId) {
     ? torneos.map((t) => `${t.nombre} (${t.estado === 'open' ? 'inscripción abierta' : 'en curso'})`).join(', ')
     : 'ninguno activo'
 
-  const contexto = `Hoy es ${info.dia} ${hoyStr} (mañana: ${mananaStr}). Usá estas fechas reales para interpretar "hoy", "mañana" o cualquier día; nunca inventes una fecha.
+  // Lista de los próximos 8 días YA calculada (día de semana → fecha real), para que el modelo
+  // no haga matemática de fechas (Haiku se equivoca). Incluye HOY y el de la semana que viene.
+  const [hy, hm, hd] = hoyStr.split('-').map(Number)
+  const proximosDias = []
+  for (let i = 0; i < 8; i++) {
+    const dt = new Date(Date.UTC(hy, hm - 1, hd + i))
+    const f = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+    const etq = i === 0 ? ' (HOY)' : i === 1 ? ' (mañana)' : ''
+    proximosDias.push(`  ${DIAS_NOM[dt.getUTCDay()]} ${f}${etq}`)
+  }
+
+  const contexto = `Hoy es ${info.dia} ${hoyStr} (mañana: ${mananaStr}). Usá estas fechas reales para interpretar "hoy", "mañana" o cualquier día; nunca inventes ni calcules una fecha vos.
+Próximos días (convertí cualquier día de semana que te nombren a la fecha EXACTA de esta lista):
+${proximosDias.join('\n')}
+Si el dueño nombra un día que es JUSTO hoy (mismo día de semana), no asumas: preguntale si lo quiere para hoy o para el de la semana que viene, ofreciéndole las dos fechas concretas de la lista.
 Datos REALES del club "${info.club}":
 - Ocupación de hoy: ${info.ocupacionHoyPct}% (${info.slotsOcupados} de ${info.slotsTotales} turnos)
 - Turnos libres hoy: ${libresTxt}
@@ -302,13 +332,23 @@ const WIARK_TOOLS = [
     input_schema: { type: 'object', properties: { fecha: { type: 'string', description: 'Fecha en formato YYYY-MM-DD' } }, required: ['fecha'] },
   },
   {
+    name: 'buscar_jugador',
+    description: 'Verifica en la base si un jugador YA está registrado en el club, buscándolo por nombre. Usala SIEMPRE para chequear vos mismo si alguien está registrado (ej. el organizador de una convocatoria) en vez de preguntarle al dueño. Devuelve si existe, si hay varios, o si no está.',
+    input_schema: { type: 'object', properties: { nombre: { type: 'string', description: 'Nombre y/o apellido del jugador a buscar' } }, required: ['nombre'] },
+  },
+  {
+    name: 'horarios_para_evento',
+    description: 'Devuelve los horarios de una fecha donde hay AL MENOS N canchas libres a la MISMA hora (un Super 8/Americano necesita 2+). Usala para ofrecer horarios cuando el dueño quiere organizar pero todavía no te dio la hora. NUNCA calcules vos la intersección de canchas: usá SIEMPRE esta herramienta, devuelve los horarios reales ya cruzados.',
+    input_schema: { type: 'object', properties: { fecha: { type: 'string', description: 'YYYY-MM-DD (si no se aclara, es hoy)' }, canchas: { type: 'number', description: 'Mínimo de canchas a la vez (default 2)' } }, required: [] },
+  },
+  {
     name: 'armar_posteo_disponibilidad',
     description: 'Genera un posteo listo para difundir (WhatsApp/Instagram/Facebook) con los turnos libres de una fecha. Usala cuando el dueño pide "armá/pasá/publicá los turnos libres" o "publicá la disponibilidad".',
     input_schema: { type: 'object', properties: { fecha: { type: 'string', description: 'Fecha YYYY-MM-DD (si no se aclara, es hoy)' } }, required: [] },
   },
   {
     name: 'crear_convocatoria',
-    description: 'Crea una convocatoria a un Americano o Super 8: reserva las canchas a nombre del jugador organizador y abre cupos para que se anoten. Genera el mensaje de WhatsApp con el link. NO la crea sola: el dueño confirma con un botón. Usala cuando el dueño pide convocar, organizar o armar un Americano/Super 8.',
+    description: 'Organiza un Americano o Super 8. LLAMALA APENAS tengas modalidad + fecha + horario, AUNQUE TODAVÍA NO TENGAS el organizador ni el resto: el sistema verifica PRIMERO la disponibilidad real (necesita 2+ canchas libres a esa hora) y, si el horario sirve, te pide el organizador; si no sirve, te devuelve los horarios reales que sí tienen canchas libres para que se los ofrezcas al dueño. NO crea nada sola: al final el dueño confirma con un botón. Usala cuando el dueño pide convocar/organizar/armar un Americano o Super 8.',
     input_schema: {
       type: 'object',
       properties: {
@@ -317,11 +357,12 @@ const WIARK_TOOLS = [
         fecha: { type: 'string', description: 'Fecha YYYY-MM-DD' },
         horario: { type: 'string', description: 'Hora de inicio HH:MM' },
         categorias: { type: 'string', description: 'Categorías objetivo separadas por coma (ej: "6ta, 7ma")' },
+        genero: { type: 'string', enum: ['masculino', 'femenino', 'mixto'], description: 'Género del evento: masculino, femenino o mixto. Si el dueño dice "para varones/hombres/caballeros" → masculino; "para mujeres/damas" → femenino; "mixto" → mixto. Si no lo aclara, omitilo.' },
         cupos: { type: 'number', description: 'Cantidad de jugadores que entran' },
         canchas: { type: 'number', description: 'Canchas a reservar (ej: 2 para un Super 8)' },
         visibilidad: { type: 'string', enum: ['publica', 'privada'], description: 'publica (se lista en el club + notifica a la categoría) o privada (solo por link, para el grupo del organizador). Default publica.' },
       },
-      required: ['modalidad', 'organizador', 'fecha', 'horario', 'cupos', 'canchas'],
+      required: ['modalidad', 'fecha', 'horario'],
     },
   },
   {
@@ -384,37 +425,100 @@ const WIARK_TOOLS = [
 async function ejecutarHerramientaWiark(name, input, clubId) {
   const fechaOk = (f) => (/^\d{4}-\d{2}-\d{2}$/.test(f) ? f : hoyArgStr())
   if (name === 'consultar_disponibilidad') {
-    const d = await gatherDisponibilidad(clubId, fechaOk(input.fecha))
-    return { paraModelo: d.total ? `${d.total} libres — ${d.libres.map((l) => `${l.cancha}: ${l.horas.join(', ')}`).join(' | ')}` : 'No hay turnos libres esa fecha.' }
+    const f = fechaOk(input.fecha)
+    const d = soloFuturas(await gatherDisponibilidad(clubId, f), f)
+    return { paraModelo: d.total ? `${d.total} libres — ${d.libres.map((l) => `${l.cancha}: ${l.horas.join(', ')}`).join(' | ')}` : 'No hay turnos libres esa fecha (o ya pasaron todos los horarios de hoy).' }
+  }
+  if (name === 'horarios_para_evento') {
+    const f = fechaOk(input.fecha)
+    const n = Math.max(2, Math.round(Number(input.canchas) || 2))
+    const d = soloFuturas(await gatherDisponibilidad(clubId, f), f)
+    const cont = {}
+    for (const c of d.libres) for (const h of c.horas) cont[h] = (cont[h] || 0) + 1
+    const slots = Object.entries(cont).filter(([, k]) => k >= n).map(([h]) => h).sort()
+    return { paraModelo: slots.length ? `Horarios del ${f} con ${n}+ canchas libres a la misma hora (los únicos donde se puede organizar): ${slots.join(', ')}. Ofrecé SOLO estos, ninguno más.` : `El ${f} NO hay ningún horario con ${n} canchas libres a la vez. Avisale al dueño que no se puede organizar ese día (o que pruebe otro día).` }
+  }
+  if (name === 'buscar_jugador') {
+    const q = (input.nombre || '').toString().trim()
+    if (!q) return { paraModelo: 'Decime el nombre del jugador a buscar.' }
+    const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim()
+    const js = await prisma.jugador.findMany({ where: { clubId }, select: { nombre: true, apellido: true } })
+    const exact = js.filter((j) => norm(`${j.nombre} ${j.apellido}`) === norm(q))
+    const parcial = js.filter((j) => norm(`${j.nombre} ${j.apellido}`).includes(norm(q)))
+    if (exact.length === 1) return { paraModelo: `SÍ, "${q}" ya está registrado. Usalo como organizador, no le preguntes al dueño si está registrado.` }
+    if (exact.length > 1) return { paraModelo: `Hay ${exact.length} jugadores llamados "${q}". Pedile al dueño que aclare cuál (apellido completo).` }
+    if (parcial.length === 1) return { paraModelo: `Hay uno parecido: "${parcial[0].nombre} ${parcial[0].apellido}". Confirmá con el dueño si es ese.` }
+    if (parcial.length > 1) return { paraModelo: `No hay coincidencia exacta de "${q}", pero hay ${parcial.length} parecidos. Pedí apellido completo.` }
+    return { paraModelo: `NO está registrado "${q}". Ofrecele al dueño darlo de alta con crear_jugador (necesitás el DNI).` }
   }
   if (name === 'armar_posteo_disponibilidad') {
-    const d = await gatherDisponibilidad(clubId, fechaOk(input.fecha))
+    const f = fechaOk(input.fecha)
+    const d = soloFuturas(await gatherDisponibilidad(clubId, f), f)
     const texto = (await generarPostDisponibilidad(d)).texto
     return { paraModelo: 'Posteo generado OK. Se le muestra al usuario abajo para copiar; no lo repitas.', artefacto: { tipo: 'Posteo de turnos libres', texto } }
   }
   if (name === 'crear_convocatoria') {
+    const modalidad = input.modalidad === 'super8' ? 'super8' : 'americano'
+    const esSuper8 = modalidad === 'super8'
     const fecha = /^\d{4}-\d{2}-\d{2}$/.test(input.fecha) ? input.fecha : null
     const horaInicio = /^\d{1,2}:\d{2}$/.test(input.horario || '') ? input.horario.padStart(5, '0') : null
-    const cupoMax = Math.round(Number(input.cupos) || 0)
-    if (!fecha || !horaInicio || cupoMax < 2) return { paraModelo: 'Para convocar necesito modalidad, fecha (YYYY-MM-DD), horario (HH:MM) y cupos (mínimo 2). Pedí lo que falte.' }
+    // PASO 1: con fecha + hora ya verificamos disponibilidad (antes de pedir nada más).
+    if (!fecha || !horaInicio) return { paraModelo: 'Para empezar a organizar necesito el día (YYYY-MM-DD) y el horario (HH:MM). Pedíselos al dueño.' }
     if (fecha < hoyArgStr()) return { paraModelo: `Esa fecha (${fecha}) ya pasó. Confirmá el día con el dueño.` }
-    // Organizador: las canchas se reservan a su nombre. Debe ser un jugador registrado.
+    // Canchas según modalidad: Super 8 = 2 fijo; Americano = lo pedido (mínimo 2).
+    const canchas = esSuper8 ? 2 : Math.max(2, Math.round(Number(input.canchas) || 2))
+
+    // VERIFICACIÓN DURA de disponibilidad (lo PRIMERO, sin importar si falta el organizador):
+    // tiene que haber `canchas` libres a esa hora. Si no, NO hay botón: se devuelven los horarios reales.
+    const dispEvento = soloFuturas(await gatherDisponibilidad(clubId, fecha), fecha)
+    const contH = {}
+    for (const c of dispEvento.libres) for (const h of c.horas) contH[h] = (contH[h] || 0) + 1
+    const slotsOk = Object.entries(contH).filter(([, k]) => k >= canchas).map(([h]) => h).sort()
+    if (!slotsOk.includes(horaInicio)) {
+      const hayAhi = contH[horaInicio] || 0
+      const ops = slotsOk.length ? `Horarios de ese día con ${canchas}+ canchas libres: ${slotsOk.join(', ')}.` : `Ese día NO hay ningún horario con ${canchas} canchas libres.`
+      return { paraModelo: `Verifiqué la grilla real: a las ${horaInicio} NO hay ${canchas} canchas libres (hay ${hayAhi}). NO ofrezcas el botón ni inventes. Decile la verdad al dueño y ofrecele estos horarios reales para elegir: ${ops}` }
+    }
+
+    // PASO 2: ya sabemos que el horario sirve. Ahora sí, el organizador (jugador registrado).
     const nombreOrg = (input.organizador || '').toString().trim()
-    if (!nombreOrg) return { paraModelo: '¿A nombre de qué jugador organizamos? Las canchas se reservan a su nombre (tiene que estar registrado).' }
-    const norm = (s) => s.toLowerCase().replace(/\s+/g, ' ').trim()
+    if (!nombreOrg) return { paraModelo: `El horario ${horaInicio} del ${fecha} tiene ${canchas} canchas libres, sirve. Ahora pedile al dueño a nombre de qué jugador (registrado) se organiza: las canchas quedan reservadas a su nombre.` }
+    // norm ignora mayúsculas Y acentos (así "julian" matchea "Julián").
+    const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim()
     const js = await prisma.jugador.findMany({ where: { clubId }, select: { id: true, nombre: true, apellido: true } })
-    const matches = js.filter((j) => norm(`${j.nombre} ${j.apellido}`) === norm(nombreOrg))
-    if (matches.length === 0) return { paraModelo: `"${nombreOrg}" no figura como jugador registrado. Para organizar, primero registralo (herramienta crear_jugador, necesitás el DNI) y después convocá. Avisale esto al usuario.` }
-    if (matches.length > 1) return { paraModelo: `Hay más de un jugador llamado "${nombreOrg}". Pedile al usuario que aclare cuál (o el apellido completo).` }
-    const organizadorJugadorId = matches[0].id
-    const categorias = (input.categorias || '').toString().split(',').map((c) => c.trim()).filter(Boolean)
-    const canchas = Math.max(1, Math.round(Number(input.canchas) || 1))
-    const visibilidad = input.visibilidad === 'privada' ? 'privada' : 'publica'
-    const nombreMod = input.modalidad === 'super8' ? 'Super 8' : 'Americano'
-    const resumen = `Convocar ${nombreMod}${categorias.length ? ` ${categorias.join('/')}` : ''} · ${fecha} ${horaInicio} · ${cupoMax} cupos · ${canchas} ${canchas === 1 ? 'cancha' : 'canchas'} · a nombre de ${nombreOrg} · ${visibilidad === 'privada' ? '🔒 privada (solo por link)' : '🌐 pública'}`
+    const q = norm(nombreOrg)
+    // Match exacto por nombre+apellido; si no, parcial (nombre, apellido o substring).
+    let cand = js.filter((j) => norm(`${j.nombre} ${j.apellido}`) === q)
+    if (cand.length === 0) cand = js.filter((j) => norm(`${j.nombre} ${j.apellido}`).includes(q) || norm(j.nombre) === q || norm(j.apellido) === q)
+    if (cand.length === 0) return { paraModelo: `El horario sirve, pero "${nombreOrg}" no figura como jugador registrado. Ofrecé darlo de alta (crear_jugador, necesitás el DNI) y después convocá.` }
+    if (cand.length > 1) return { paraModelo: `Hay ${cand.length} jugadores que coinciden con "${nombreOrg}" (${cand.map((j) => `${j.nombre} ${j.apellido}`).join(', ')}). Pedile al dueño que aclare cuál (apellido completo).` }
+    const organizadorJugadorId = cand[0].id
+    const nombreOrgFull = `${cand[0].nombre} ${cand[0].apellido}`
+
+    // PASO 3: cupos. Super 8 = 8 fijo (no se pregunta). Americano = hay que preguntarlo.
+    const cupoMax = esSuper8 ? 8 : Math.round(Number(input.cupos) || 0)
+    if (!esSuper8 && cupoMax < 2) return { paraModelo: `El horario y el organizador están OK. Para el Americano falta cuántos cupos (jugadores). Preguntáselo al dueño.` }
+
+    // PASO 4: GÉNERO — hay que preguntarlo siempre (aunque la respuesta sea "mixto"). No lo asumas.
+    const genero = ['masculino', 'femenino', 'mixto'].includes(input.genero) ? input.genero : null
+    if (!genero) return { paraModelo: `El horario y el organizador están OK. Ahora preguntale al dueño el GÉNERO del evento: masculino, femenino o mixto. No lo asumas.` }
+    const generoTxt = genero === 'masculino' ? 'Masculino' : genero === 'femenino' ? 'Femenino' : 'Mixto'
+
+    // PASO 5: CATEGORÍA — preguntarla. Acepta "abierto/libre/todas" como sin filtro de categoría.
+    const catRaw = (input.categorias || '').toString().trim()
+    const abierto = /^(abiert[oa]|libre|todas?|todos|cualquiera|sin categor)/i.test(catRaw)
+    const categorias = abierto ? [] : catRaw.split(',').map((c) => c.trim()).filter(Boolean)
+    if (!abierto && categorias.length === 0) return { paraModelo: `Falta la CATEGORÍA. Preguntale al dueño para qué categoría(s) es (ej. 6ta, 7ma) o si es abierto a todas.` }
+
+    // PASO 6: VISIBILIDAD — preguntarla explícitamente, no asumir pública.
+    const visibilidad = input.visibilidad === 'privada' ? 'privada' : input.visibilidad === 'publica' ? 'publica' : null
+    if (!visibilidad) return { paraModelo: `Última cosa: preguntale al dueño si la convocatoria es PÚBLICA (se lista en el club y se avisa a los jugadores de la categoría) o PRIVADA (solo por link, para su grupo).` }
+
+    const nombreMod = esSuper8 ? 'Super 8' : 'Americano'
+    const resumen = `Convocar ${nombreMod}${generoTxt ? ` ${generoTxt}` : ''}${categorias.length ? ` ${categorias.join('/')}` : ''} · ${fecha} ${horaInicio} · ${cupoMax} cupos · ${canchas} canchas · a nombre de ${nombreOrgFull} · ${visibilidad === 'privada' ? '🔒 privada (solo por link)' : '🌐 pública'}`
     return {
-      paraModelo: `Le muestro al usuario un botón para confirmar; todavía NO está creada. Al confirmar: se reservan las canchas a nombre del organizador, se abre la convocatoria y se arma el mensaje de WhatsApp con el link.${visibilidad === 'privada' ? ' Es PRIVADA: no se lista en el club ni se notifica a la categoría (el organizador comparte el link con su gente).' : ' Es pública: se lista en el club y se avisa a los jugadores de la categoría.'} Si no hay canchas libres a esa hora, no se crea.`,
-      artefacto: { tipo: 'confirmacion', accion: 'crear_convocatoria', resumen, datos: { modalidad: input.modalidad === 'super8' ? 'super8' : 'americano', fecha, horaInicio, categorias, cupoMax, canchas, organizadorJugadorId, visibilidad } },
+      paraModelo: `Horario verificado (hay ${canchas} canchas libres). Le muestro al dueño el botón para confirmar; todavía NO está creada.${visibilidad === 'privada' ? ' Es PRIVADA: no se lista ni se notifica.' : ' Es pública: se lista y se avisa a la categoría.'} Decí una línea corta tipo "Te dejo el botón para confirmar 👇" sin afirmar que está hecho.`,
+      artefacto: { tipo: 'confirmacion', accion: 'crear_convocatoria', resumen, datos: { modalidad, fecha, horaInicio, categorias, genero, cupoMax, canchas, organizadorJugadorId, visibilidad } },
     }
   }
   if (name === 'consultar_deudores') {
@@ -449,10 +553,10 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
     const finTotal = toMin(horaInicio) + 90
     const fm = finTotal % 1440
     const horaFin = `${String(Math.floor(fm / 60)).padStart(2, '0')}:${String(fm % 60).padStart(2, '0')}`
-    const disp = await gatherDisponibilidad(clubId, fecha)
+    const disp = soloFuturas(await gatherDisponibilidad(clubId, fecha), fecha)
     const cDisp = disp.libres.find((x) => x.cancha === cancha.nombre)
     if (!cDisp || !cDisp.horas.includes(horaInicio)) {
-      return { paraModelo: `El turno ${cancha.nombre} ${fecha} ${horaInicio} no está disponible (ya reservado o no es un horario de turno válido del club). Avisale al usuario; podés ofrecer consultar la disponibilidad.` }
+      return { paraModelo: `El turno ${cancha.nombre} ${fecha} ${horaInicio} no está disponible (ya reservado, ya pasó la hora, o no es un horario de turno válido del club). Avisale al usuario; podés ofrecer consultar la disponibilidad real.` }
     }
     const precio = input.precio ? Math.round(Number(input.precio)) : null
     const jugador = (input.jugador || '').toString().trim()
@@ -475,8 +579,15 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
   if (name === 'crear_jugador') {
     const nombre = (input.nombre || '').toString().trim()
     const apellido = (input.apellido || '').toString().trim()
-    const dni = (input.dni || '').toString().replace(/\D/g, '')
+    const dniRaw = (input.dni || '').toString().trim()
+    const dni = dniRaw.replace(/\D/g, '')
     if (!nombre || !apellido || !dni) return { paraModelo: 'Para registrar un jugador necesito nombre, apellido y DNI (obligatorio). Pedí lo que falte.' }
+    // VALIDACIONES (igual que el form): nombre/apellido sin números, DNI 7 u 8 dígitos.
+    if (/\d/.test(nombre)) return { paraModelo: `El nombre no puede contener números ("${nombre}"). Pedile al usuario el nombre correcto.` }
+    if (/\d/.test(apellido)) return { paraModelo: `El apellido no puede contener números ("${apellido}"). Pedile al usuario el apellido correcto.` }
+    if (!/^\d{7,8}$/.test(dni)) return { paraModelo: `El DNI tiene que ser de 7 u 8 dígitos (te pasaron "${dniRaw}"). Pedile el DNI correcto, sin puntos.` }
+    const yaExiste = await prisma.jugador.findFirst({ where: { clubId, dni }, select: { nombre: true, apellido: true } })
+    if (yaExiste) return { paraModelo: `Ya hay un jugador con DNI ${dni} (${yaExiste.nombre} ${yaExiste.apellido}). No lo registres de nuevo; usalo si es el que buscás.` }
     const categoria = input.categoria ? input.categoria.toString().trim() : undefined
     const telefono = input.telefono ? input.telefono.toString().trim() : undefined
     const resumen = `Registrar jugador: ${nombre} ${apellido} · DNI ${dni}${categoria ? ` · ${categoria}` : ''}`
@@ -492,10 +603,19 @@ export async function responderChatAgente(clubId, mensajes) {
   const system = `Sos WIarky, el asistente IA de un club de pádel (marca PadelwIArk). Hablás en español rioplatense, cercano y breve, con alguna emoji con moderación. Ayudás al dueño a entender sus números y a llenar canchas.
 
 Reglas:
+- REGLA DE ORO (no la rompas nunca): vos NO creás nada por tu cuenta. Para registrar un jugador, reservar un turno, crear una convocatoria o cargar un gasto SIEMPRE tenés que USAR la herramienta correspondiente, que hace aparecer un BOTÓN de confirmar abajo de tu mensaje. El dato se crea SOLO cuando el dueño toca ese botón. Por lo tanto: NUNCA digas que algo "ya quedó", "está confirmado", "lo reservé", "listo, creado" si no usaste la herramienta. Cuando tengas todos los datos, llamá a la herramienta y decí una línea corta tipo "Te dejo el botón para confirmar 👇" — y NADA de afirmar que está hecho.
+- MANTENÉ EL FOCO: si estás en medio de organizar un Americano o Super 8, NO te desvíes a otros temas ni preguntes cosas que no correspondan al flujo. Seguí EXACTAMENTE los pasos que te va pidiendo el sistema (disponibilidad → organizador → cupos si es Americano → género → categoría → pública/privada) hasta que aparezca el botón, sin meter preguntas de más ni cambiar de tema. Si el organizador coincide con varios jugadores, decíle al dueño cuántos hay y nombralos para que elija (ej. "tengo 3 Julian: Julian Reyneri, Julian Gómez, Julian Pérez — ¿cuál?").
+- TRABAJÁ SIEMPRE CON LA REALIDAD DEL CLUB, nunca al voleo: aunque el dueño te diga "reservá tal hora" o "armá el evento a las 20", NO des por hecho que ese horario está libre. Las herramientas verifican la disponibilidad real: si el horario no sirve (ocupado, ya pasó, o no hay suficientes canchas), te van a devolver los horarios que SÍ están libres → pasáselos al dueño y ofrecele esos, sin inventar. Mejor todavía: ante un pedido de organizar, chequeá disponibilidad ANTES de pedir el resto de los datos.
 - Para responder preguntas usá SOLO los datos reales de abajo; si falta un dato, decílo con honestidad (no inventes números).
 - Tenés HERRAMIENTAS para consultar disponibilidad de una fecha, GENERAR un posteo de turnos libres, y GENERAR un mensaje de convocatoria de Americano/Super 8. Cuando el dueño te pida "armá/pasá/publicá los turnos libres" o "convocá/armá un Americano o Super 8", USÁ la herramienta correspondiente (no lo redactes vos a mano).
 - Cuando usás una herramienta que GENERA un posteo (turnos libres o aviso de liberado), ese texto se le muestra al usuario automáticamente ABAJO de tu mensaje, con un botón para copiar. Por eso NO repitas ese texto en tu respuesta: escribí solo una línea corta presentándolo (ej. "Te armé el posteo, lo tenés acá abajo para copiar 👇").
-- Para convocar/organizar un Americano o Super 8 usá crear_convocatoria. Necesitás: modalidad, **organizador** (jugador registrado a cuyo nombre quedan las canchas; un Super 8 son 2 canchas), fecha, horario, cupos y canchas. Opcional **visibilidad**: pública (se lista en el club + notifica a la categoría, default) o privada (solo por link, para el grupo del organizador — si el dueño dice "privado" usá privada). NO se crea hasta que el dueño confirme. Si el organizador no está registrado, avisá que primero hay que registrarlo (crear_jugador). Si falta algún dato, pedíselo.
+- Para convocar/organizar un Americano o Super 8 usá crear_convocatoria, y llamala APENAS tengas modalidad + fecha + horario, ANTES de pedir el resto. El sistema te va guiando paso por paso: te va a ir pidiendo lo que falte, EN ORDEN, y vos le trasladás cada pregunta al dueño y volvés a llamar a la herramienta con la respuesta. El orden es: 1) verifica disponibilidad (si no hay 2+ canchas a esa hora, te da los horarios reales para ofrecer); 2) organizador (jugador registrado); 3) cupos (solo Americano; el Super 8 es 8 fijo); 4) género (masculino/femenino/mixto); 5) categoría (ej. 6ta/7ma, o "abierto"); 6) pública o privada. NO asumas género, categoría ni visibilidad: preguntáselos al dueño cuando el sistema te los pida. Recién con TODO eso aparece el botón de confirmar. Para el organizador NO uses buscar_jugador por separado: pasale el nombre (aunque sea solo el nombre de pila) directo a crear_convocatoria y el sistema lo resuelve solo (te avisa si está, si hay varios o si no está). No le pidas el DNI salvo que el sistema te diga que el jugador no existe.
+- CUPOS Y CANCHAS según modalidad: un **Super 8** son SIEMPRE 8 jugadores en 2 canchas (está en el nombre) → NO preguntes cupos ni canchas, completalos vos (cupos 8, canchas 2). Para un **Americano** sí preguntá cuántos cupos (suele ser 8, 12 o 16; canchas = cupos ÷ 4). Así para un Super 8 los únicos datos que tenés que pedir son fecha/horario, organizador y, opcional, categoría/género.
+- VERIFICÁ VOS, no preguntes: NUNCA le preguntes al dueño "¿está registrado tal jugador?". Usá la herramienta buscar_jugador para chequearlo en la base vos mismo. Si está → seguí. Si no está → ofrecé darlo de alta con crear_jugador. Preguntarle al dueño algo que podés verificar solo es perderle el tiempo.
+- NO seas redundante: si en un mismo mensaje listás los datos que faltan, no vuelvas a preguntarlos de nuevo abajo. Pedí lo que falta UNA sola vez, en una frase corta.
+- FLUJO PASO POR PASO (clave): si el dueño te da TODO junto (modalidad, día, horario, categoría, organizador), avanzá derecho al botón de confirmar. Pero si te da datos sueltos (ej. "quiero organizar un Super 8 el martes, ¿qué horarios tenés?"), NO dispares la creación ni le tires toda la disponibilidad cruda cancha por cancha. Andá de a UN paso: preguntá/resolvé una cosa por vez (primero el horario, después el organizador, etc.) para no marear al dueño.
+- Disponibilidad para un evento: un Super 8/Americano necesita 2+ canchas a la MISMA hora. Cuando el dueño quiera organizar y no te dio la hora, usá SIEMPRE la herramienta horarios_para_evento para obtener los horarios reales con 2+ canchas libres — NUNCA los calcules vos cruzando las canchas en tu cabeza (te equivocás). Ofrecé SOLO los horarios que devuelve esa herramienta, ninguno más. Ya vienen sin los que pasaron.
+- Recién con día + horario (de 2+ canchas) + organizador armado, ofrecé el botón de confirmar. NO se crea hasta que el dueño confirme. Si el organizador no está registrado, avisá que primero hay que registrarlo (crear_jugador).
 - Para cargar un gasto usá la herramienta cargar_gasto con el monto y el concepto. El gasto NO se guarda hasta que el dueño confirme con un botón que aparece abajo de tu mensaje; vos solo decí una línea corta (ej. "Te dejo el gasto para confirmar 👇"). Si falta el monto o el concepto, pediselo.
 - Para "quién me debe" usá consultar_deudores y para "cuánto facturé" usá consultar_ingresos. La lista de deudores (con nombres) se le muestra al usuario abajo: NUNCA repitas nombres de jugadores en tu texto (privacidad); referite al total y la cantidad.
 - Para reservar un turno usá crear_reserva (cancha + fecha + hora de inicio; el turno dura 1.5h, la hora de fin se calcula sola). NO se crea hasta que el dueño confirme con el botón. Si falta la cancha, la fecha o la hora, pediselas.
@@ -508,23 +628,41 @@ ${contexto}`
   let resp = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: WIARK_TOOLS, messages: msgs })
 
   const artefactos = []
-  let guard = 0
-  while (resp.stop_reason === 'tool_use' && guard++ < 4) {
-    msgs.push({ role: 'assistant', content: resp.content })
-    const results = []
-    for (const b of resp.content) {
-      if (b.type !== 'tool_use') continue
-      let r
-      try { r = await ejecutarHerramientaWiark(b.name, b.input || {}, clubId) }
-      catch (e) { r = { paraModelo: 'No se pudo ejecutar la herramienta.' } }
-      if (r.artefacto) artefactos.push(r.artefacto)
-      results.push({ type: 'tool_result', tool_use_id: b.id, content: r.paraModelo })
+
+  // Corre el loop de tool_use sobre una respuesta y junta los artefactos. Devuelve la última respuesta.
+  const procesarTools = async (respuesta) => {
+    let r = respuesta, guard = 0
+    while (r.stop_reason === 'tool_use' && guard++ < 4) {
+      msgs.push({ role: 'assistant', content: r.content })
+      const results = []
+      for (const b of r.content) {
+        if (b.type !== 'tool_use') continue
+        let out
+        try { out = await ejecutarHerramientaWiark(b.name, b.input || {}, clubId) }
+        catch (e) { out = { paraModelo: 'No se pudo ejecutar la herramienta.' } }
+        if (out.artefacto) artefactos.push(out.artefacto)
+        results.push({ type: 'tool_result', tool_use_id: b.id, content: out.paraModelo })
+      }
+      msgs.push({ role: 'user', content: results })
+      r = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: WIARK_TOOLS, messages: msgs })
     }
-    msgs.push({ role: 'user', content: results })
-    resp = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: WIARK_TOOLS, messages: msgs })
+    return r
   }
 
-  const texto = resp.content.find((b) => b.type === 'text')?.text?.trim() ?? ''
+  resp = await procesarTools(resp)
+  let texto = resp.content.find((b) => b.type === 'text')?.text?.trim() ?? ''
+
+  // RED DE SEGURIDAD anti "confirmado fantasma": si WIarky afirma que algo quedó creado/confirmado
+  // pero NO generó ningún botón de confirmación en este turno, lo forzamos a usar la herramienta
+  // (o a no mentir). Esto es determinístico: no depende de que el modelo "se acuerde".
+  const afirmaAccion = /confirmad|cread[oa]|reserv[éeó]|registrad|ya qued[óo]|qued[óo] (hecho|creado|listo|reservad)/i
+  if (!artefactos.some((a) => a.accion) && afirmaAccion.test(texto)) {
+    msgs.push({ role: 'assistant', content: resp.content })
+    msgs.push({ role: 'user', content: [{ type: 'text', text: '[Sistema interno: en este turno NO usaste ninguna herramienta, así que NO se creó ni confirmó NADA y el dueño NO tiene ningún botón para tocar. Si ya tenés todos los datos para crear lo que el dueño pidió, llamá AHORA a la herramienta correspondiente (crear_convocatoria / crear_reserva / crear_jugador / cargar_gasto) para generar el botón de confirmar. Si en realidad no estabas creando nada, reformulá tu respuesta SIN afirmar que algo quedó hecho.]' }] })
+    resp = await procesarTools(await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: WIARK_TOOLS, messages: msgs }))
+    texto = resp.content.find((b) => b.type === 'text')?.text?.trim() ?? texto
+  }
+
   return { texto, artefactos }
 }
 

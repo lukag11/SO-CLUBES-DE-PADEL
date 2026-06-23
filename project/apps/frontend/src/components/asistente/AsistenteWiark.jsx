@@ -48,12 +48,14 @@ export default function AsistenteWiark() {
     }
   }
 
-  const enviar = (texto) => {
+  const enviar = (texto, opts = {}) => {
     const t = (texto ?? input).trim()
     if (!t || sending) return
-    const next = [...messages, { from: 'user', text: t }]
+    // oculto: el mensaje entra al historial (para que WIarky tenga contexto) pero NO se muestra
+    // como burbuja (lo usamos para continuar el flujo solo, ej. tras dar de alta un jugador).
+    const next = [...messages, { from: 'user', text: t, oculto: !!opts.oculto }]
     setMessages(next)
-    setInput('')
+    if (!opts.oculto) setInput('')
     setSending(true)
     const historial = next.map((m) => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text }))
     api.post('/clubs/me/insight/chat', { mensajes: historial }, { Authorization: `Bearer ${token}` })
@@ -64,6 +66,15 @@ export default function AsistenteWiark() {
       })
       .catch(() => setMessages((m) => [...m, { from: 'wiark', text: 'Uy, no pude responder ahora. Probá de nuevo en un toque 🙈' }]))
       .finally(() => setSending(false))
+  }
+
+  // Tras confirmar el alta de un jugador, continuamos el flujo solo: le inyectamos a WIarky
+  // (oculto) que el jugador ya quedó registrado para que siga con lo que se estaba armando.
+  const continuarTrasAccion = (artefacto) => {
+    if (artefacto?.accion !== 'crear_jugador') return
+    const d = artefacto.datos || {}
+    const nombre = `${d.nombre || ''} ${d.apellido || ''}`.trim()
+    enviar(`Listo, ya registré a ${nombre}. Seguí con lo que estábamos armando (usalo como organizador si era para eso).`, { oculto: true })
   }
 
   return (
@@ -89,7 +100,7 @@ export default function AsistenteWiark() {
           {/* Mensajes */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-3.5 py-3 flex flex-col gap-2.5">
             {messages.map((m, i) => (
-              m.from === 'user' ? (
+              m.oculto ? null : m.from === 'user' ? (
                 <div key={i} className="self-end max-w-[80%] bg-brand-500 text-white text-sm rounded-2xl rounded-br-sm px-3 py-2 leading-relaxed">
                   {m.text}
                 </div>
@@ -102,7 +113,7 @@ export default function AsistenteWiark() {
                     </div>
                   </div>
                   {m.artefactos?.map((a, j) => a.accion
-                    ? <ConfirmAccion key={j} artefacto={a} />
+                    ? <ConfirmAccion key={j} artefacto={a} onConfirmado={continuarTrasAccion} />
                     : a.tipo === 'lista'
                       ? <ListaArtefacto key={j} titulo={a.titulo} items={a.items} total={a.total} />
                       : <CopyArtefacto key={j} tipo={a.tipo} texto={a.texto} />)}
@@ -217,7 +228,7 @@ function ListaArtefacto({ titulo, items, total }) {
 
 // Card de confirmación de una acción que escribe en la base (ej. cargar gasto).
 // WIarky NUNCA escribe solo: el dueño confirma acá.
-function ConfirmAccion({ artefacto }) {
+function ConfirmAccion({ artefacto, onConfirmado }) {
   const token = useAuthStore((s) => s.token)
   const [estado, setEstado] = useState('idle') // idle | cargando | hecho | cancelado
   const [mensaje, setMensaje] = useState('')
@@ -243,7 +254,10 @@ function ConfirmAccion({ artefacto }) {
       crear_jugador: 'No se pudo (¿el DNI ya está registrado?).',
     }[artefacto.accion] || 'No se pudo. Probá de nuevo.'
     req
-      .then((r) => { setEstado('hecho'); setMensaje(r?.mensaje || 'Listo ✅'); setCopiable(r?.copiable || null) })
+      .then((r) => {
+        setEstado('hecho'); setMensaje(r?.mensaje || 'Listo ✅'); setCopiable(r?.copiable || null)
+        onConfirmado?.(artefacto, r)
+      })
       .catch(() => { setEstado('idle'); setMensaje(errMsg) })
   }
 

@@ -1,5 +1,6 @@
 import prisma from './prisma.js'
 import { runSerializable } from './serializable.js'
+import { generarConvocatoriaWhatsapp } from './insight.js'
 
 // Helpers de horario (cross-midnight aware), autocontenidos para no tocar reservas.js.
 const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
@@ -18,7 +19,7 @@ const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 's
 // reglas que una reserva normal) + crea la convocatoria, todo ATÓMICO bajo Serializable
 // (anti doble-booking). Las reservas quedan linkeadas vía convocatoriaId. Lanza {status:409}
 // si no hay N canchas libres a esa hora.
-export async function organizarConvocatoria({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias = [], cupoMax, canchas = 1, precio = null, visibilidad = 'publica' }) {
+export async function organizarConvocatoria({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias = [], genero = null, cupoMax, canchas = 1, precio = null, visibilidad = 'publica' }) {
   const horaFin = sumar90(horaInicio)
   const [fy, fm, fd] = fecha.split('-').map(Number)
   const diaKey = DIAS[new Date(fy, fm - 1, fd).getDay()]
@@ -39,7 +40,7 @@ export async function organizarConvocatoria({ clubId, organizadorJugadorId, moda
     }
 
     const conv = await tx.convocatoria.create({
-      data: { clubId, modalidad, categorias, fecha, horaInicio, canchas, cupoMax, visibilidad: visibilidad === 'privada' ? 'privada' : 'publica', estado: 'abierta', createdBy: organizadorJugadorId },
+      data: { clubId, modalidad, categorias, genero: genero || null, fecha, horaInicio, canchas, cupoMax, visibilidad: visibilidad === 'privada' ? 'privada' : 'publica', estado: 'abierta', createdBy: organizadorJugadorId },
     })
     for (const c of libres) {
       await tx.reserva.create({
@@ -48,6 +49,30 @@ export async function organizarConvocatoria({ clubId, organizadorJugadorId, moda
     }
     return { convocatoria: conv, canchasReservadas: libres.map((c) => c.nombre) }
   })
+}
+
+// Crea una convocatoria COMPLETA: reserva canchas (organizarConvocatoria) + notifica a la
+// categoría (si pública) + arma el mensaje de WhatsApp con el link. Lo usan WIarky y el form admin.
+export async function crearConvocatoriaCompleta({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias = [], genero = null, cupoMax, canchas = 1, visibilidad = 'publica' }) {
+  const vis = visibilidad === 'privada' ? 'privada' : 'publica'
+  const { convocatoria, canchasReservadas } = await organizarConvocatoria({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias, genero, cupoMax, canchas, visibilidad: vis })
+
+  // Notif in-app a la categoría — solo si es pública
+  if (vis === 'publica' && categorias.length) {
+    const jugadores = await prisma.jugador.findMany({ where: { clubId, activo: true, categoria: { in: categorias } }, select: { id: true } })
+    if (jugadores.length) {
+      await prisma.notificacion.createMany({
+        data: jugadores.map((j) => ({ clubId, jugadorId: j.id, tipo: 'convocatoria_abierta', data: { convocatoriaId: convocatoria.id, modalidad, fecha, horaInicio, categorias } })),
+      })
+    }
+  }
+
+  // Mensaje de WhatsApp con el link público
+  const club = await prisma.club.findUnique({ where: { id: clubId }, select: { nombre: true } })
+  const { texto } = await generarConvocatoriaWhatsapp({ club: club?.nombre, modalidad, dia: fecha, horario: horaInicio, categoria: categorias.join(', '), genero, cupos: cupoMax })
+  const base = process.env.APP_PUBLIC_URL || 'http://localhost:5173'
+  const link = `${base}/convocatoria/${convocatoria.id}`
+  return { convocatoria, canchasReservadas, link, mensajeWhatsapp: `${texto}\n\n👉 Anotate acá: ${link}` }
 }
 
 // Cancela una convocatoria y LIBERA sus canchas (cancela las reservas linkeadas).

@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Megaphone, Repeat, Users, CalendarDays, Clock, ChevronDown, X, Check, Crown, Loader2 } from 'lucide-react'
+import { Megaphone, Repeat, Users, CalendarDays, Clock, ChevronDown, X, Check, Crown, Loader2, Plus, Trash2, Copy } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
+import BuscadorJugador from '../components/jugadores/BuscadorJugador'
+
+const CATEGORIAS = ['1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va']
+const GENEROS = [{ k: 'masculino', l: '♂ Masculino' }, { k: 'femenino', l: '♀ Femenino' }, { k: 'mixto', l: '⚥ Mixto' }]
 
 const fmtFecha = (f) => {
   if (!f) return ''
@@ -23,6 +27,8 @@ export default function ConvocatoriasAdminPage() {
   const [detalle, setDetalle] = useState(null)
   const [cargandoDet, setCargandoDet] = useState(false)
   const [accionando, setAccionando] = useState(false)
+  const [crearOpen, setCrearOpen] = useState(false)
+  const [verCanceladas, setVerCanceladas] = useState(false)
 
   const cargar = () => {
     api.get('/convocatorias', { Authorization: `Bearer ${token}` })
@@ -50,40 +56,72 @@ export default function ConvocatoriasAdminPage() {
       .finally(() => setAccionando(false))
   }
 
-  const armarFixture = (id) => {
+  const eliminar = (id, e) => {
+    e?.stopPropagation()
     if (accionando) return
-    if (!confirm('¿Armar el fixture con los anotados? La convocatoria queda confirmada (se cierra la inscripción).')) return
+    if (!confirm('¿Eliminar esta convocatoria? Se borra del listado (si tiene canchas reservadas, se liberan).')) return
+    setAccionando(true)
+    api.delete(`/convocatorias/${id}`, { Authorization: `Bearer ${token}` })
+      .then(() => { cargar(); if (abierta === id) { setAbierta(null); setDetalle(null) } })
+      .catch(() => alert('No se pudo eliminar'))
+      .finally(() => setAccionando(false))
+  }
+
+  const armarFixture = (id, modalidad) => {
+    if (accionando) return
+    const esSuper8 = modalidad === 'super8'
+    const msg = esSuper8
+      ? '¿Cerrar la inscripción y generar las parejas sugeridas (drive/revés)? El fixture se arma en la cancha.'
+      : '¿Armar el fixture con los anotados? La convocatoria queda confirmada (se cierra la inscripción).'
+    if (!confirm(msg)) return
     setAccionando(true)
     api.post(`/convocatorias/${id}/armar-fixture`, {}, { Authorization: `Bearer ${token}` })
       .then(() => {
         cargar()
         return api.get(`/convocatorias/${id}`, { Authorization: `Bearer ${token}` }).then((r) => setDetalle(r))
       })
-      .catch((e) => alert(e?.message || 'No se pudo armar el fixture (¿hay al menos 4 anotados?)'))
+      .catch((e) => alert(e?.message || 'No se pudo (¿hay al menos 4 anotados?)'))
       .finally(() => setAccionando(false))
   }
 
+  const visibles = Array.isArray(lista) ? lista.filter((c) => verCanceladas || c.estado !== 'cancelada') : []
+
   return (
     <div className="flex flex-col gap-5 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Megaphone size={22} className="text-brand-600" /> Americano y Super 8</h1>
-        <p className="text-slate-400 text-sm mt-1">Eventos organizados en el club. Las canchas quedan reservadas a nombre del organizador.</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Megaphone size={22} className="text-brand-600" /> Americano y Super 8</h1>
+          <p className="text-slate-400 text-sm mt-1">Eventos organizados en el club. Las canchas quedan reservadas a nombre del organizador.</p>
+        </div>
+        <button onClick={() => setCrearOpen(true)}
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold transition-all shrink-0">
+          <Plus size={16} /> Crear convocatoria
+        </button>
       </div>
 
       <div className="rounded-xl bg-brand-50/60 border border-brand-200 px-4 py-3 text-sm text-slate-600">
-        💡 Para crear una convocatoria, pedísela a <span className="font-semibold text-brand-700">WIarky</span>: <span className="italic">"Convocá un Super 8 a nombre de Juan Pérez el martes a las 21, 8 cupos, 2 canchas, 6ta"</span>.
+        💡 También podés pedírsela a <span className="font-semibold text-brand-700">WIarky</span> en una frase: <span className="italic">"Convocá un Super 8 a nombre de Juan Pérez el martes a las 21, 8 cupos, 2 canchas, 6ta"</span>.
       </div>
+
+      {crearOpen && <CrearConvocatoriaModal token={token} onClose={() => setCrearOpen(false)} onCreada={() => { setCrearOpen(false); cargar() }} />}
+
+      {Array.isArray(lista) && lista.some((c) => c.estado === 'cancelada') && (
+        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none -mt-1">
+          <input type="checkbox" checked={verCanceladas} onChange={(e) => setVerCanceladas(e.target.checked)} className="accent-brand-500" />
+          Ver canceladas
+        </label>
+      )}
 
       {lista === null ? (
         <p className="text-slate-400 text-sm">Cargando…</p>
-      ) : lista.length === 0 ? (
+      ) : visibles.length === 0 ? (
         <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center">
           <Megaphone size={28} className="mx-auto mb-2 text-slate-300" />
-          <p className="text-slate-500 text-sm">Todavía no hay convocatorias. Pedile una a WIarky.</p>
+          <p className="text-slate-500 text-sm">{lista.length === 0 ? 'Todavía no hay convocatorias. Creá una con el botón de arriba o con WIarky.' : 'No hay convocatorias activas. (Tenés canceladas ocultas.)'}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {lista.map((c) => {
+          {visibles.map((c) => {
             const esAme = c.modalidad !== 'super8'
             const exp = abierta === c.id
             return (
@@ -142,9 +180,9 @@ export default function ConvocatoriasAdminPage() {
                         {/* Acciones */}
                         <div className="flex flex-wrap items-center gap-4 mt-3">
                           {c.estado === 'abierta' && (
-                            <button onClick={() => armarFixture(c.id)} disabled={accionando}
+                            <button onClick={() => armarFixture(c.id, c.modalidad)} disabled={accionando}
                               className="flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-700 transition-colors disabled:opacity-50">
-                              <Check size={14} /> Armar fixture ahora (cierra la inscripción)
+                              <Check size={14} /> {c.modalidad === 'super8' ? 'Cerrar inscripción + parejas sugeridas' : 'Armar fixture ahora (cierra la inscripción)'}
                             </button>
                           )}
                           {c.estado === 'abierta' && (
@@ -153,6 +191,10 @@ export default function ConvocatoriasAdminPage() {
                               <X size={14} /> Cancelar (libera las canchas)
                             </button>
                           )}
+                          <button onClick={(e) => eliminar(c.id, e)} disabled={accionando}
+                            className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50">
+                            <Trash2 size={14} /> Eliminar
+                          </button>
                         </div>
                       </>
                     ) : (
@@ -169,12 +211,233 @@ export default function ConvocatoriasAdminPage() {
   )
 }
 
-// Muestra el fixture armado (rondas + partidos con nombres).
+// Modal para crear una convocatoria desde la UI (sin depender de WIarky). Reusa el motor del backend.
+function CrearConvocatoriaModal({ token, onClose, onCreada }) {
+  const [form, setForm] = useState({ modalidad: 'super8', fecha: '', horaInicio: '', cupoMax: 8, canchas: 2, categorias: [], genero: '', visibilidad: 'publica' })
+  const [org, setOrg] = useState(null)
+  const [creando, setCreando] = useState(false)
+  const [error, setError] = useState('')
+  const [resultado, setResultado] = useState(null)
+  const [copiado, setCopiado] = useState(false)
+  const [slots, setSlots] = useState(null) // null = sin fecha; [] = sin franjas; [...] = horarios libres
+  const [slotsLoading, setSlotsLoading] = useState(false)
+  const [maxCanchas, setMaxCanchas] = useState(null) // canchas activas del club (tope)
+
+  // Tope de canchas = canchas activas del club. Clampeamos el valor si quedó por encima.
+  useEffect(() => {
+    api.get('/convocatorias/canchas-activas', { Authorization: `Bearer ${token}` })
+      .then((r) => {
+        const t = Number(r?.total) || 0
+        setMaxCanchas(t)
+        if (t >= 2) setForm((f) => (Number(f.canchas) > t ? { ...f, canchas: t } : f))
+      })
+      .catch(() => {})
+  }, [token])
+
+  // Franjas con ≥ N canchas libres para la fecha elegida (dinámico)
+  useEffect(() => {
+    if (!form.fecha) { setSlots(null); return }
+    const n = Math.max(1, Number(form.canchas) || 2)
+    setSlotsLoading(true)
+    api.get(`/convocatorias/slots-libres?fecha=${form.fecha}&canchas=${n}`, { Authorization: `Bearer ${token}` })
+      .then((r) => {
+        const s = Array.isArray(r?.slots) ? r.slots : []
+        setSlots(s)
+        setForm((f) => (f.horaInicio && !s.includes(f.horaInicio) ? { ...f, horaInicio: '' } : f))
+      })
+      .catch(() => setSlots([]))
+      .finally(() => setSlotsLoading(false))
+  }, [form.fecha, form.canchas, token])
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  const toggleCategoria = (c) => setForm((f) => ({ ...f, categorias: f.categorias.includes(c) ? f.categorias.filter((x) => x !== c) : [...f.categorias, c] }))
+
+  const crear = () => {
+    setError('')
+    if (!org) return setError('Elegí el jugador organizador.')
+    if (!form.fecha) return setError('Elegí una fecha.')
+    if (!form.horaInicio) return setError('Elegí un horario de los disponibles.')
+    if (Number(form.canchas) < 2) return setError('Una convocatoria usa mínimo 2 canchas.')
+    if (Number(form.cupoMax) < 2) return setError('Mínimo 2 cupos.')
+    setCreando(true)
+    api.post('/convocatorias', {
+      modalidad: form.modalidad, organizadorJugadorId: org.id, fecha: form.fecha, horaInicio: form.horaInicio,
+      cupoMax: Number(form.cupoMax), canchas: Number(form.canchas),
+      categorias: form.categorias, genero: form.genero || null, visibilidad: form.visibilidad,
+    }, { Authorization: `Bearer ${token}` })
+      .then((r) => setResultado(r))
+      .catch((e) => setError(e?.message || 'No se pudo crear (¿hay canchas libres a esa hora?)'))
+      .finally(() => setCreando(false))
+  }
+
+  const copiar = () => navigator.clipboard?.writeText(resultado?.mensajeWhatsapp || '').then(() => { setCopiado(true); setTimeout(() => setCopiado(false), 2000) }).catch(() => {})
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[92vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-slate-800">Crear convocatoria</h2>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-500"><X size={20} /></button>
+        </div>
+
+        {resultado ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-semibold text-emerald-600 flex items-center gap-1.5"><Check size={16} /> ¡Creada! Canchas: {(resultado.canchasReservadas || []).join(', ')}</p>
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Mensaje para WhatsApp</p>
+              <p className="text-[13px] text-slate-700 whitespace-pre-wrap leading-relaxed">{resultado.mensajeWhatsapp}</p>
+              <button onClick={copiar} className="mt-2 flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-700">
+                {copiado ? <><Check size={13} /> ¡Copiado!</> : <><Copy size={13} /> Copiar</>}
+              </button>
+            </div>
+            <button onClick={onCreada} className="py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold">Listo</button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3.5">
+            <div className="grid grid-cols-2 gap-2">
+              {[{ k: 'americano', l: 'Americano' }, { k: 'super8', l: 'Super 8' }].map(({ k, l }) => (
+                <button key={k} onClick={() => set('modalidad', k)} className={`py-2 rounded-lg text-sm font-semibold border transition-all ${form.modalidad === k ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500'}`}>{l}</button>
+              ))}
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Organizador (a su nombre quedan las canchas) <span className="text-red-400">*</span></label>
+              <BuscadorJugador value={org} onChange={setOrg} adminToken={token} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Fecha</label>
+                <input type="date" min={new Date().toLocaleDateString('en-CA')} value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-brand-400 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Canchas a usar</label>
+                <input
+                  type="number"
+                  min={2}
+                  max={maxCanchas || undefined}
+                  value={form.canchas}
+                  onChange={(e) => {
+                    let v = Math.max(2, Number(e.target.value) || 2)
+                    if (maxCanchas) v = Math.min(v, maxCanchas)
+                    set('canchas', v)
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-brand-400 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">{maxCanchas ? `Entre 2 y ${maxCanchas} (canchas del club)` : 'Mínimo 2 (1 sola sería un turno común)'}</p>
+              </div>
+            </div>
+
+            {/* Picker dinámico: solo franjas con ≥ canchas libres ese día */}
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">
+                Horario {form.fecha && <span className="font-normal text-slate-400">— franjas con {Math.max(2, Number(form.canchas) || 2)} canchas libres</span>}
+              </label>
+              {!form.fecha ? (
+                <p className="text-sm text-slate-400 bg-slate-50 border border-slate-100 rounded-lg px-3 py-3 text-center">Elegí una fecha para ver los horarios disponibles</p>
+              ) : slotsLoading ? (
+                <p className="text-sm text-slate-400 bg-slate-50 border border-slate-100 rounded-lg px-3 py-3 text-center flex items-center justify-center gap-2"><Loader2 size={14} className="animate-spin" /> Buscando disponibilidad…</p>
+              ) : !slots || slots.length === 0 ? (
+                <p className="text-sm text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-3 text-center">No hay ninguna franja con {Math.max(2, Number(form.canchas) || 2)} canchas libres ese día. Probá otra fecha o menos canchas.</p>
+              ) : (
+                <div className="grid grid-cols-4 gap-1.5">
+                  {slots.map((h) => (
+                    <button
+                      key={h}
+                      onClick={() => set('horaInicio', h)}
+                      className={`py-2 rounded-lg text-sm font-semibold border transition-all ${form.horaInicio === h ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-200 text-slate-600 hover:border-brand-300'}`}
+                    >
+                      {h}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Cupos (jugadores)</label>
+              <input type="number" min={2} value={form.cupoMax} onChange={(e) => set('cupoMax', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-brand-400 focus:outline-none" />
+            </div>
+
+            {/* Categorías — checkboxes 1ra a 8va */}
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Categorías <span className="font-normal text-slate-400">(opcional, podés elegir varias)</span></label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {CATEGORIAS.map((c) => (
+                  <button key={c} onClick={() => toggleCategoria(c)} className={`py-2 rounded-lg text-sm font-semibold border transition-all ${form.categorias.includes(c) ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-200 text-slate-600 hover:border-brand-300'}`}>
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Género del evento */}
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Género <span className="font-normal text-slate-400">(opcional)</span></label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {GENEROS.map(({ k, l }) => (
+                  <button key={k} onClick={() => set('genero', form.genero === k ? '' : k)} className={`py-2 rounded-lg text-sm font-semibold border transition-all ${form.genero === k ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:border-brand-300'}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Visibilidad</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[{ k: 'publica', l: '🌐 Pública', d: 'Se lista + notifica' }, { k: 'privada', l: '🔒 Privada', d: 'Solo por link' }].map(({ k, l, d }) => (
+                  <button key={k} onClick={() => set('visibilidad', k)} className={`py-2 px-2 rounded-lg text-left border transition-all ${form.visibilidad === k ? 'border-brand-500 bg-brand-50' : 'border-slate-200'}`}>
+                    <p className="text-sm font-semibold text-slate-700">{l}</p>
+                    <p className="text-[10px] text-slate-400">{d}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {error && <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>}
+
+            <button onClick={crear} disabled={creando} className="py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+              {creando ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} {creando ? 'Creando…' : 'Crear y reservar canchas'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Muestra el resultado del armado: Super 8 = parejas sugeridas (drive/revés), el fixture se
+// arma en la cancha. Americano = fixture rotativo completo (rondas).
 function FixtureView({ fixture }) {
+  if (!fixture) return null
+
+  // Super 8 → parejas sugeridas (sin rondas)
+  if (fixture.modalidad === 'super8') {
+    const parejas = fixture.parejas || []
+    if (!parejas.length) return null
+    const lado = (p) => (p === 'Drive' ? 'D' : p === 'Revés' || p === 'Reves' ? 'R' : '·')
+    return (
+      <div className="mt-4 rounded-xl bg-brand-50/50 border border-brand-100 p-3">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-brand-700 mb-1 flex items-center gap-1.5">
+          <Crown size={13} /> Parejas sugeridas
+        </p>
+        <p className="text-[11px] text-slate-400 mb-2">Equilibradas por lado (Drive/Revés). El fixture se arma en la cancha.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+          {parejas.map((p, i) => (
+            <div key={i} className="flex items-center gap-2 text-[13px] bg-white rounded-lg border border-slate-100 px-2.5 py-1.5">
+              <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded shrink-0">{i + 1}</span>
+              <span className="flex-1 text-slate-700 truncate">{p.j1} <span className="text-[10px] text-slate-400">({lado(p.p1)})</span> / {p.j2} <span className="text-[10px] text-slate-400">({lado(p.p2)})</span></span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Americano → fixture rotativo (rondas)
   if (!fixture?.rondas) return null
-  const esAme = fixture.modalidad !== 'super8'
   const nombreEquipo = (idxs) => idxs.map((i) => fixture.jugadores?.[i]).join(' / ')
-  const nombrePareja = (i) => { const p = fixture.parejas?.[i]; return p ? `${p.j1} / ${p.j2}` : '' }
 
   return (
     <div className="mt-4 rounded-xl bg-brand-50/50 border border-brand-100 p-3">
@@ -192,9 +455,9 @@ function FixtureView({ fixture }) {
               {ronda.partidos.map((p, pi) => (
                 <div key={pi} className="flex items-center gap-2 text-[13px] bg-white rounded-lg border border-slate-100 px-2.5 py-1.5">
                   <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded shrink-0">C{p.cancha}</span>
-                  <span className="flex-1 text-right text-slate-700 truncate">{esAme ? nombreEquipo(p.equipoA) : nombrePareja(p.parejaA)}</span>
+                  <span className="flex-1 text-right text-slate-700 truncate">{nombreEquipo(p.equipoA)}</span>
                   <span className="text-slate-300 text-[10px] shrink-0">vs</span>
-                  <span className="flex-1 text-slate-700 truncate">{esAme ? nombreEquipo(p.equipoB) : nombrePareja(p.parejaB)}</span>
+                  <span className="flex-1 text-slate-700 truncate">{nombreEquipo(p.equipoB)}</span>
                 </div>
               ))}
             </div>

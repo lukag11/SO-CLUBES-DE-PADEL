@@ -2,8 +2,10 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireRole } from '../middleware/auth.js'
 import { runSerializable } from '../lib/serializable.js'
-import { cancelarConvocatoria } from '../lib/convocatorias.js'
+import { cancelarConvocatoria, crearConvocatoriaCompleta } from '../lib/convocatorias.js'
 import { generarFixtureConvocatoria } from '../lib/fixtureConvocatoria.js'
+import { gatherDisponibilidad } from '../lib/insight.js'
+import { hoyArgStr, ahoraArgHHMM } from '../lib/tiempo.js'
 
 const router = Router()
 
@@ -31,29 +33,43 @@ async function armarFixtureConvocatoria(convocatoriaId) {
 // POST /api/convocatorias — el admin abre una convocatoria
 router.post('/', requireRole('admin'), async (req, res) => {
   const clubId = req.user.clubId
-  const { modalidad, categorias, fecha, horaInicio, canchas, cupoMax, deadline, politicaNoLlena, notas } = req.body || {}
+  const { modalidad, organizadorJugadorId, categorias, genero, fecha, horaInicio, canchas, cupoMax, visibilidad } = req.body || {}
   if (!['americano', 'super8'].includes(modalidad)) return res.status(400).json({ error: 'Modalidad inválida' })
-  if (!fecha || !horaInicio || !cupoMax || Number(cupoMax) < 1) return res.status(400).json({ error: 'Faltan campos requeridos (fecha, horaInicio, cupoMax)' })
+  if (!organizadorJugadorId) return res.status(400).json({ error: 'Elegí el jugador organizador' })
+  if (!fecha || !horaInicio || !cupoMax || Number(cupoMax) < 2) return res.status(400).json({ error: 'Faltan campos requeridos (fecha, horario, cupos ≥ 2)' })
+  const generoOk = ['masculino', 'femenino', 'mixto'].includes(genero) ? genero : null
   try {
-    const c = await prisma.convocatoria.create({
-      data: {
-        clubId,
-        modalidad,
-        categorias: Array.isArray(categorias) ? categorias : [],
-        fecha,
-        horaInicio,
-        canchas: canchas ? parseInt(canchas, 10) : 1,
-        cupoMax: parseInt(cupoMax, 10),
-        deadline: deadline ? new Date(deadline) : null,
-        politicaNoLlena: politicaNoLlena || 'avisar',
-        notas: notas || null,
-        createdBy: req.user.id,
-      },
+    const r = await crearConvocatoriaCompleta({
+      clubId,
+      organizadorJugadorId,
+      modalidad,
+      fecha,
+      horaInicio,
+      categorias: Array.isArray(categorias) ? categorias.map((c) => `${c}`.trim()).filter(Boolean) : [],
+      genero: generoOk,
+      cupoMax: parseInt(cupoMax, 10),
+      canchas: canchas ? parseInt(canchas, 10) : 1,
+      visibilidad,
     })
-    res.status(201).json(c)
+    res.status(201).json(r)
   } catch (err) {
     console.error('Error crear convocatoria:', err.message)
-    res.status(500).json({ error: 'No se pudo crear la convocatoria' })
+    res.status(err.status === 409 ? 409 : 500).json({ error: err.message || 'No se pudo crear la convocatoria' })
+  }
+})
+
+// DELETE /api/convocatorias/:id — el admin elimina (limpieza). Libera las canchas antes de borrar.
+router.delete('/:id', requireRole('admin'), async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const c = await prisma.convocatoria.findFirst({ where: { id: req.params.id, clubId } })
+    if (!c) return res.status(404).json({ error: 'Convocatoria no encontrada' })
+    await prisma.reserva.updateMany({ where: { convocatoriaId: c.id, estado: { not: 'cancelada' } }, data: { estado: 'cancelada' } })
+    await prisma.convocatoria.delete({ where: { id: c.id } })
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Error eliminar convocatoria:', err.message)
+    res.status(500).json({ error: 'No se pudo eliminar' })
   }
 })
 
@@ -70,6 +86,43 @@ router.get('/', requireRole('admin'), async (req, res) => {
   } catch (err) {
     console.error('Error listar convocatorias:', err.message)
     res.status(500).json({ error: 'Error al listar convocatorias' })
+  }
+})
+
+// GET /api/convocatorias/slots-libres?fecha=YYYY-MM-DD&canchas=2 — franjas donde hay ≥N canchas
+// libres ese día (para el form de crear: el admin elige fecha y ve los horarios posibles).
+router.get('/slots-libres', requireRole('admin'), async (req, res) => {
+  const clubId = req.user.clubId
+  const { fecha } = req.query
+  const n = Math.max(1, parseInt(req.query.canchas, 10) || 2)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) return res.status(400).json({ error: 'Fecha inválida' })
+  if (fecha < hoyArgStr()) return res.json({ fecha, canchas: n, slots: [] }) // fecha pasada → sin franjas
+  try {
+    const disp = await gatherDisponibilidad(clubId, fecha) // { libres: [{ cancha, horas }] }
+    const cont = {}
+    for (const c of disp.libres) for (const h of c.horas) cont[h] = (cont[h] || 0) + 1
+    // Si la fecha es HOY, descartar las franjas cuyo horario ya pasó (igual que un turno normal).
+    const minHora = fecha === hoyArgStr() ? ahoraArgHHMM() : null
+    const slots = Object.entries(cont)
+      .filter(([, k]) => k >= n)
+      .map(([h]) => h)
+      .filter((h) => !minHora || h > minHora)
+      .sort()
+    res.json({ fecha, canchas: n, slots })
+  } catch (err) {
+    console.error('Error slots-libres:', err.message)
+    res.status(500).json({ error: 'Error al calcular disponibilidad' })
+  }
+})
+
+// GET /api/convocatorias/canchas-activas — cuántas canchas activas tiene el club (tope para el form)
+router.get('/canchas-activas', requireRole('admin'), async (req, res) => {
+  try {
+    const total = await prisma.cancha.count({ where: { clubId: req.user.clubId, activo: true } })
+    res.json({ total })
+  } catch (err) {
+    console.error('Error canchas-activas:', err.message)
+    res.status(500).json({ error: 'Error al contar canchas' })
   }
 })
 

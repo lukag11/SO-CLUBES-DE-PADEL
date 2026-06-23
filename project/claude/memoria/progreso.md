@@ -1,6 +1,19 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-22 — Convocatorias Bloque 4 (UI admin): pantalla de gestión (lista + anotados + cancelar que libera canchas), ubicada como **pestaña "Americano y Super 8" dentro de Reservas** (no menú aparte — los eventos SON reservas de canchas). Renombrado de "Convocatorias" (jerga) a "Americano y Super 8" (alineado con el lado público).
+**Última actualización:** 2026-06-22 — Convocatorias Bloque 3b: el FIXTURE. Al llenarse el cupo (o manual con ≥4) se arma el fixture con **emparejado balanceado drive/revés** (`Jugador.posicion`) — motor porteado al backend. El loop quedó COMPLETO: convocar → reservar canchas → anotarse → fixture → ver. Falta solo Fase B (jugador organiza) + detalles (resultados/ranking, render notif, fixture en página pública).
+
+---
+
+## Convocatorias — Bloque 3b: el fixture (cierre del loop) (2026-06-22)
+
+Se cerró el loop: cuando una convocatoria se llena, se **arma el fixture** automáticamente (parejas/partidos), con **emparejado balanceado por posición** (un Drive + un Revés por pareja; los "Ambas" como comodín — usa `Jugador.posicion`, la idea de Luca). Ver [[proyecto_convocatorias_plan]].
+
+- **Motor backend (`lib/fixtureConvocatoria.js`, nuevo):** porteo de los generadores del motor público (`generarFixtureAmericano` rotativo / `generarFixtureSuper8` round-robin de 1 set) + **`armarParejasBalanceadas(jugadores)`** (separa Drive/Revés/Ambas y arma parejas Drive+Revés; sobrantes con comodín). `generarFixtureConvocatoria(modalidad, jugadores, canchas)` orquesta. Es un PORT del frontend `src/lib/eventos.js` (el motor público sigue client-side; éste corre en backend para auto-generar). Probado: 8 jugadores → 4 parejas balanceadas (4/4) + round-robin de 6 partidos; Americano 8 → 7 rondas.
+- **Auto-generación al llenarse (`routes/convocatorias.js` `/voy`):** cuando el último anotado completa el cupo, se llama a `armarFixtureConvocatoria` → guarda el fixture en `Convocatoria.fixture` y pasa estado a `confirmada`. No bloquea el voy si falla.
+- **Manual (`POST /:id/armar-fixture`, admin):** cierra la convocatoria y arma el fixture con los anotados (≥4) aunque no esté llena — para la política "se juega con los que hay".
+- **UI admin (`ConvocatoriasAdminPage.jsx`):** componente `FixtureView` muestra las rondas con los partidos (cancha + parejas/equipos por nombre) cuando hay fixture. Botón "Armar fixture ahora" en convocatorias abiertas.
+- **El loop quedó COMPLETO:** WIarky convoca → reserva canchas (a nombre del organizador) → mensaje + link → jugadores se anotan → al llenarse arma el fixture balanceado → el admin lo ve en Reservas → Americano y Super 8.
+- **PENDIENTE:** Fase B (botón "Hacer Super 8" en dash jugador, reusa `organizarConvocatoria`); cargar resultados del fixture + ranking; render lindo de la notif `convocatoria_abierta`; mostrar el fixture en la página pública.
 
 ---
 

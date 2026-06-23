@@ -3,6 +3,7 @@ import prisma from '../lib/prisma.js'
 import { requireRole } from '../middleware/auth.js'
 import { runSerializable } from '../lib/serializable.js'
 import { cancelarConvocatoria } from '../lib/convocatorias.js'
+import { generarFixtureConvocatoria } from '../lib/fixtureConvocatoria.js'
 
 const router = Router()
 
@@ -10,6 +11,22 @@ const resumenCupos = (cupos) => ({
   voy: cupos.filter((c) => c.estado === 'voy').length,
   espera: cupos.filter((c) => c.estado === 'espera').length,
 })
+
+// Arma el fixture de una convocatoria con los anotados 'voy' y lo guarda (estado → confirmada).
+async function armarFixtureConvocatoria(convocatoriaId) {
+  const conv = await prisma.convocatoria.findUnique({
+    where: { id: convocatoriaId },
+    include: { cupos: { where: { estado: 'voy' }, orderBy: { createdAt: 'asc' }, include: { jugador: { select: { nombre: true, apellido: true, posicion: true } } } } },
+  })
+  if (!conv) throw Object.assign(new Error('Convocatoria no encontrada'), { status: 404 })
+  const jugadores = conv.cupos.map((c) => ({
+    nombre: c.jugador ? `${c.jugador.nombre} ${c.jugador.apellido}`.trim() : (c.nombre || 'Jugador'),
+    posicion: c.posicion || c.jugador?.posicion || null,
+  }))
+  if (jugadores.length < 4) throw Object.assign(new Error('Hacen falta al menos 4 anotados para armar el fixture'), { status: 400 })
+  const fixture = generarFixtureConvocatoria(conv.modalidad, jugadores, conv.canchas)
+  return prisma.convocatoria.update({ where: { id: conv.id }, data: { fixture, estado: 'confirmada' } })
+}
 
 // POST /api/convocatorias — el admin abre una convocatoria
 router.post('/', requireRole('admin'), async (req, res) => {
@@ -138,9 +155,30 @@ router.post('/:id/voy', requireRole('jugador'), async (req, res) => {
       else await tx.convocatoriaCupo.create({ data: { convocatoriaId: c.id, jugadorId, posicion: pos, estado } })
       return { estado }
     })
+    // Si el cupo quedó completo, armar el fixture automáticamente (estado → confirmada)
+    if (result.estado === 'voy') {
+      const c = await prisma.convocatoria.findUnique({ where: { id: req.params.id }, select: { cupoMax: true, estado: true } })
+      const voyCount = await prisma.convocatoriaCupo.count({ where: { convocatoriaId: req.params.id, estado: 'voy' } })
+      if (c && c.estado === 'abierta' && voyCount >= c.cupoMax) {
+        try { await armarFixtureConvocatoria(req.params.id); result.fixtureArmado = true } catch (e) { /* no bloquea el voy */ }
+      }
+    }
     res.json(result)
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || 'No se pudo anotar' })
+  }
+})
+
+// POST /api/convocatorias/:id/armar-fixture — el admin cierra la convocatoria y arma el fixture
+// con los anotados (aunque no esté llena; para política "se juega con los que hay").
+router.post('/:id/armar-fixture', requireRole('admin'), async (req, res) => {
+  try {
+    const c = await prisma.convocatoria.findFirst({ where: { id: req.params.id, clubId: req.user.clubId } })
+    if (!c) return res.status(404).json({ error: 'Convocatoria no encontrada' })
+    const upd = await armarFixtureConvocatoria(c.id)
+    res.json(upd)
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || 'No se pudo armar el fixture' })
   }
 })
 

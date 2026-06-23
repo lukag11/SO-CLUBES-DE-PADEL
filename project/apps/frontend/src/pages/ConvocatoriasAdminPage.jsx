@@ -50,6 +50,19 @@ export default function ConvocatoriasAdminPage() {
       .finally(() => setAccionando(false))
   }
 
+  const armarFixture = (id) => {
+    if (accionando) return
+    if (!confirm('¿Armar el fixture con los anotados? La convocatoria queda confirmada (se cierra la inscripción).')) return
+    setAccionando(true)
+    api.post(`/convocatorias/${id}/armar-fixture`, {}, { Authorization: `Bearer ${token}` })
+      .then(() => {
+        cargar()
+        return api.get(`/convocatorias/${id}`, { Authorization: `Bearer ${token}` }).then((r) => setDetalle(r))
+      })
+      .catch((e) => alert(e?.message || 'No se pudo armar el fixture (¿hay al menos 4 anotados?)'))
+      .finally(() => setAccionando(false))
+  }
+
   return (
     <div className="flex flex-col gap-5 max-w-3xl">
       <div>
@@ -120,12 +133,24 @@ export default function ConvocatoriasAdminPage() {
                           <p className="text-xs text-slate-400 py-1">Nadie se anotó todavía.</p>
                         )}
 
-                        {c.estado === 'abierta' && (
-                          <button onClick={() => cancelar(c.id)} disabled={accionando}
-                            className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-600 transition-colors disabled:opacity-50">
-                            <X size={14} /> Cancelar convocatoria (libera las canchas)
-                          </button>
-                        )}
+                        {/* Fixture (si ya está armado) */}
+                        {detalle.fixture && <FixtureView fixture={detalle.fixture} />}
+
+                        {/* Acciones */}
+                        <div className="flex flex-wrap items-center gap-4 mt-3">
+                          {c.estado === 'abierta' && (
+                            <button onClick={() => armarFixture(c.id)} disabled={accionando}
+                              className="flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-700 transition-colors disabled:opacity-50">
+                              <Check size={14} /> Armar fixture ahora (cierra la inscripción)
+                            </button>
+                          )}
+                          {c.estado === 'abierta' && (
+                            <button onClick={() => cancelar(c.id)} disabled={accionando}
+                              className="flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-600 transition-colors disabled:opacity-50">
+                              <X size={14} /> Cancelar (libera las canchas)
+                            </button>
+                          )}
+                        </div>
                       </>
                     ) : (
                       <p className="text-xs text-slate-400 py-3">No se pudo cargar el detalle.</p>
@@ -137,6 +162,42 @@ export default function ConvocatoriasAdminPage() {
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+// Muestra el fixture armado (rondas + partidos con nombres).
+function FixtureView({ fixture }) {
+  if (!fixture?.rondas) return null
+  const esAme = fixture.modalidad !== 'super8'
+  const nombreEquipo = (idxs) => idxs.map((i) => fixture.jugadores?.[i]).join(' / ')
+  const nombrePareja = (i) => { const p = fixture.parejas?.[i]; return p ? `${p.j1} / ${p.j2}` : '' }
+
+  return (
+    <div className="mt-4 rounded-xl bg-brand-50/50 border border-brand-100 p-3">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-brand-700 mb-2 flex items-center gap-1.5">
+        <Crown size={13} /> Fixture armado
+      </p>
+      <div className="flex flex-col gap-3">
+        {fixture.rondas.map((ronda, ri) => (
+          <div key={ri}>
+            <p className="text-[11px] font-semibold text-slate-500 mb-1.5">
+              Ronda {ronda.numero}
+              {ronda.descansan?.length > 0 && <span className="text-slate-400 font-normal"> · descansa: {ronda.descansan.map((i) => fixture.jugadores?.[i]).join(', ')}</span>}
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {ronda.partidos.map((p, pi) => (
+                <div key={pi} className="flex items-center gap-2 text-[13px] bg-white rounded-lg border border-slate-100 px-2.5 py-1.5">
+                  <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded shrink-0">C{p.cancha}</span>
+                  <span className="flex-1 text-right text-slate-700 truncate">{esAme ? nombreEquipo(p.equipoA) : nombrePareja(p.parejaA)}</span>
+                  <span className="text-slate-300 text-[10px] shrink-0">vs</span>
+                  <span className="flex-1 text-slate-700 truncate">{esAme ? nombreEquipo(p.equipoB) : nombrePareja(p.parejaB)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

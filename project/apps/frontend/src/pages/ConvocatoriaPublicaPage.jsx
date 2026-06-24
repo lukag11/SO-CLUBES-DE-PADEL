@@ -27,6 +27,7 @@ export default function ConvocatoriaPublicaPage() {
   const [error, setError] = useState('')
   const [anotando, setAnotando] = useState(false)
   const [miEstado, setMiEstado] = useState(null) // 'voy' | 'espera' tras anotarme
+  const [anotados, setAnotados] = useState(null) // lista de nombres (solo logueados)
 
   const cargar = () => {
     api.get(`/convocatorias/publica/${id}`)
@@ -36,12 +37,19 @@ export default function ConvocatoriaPublicaPage() {
   }
   useEffect(() => { cargar() }, [id])
 
-  // Si estoy logueado, ver si ya estoy anotado (para mostrar el estado al entrar/recargar)
-  useEffect(() => {
+  // Si estoy logueado: ver mi estado + traer la lista de anotados (con nombres). Anónimo no la ve.
+  const cargarAnotados = () => {
     if (!isAuth || !token) return
+    api.get(`/convocatorias/${id}`, { Authorization: `Bearer ${token}` })
+      .then((r) => setAnotados((r?.cupos || []).filter((c) => c.estado === 'voy')))
+      .catch(() => setAnotados([]))
+  }
+  useEffect(() => {
+    if (!isAuth || !token) { setAnotados(null); return }
     api.get(`/convocatorias/${id}/mi-estado`, { Authorization: `Bearer ${token}` })
       .then((r) => setMiEstado(r?.estado || null))
       .catch(() => {})
+    cargarAnotados()
   }, [id, isAuth, token])
 
   const anotarme = () => {
@@ -49,7 +57,7 @@ export default function ConvocatoriaPublicaPage() {
     setAnotando(true)
     setError('')
     api.post(`/convocatorias/${id}/voy`, {}, { Authorization: `Bearer ${token}` })
-      .then((r) => { setMiEstado(r?.estado || 'voy'); cargar() })
+      .then((r) => { setMiEstado(r?.estado || 'voy'); cargar(); cargarAnotados() })
       .catch((e) => setError(e?.message || 'No se pudo anotar.'))
       .finally(() => setAnotando(false))
   }
@@ -59,7 +67,7 @@ export default function ConvocatoriaPublicaPage() {
     setAnotando(true)
     setError('')
     api.post(`/convocatorias/${id}/baja`, {}, { Authorization: `Bearer ${token}` })
-      .then(() => { setMiEstado(null); cargar() })
+      .then(() => { setMiEstado(null); cargar(); cargarAnotados() })
       .catch((e) => setError(e?.message || 'No se pudo dar de baja.'))
       .finally(() => setAnotando(false))
   }
@@ -122,6 +130,31 @@ export default function ConvocatoriaPublicaPage() {
               {lleno ? `Cupos llenos · ${conv.espera} en lista de espera` : `${conv.lugares} ${conv.lugares === 1 ? 'lugar' : 'lugares'} disponibles`}
             </p>
           </div>
+
+          {/* Quiénes van — solo para jugadores logueados (privacidad) */}
+          {isAuth && anotados !== null && (
+            <div className="rounded-2xl p-3.5 mb-4" style={{ backgroundColor: 'rgba(244,245,239,0.04)', border: `1px solid ${C.line}` }}>
+              <p className="text-xs font-semibold mb-2.5" style={{ color: C.muted }}>Quiénes van</p>
+              {anotados.length === 0 ? (
+                <p className="text-[12px]" style={{ color: C.muted }}>Todavía no se anotó nadie. ¡Estrenalo vos!</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {anotados.map((cu, i) => {
+                    const nombre = cu.jugador ? `${cu.jugador.nombre} ${cu.jugador.apellido}` : (cu.nombre || 'Jugador')
+                    const pos = cu.posicion || cu.jugador?.posicion
+                    const lado = pos === 'Drive' ? 'D' : (pos === 'Revés' || pos === 'Reves') ? 'R' : null
+                    return (
+                      <div key={i} className="flex items-center gap-2 text-[13px]" style={{ color: 'rgba(244,245,239,0.9)' }}>
+                        <span className="w-5 h-5 rounded-md grid place-items-center text-[10px] font-bold tabular-nums shrink-0" style={{ backgroundColor: 'rgba(175,202,11,0.15)', color: C.lima }}>{i + 1}</span>
+                        <span className="truncate">{nombre}</span>
+                        {lado && <span className="text-[10px] shrink-0" style={{ color: C.muted }}>· {lado}</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* CTA */}
           {miEstado ? (

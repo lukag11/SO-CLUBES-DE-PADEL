@@ -2686,5 +2686,8 @@ El backend corría con código viejo (proceso Node.js iniciado antes de aplicar 
 - Backend: `POST /convocatorias/mias` (crear, reusa `crearConvocatoriaCompleta`), `POST /convocatorias/mias/:id/cancelar` (solo el organizador; libera canchas + avisa a los anotados menos a él). `GET /mias` marca `soyOrganizador`. `slots-libres` y `canchas-activas` ahora también para jugador.
 - Frontend (`PlayerEventosPage`): botón **Organizar** + `OrganizarModal` (modalidad → fecha → horarios dinámicos 2+ canchas → género → categorías → público/privado → mensaje para compartir). En "Mis eventos", si sos organizador: chip "Organizás" + **Cancelar evento**. **`ConfirmModal` propio** (adiós al `confirm()` nativo).
 
+### Ver anotados en la página pública (HECHO)
+- En `ConvocatoriaPublicaPage` (la del link), sección **"Quiénes van"** con la lista de anotados (nombres numerados + lado D/R), para decidir antes de anotarse. **Solo jugadores logueados** la ven (privacidad: el anónimo ve solo el contador 2/8). Reusa el endpoint autenticado `/convocatorias/:id`, sin cambios de backend. Se refresca al anotarse/bajarse.
+
 ### Pendiente
 - Resultados/ranking del fixture. Fixture en página pública. Borrar convocatorias de prueba. Matching jugador→jugador (capa viral, más adelante).

@@ -2689,5 +2689,14 @@ El backend corría con código viejo (proceso Node.js iniciado antes de aplicar 
 ### Ver anotados en la página pública (HECHO)
 - En `ConvocatoriaPublicaPage` (la del link), sección **"Quiénes van"** con la lista de anotados (nombres numerados + lado D/R), para decidir antes de anotarse. **Solo jugadores logueados** la ven (privacidad: el anónimo ve solo el contador 2/8). Reusa el endpoint autenticado `/convocatorias/:id`, sin cambios de backend. Se refresca al anotarse/bajarse.
 
+### Modo en vivo — carga de resultados + ranking en vivo (HECHO)
+- Reusa el motor `lib/eventos.js` (fixture + validación de sets/puntos + ranking). El estado se guarda en `Convocatoria.fixture` (Json) vía `PATCH /convocatorias/:id/fixture` (solo organizador `createdBy` o admin; "scoreboard duty").
+- **Pantalla de carga** (`components/eventos/CargarResultados.jsx`, overlay oscuro full-screen): Super 8 → armado de **parejas por CLICK** (sin escribir: tocás dos para emparejar, tocás una pareja para deshacer) → round-robin → carga de sets → **ranking por pareja en vivo**. Americano → rondas rotativas → carga → ranking individual. Guarda debounced.
+- **Entradas**: organizador desde su dash (`PlayerEventosPage`, en el evento expandido) Y desde el **propio link público** (`ConvocatoriaPublicaPage`, botón solo si `soyOrganizador` — flag nuevo en `GET /:id`). Admin desde `ConvocatoriasAdminPage` (detalle, ≥4 anotados). Los demás NO cargan (read-only + auth en backend).
+- **Vista pública en vivo (Bloque 3)**: `ConvocatoriaPublicaPage` muestra sección **"Ranking en vivo"** (puntito latiendo) cuando el fixture tiene resultados, read-only, **auto-refresh 15s**, para proyectar en la TV / compartir link. El endpoint público `/publica/:id` ahora incluye `fixture` (nombres OK, decisión Luca).
+
+### Historial social — PLANIFICADO (decisión con bibliotecario, opción b)
+- Guardar el **snapshot final** del evento (fecha, jugadores, ranking) al cerrarlo + sección **"Eventos sociales" SEPARADA** en el perfil del jugador (Americanos/Super 8 jugados, posición promedio, último). **REGLA DURA: nunca toca winRate / comparativa / ascenso** (eso es exclusivo de torneos). Motivo: Playtomic guarda lo "friendly" pero NO mueve el rating; lo social no debe ensuciar la métrica que define ascensos de categoría. Si se quiere algo más, solo un contador de actividad/fidelidad, nunca rating.
+
 ### Pendiente
-- Resultados/ranking del fixture. Fixture en página pública. Borrar convocatorias de prueba. Matching jugador→jugador (capa viral, más adelante).
+- Historial social (arriba). Borrar convocatorias de prueba. Matching jugador→jugador (capa viral, más adelante).

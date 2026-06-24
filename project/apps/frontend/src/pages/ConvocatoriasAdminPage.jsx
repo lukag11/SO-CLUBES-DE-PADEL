@@ -3,6 +3,7 @@ import { Megaphone, Repeat, Users, CalendarDays, Clock, ChevronDown, X, Check, C
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
 import BuscadorJugador from '../components/jugadores/BuscadorJugador'
+import CargarResultados from '../components/eventos/CargarResultados'
 
 const CATEGORIAS = ['1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va']
 const GENEROS = [{ k: 'masculino', l: '♂ Masculino' }, { k: 'femenino', l: '♀ Femenino' }, { k: 'mixto', l: '⚥ Mixto' }]
@@ -30,6 +31,7 @@ export default function ConvocatoriasAdminPage() {
   const [crearOpen, setCrearOpen] = useState(false)
   const [verCanceladas, setVerCanceladas] = useState(false)
   const [motivoModal, setMotivoModal] = useState(null) // { id, accion: 'cancelar'|'eliminar', anotados }
+  const [cargarId, setCargarId] = useState(null) // evento en modo en vivo
 
   const cargar = () => {
     api.get('/convocatorias', { Authorization: `Bearer ${token}` })
@@ -104,6 +106,10 @@ export default function ConvocatoriasAdminPage() {
       </div>
 
       {crearOpen && <CrearConvocatoriaModal token={token} onClose={() => setCrearOpen(false)} onCreada={() => { setCrearOpen(false); cargar() }} />}
+
+      {cargarId && (
+        <CargarResultados convId={cargarId} token={token} onClose={() => { setCargarId(null); cargar() }} />
+      )}
 
       {motivoModal && (
         <MotivoModal
@@ -188,6 +194,12 @@ export default function ConvocatoriasAdminPage() {
 
                         {/* Acciones */}
                         <div className="flex flex-wrap items-center gap-4 mt-3">
+                          {c.estado !== 'cancelada' && (c.voy || 0) >= 4 && (
+                            <button onClick={() => setCargarId(c.id)}
+                              className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors">
+                              <Crown size={14} /> Modo en vivo · cargar resultados
+                            </button>
+                          )}
                           {c.estado === 'abierta' && (
                             <button onClick={() => armarFixture(c.id, c.modalidad)} disabled={accionando}
                               className="flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-700 transition-colors disabled:opacity-50">

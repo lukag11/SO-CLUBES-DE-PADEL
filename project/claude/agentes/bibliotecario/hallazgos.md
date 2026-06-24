@@ -7,6 +7,71 @@
 
 ---
 
+## 2026-06-24 (bis) · ¿Persistir el historial de Americano/Super 8 y/o alimentar stats del jugador? — cómo lo hacen los demás
+
+**Contexto:** ya está implementada la carga de resultados + ranking EN VIVO. Nueva duda de Luca: "¿estas estadísticas se guardan en algún lado? ¿cómo lo hacen los demás?". Foco de este eje = PERSISTENCIA / HISTORIAL (no el live ranking, ya cubierto).
+
+> NOTA DE MÉTODO: en este turno WebSearch y WebFetch quedaron DENEGADOS por el entorno. No pude correr búsquedas nuevas. Lo que sigue se apoya en fuentes ya verificadas en turnos previos (citadas) + inferencia marcada como tal. Pendiente de confirmar fresco: si las apps de Americano guardan récord por jugador y qué muestra exactamente el perfil Playtomic en historial.
+
+### Apps de Americano — persistencia [Verificado el diseño efímero / Probable la no-persistencia por jugador]
+- [Verificado, turno anterior] El modelo es el EVENTO EFÍMERO: cada evento = link compartible que actualiza en vivo, pensado para el momento (TV del club), no para el archivo. Fuente: americano-padel.app, padel-americano.app.
+- [Verificado] Varias funcionan SIN login / offline (padel-bracket.com: "no signup, works offline"). Sin cuenta no hay dónde colgar historial por jugador. Fuente: padel-bracket.com.
+- [Probable, NO confirmado fresco hoy] De ahí se infiere que la mayoría NO persiste un récord histórico por jugador de eventos sociales: el evento queda como un link que con el tiempo muere. Es inferencia desde el diseño verificado, no dato duro. NO presentarlo como cerrado.
+
+### Playtomic / MATCHi — historial en el perfil [Verificado, turnos previos]
+- Playtomic SÍ guarda historial de partidos en el perfil + nivel 0–7 estilo ELO que evoluciona con cada partido COMPETITIVO.
+- **DATO CLAVE para la decisión:** solo los partidos "competitive" mueven el nivel; los "friendly" se GUARDAN pero NO afectan el rating. El referente que sí persiste, igual AÍSLA lo social del rating a propósito. Fuente: helpmanager.playtomic.com (Friendly vs Competitive Open Matches; The Playtomic Levels & Algorithm). → Es la respuesta del mercado: separar social de "serio".
+
+### Cruce contra PadelwIArk — módulo de stats existente
+Revisada memoria project_stats_jugador (13 días, no re-verificado contra código hoy): el módulo de stats es SERIO/competitivo — winRate, evolución de winRate por torneo, comparativa de club, logros, **sugerencia de ascenso de categoría** (el admin evalúa ascensos desde ahí). Construido sobre TORNEOS y modelo `Pareja` (jugador1/jugador2 strings). El Americano es individual con compañero rotativo y score a puntos → no encaja en ese modelo ni conceptual ni técnicamente.
+
+**Conclusión del eje:** el referente serio (Playtomic) GUARDA historial pero NO deja que lo social contamine el rating. Para PadelwIArk, cuyas stats tienen consecuencia (ascensos), mezclar resultados sociales en winRate/comparativa/ascenso es el riesgo caro. Guardar un historial liviano del evento (snapshot) es bajo esfuerzo y suma engagement sin riesgo. Detalle/veredicto en oportunidades.md.
+
+**Fuentes:**
+- https://americano-padel.app/en/
+- https://padel-americano.app/
+- https://padel-bracket.com/en/
+- https://helpmanager.playtomic.com/hc/en-gb/articles/20535188135185-Friendly-vs-Competitive-Open-Matches
+- https://helpmanager.playtomic.com/hc/en-gb/articles/20563641264145-The-Playtomic-Levels-Algorithm
+
+---
+
+## 2026-06-24 · ¿Construir carga de resultados + ranking final de Americano/Super 8 sociales? — cómo lo hacen los demás
+
+**Contexto / duda de Luca:** el módulo de convocatorias ya arma fixture + parejas/rondas (motor `/eventos`). Falta decidir si vale la pena construir la CARGA DE RESULTADOS + ranking final. Su miedo: "eso se hace en el momento y muere ahí; alguien tiene que cargar los scores → fricción → nadie lo usa → desarrollo desperdiciado."
+
+### Cómo cargan resultados las apps dedicadas de Americano (el caso 1:1 de Luca) [Verificado]
+- **Americano Padel Manager** (americano-padel.app): el flujo es setup (jugadores, canchas, puntos) → jugar → "fill in the results after each round" → corona ganador. **Quién carga:** recomiendan tener a alguien en "scoreboard duty", **idealmente un no-jugador; si todos juegan, se rota la responsabilidad.** O sea: UNA persona (un teléfono), no cada jugador. Fuente: simplepadel.com (How to Play an Americano), americano-padel.app.
+- **El leaderboard EN VIVO es el corazón del producto, no el resultado final.** Copy textual: "Real-time scores, automatic rankings, and big screen display. Everything included" + testimonio "Leaderboard on the big screen, members love it. We run 3 tournaments a week". La carga de scores es el medio; **el ranking en vivo proyectado en una TV es el fin.** Fuente: americano-padel.app.
+- **Patrón "shareable web link que actualiza en tiempo real":** cada evento tiene un link público que se abre en la TV del club o se comparte a los jugadores para que sigan el standing al instante. Esto es lo que engancha DURANTE el evento. Fuentes: americano-padel.app, padel-americano.app ("keeps scores in one place, lets everyone see who is winning — without the spreadsheet chaos"), padelcounter.com (match key, sin instalar app, spectators miran en vivo).
+- **Padelboard (de MATCHi):** dos modos de carga — **cada jugador reporta su propio score O el host reporta todos.** Confirma que el modelo "un organizador carga" es el default y el "cada jugador carga" es opcional. Fuente: padelboard.app (vía búsqueda; fetch directo vino vacío).
+
+### Playtomic / MATCHi — partidos sociales casuales [Verificado]
+- En Playtomic el resultado de un open match **se carga manualmente**: "Enter Result / Add Score" → un jugador lo carga → **el rival/compañero lo verifica** (validación cruzada). Se auto-valida a las 24h si nadie lo rechaza; si lo rechazan, queda suspendido. Fuente: playerhelp.playtomic.com (Match Results, How to edit incorrect match results).
+- **El resultado alimenta el "nivel Playtomic" (rating 0–7 estilo ELO) — pero SOLO si el partido es "competitivo".** Los "friendly matches" NO mueven el nivel aunque cargues el score. Y la confiabilidad del nivel sube jugando partidos competitivos. Fuente: playerhelp.playtomic.com (Friendly vs Competitive, The Playtomic Levels & Algorithm).
+- **Implicancia:** para Playtomic el resultado SÍ es central, porque su producto-estrella es el matchmaking por nivel, y el nivel se nutre del resultado. Es un loop competitivo serio. **Un Americano social de una tarde NO es ese caso de uso:** ahí el resultado vive su valor en el momento (ranking en vivo), no necesita persistir a un rating.
+
+### El patrón de fricción — qué hace que SÍ se carguen [Verificado + Probable]
+1. **Una sola persona carga (scoreboard duty), no todos.** Reduce fricción a 1 punto. El ranking en vivo le da sentido a ese rol. [Verificado: americano-padel.app, simplepadel.com]
+2. **El atractivo es el ranking en vivo proyectado, NO el archivo histórico.** La gente carga porque quiere ver la tabla moverse AHORA. [Verificado por copy/testimonios de las apps]
+3. **Validación cruzada (Playtomic)** solo importa cuando el resultado tiene consecuencia (sube/baja nivel). En social de una tarde es over-engineering. [Probable, muy sólido]
+4. **Donde el resultado no tiene consecuencia futura, mucha gente NO lo persiste y está OK** — el valor estuvo en armar el fixture y ver quién ganaba esa tarde. Las apps dedicadas tratan el evento como efímero por diseño (link que se comparte y muere). [Probable]
+
+**Conclusión del eje:** la carga de resultados de un Americano social tiene valor REAL pero **DURANTE el evento (ranking en vivo en pantalla), no como archivo histórico atado a stats.** El que paga la fricción es UN organizador, no cada jugador, y lo paga gustoso porque la tabla en vivo es el show. Atarlo a stats/rating del jugador (modelo Playtomic) es otro producto, mucho más pesado, y solo se justifica con masa y partidos "competitivos" recurrentes — no es el caso de un club chico AR con eventos sociales sueltos.
+
+**Fuentes:**
+- https://americano-padel.app/en/
+- https://simplepadel.com/how-to-play-an-americano-in-padel/
+- https://padel-americano.app/
+- https://padelboard.app/
+- https://www.padelcounter.com/
+- https://playerhelp.playtomic.com/hc/en-gb/categories/19831360488081-Match-Results
+- https://playerhelp.playtomic.com/hc/en-gb/articles/19831850222609-How-to-edit-incorrect-match-results
+- https://helpmanager.playtomic.com/hc/en-gb/articles/20535188135185-Friendly-vs-Competitive-Open-Matches
+- https://helpmanager.playtomic.com/hc/en-gb/articles/20563641264145-The-Playtomic-Levels-Algorithm
+
+---
+
 ## 2026-06-21 · Open matches / matching de jugadores — cómo lo resuelven los referentes (para módulo convocatorias)
 
 **Contexto:** PadelwIArk va a construir convocatorias/matching: Fase A = admin convoca Americano/Super 8 a categorías y los jugadores llenan cupos con "Voy"; Fase B = jugador arma/busca partido y convoca a su categoría. Ya hay `Jugador.categoria`, `Notificacion` (in-app, JSON), módulo Torneos y herramienta `/eventos` (fixture+ranking Americano/Super8 client-side).

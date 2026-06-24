@@ -7,6 +7,54 @@
 
 ---
 
+## 2026-06-24 (bis) · Persistencia/historial de Americano/Super 8 — VEREDICTO: opción (b), historial liviano del evento, SIN tocar stats serias
+
+**Pregunta:** ¿guardar estas estadísticas? (a) no persistir, el evento muere ahí; (b) historial liviano del evento consultable, SIN tocar rating/stats; (c) alimentar el módulo de stats del jugador (winRate, comparativa, ascenso).
+
+**Veredicto: (b), con puente OPCIONAL a una métrica de actividad (no de habilidad) si más adelante se quiere algo de (c).**
+
+**El dato del mercado que decide:** Playtomic —el referente serio que SÍ persiste historial— igual SEPARA lo social de lo competitivo: los partidos "friendly" se guardan pero NO mueven el rating; solo los "competitive" lo hacen. El que más data acumula, igual aísla lo social a propósito. Fuente: helpmanager.playtomic.com (Friendly vs Competitive; Levels & Algorithm). Las apps de Americano dedicadas, en cambio, tienden a NO persistir récord por jugador (evento efímero, muchas sin login). Fuente: americano-padel.app, padel-bracket.com. [Verificado el patrón Playtomic; la no-persistencia de las apps de Americano es Probable, no confirmada fresca]
+
+**Por qué (b) y NO (c) — el riesgo caro = contaminación de stats:**
+- El módulo de stats de PadelwIArk es SERIO: winRate, comparativa de club, logros y **sugerencia de ascenso de categoría** (el admin asciende jugadores desde ahí). Tiene CONSECUENCIA. Fuente: memoria project_stats_jugador.
+- Un Americano social (parejas rotativas, score a puntos, categorías mezcladas, clima recreativo) metido en ese winRate ENSUCIA la métrica que define ascensos. Un jugador infla o hunde su winRate "serio" en una tarde social. Es exactamente lo que Playtomic evita.
+- Además NO encaja técnicamente: el módulo está modelado sobre `Pareja` (jugador1/jugador2 strings, torneos); el Americano es individual con compañero rotativo. Forzarlo es deuda técnica + conceptual.
+
+**Por qué NO (a):** ya se construyó carga + ranking en vivo. No persistir el snapshot final tira ese trabajo apenas termina el evento. Guardar el cierre es casi gratis (el estado ya vive como JSON, mismo patrón que torneos/draws) y le da continuidad al jugador.
+
+**Forma concreta de (b) — bajo esfuerzo:**
+1. Persistir el **snapshot final del evento** (JSON, igual que torneos/draws): fecha, club, jugadores, fixture, ranking final.
+2. En el perfil del jugador, **sección "Eventos sociales" SEPARADA** de las stats de torneos: "Americanos/Super 8 jugados", posición promedio, último evento. Métricas BLANDAS y propias.
+3. **Regla dura:** NUNCA alimenta winRate, comparativa de club ni sugerencia de ascenso. Esos quedan exclusivos de torneos. Separación tipo Playtomic friendly/competitive.
+
+**Puente OPCIONAL a (c), solo a futuro:** un contador de "partidos/eventos sociales jugados" como métrica de ACTIVIDAD/FIDELIDAD (no de habilidad) es legítimo y no contamina nada. Un rating/nivel derivado del social: NO — otro producto, solo con masa de eventos recurrentes.
+
+Impacto: medio (engagement + continuidad del jugador, cierra el loop). Esfuerzo: bajo (snapshot JSON ya disponible + sección de perfil read-only). Riesgo si se hace (c) en su lugar: alto (contamina la métrica de ascensos). Estado: nueva, recomendada (b).
+
+---
+
+## 2026-06-24 · Carga de resultados Americano/Super 8 — VEREDICTO: opción (b), carga mínima orientada a "ranking en vivo", NO a stats
+
+**Pregunta:** ¿construir carga de resultados + ranking final? Opciones: (a) no construir, ranking en vivo se hace en la cancha con `/eventos` y muere ahí; (b) carga mínima opcional; (c) completo atado a stats del jugador.
+
+**Veredicto: (b), con un encuadre que cambia todo — el entregable NO es "resultado final/historial", es "RANKING EN VIVO durante el evento".** El error de framing de Luca es pensar el resultado como archivo ("se carga, se guarda, alguien lo mira después"). El mercado dice lo contrario: **el valor del score es en tiempo real, proyectado en pantalla mientras se juega.** Nadie carga para el historial; cargan para ver la tabla moverse. Fuente: americano-padel.app ("Leaderboard on the big screen, members love it"), padel-americano.app, padelcounter.com. Ver hallazgos 2026-06-24.
+
+**Por qué NO (a):** dejar que el ranking en vivo se haga "en la cancha y muera ahí" desaprovecha que el motor `/eventos` y el fixture ya están construidos. Si ya armás el fixture en PadelwIArk, no cargar el score corta el loop justo antes de la parte que la gente disfruta. (a) es tirar el 80% del trabajo por miedo al 20%.
+
+**Por qué NO (c) todavía:** atar a stats/rating del jugador es el modelo Playtomic, y eso solo se justifica con partidos "competitivos" recurrentes + masa (Playtomic mismo NO mueve el nivel en friendlies). Un Americano social de una tarde no alimenta un rating creíble; el ascenso de categoría en AR lo define la federación/torneos, no un social. Construir (c) ahora es over-engineering: validación cruzada, anti-fraude, modelo de rating. Guardarlo para cuando haya volumen real de eventos por club. [Probable, sólido]
+
+**La versión mínima de alto valor / bajo esfuerzo (lo que SÍ construir):**
+1. **Una pantalla de carga simple operada por UNA persona** (el admin/profe organizador, o quien tenga el link). NO cada jugador. El estándar del rubro es "scoreboard duty": un teléfono carga, no se reparte la fricción. Fuente: simplepadel.com, americano-padel.app.
+2. **Carga por ronda, ultrarrápida:** tras cada ronda, tipear el marcador de cada partido (ej. 24-18 / 10-14). Tiles grandes, navegación por ronda. El motor `/eventos` ya calcula el ranking individual acumulado — solo hay que alimentarlo con los marcadores y persistir el estado del evento (mismo patrón JSON que torneos/draws). Esfuerzo: BAJO-MEDIO, el motor de ranking ya existe.
+3. **Vista pública de ranking en vivo (link compartible) para proyectar en la TV del club o abrir en el cel.** ESTO es el atractivo, no la carga. Reusa el patrón de página pública que ya tienen los torneos. Es lo que hace que el organizador quiera cargar. Esfuerzo: BAJO (vista read-only del estado del evento).
+4. **Que sea OPCIONAL y sin fricción de salida:** si nadie carga, el evento igual sirvió (se armó el fixture, se jugó). No bloquear nada por resultado faltante. El resultado es un "nice to have" del momento, no un requisito del flujo.
+
+**Lo que NO hacer en esta versión:** validación cruzada entre jugadores, anti-fraude, atado a stats del perfil, rating/ELO, historial consultable como sección. Todo eso es (c) y es otro proyecto. [Verificado que Playtomic lo hace solo porque su producto es el rating; no es el caso acá]
+
+**Resumen para decidir:** SÍ construir, pero re-encuadrado: el feature se llama "ranking en vivo del evento", no "carga de resultados". Carga = 1 persona, rápida, por ronda. Premio = tabla en vivo en la TV. Opcional, no rompe nada si no se usa. Atarlo a stats del jugador: NO ahora. Impacto: medio-alto (cierra el loop social + momento "members love it"). Esfuerzo: bajo-medio (motor de ranking ya existe, falta UI de carga + vista pública en vivo). Estado: nueva, recomendada.
+
+---
+
 ## 2026-06-21 · Módulo Convocatorias / Matching — diseño Fase A y Fase B (cruce con referentes)
 
 Cruzado contra Playtomic Open Matches, MATCHi Public Matches y el código actual (`Jugador.categoria`, `Notificacion` JSON in-app, módulo Torneos, herramienta `/eventos`).

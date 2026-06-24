@@ -56,6 +56,7 @@ router.get('/:id', async (req, res) => {
       estado: c.estado,
       deadline: c.deadline,
       notas: c.notas,
+      fixture: c.fixture, // para el ranking en vivo (read-only en la TV/link). Nombres OK (decisión Luca).
       voy,
       espera,
       lugares: Math.max(0, c.cupoMax - voy),

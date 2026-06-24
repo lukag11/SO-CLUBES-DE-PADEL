@@ -224,7 +224,7 @@ router.get('/:id', async (req, res) => {
       },
     })
     if (!c) return res.status(404).json({ error: 'Convocatoria no encontrada' })
-    res.json({ ...c, ...resumenCupos(c.cupos) })
+    res.json({ ...c, ...resumenCupos(c.cupos), soyOrganizador: c.createdBy === req.user.id })
   } catch (err) {
     console.error('Error detalle convocatoria:', err.message)
     res.status(500).json({ error: 'Error al obtener la convocatoria' })
@@ -315,6 +315,26 @@ router.post('/:id/baja', requireRole('jugador'), async (req, res) => {
     res.json({ ok: true })
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || 'No se pudo dar de baja' })
+  }
+})
+
+// PATCH /api/convocatorias/:id/fixture — guarda el fixture con los resultados cargados.
+// Lo puede hacer el ORGANIZADOR (createdBy, rol jugador) o un ADMIN del club. "Scoreboard duty".
+router.patch('/:id/fixture', async (req, res) => {
+  const clubId = req.user.clubId
+  const { fixture } = req.body || {}
+  if (!fixture || typeof fixture !== 'object') return res.status(400).json({ error: 'Fixture inválido' })
+  try {
+    const c = await prisma.convocatoria.findFirst({ where: { id: req.params.id, clubId }, select: { id: true, createdBy: true } })
+    if (!c) return res.status(404).json({ error: 'Convocatoria no encontrada' })
+    const esAdmin = req.user.role === 'admin'
+    const esOrganizador = req.user.role === 'jugador' && c.createdBy === req.user.id
+    if (!esAdmin && !esOrganizador) return res.status(403).json({ error: 'Solo el organizador o el club pueden cargar resultados' })
+    const upd = await prisma.convocatoria.update({ where: { id: c.id }, data: { fixture } })
+    res.json({ ok: true, fixture: upd.fixture })
+  } catch (err) {
+    console.error('Error guardar fixture:', err.message)
+    res.status(500).json({ error: 'No se pudo guardar el fixture' })
   }
 })
 

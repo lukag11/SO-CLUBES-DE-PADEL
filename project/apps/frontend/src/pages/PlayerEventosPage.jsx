@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Megaphone, Repeat, Users, CalendarDays, Clock, Check, Loader2, ChevronDown, Plus, X, Copy } from 'lucide-react'
+import { Megaphone, Repeat, Users, CalendarDays, Clock, Check, Loader2, ChevronDown, Plus, X, Copy, Trophy } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import { api } from '../lib/api'
+import CargarResultados from '../components/eventos/CargarResultados'
 
 const CATEGORIAS = ['1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va']
 const GENEROS = [{ k: 'masculino', l: '♂ Masculino' }, { k: 'femenino', l: '♀ Femenino' }, { k: 'mixto', l: '⚥ Mixto' }]
@@ -20,6 +21,7 @@ export default function PlayerEventosPage() {
   const [accion, setAccion] = useState(null) // id en proceso
   const [organizarOpen, setOrganizarOpen] = useState(false)
   const [confirmAccion, setConfirmAccion] = useState(null) // { tipo: 'bajar'|'cancelar', id }
+  const [cargarId, setCargarId] = useState(null) // evento abierto en modo en vivo
 
   const cargar = () => {
     api.get('/convocatorias/mias', { Authorization: `Bearer ${token}` })
@@ -71,6 +73,10 @@ export default function PlayerEventosPage() {
         <OrganizarModal token={token} onClose={() => setOrganizarOpen(false)} onCreado={() => { setOrganizarOpen(false); cargar() }} />
       )}
 
+      {cargarId && (
+        <CargarResultados convId={cargarId} token={token} onClose={() => { setCargarId(null); cargar() }} />
+      )}
+
       {confirmAccion && (
         <ConfirmModal
           loading={!!accion}
@@ -94,7 +100,7 @@ export default function PlayerEventosPage() {
           <div className="rounded-2xl border border-white/8 bg-[#0d1117] p-6 text-center text-white/40 text-sm">No estás anotado en ningún evento todavía.</div>
         ) : (
           <div className="flex flex-col gap-2.5">
-            {mias.map((c) => <EventoRow key={c.id} c={c} mio token={token} onBaja={() => setConfirmAccion({ tipo: 'bajar', id: c.id })} onCancelarMio={() => setConfirmAccion({ tipo: 'cancelar', id: c.id })} loading={accion === c.id} />)}
+            {mias.map((c) => <EventoRow key={c.id} c={c} mio token={token} onBaja={() => setConfirmAccion({ tipo: 'bajar', id: c.id })} onCancelarMio={() => setConfirmAccion({ tipo: 'cancelar', id: c.id })} onCargar={() => setCargarId(c.id)} loading={accion === c.id} />)}
           </div>
         )}
       </section>
@@ -124,7 +130,7 @@ const ladoDe = (cu) => {
 }
 const nombreCupo = (cu) => (cu.jugador ? `${cu.jugador.nombre} ${cu.jugador.apellido}` : (cu.nombre || 'Jugador'))
 
-function EventoRow({ c, mio, onVoy, onBaja, onCancelarMio, loading, token }) {
+function EventoRow({ c, mio, onVoy, onBaja, onCancelarMio, onCargar, loading, token }) {
   const esAme = c.modalidad !== 'super8'
   const lleno = (c.lugares ?? (c.cupoMax - c.voy)) <= 0
   const [abierto, setAbierto] = useState(false)
@@ -203,6 +209,11 @@ function EventoRow({ c, mio, onVoy, onBaja, onCancelarMio, loading, token }) {
                 </div>
               )}
             </div>
+          )}
+          {mio && c.soyOrganizador && (
+            <button onClick={onCargar} className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-club/15 text-club text-sm font-bold hover:bg-club/25 transition-all">
+              <Trophy size={15} /> Modo en vivo · cargar resultados
+            </button>
           )}
         </div>
       )}

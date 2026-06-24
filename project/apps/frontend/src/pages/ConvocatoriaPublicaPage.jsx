@@ -3,6 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { Trophy, Users, Repeat, Zap, CalendarDays, Clock, MapPin, Check, LogIn } from 'lucide-react'
 import { api } from '../lib/api'
 import usePlayerStore from '../store/playerStore'
+import { rankingAmericano, rankingSuper8 } from '../lib/eventos'
+import CargarResultados from '../components/eventos/CargarResultados'
 
 // Página PÚBLICA de una convocatoria (lo que se abre desde el link de WhatsApp).
 // Ver = cualquiera. Anotarse ("Voy") = requiere login de jugador (decisión de producto).
@@ -28,6 +30,8 @@ export default function ConvocatoriaPublicaPage() {
   const [anotando, setAnotando] = useState(false)
   const [miEstado, setMiEstado] = useState(null) // 'voy' | 'espera' tras anotarme
   const [anotados, setAnotados] = useState(null) // lista de nombres (solo logueados)
+  const [soyOrganizador, setSoyOrganizador] = useState(false)
+  const [cargarOpen, setCargarOpen] = useState(false)
 
   const cargar = () => {
     api.get(`/convocatorias/publica/${id}`)
@@ -37,11 +41,18 @@ export default function ConvocatoriaPublicaPage() {
   }
   useEffect(() => { cargar() }, [id])
 
+  // Auto-refresh suave (ranking en vivo para la TV/link): re-consulta cada 15s mientras la página
+  // está abierta. Liviano: un solo endpoint público.
+  useEffect(() => {
+    const t = setInterval(() => { cargar() }, 15000)
+    return () => clearInterval(t)
+  }, [id])
+
   // Si estoy logueado: ver mi estado + traer la lista de anotados (con nombres). Anónimo no la ve.
   const cargarAnotados = () => {
     if (!isAuth || !token) return
     api.get(`/convocatorias/${id}`, { Authorization: `Bearer ${token}` })
-      .then((r) => setAnotados((r?.cupos || []).filter((c) => c.estado === 'voy')))
+      .then((r) => { setAnotados((r?.cupos || []).filter((c) => c.estado === 'voy')); setSoyOrganizador(!!r?.soyOrganizador) })
       .catch(() => setAnotados([]))
   }
   useEffect(() => {
@@ -79,6 +90,10 @@ export default function ConvocatoriaPublicaPage() {
   const Icon = esAmericano ? Repeat : Users
   const cerrada = conv.estado !== 'abierta'
   const lleno = conv.lugares <= 0
+  // En juego = el fixture ya tiene rondas (el organizador arrancó a cargar). Mostramos ranking en vivo.
+  const enJuego = conv.fixture?.rondas?.length > 0
+  const ranking = enJuego ? (esAmericano ? rankingAmericano(conv.fixture) : rankingSuper8(conv.fixture)) : []
+  const algunResultado = enJuego && conv.fixture.rondas.some((r) => r.partidos.some((p) => p.resultado))
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: C.bg, color: C.cream }}>
@@ -131,6 +146,35 @@ export default function ConvocatoriaPublicaPage() {
             </p>
           </div>
 
+          {/* Ranking EN VIVO — cuando el organizador arrancó a cargar (read-only, para la TV/link) */}
+          {enJuego && (
+            <div className="rounded-2xl p-3.5 mb-4" style={{ backgroundColor: 'rgba(175,202,11,0.06)', border: `1px solid rgba(175,202,11,0.3)` }}>
+              <div className="flex items-center justify-between mb-2.5">
+                <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: C.lima }}>
+                  <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: C.neon }} /><span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: C.neon }} /></span>
+                  Ranking en vivo
+                </p>
+                <span className="text-[10px]" style={{ color: C.muted }}>{esAmericano ? 'puntos' : 'PG · dif'}</span>
+              </div>
+              {!algunResultado ? (
+                <p className="text-[12px]" style={{ color: C.muted }}>El evento arrancó. Cuando se carguen los primeros resultados, la tabla se actualiza sola acá.</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {ranking.map((r, i) => (
+                    <div key={i} className="flex items-center gap-2 py-1.5 px-1 rounded-lg" style={{ backgroundColor: i === 0 ? 'rgba(175,202,11,0.1)' : 'transparent' }}>
+                      <span className="w-6 text-center font-bold tabular-nums text-sm" style={{ color: i === 0 ? C.neon : C.muted }}>{i + 1}</span>
+                      <span className="flex-1 truncate text-sm" style={{ color: i === 0 ? C.cream : 'rgba(244,245,239,0.85)', fontWeight: i === 0 ? 700 : 400 }}>{r.nombre}</span>
+                      <span className="font-bold tabular-nums text-sm" style={{ color: C.lima, fontFamily: FONT_MONO }}>
+                        {esAmericano ? r.puntos : `${r.pg}`}
+                        {!esAmericano && <span className="text-[10px] ml-1" style={{ color: C.muted }}>{r.dif >= 0 ? `+${r.dif}` : r.dif}</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Quiénes van — solo para jugadores logueados (privacidad) */}
           {isAuth && anotados !== null && (
             <div className="rounded-2xl p-3.5 mb-4" style={{ backgroundColor: 'rgba(244,245,239,0.04)', border: `1px solid ${C.line}` }}>
@@ -154,6 +198,15 @@ export default function ConvocatoriaPublicaPage() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Organizador: arranca el Modo en vivo desde el mismo link (los demás solo miran) */}
+          {soyOrganizador && !cerrada && (
+            <button onClick={() => setCargarOpen(true)}
+              className="w-full font-bold py-3.5 rounded-2xl mb-2 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              style={{ background: `linear-gradient(135deg, ${C.lima}, ${C.neon})`, color: C.bg, fontFamily: FONT_DISPLAY }}>
+              <Trophy size={17} /> Modo en vivo · cargar resultados
+            </button>
           )}
 
           {/* CTA */}
@@ -198,6 +251,10 @@ export default function ConvocatoriaPublicaPage() {
           Organizado con <Link to="/" style={{ color: C.lima, fontWeight: 600 }}>PadelwIArk</Link>
         </p>
       </div>
+
+      {cargarOpen && (
+        <CargarResultados convId={id} token={token} onClose={() => { setCargarOpen(false); cargar(); cargarAnotados() }} />
+      )}
     </div>
   )
 }

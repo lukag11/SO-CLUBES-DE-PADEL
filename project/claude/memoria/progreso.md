@@ -2673,9 +2673,18 @@ El backend corría con código viejo (proceso Node.js iniciado antes de aplicar 
 - **Fechas**: próximos 8 días (día→fecha) en el contexto (erraba el día de semana).
 - **Tras alta de jugador**: el chat sigue solo (mensaje oculto) → tira el botón de convocar.
 
-### ▶️ ARRANCAR PRÓXIMA SESIÓN POR (pedido de Luca, 2026-06-23):
-1. **Probar la creación de convocatoria con WIarky** de punta a punta (ya quedó endurecido; falta validar el flujo completo en vivo: pide hora → verifica → organizador → género → categoría → pública/privada → botón → crea + reserva canchas).
-2. **Fase B — el jugador organiza su propio Super 8/Americano** (sin depender del admin). Reusa toda la maquinaria de Fase A. Guardrail: solo si hay disponibilidad real (2+ canchas). Ver plan en `proyecto_convocatorias_plan.md` (sección FASE B).
+## Sesión 2026-06-24 — Notif cancelación + Fase B (jugador organiza)
 
-### Otros pendientes
-- Resultados/ranking del fixture. Fixture en página pública. Borrar convocatorias de prueba (21:00 Enrique Diaz, etc.).
+### Notificar al cancelar/eliminar (HECHO)
+- Backend `notificarConvocatoriaCancelada` avisa a los anotados (voy+espera) tipo `convocatoria_cancelada` (modalidad, fecha, hora, **motivo**). Lo usan cancelar (PATCH estado) y eliminar (DELETE). Acepta `exceptoJugadorId` (para no avisarle al que cancela).
+- Admin: modal de motivo (presets Falta de jugadores/Lluvia/Cambio de horario/Otro + texto libre), muestra a cuántos avisa.
+- Jugador: render de la notif (ícono rojo + motivo).
+
+### Fase B — el jugador organiza su propio evento (HECHO, decisiones de Luca)
+- **Reserva al crear** (garantiza el evento) + **el jugador queda auto-anotado**. Anti-abuso: **máx. 1 evento activo por jugador**.
+- **Visibilidad la elige el jugador**: pública (notifica a la categoría, ej. 4ta) o privada (solo por link, su grupo).
+- Backend: `POST /convocatorias/mias` (crear, reusa `crearConvocatoriaCompleta`), `POST /convocatorias/mias/:id/cancelar` (solo el organizador; libera canchas + avisa a los anotados menos a él). `GET /mias` marca `soyOrganizador`. `slots-libres` y `canchas-activas` ahora también para jugador.
+- Frontend (`PlayerEventosPage`): botón **Organizar** + `OrganizarModal` (modalidad → fecha → horarios dinámicos 2+ canchas → género → categorías → público/privado → mensaje para compartir). En "Mis eventos", si sos organizador: chip "Organizás" + **Cancelar evento**. **`ConfirmModal` propio** (adiós al `confirm()` nativo).
+
+### Pendiente
+- Resultados/ranking del fixture. Fixture en página pública. Borrar convocatorias de prueba. Matching jugador→jugador (capa viral, más adelante).

@@ -93,7 +93,7 @@ router.get('/', requireRole('admin'), async (req, res) => {
 
 // GET /api/convocatorias/slots-libres?fecha=YYYY-MM-DD&canchas=2 — franjas donde hay ≥N canchas
 // libres ese día (para el form de crear: el admin elige fecha y ve los horarios posibles).
-router.get('/slots-libres', requireRole('admin'), async (req, res) => {
+router.get('/slots-libres', requireRole('admin', 'jugador'), async (req, res) => {
   const clubId = req.user.clubId
   const { fecha } = req.query
   const n = Math.max(1, parseInt(req.query.canchas, 10) || 2)
@@ -118,7 +118,7 @@ router.get('/slots-libres', requireRole('admin'), async (req, res) => {
 })
 
 // GET /api/convocatorias/canchas-activas — cuántas canchas activas tiene el club (tope para el form)
-router.get('/canchas-activas', requireRole('admin'), async (req, res) => {
+router.get('/canchas-activas', requireRole('admin', 'jugador'), async (req, res) => {
   try {
     const total = await prisma.cancha.count({ where: { clubId: req.user.clubId, activo: true } })
     res.json({ total })
@@ -141,12 +141,72 @@ router.get('/mias', requireRole('jugador'), async (req, res) => {
       .map((c) => {
         const conv = c.convocatoria
         const voy = conv.cupos.filter((x) => x.estado === 'voy').length
-        return { id: conv.id, modalidad: conv.modalidad, categorias: conv.categorias, fecha: conv.fecha, horaInicio: conv.horaInicio, cupoMax: conv.cupoMax, estado: conv.estado, voy, miEstado: c.estado }
+        return { id: conv.id, modalidad: conv.modalidad, categorias: conv.categorias, fecha: conv.fecha, horaInicio: conv.horaInicio, cupoMax: conv.cupoMax, estado: conv.estado, voy, miEstado: c.estado, soyOrganizador: conv.createdBy === req.user.id }
       })
     res.json(out)
   } catch (err) {
     console.error('Error mis convocatorias:', err.message)
     res.status(500).json({ error: 'Error al obtener tus eventos' })
+  }
+})
+
+// POST /api/convocatorias/mias — el JUGADOR organiza su propio evento (Fase B).
+// Reusa toda la maquinaria de Fase A: reserva las canchas a su nombre AL CREAR (atómico),
+// y queda auto-anotado. Anti-abuso: máximo 1 evento activo organizado por él.
+router.post('/mias', requireRole('jugador'), async (req, res) => {
+  const clubId = req.user.clubId
+  const jugadorId = req.user.id
+  const { modalidad, categorias, genero, fecha, horaInicio, canchas, cupoMax, visibilidad } = req.body || {}
+  if (!['americano', 'super8'].includes(modalidad)) return res.status(400).json({ error: 'Modalidad inválida' })
+  if (!fecha || !horaInicio) return res.status(400).json({ error: 'Falta la fecha o el horario' })
+  const esSuper8 = modalidad === 'super8'
+  const nCanchas = esSuper8 ? 2 : Math.max(2, parseInt(canchas, 10) || 2)
+  const nCupos = esSuper8 ? 8 : Math.max(2, parseInt(cupoMax, 10) || 0)
+  if (!esSuper8 && nCupos < 2) return res.status(400).json({ error: 'Faltan los cupos del Americano' })
+  const generoOk = ['masculino', 'femenino', 'mixto'].includes(genero) ? genero : null
+  try {
+    // Anti-abuso: 1 evento activo (abierta/confirmada) por jugador organizador.
+    const activos = await prisma.convocatoria.count({ where: { clubId, createdBy: jugadorId, estado: { in: ['abierta', 'confirmada'] } } })
+    if (activos >= 1) return res.status(409).json({ error: 'Ya tenés un evento activo. Cerralo o cancelalo antes de crear otro.' })
+
+    const r = await crearConvocatoriaCompleta({
+      clubId,
+      organizadorJugadorId: jugadorId,
+      modalidad,
+      fecha,
+      horaInicio,
+      categorias: Array.isArray(categorias) ? categorias.map((c) => `${c}`.trim()).filter(Boolean) : [],
+      genero: generoOk,
+      cupoMax: nCupos,
+      canchas: nCanchas,
+      visibilidad,
+    })
+    // El organizador juega: queda auto-anotado (con su lado de juego si lo tiene).
+    const jug = await prisma.jugador.findUnique({ where: { id: jugadorId }, select: { posicion: true } })
+    await prisma.convocatoriaCupo.create({ data: { convocatoriaId: r.convocatoria.id, jugadorId, posicion: jug?.posicion || null, estado: 'voy' } })
+    res.status(201).json(r)
+  } catch (err) {
+    console.error('Error crear convocatoria jugador:', err.message)
+    res.status(err.status === 409 ? 409 : 500).json({ error: err.message || 'No se pudo crear el evento (¿hay canchas libres a esa hora?)' })
+  }
+})
+
+// POST /api/convocatorias/mias/:id/cancelar — el JUGADOR cancela SU PROPIO evento (organizador).
+// Mismo efecto que cancelar un turno, pero masivo: libera las canchas + avisa a los anotados.
+router.post('/mias/:id/cancelar', requireRole('jugador'), async (req, res) => {
+  const clubId = req.user.clubId
+  const jugadorId = req.user.id
+  try {
+    const c = await prisma.convocatoria.findFirst({ where: { id: req.params.id, clubId }, select: { id: true, createdBy: true, estado: true } })
+    if (!c) return res.status(404).json({ error: 'Evento no encontrado' })
+    if (c.createdBy !== jugadorId) return res.status(403).json({ error: 'Solo el organizador puede cancelar este evento' })
+    if (c.estado === 'cancelada') return res.json({ ok: true })
+    // Avisa a los anotados menos al propio organizador (que es quien cancela).
+    const upd = await cancelarConvocatoria(clubId, c.id, req.body?.motivo || null, jugadorId)
+    res.json(upd)
+  } catch (err) {
+    console.error('Error cancelar evento jugador:', err.message)
+    res.status(500).json({ error: 'No se pudo cancelar el evento' })
   }
 })
 

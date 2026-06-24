@@ -77,9 +77,13 @@ export async function crearConvocatoriaCompleta({ clubId, organizadorJugadorId, 
 
 // Notifica a los anotados (voy/espera con cuenta) que la convocatoria se canceló/eliminó.
 // Devuelve a cuántos avisó. La usa tanto cancelar como eliminar (DELETE).
-export async function notificarConvocatoriaCancelada(clubId, conv, motivo = null) {
+export async function notificarConvocatoriaCancelada(clubId, conv, motivo = null, exceptoJugadorId = null) {
   const cupos = await prisma.convocatoriaCupo.findMany({
-    where: { convocatoriaId: conv.id, jugadorId: { not: null }, estado: { in: ['voy', 'espera'] } },
+    where: {
+      convocatoriaId: conv.id,
+      jugadorId: exceptoJugadorId ? { not: null, notIn: [exceptoJugadorId] } : { not: null },
+      estado: { in: ['voy', 'espera'] },
+    },
     select: { jugadorId: true },
   })
   if (!cupos.length) return 0
@@ -95,7 +99,7 @@ export async function notificarConvocatoriaCancelada(clubId, conv, motivo = null
 }
 
 // Cancela una convocatoria y LIBERA sus canchas (cancela las reservas linkeadas) + avisa a los anotados.
-export async function cancelarConvocatoria(clubId, convocatoriaId, motivo = null) {
+export async function cancelarConvocatoria(clubId, convocatoriaId, motivo = null, exceptoJugadorId = null) {
   const { conv, upd } = await prisma.$transaction(async (tx) => {
     const conv = await tx.convocatoria.findFirst({ where: { id: convocatoriaId, clubId } })
     if (!conv) throw Object.assign(new Error('Convocatoria no encontrada'), { status: 404 })
@@ -103,6 +107,6 @@ export async function cancelarConvocatoria(clubId, convocatoriaId, motivo = null
     const upd = await tx.convocatoria.update({ where: { id: convocatoriaId }, data: { estado: 'cancelada' } })
     return { conv, upd }
   })
-  await notificarConvocatoriaCancelada(clubId, conv, motivo)
+  await notificarConvocatoriaCancelada(clubId, conv, motivo, exceptoJugadorId)
   return upd
 }

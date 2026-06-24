@@ -2,7 +2,7 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireRole } from '../middleware/auth.js'
 import { runSerializable } from '../lib/serializable.js'
-import { cancelarConvocatoria, crearConvocatoriaCompleta } from '../lib/convocatorias.js'
+import { cancelarConvocatoria, crearConvocatoriaCompleta, notificarConvocatoriaCancelada } from '../lib/convocatorias.js'
 import { generarFixtureConvocatoria } from '../lib/fixtureConvocatoria.js'
 import { gatherDisponibilidad } from '../lib/insight.js'
 import { hoyArgStr, ahoraArgHHMM } from '../lib/tiempo.js'
@@ -64,6 +64,8 @@ router.delete('/:id', requireRole('admin'), async (req, res) => {
   try {
     const c = await prisma.convocatoria.findFirst({ where: { id: req.params.id, clubId } })
     if (!c) return res.status(404).json({ error: 'Convocatoria no encontrada' })
+    // Avisar a los anotados ANTES de borrar (después no quedan los cupos para notificar).
+    await notificarConvocatoriaCancelada(clubId, c, req.query.motivo || null)
     await prisma.reserva.updateMany({ where: { convocatoriaId: c.id, estado: { not: 'cancelada' } }, data: { estado: 'cancelada' } })
     await prisma.convocatoria.delete({ where: { id: c.id } })
     res.json({ ok: true })
@@ -259,14 +261,14 @@ router.post('/:id/baja', requireRole('jugador'), async (req, res) => {
 // PATCH /api/convocatorias/:id/estado — el admin cambia el estado (ej: cancelar)
 router.patch('/:id/estado', requireRole('admin'), async (req, res) => {
   const clubId = req.user.clubId
-  const { estado } = req.body || {}
+  const { estado, motivo } = req.body || {}
   if (!['abierta', 'cancelada', 'confirmada', 'jugada'].includes(estado)) return res.status(400).json({ error: 'Estado inválido' })
   try {
     const c = await prisma.convocatoria.findFirst({ where: { id: req.params.id, clubId } })
     if (!c) return res.status(404).json({ error: 'Convocatoria no encontrada' })
-    // Cancelar libera las canchas reservadas del evento (cancela las reservas linkeadas).
+    // Cancelar libera las canchas reservadas del evento (cancela las reservas linkeadas) + avisa.
     if (estado === 'cancelada') {
-      const upd = await cancelarConvocatoria(clubId, c.id)
+      const upd = await cancelarConvocatoria(clubId, c.id, motivo || null)
       return res.json(upd)
     }
     const upd = await prisma.convocatoria.update({ where: { id: c.id }, data: { estado } })

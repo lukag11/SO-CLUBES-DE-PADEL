@@ -29,6 +29,7 @@ export default function ConvocatoriasAdminPage() {
   const [accionando, setAccionando] = useState(false)
   const [crearOpen, setCrearOpen] = useState(false)
   const [verCanceladas, setVerCanceladas] = useState(false)
+  const [motivoModal, setMotivoModal] = useState(null) // { id, accion: 'cancelar'|'eliminar', anotados }
 
   const cargar = () => {
     api.get('/convocatorias', { Authorization: `Bearer ${token}` })
@@ -46,25 +47,24 @@ export default function ConvocatoriasAdminPage() {
       .finally(() => setCargandoDet(false))
   }
 
-  const cancelar = (id) => {
+  // Cancelar/eliminar abren el modal de motivo (que después llama a estas con el motivo).
+  const cancelar = (id, motivo) => {
     if (accionando) return
-    if (!confirm('¿Cancelar la convocatoria? Se liberan las canchas reservadas del evento.')) return
     setAccionando(true)
-    api.patch(`/convocatorias/${id}/estado`, { estado: 'cancelada' }, { Authorization: `Bearer ${token}` })
+    api.patch(`/convocatorias/${id}/estado`, { estado: 'cancelada', motivo: motivo || null }, { Authorization: `Bearer ${token}` })
       .then(() => { cargar(); setAbierta(null); setDetalle(null) })
       .catch(() => alert('No se pudo cancelar'))
-      .finally(() => setAccionando(false))
+      .finally(() => { setAccionando(false); setMotivoModal(null) })
   }
 
-  const eliminar = (id, e) => {
-    e?.stopPropagation()
+  const eliminar = (id, motivo) => {
     if (accionando) return
-    if (!confirm('¿Eliminar esta convocatoria? Se borra del listado (si tiene canchas reservadas, se liberan).')) return
     setAccionando(true)
-    api.delete(`/convocatorias/${id}`, { Authorization: `Bearer ${token}` })
+    const qs = motivo ? `?motivo=${encodeURIComponent(motivo)}` : ''
+    api.delete(`/convocatorias/${id}${qs}`, { Authorization: `Bearer ${token}` })
       .then(() => { cargar(); if (abierta === id) { setAbierta(null); setDetalle(null) } })
       .catch(() => alert('No se pudo eliminar'))
-      .finally(() => setAccionando(false))
+      .finally(() => { setAccionando(false); setMotivoModal(null) })
   }
 
   const armarFixture = (id, modalidad) => {
@@ -104,6 +104,15 @@ export default function ConvocatoriasAdminPage() {
       </div>
 
       {crearOpen && <CrearConvocatoriaModal token={token} onClose={() => setCrearOpen(false)} onCreada={() => { setCrearOpen(false); cargar() }} />}
+
+      {motivoModal && (
+        <MotivoModal
+          info={motivoModal}
+          accionando={accionando}
+          onClose={() => setMotivoModal(null)}
+          onConfirmar={(motivo) => (motivoModal.accion === 'cancelar' ? cancelar(motivoModal.id, motivo) : eliminar(motivoModal.id, motivo))}
+        />
+      )}
 
       {Array.isArray(lista) && lista.some((c) => c.estado === 'cancelada') && (
         <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none -mt-1">
@@ -186,12 +195,12 @@ export default function ConvocatoriasAdminPage() {
                             </button>
                           )}
                           {c.estado === 'abierta' && (
-                            <button onClick={() => cancelar(c.id)} disabled={accionando}
+                            <button onClick={() => setMotivoModal({ id: c.id, accion: 'cancelar', anotados: c.voy || 0 })} disabled={accionando}
                               className="flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-600 transition-colors disabled:opacity-50">
                               <X size={14} /> Cancelar (libera las canchas)
                             </button>
                           )}
-                          <button onClick={(e) => eliminar(c.id, e)} disabled={accionando}
+                          <button onClick={(e) => { e?.stopPropagation(); setMotivoModal({ id: c.id, accion: 'eliminar', anotados: c.voy || 0 }) }} disabled={accionando}
                             className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50">
                             <Trash2 size={14} /> Eliminar
                           </button>
@@ -212,6 +221,62 @@ export default function ConvocatoriasAdminPage() {
 }
 
 // Modal para crear una convocatoria desde la UI (sin depender de WIarky). Reusa el motor del backend.
+// Modal de motivo al cancelar/eliminar: presets + texto libre. Avisa a los anotados.
+const MOTIVOS_PRESET = ['Falta de jugadores', 'Lluvia / clima', 'Cambio de horario', 'Otro']
+function MotivoModal({ info, onClose, onConfirmar, accionando }) {
+  const [sel, setSel] = useState(null)
+  const [otro, setOtro] = useState('')
+  const esEliminar = info.accion === 'eliminar'
+  const motivoFinal = sel === 'Otro' ? otro.trim() : (sel || '')
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-5 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-slate-800">{esEliminar ? 'Eliminar evento' : 'Cancelar evento'}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <p className="text-sm text-slate-500 -mt-1">
+          Se liberan las canchas reservadas.
+          {info.anotados > 0
+            ? <> Le avisaremos a <span className="font-semibold text-slate-700">{info.anotados} jugador{info.anotados !== 1 ? 'es' : ''}</span> anotado{info.anotados !== 1 ? 's' : ''}.</>
+            : ' No hay nadie anotado.'}
+        </p>
+
+        {info.anotados > 0 && (
+          <div>
+            <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Motivo {sel ? '' : '(opcional)'}</label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {MOTIVOS_PRESET.map((m) => (
+                <button key={m} onClick={() => setSel(m)} className={`py-2 px-2 rounded-lg text-xs font-semibold border transition-all ${sel === m ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:border-brand-300'}`}>
+                  {m}
+                </button>
+              ))}
+            </div>
+            {sel === 'Otro' && (
+              <input autoFocus value={otro} onChange={(e) => setOtro(e.target.value)} placeholder="Escribí el motivo…" maxLength={120}
+                className="mt-2 w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-brand-400 focus:outline-none" />
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-2 mt-1">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all">No, volver</button>
+          <button
+            onClick={() => onConfirmar(motivoFinal || null)}
+            disabled={accionando || (sel === 'Otro' && !otro.trim())}
+            className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {accionando ? <Loader2 size={15} className="animate-spin" /> : (esEliminar ? <Trash2 size={15} /> : <X size={15} />)}
+            {esEliminar ? 'Eliminar' : 'Cancelar evento'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CrearConvocatoriaModal({ token, onClose, onCreada }) {
   const [form, setForm] = useState({ modalidad: 'super8', fecha: '', horaInicio: '', cupoMax: 8, canchas: 2, categorias: [], genero: '', visibilidad: 'publica' })
   const [org, setOrg] = useState(null)

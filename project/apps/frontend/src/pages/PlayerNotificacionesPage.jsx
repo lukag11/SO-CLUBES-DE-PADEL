@@ -47,6 +47,12 @@ const TIPO_META = {
     bg: 'bg-club/10',
     border: 'border-club/20',
   },
+  convocatoria_cancelada: {
+    icon: XCircle,
+    color: 'text-red-400',
+    bg: 'bg-red-400/10',
+    border: 'border-red-400/20',
+  },
   turno_fijo_rechazado: {
     icon: XCircle,
     color: 'text-red-400',

@@ -75,12 +75,34 @@ export async function crearConvocatoriaCompleta({ clubId, organizadorJugadorId, 
   return { convocatoria, canchasReservadas, link, mensajeWhatsapp: `${texto}\n\n👉 Anotate acá: ${link}` }
 }
 
-// Cancela una convocatoria y LIBERA sus canchas (cancela las reservas linkeadas).
-export async function cancelarConvocatoria(clubId, convocatoriaId) {
-  return prisma.$transaction(async (tx) => {
+// Notifica a los anotados (voy/espera con cuenta) que la convocatoria se canceló/eliminó.
+// Devuelve a cuántos avisó. La usa tanto cancelar como eliminar (DELETE).
+export async function notificarConvocatoriaCancelada(clubId, conv, motivo = null) {
+  const cupos = await prisma.convocatoriaCupo.findMany({
+    where: { convocatoriaId: conv.id, jugadorId: { not: null }, estado: { in: ['voy', 'espera'] } },
+    select: { jugadorId: true },
+  })
+  if (!cupos.length) return 0
+  await prisma.notificacion.createMany({
+    data: cupos.map((c) => ({
+      clubId,
+      jugadorId: c.jugadorId,
+      tipo: 'convocatoria_cancelada',
+      data: { convocatoriaId: conv.id, modalidad: conv.modalidad, fecha: conv.fecha, horaInicio: conv.horaInicio, motivo: motivo || null },
+    })),
+  })
+  return cupos.length
+}
+
+// Cancela una convocatoria y LIBERA sus canchas (cancela las reservas linkeadas) + avisa a los anotados.
+export async function cancelarConvocatoria(clubId, convocatoriaId, motivo = null) {
+  const { conv, upd } = await prisma.$transaction(async (tx) => {
     const conv = await tx.convocatoria.findFirst({ where: { id: convocatoriaId, clubId } })
     if (!conv) throw Object.assign(new Error('Convocatoria no encontrada'), { status: 404 })
     await tx.reserva.updateMany({ where: { convocatoriaId, estado: { not: 'cancelada' } }, data: { estado: 'cancelada' } })
-    return tx.convocatoria.update({ where: { id: convocatoriaId }, data: { estado: 'cancelada' } })
+    const upd = await tx.convocatoria.update({ where: { id: convocatoriaId }, data: { estado: 'cancelada' } })
+    return { conv, upd }
   })
+  await notificarConvocatoriaCancelada(clubId, conv, motivo)
+  return upd
 }

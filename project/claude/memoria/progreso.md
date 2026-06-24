@@ -2695,8 +2695,11 @@ El backend corría con código viejo (proceso Node.js iniciado antes de aplicar 
 - **Entradas**: organizador desde su dash (`PlayerEventosPage`, en el evento expandido) Y desde el **propio link público** (`ConvocatoriaPublicaPage`, botón solo si `soyOrganizador` — flag nuevo en `GET /:id`). Admin desde `ConvocatoriasAdminPage` (detalle, ≥4 anotados). Los demás NO cargan (read-only + auth en backend).
 - **Vista pública en vivo (Bloque 3)**: `ConvocatoriaPublicaPage` muestra sección **"Ranking en vivo"** (puntito latiendo) cuando el fixture tiene resultados, read-only, **auto-refresh 15s**, para proyectar en la TV / compartir link. El endpoint público `/publica/:id` ahora incluye `fixture` (nombres OK, decisión Luca).
 
-### Historial social — PLANIFICADO (decisión con bibliotecario, opción b)
-- Guardar el **snapshot final** del evento (fecha, jugadores, ranking) al cerrarlo + sección **"Eventos sociales" SEPARADA** en el perfil del jugador (Americanos/Super 8 jugados, posición promedio, último). **REGLA DURA: nunca toca winRate / comparativa / ascenso** (eso es exclusivo de torneos). Motivo: Playtomic guarda lo "friendly" pero NO mueve el rating; lo social no debe ensuciar la métrica que define ascensos de categoría. Si se quiere algo más, solo un contador de actividad/fidelidad, nunca rating.
+### Historial social (HECHO, opción b — separado de stats serias)
+- **Finalizar evento**: en el Modo en vivo, botón "Finalizar evento" (confirmación inline, sin `confirm()` nativo) → `PATCH /:id/fixture` con `finalizar:true` setea estado `jugada` y congela el snapshot. Organizador o admin.
+- **Endpoint** `GET /convocatorias/mis-jugados` (jugador): eventos `jugada` donde estuvo anotado, con `fixture` + `miNombre` (para calcular su posición en el front).
+- **Sección "Jugados"** en `PlayerEventosPage` (abajo de Mis eventos/Abiertos): números blandos (jugados, posición promedio, mejor) + lista con su **posición final** por evento + **expandible a la TABLA final completa** (reusa `rankingAmericano`/`rankingSuper8`, matchea nombres normalizados). Vos resaltado.
+- **REGLA DURA respetada**: `/mis-jugados` es totalmente aparte — NO toca winRate / comparativa / ascensos (exclusivo de torneos). Motivo: Playtomic guarda lo "friendly" pero no mueve el rating.
 
 ### Pendiente
-- Historial social (arriba). Borrar convocatorias de prueba. Matching jugador→jugador (capa viral, más adelante).
+- Borrar convocatorias de prueba. Matching jugador→jugador (capa viral, más adelante).

@@ -3,6 +3,24 @@ import { Megaphone, Repeat, Users, CalendarDays, Clock, Check, Loader2, ChevronD
 import usePlayerStore from '../store/playerStore'
 import { api } from '../lib/api'
 import CargarResultados from '../components/eventos/CargarResultados'
+import { rankingAmericano, rankingSuper8 } from '../lib/eventos'
+
+const normNom = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim()
+// Posición del jugador en un evento jugado (calculada del fixture con el motor).
+function posicionEnEvento(ev, miNombre) {
+  const f = ev.fixture
+  if (!f?.rondas?.length) return null
+  if (ev.modalidad === 'super8') {
+    if (!f.parejas) return null
+    const rk = rankingSuper8(f)
+    const i = rk.findIndex((r) => r.nombre.split('/').map(normNom).includes(normNom(miNombre)))
+    return i >= 0 ? { pos: i + 1, total: rk.length } : null
+  }
+  if (!f.jugadores) return null
+  const rk = rankingAmericano(f)
+  const i = rk.findIndex((r) => normNom(r.nombre) === normNom(miNombre))
+  return i >= 0 ? { pos: i + 1, total: rk.length } : null
+}
 
 const CATEGORIAS = ['1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va']
 const GENEROS = [{ k: 'masculino', l: '♂ Masculino' }, { k: 'femenino', l: '♀ Femenino' }, { k: 'mixto', l: '⚥ Mixto' }]
@@ -18,6 +36,7 @@ export default function PlayerEventosPage() {
   const slug = import.meta.env.VITE_CLUB_SLUG
   const [mias, setMias] = useState(null)
   const [abiertos, setAbiertos] = useState(null)
+  const [jugados, setJugados] = useState(null) // { miNombre, eventos } — historial social
   const [accion, setAccion] = useState(null) // id en proceso
   const [organizarOpen, setOrganizarOpen] = useState(false)
   const [confirmAccion, setConfirmAccion] = useState(null) // { tipo: 'bajar'|'cancelar', id }
@@ -28,6 +47,9 @@ export default function PlayerEventosPage() {
       .then((r) => setMias(Array.isArray(r) ? r : [])).catch(() => setMias([]))
     if (slug) api.get(`/convocatorias/publica/club/${slug}`).then((r) => setAbiertos(Array.isArray(r) ? r : [])).catch(() => setAbiertos([]))
     else setAbiertos([])
+    api.get('/convocatorias/mis-jugados', { Authorization: `Bearer ${token}` })
+      .then((r) => setJugados(r && Array.isArray(r.eventos) ? r : { miNombre: '', eventos: [] }))
+      .catch(() => setJugados({ miNombre: '', eventos: [] }))
   }
   useEffect(() => { if (token) cargar() }, [token])
 
@@ -118,6 +140,97 @@ export default function PlayerEventosPage() {
           </div>
         )}
       </section>
+
+      {/* Jugados — historial social (separado, NO cuenta para stats/ascensos) */}
+      <JugadosSection jugados={jugados} />
+    </div>
+  )
+}
+
+function JugadosSection({ jugados }) {
+  if (!jugados || !jugados.eventos.length) return null
+  const conPos = jugados.eventos.map((ev) => ({ ev, p: posicionEnEvento(ev, jugados.miNombre) }))
+  const posiciones = conPos.map((x) => x.p?.pos).filter((n) => n != null)
+  const promedio = posiciones.length ? (posiciones.reduce((a, b) => a + b, 0) / posiciones.length) : null
+  const mejor = posiciones.length ? Math.min(...posiciones) : null
+
+  return (
+    <section>
+      <h2 className="text-sm font-semibold text-white/70 mb-1">Jugados</h2>
+      <p className="text-white/30 text-[11px] mb-2.5">Tu historial de eventos sociales. Es recreativo: no cuenta para tus estadísticas ni para ascensos.</p>
+
+      {/* Números blandos */}
+      <div className="grid grid-cols-3 gap-2 mb-2.5">
+        <MiniStat label="Jugados" valor={jugados.eventos.length} />
+        <MiniStat label="Posición prom." valor={promedio ? `${promedio.toFixed(1)}°` : '—'} />
+        <MiniStat label="Mejor" valor={mejor ? `${mejor}°` : '—'} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {conPos.map(({ ev, p }) => <JugadoRow key={ev.id} ev={ev} p={p} miNombre={jugados.miNombre} />)}
+      </div>
+    </section>
+  )
+}
+
+function JugadoRow({ ev, p, miNombre }) {
+  const [abierto, setAbierto] = useState(false)
+  const esAme = ev.modalidad !== 'super8'
+  const podio = p?.pos === 1
+  // Tabla final completa (read-only) desde el fixture guardado.
+  const tabla = !ev.fixture?.rondas?.length ? [] : (esAme ? rankingAmericano(ev.fixture) : rankingSuper8(ev.fixture))
+  const esMio = (nombre) => esAme ? normNom(nombre) === normNom(miNombre) : nombre.split('/').map(normNom).includes(normNom(miNombre))
+
+  return (
+    <div className="rounded-2xl border border-white/8 bg-[#0d1117] overflow-hidden">
+      <button onClick={() => setAbierto((v) => !v)} className="w-full p-3.5 flex items-center gap-3 text-left">
+        <span className="w-9 h-9 rounded-xl bg-club/15 grid place-items-center shrink-0">
+          {esAme ? <Repeat size={16} className="text-club" /> : <Users size={16} className="text-club" />}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-sm font-semibold truncate">{esAme ? 'Americano' : 'Super 8'}{ev.categorias?.length ? ` · ${ev.categorias.join('/')}` : ''}</p>
+          <p className="text-white/40 text-xs flex items-center gap-2 mt-0.5 capitalize"><CalendarDays size={11} /> {fmtFecha(ev.fecha)}</p>
+        </div>
+        {p ? (
+          <div className="text-right shrink-0">
+            <p className="text-lg font-bold tabular-nums leading-none" style={{ color: podio ? '#d4ff3f' : '#afca0b' }}>{p.pos}°</p>
+            <p className="text-white/30 text-[10px]">de {p.total}{podio ? ' 🏆' : ''}</p>
+          </div>
+        ) : (
+          <span className="text-white/25 text-xs shrink-0">sin datos</span>
+        )}
+        {tabla.length > 0 && <ChevronDown size={16} className={`text-white/25 shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`} />}
+      </button>
+
+      {abierto && tabla.length > 0 && (
+        <div className="px-4 pb-4 border-t border-white/8 pt-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-2 text-white/40">Tabla final</p>
+          <div className="flex flex-col gap-0.5">
+            {tabla.map((r, i) => {
+              const mio = esMio(r.nombre)
+              return (
+                <div key={i} className="flex items-center gap-2 py-1.5 px-2 rounded-lg" style={{ backgroundColor: mio ? 'rgba(175,202,11,0.1)' : 'transparent' }}>
+                  <span className="w-5 text-center font-bold tabular-nums text-sm" style={{ color: i === 0 ? '#d4ff3f' : 'rgba(255,255,255,0.4)' }}>{i + 1}</span>
+                  <span className="flex-1 truncate text-[13px]" style={{ color: mio ? '#f4f5ef' : 'rgba(255,255,255,0.8)', fontWeight: mio ? 700 : 400 }}>{r.nombre}{mio ? ' · vos' : ''}</span>
+                  <span className="font-bold tabular-nums text-[13px] text-club">
+                    {esAme ? r.puntos : `${r.pg}`}
+                    {!esAme && <span className="text-[10px] ml-1 text-white/30">{r.dif >= 0 ? `+${r.dif}` : r.dif}</span>}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MiniStat({ label, valor }) {
+  return (
+    <div className="rounded-xl border border-white/8 bg-[#0d1117] p-2.5 text-center">
+      <p className="text-club text-lg font-bold tabular-nums leading-tight">{valor}</p>
+      <p className="text-white/40 text-[10px] mt-0.5">{label}</p>
     </div>
   )
 }

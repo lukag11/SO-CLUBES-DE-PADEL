@@ -92,6 +92,19 @@ export default function CargarResultados({ convId, token, onClose }) {
     setFixture(f); setStep('jugar'); guardar(f)
   }
 
+  // Congela el evento como 'jugada' (queda en el historial social de cada jugador).
+  const [finalizando, setFinalizando] = useState(false)
+  const [confirmFin, setConfirmFin] = useState(false)
+  const finalizar = () => {
+    if (finalizando || !fixture) return
+    setFinalizando(true)
+    clearTimeout(saveTimer.current)
+    api.patch(`/convocatorias/${convId}/fixture`, { fixture, finalizar: true }, { Authorization: `Bearer ${token}` })
+      .then(() => onClose())
+      .catch(() => alert('No se pudo finalizar'))
+      .finally(() => setFinalizando(false))
+  }
+
   const ranking = !fixture ? [] : (esSuper8 ? rankingSuper8(fixture) : rankingAmericano(fixture))
   const nombreEquipoAme = (idxs) => idxs.map((i) => fixture.jugadores[i]).join(' / ')
   const nombreParejaS8 = (i) => { const p = fixture.parejas[i]; return p ? `${p.j1} / ${p.j2}` : '' }
@@ -220,8 +233,25 @@ export default function CargarResultados({ convId, token, onClose }) {
         )}
       </div>
 
-      <div className="px-4 py-3 border-t flex justify-center" style={{ borderColor: 'rgba(244,245,239,0.08)' }}>
-        <button onClick={onClose} className="text-sm font-semibold text-white/60 hover:text-white px-6 py-2 flex items-center gap-1.5"><Check size={15} /> Listo</button>
+      <div className="px-4 py-3 border-t" style={{ borderColor: 'rgba(244,245,239,0.08)' }}>
+        {confirmFin ? (
+          <div className="max-w-md mx-auto flex items-center gap-2">
+            <span className="flex-1 text-[13px] text-white/60">¿Finalizar? Se guarda el resultado y ya no se edita.</span>
+            <button onClick={() => setConfirmFin(false)} className="text-sm text-white/50 hover:text-white px-3 py-1.5">No</button>
+            <button onClick={finalizar} disabled={finalizando} className="text-sm font-bold px-4 py-1.5 rounded-lg disabled:opacity-50" style={{ background: 'linear-gradient(135deg,#afca0b,#d4ff3f)', color: '#0a0f0d' }}>
+              {finalizando ? 'Finalizando…' : 'Sí, finalizar'}
+            </button>
+          </div>
+        ) : (
+          <div className="max-w-md mx-auto flex items-center justify-between">
+            <button onClick={onClose} className="text-sm font-semibold text-white/60 hover:text-white px-4 py-2 flex items-center gap-1.5"><Check size={15} /> Guardar y salir</button>
+            {step === 'jugar' && (
+              <button onClick={() => setConfirmFin(true)} className="text-sm font-bold px-4 py-2 rounded-lg flex items-center gap-1.5" style={{ color: '#afca0b' }}>
+                <Trophy size={14} /> Finalizar evento
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

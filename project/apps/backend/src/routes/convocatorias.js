@@ -210,6 +210,26 @@ router.post('/mias/:id/cancelar', requireRole('jugador'), async (req, res) => {
   }
 })
 
+// GET /api/convocatorias/mis-jugados — historial SOCIAL del jugador: eventos que jugó
+// (estado 'jugada' donde estuvo anotado). Devuelve el fixture para calcular su posición en el
+// front. SEPARADO de las stats serias: esto NO toca winRate/comparativa/ascensos.
+router.get('/mis-jugados', requireRole('jugador'), async (req, res) => {
+  const jugadorId = req.user.id
+  try {
+    const jug = await prisma.jugador.findUnique({ where: { id: jugadorId }, select: { nombre: true, apellido: true } })
+    const cupos = await prisma.convocatoriaCupo.findMany({
+      where: { jugadorId, estado: 'voy', convocatoria: { estado: 'jugada' } },
+      include: { convocatoria: { select: { id: true, modalidad: true, categorias: true, genero: true, fecha: true, horaInicio: true, fixture: true } } },
+      orderBy: { createdAt: 'desc' },
+    })
+    const eventos = cupos.filter((c) => c.convocatoria).map((c) => c.convocatoria)
+    res.json({ miNombre: jug ? `${jug.nombre} ${jug.apellido}` : '', eventos })
+  } catch (err) {
+    console.error('Error mis jugados:', err.message)
+    res.status(500).json({ error: 'Error al obtener tu historial' })
+  }
+})
+
 // GET /api/convocatorias/:id — detalle con anotados (admin o jugador del club)
 router.get('/:id', async (req, res) => {
   const clubId = req.user.clubId
@@ -322,7 +342,7 @@ router.post('/:id/baja', requireRole('jugador'), async (req, res) => {
 // Lo puede hacer el ORGANIZADOR (createdBy, rol jugador) o un ADMIN del club. "Scoreboard duty".
 router.patch('/:id/fixture', async (req, res) => {
   const clubId = req.user.clubId
-  const { fixture } = req.body || {}
+  const { fixture, finalizar } = req.body || {}
   if (!fixture || typeof fixture !== 'object') return res.status(400).json({ error: 'Fixture inválido' })
   try {
     const c = await prisma.convocatoria.findFirst({ where: { id: req.params.id, clubId }, select: { id: true, createdBy: true } })
@@ -330,8 +350,10 @@ router.patch('/:id/fixture', async (req, res) => {
     const esAdmin = req.user.role === 'admin'
     const esOrganizador = req.user.role === 'jugador' && c.createdBy === req.user.id
     if (!esAdmin && !esOrganizador) return res.status(403).json({ error: 'Solo el organizador o el club pueden cargar resultados' })
-    const upd = await prisma.convocatoria.update({ where: { id: c.id }, data: { fixture } })
-    res.json({ ok: true, fixture: upd.fixture })
+    // finalizar = congela el evento como 'jugada' (queda en el historial social).
+    const data = finalizar ? { fixture, estado: 'jugada' } : { fixture }
+    const upd = await prisma.convocatoria.update({ where: { id: c.id }, data })
+    res.json({ ok: true, fixture: upd.fixture, estado: upd.estado })
   } catch (err) {
     console.error('Error guardar fixture:', err.message)
     res.status(500).json({ error: 'No se pudo guardar el fixture' })

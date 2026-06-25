@@ -2,6 +2,8 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { runSerializable } from '../lib/serializable.js'
 import { clubAutoConfirma } from '../lib/autoConfirma.js'
+import { conflictoEnDia } from '../lib/conflictos.js'
+import { duracionMin } from '../lib/tiempo.js'
 import { requireAuth, requireRole, requireActive, requirePermiso } from '../middleware/auth.js'
 
 const router = Router()
@@ -147,13 +149,9 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
       return res.status(400).json({ error: 'canchaId, dia, horaInicio y horaFin son requeridos' })
     }
 
-    // Validar duración exacta de 90 minutos (regla de negocio central)
-    // "00:00" es medianoche del día siguiente (1440 min), no el minuto 0 → si no, un turno
-    // 22:30–00:00 daría duración negativa y rechazaría un turno válido de 1.5h.
-    const toMinBE = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
-    const finMin = horaFin === '00:00' ? 1440 : toMinBE(horaFin)
-    const duracion = finMin - toMinBE(horaInicio)
-    if (duracion !== 90) {
+    // Validar duración exacta de 90 minutos (regla de negocio central). duracionMin es
+    // cross-midnight aware (helper único): un TF 23:00→00:30 mide 90 correctamente, no negativo.
+    if (duracionMin(horaInicio, horaFin) !== 90) {
       return res.status(400).json({ error: 'El turno fijo debe durar exactamente 1.5h (90 minutos)' })
     }
 
@@ -165,25 +163,17 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
     const autoConfirma = clubAutoConfirma(club)
     const estadoInicial = autoConfirma ? 'confirmado' : 'pendiente'
 
-    // RN-51 + create dentro de una transacción Serializable (runSerializable): evita que dos
-    // solicitudes simultáneas al mismo slot pasen ambas la validación (TOCTOU) y generen dos TF
-    // pendientes para la misma cancha+día+horario. READ COMMITTED no alcanza para esto.
+    // Conflicto + create dentro de una transacción Serializable (runSerializable): evita TOCTOU
+    // entre solicitudes simultáneas. conflictoEnDia chequea TODO (otros TF + reservas + clases en
+    // las próximas ocurrencias del día, cross-midnight aware) → cierra el agujero de que un TF
+    // auto-confirmado pisara una reserva/clase existente. Fuente única: lib/conflictos.js.
     const turno = await runSerializable(async (tx) => {
-      // "00:00" como FIN = medianoche siguiente (1440), no minuto 0. Sin esto, dos turnos
-      // 22:30–00:00 no se detectan como solapados (nfMin=0) y se permite el doble booking.
-      const nsMin = toMinBE(horaInicio), nfMin = horaFin === '00:00' ? 1440 : toMinBE(horaFin)
-      const existentes = await tx.turnoFijo.findMany({
-        where: { canchaId, dia, estado: { in: ['pendiente', 'confirmado'] } },
-        select: { horaInicio: true, horaFin: true },
-      })
-      if (existentes.some((t) => {
-        const esMin = toMinBE(t.horaInicio), efMin = t.horaFin === '00:00' ? 1440 : toMinBE(t.horaFin)
-        return esMin < nfMin && nsMin < efMin
-      })) {
-        throw Object.assign(
-          new Error('Ya existe un turno fijo activo o pendiente en ese horario para esa cancha'),
-          { status: 409 }
-        )
+      const conflicto = await conflictoEnDia(tx, { clubId: req.user.clubId, canchaId, dia, horaInicio, horaFin, desdeFecha: desde })
+      if (conflicto) {
+        const msg = conflicto.tipo === 'turno_fijo'
+          ? 'Ya existe un turno fijo activo o pendiente en ese horario para esa cancha'
+          : `Ese horario tiene una ${conflicto.tipo === 'clase' ? 'clase' : 'reserva'} el ${conflicto.fecha}. No se puede crear el turno fijo ahí.`
+        throw Object.assign(new Error(msg), { status: 409, conflictoFecha: conflicto.fecha })
       }
 
       return tx.turnoFijo.create({
@@ -265,60 +255,20 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), requirePermiso('r
     // (runSerializable). Sin Serializable, dos aprobaciones concurrentes podían pasar ambas la
     // re-verificación antes de que cualquiera escribiera, resultando en dos TF confirmados
     // para el mismo slot. Postgres aborta una de las dos y runSerializable reintenta.
-    const toMinLocal = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
-
     let updated
     if (estado === 'confirmado') {
-      const nsMin = toMinLocal(turno.horaInicio)
-      // "00:00" como FIN = medianoche siguiente (1440), no minuto 0 (evita falsos negativos de solapamiento).
-      const nfMin = turno.horaFin === '00:00' ? 1440 : toMinLocal(turno.horaFin)
-
-      // Calcular fechas de próximas ocurrencias (fuera de TX — es solo aritmética de fechas)
-      const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
-      const targetDow = DIAS.indexOf(turno.dia)
-      const fechas = []
-      const base = new Date()
-      for (let i = 0; i < 60; i++) {
-        const d = new Date(base)
-        d.setDate(base.getDate() + i)
-        if (d.getDay() === targetDow) {
-          fechas.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`)
-          if (fechas.length >= 8) break
-        }
-      }
-
+      // Re-verificar conflictos con la fuente única (conflictoEnDia: otros TF + reservas/clases en
+      // las próximas ocurrencias, cross-midnight aware) y actualizar, todo bajo Serializable.
+      const hoyBase = new Date()
+      const desdeFecha = `${hoyBase.getFullYear()}-${String(hoyBase.getMonth() + 1).padStart(2, '0')}-${String(hoyBase.getDate()).padStart(2, '0')}`
       updated = await runSerializable(async (tx) => {
-        // Otro TF confirmado solapado en la misma cancha+día
-        const tfsSolapados = await tx.turnoFijo.findMany({
-          where: { canchaId: turno.canchaId, dia: turno.dia, estado: 'confirmado', id: { not: turno.id } },
-          select: { horaInicio: true, horaFin: true },
-        })
-        if (tfsSolapados.some((t) => {
-          const esMin = toMinLocal(t.horaInicio), efMin = t.horaFin === '00:00' ? 1440 : toMinLocal(t.horaFin)
-          return esMin < nfMin && nsMin < efMin
-        })) {
-          throw Object.assign(
-            new Error('Ya existe otro turno fijo confirmado en ese horario y cancha. El slot fue tomado mientras este turno estaba pendiente.'),
-            { status: 409 }
-          )
+        const c = await conflictoEnDia(tx, { clubId: req.user.clubId, canchaId: turno.canchaId, dia: turno.dia, horaInicio: turno.horaInicio, horaFin: turno.horaFin, desdeFecha, excluirTfId: turno.id })
+        if (c) {
+          const msg = c.tipo === 'turno_fijo'
+            ? 'Ya existe otro turno fijo confirmado en ese horario y cancha. El slot fue tomado mientras este turno estaba pendiente.'
+            : `El horario tiene una ${c.tipo === 'clase' ? 'clase' : 'reserva'} confirmada el ${c.fecha}. Resolvé ese conflicto antes de confirmar el turno fijo.`
+          throw Object.assign(new Error(msg), { status: 409, conflictoFecha: c.fecha })
         }
-
-        // Reserva eventual confirmada en las próximas 8 ocurrencias del día
-        const reservasConflicto = await tx.reserva.findMany({
-          where: { canchaId: turno.canchaId, fecha: { in: fechas }, estado: { in: ['confirmada', 'pendiente'] } },
-          select: { horaInicio: true, horaFin: true, fecha: true, tipo: true },
-        })
-        const conflictoReserva = reservasConflicto.find((r) => {
-          const esMin = toMinLocal(r.horaInicio), efMin = r.horaFin === '00:00' ? 1440 : toMinLocal(r.horaFin)
-          return esMin < nfMin && nsMin < efMin
-        })
-        if (conflictoReserva) {
-          throw Object.assign(
-            new Error(`El horario tiene una reserva ${conflictoReserva.tipo === 'clase' ? 'de clase' : 'eventual'} confirmada el ${conflictoReserva.fecha}. Resolvé ese conflicto antes de confirmar el turno fijo.`),
-            { status: 409, conflictoFecha: conflictoReserva.fecha }
-          )
-        }
-
         return tx.turnoFijo.update({
           where: { id: req.params.id },
           data: { estado },

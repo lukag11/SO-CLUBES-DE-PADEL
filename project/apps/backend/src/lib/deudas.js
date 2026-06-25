@@ -1,5 +1,5 @@
 import prisma from './prisma.js'
-import { hoyArgStr, ahoraArgHHMM } from './tiempo.js'
+import { hoyArgStr, ahoraArgHHMM, finEnMin } from './tiempo.js'
 
 const SEL_JUGADOR = { select: { id: true, nombre: true, apellido: true, dni: true } }
 
@@ -20,9 +20,9 @@ export const turnosImpagosDeuda = async (clubId, where = {}) => {
   })
   return reservas
     .filter((r) => {
-      // "00:00" = medianoche del día siguiente (1440), no minuto 0: si no, un turno de hoy que
-      // termina a medianoche se contaría como deuda desde la madrugada, sin haberse jugado todavía.
-      const finMin = r.horaFin === '00:00' ? 1440 : aMin(r.horaFin)
+      // Fin del turno cross-midnight aware (helper único, ver tiempo.js). Sin esto, un turno
+      // nocturno de hoy (23:30→01:00) se contaría como deuda desde la madrugada, sin jugarse.
+      const finMin = finEnMin(r.horaInicio, r.horaFin)
       return (r.fecha < hoyStr || (r.fecha === hoyStr && finMin + MIN_GRACIA_COBRO <= ahoraMin)) && (r.precio ?? 0) > 0
     })
     .map((r) => ({

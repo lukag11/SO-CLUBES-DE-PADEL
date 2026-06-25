@@ -230,7 +230,8 @@ const DashboardPage = () => {
   const ahoraMin = toMin(data?.ahora)
   const agenda = (data?.agenda ?? []).map((a) => {
     const ini = toMin(a.horaInicio)
-    const fin = a.horaFin === '00:00' ? 1440 : toMin(a.horaFin)
+    let fin = toMin(a.horaFin)
+    if (fin <= ini) fin += 1440 // cruza medianoche (ej. 23:30→01:00, o 22:30→00:00)
     return { ...a, enCurso: ini <= ahoraMin && ahoraMin < fin, futuro: ini > ahoraMin }
   })
   const idxProximo = agenda.findIndex((a) => a.futuro)

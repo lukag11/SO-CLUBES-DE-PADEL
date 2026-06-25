@@ -364,8 +364,10 @@ const PlayerDashboardPage = () => {
                     const [y, m, d] = r.fecha.split('-').map(Number)
                     const [h, min] = (r.horaFin || r.hora).split(':').map(Number)
                     const finDt = new Date(y, m - 1, d, h, min)
-                    // "00:00" es medianoche del día siguiente: sin esto, un turno 22:30–00:00 figura "Finalizado" todo el día.
-                    if (r.horaFin === '00:00') finDt.setDate(finDt.getDate() + 1)
+                    // Si el turno CRUZA MEDIANOCHE (horaFin <= horaInicio, ej. 23:00→00:30), el fin
+                    // es al día siguiente. Sin esto, un turno 23:00–00:30 figura "Finalizado" todo el día.
+                    const _toMin = (t) => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + mm }
+                    if (r.horaFin && _toMin(r.horaFin) <= _toMin(r.hora || '00:00')) finDt.setDate(finDt.getDate() + 1)
                     const yaJugo = finDt < new Date()
                     if (yaJugo) return (
                       <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/8 text-white/25 text-xs font-medium shrink-0">

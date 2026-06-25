@@ -27,6 +27,8 @@ Antes de cualquier tarea, leer en orden:
 ## Reglas críticas de negocio
 
 - Turnos SIEMPRE 1.5h (ej: 10:00 → 11:30). Nunca +1h.
+- **CRUCE DE MEDIANOCHE (regla dura, bug histórico):** un turno puede terminar después de medianoche (ej. 23:30→01:00, o 22:30→00:00) porque hay clubes que cierran tarde. Para CUALQUIER cálculo con el fin de un turno (vencido/cobro, en curso, duración, esPasada, solape) usá SIEMPRE los helpers `finEnMin(horaInicio, horaFin)` / `cruzaMedianoche` / `duracionMin` (en `backend/src/lib/tiempo.js` y `frontend/src/utils/timeUtils.js`). **NUNCA** escribas a mano `horaFin === '00:00' ? 1440 : toMin(fin)` — ese patrón se rompe con fines 00:30/01:00 e invierte el rango (causó deudas/cobros fantasma y turnos futuros marcados "Finalizado"). Tests en `tiempo.test.js` (`npm test`). Excepción: el patrón `=== '00:00' ? 1440` SÍ es válido para el CIERRE del club (ahí 00:00 = 1440), no para el fin de un turno.
+- Antes de tocar el módulo de RESERVAS o mostrarlo a un cliente: correr la auditoría con el agente `qa-flujos` (es la red de seguridad — no hay test harness completo todavía).
 - Auto-confirmación ON por default (todos los planes, toggle `club.config.autoConfirmaReservas`): reserva y turno fijo nacen `confirmada`/`confirmado` al instante. Con el toggle apagado vuelve el flujo manual (turno fijo y reserva quedan `pendiente` hasta aprobación admin).
 - Ausencia de turno fijo se auto-libera al instante; baja del turno fijo entero sigue manual y bloqueada por deuda.
 

@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CalendarDays, Clock, XCircle, Info, X, CheckCircle } from 'lucide-react'
+import { CalendarDays, Clock, XCircle, Info, X, CheckCircle, Search, UserPlus } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import useClubStore from '../store/clubStore'
 import useReservasStore from '../store/reservasStore'
 import { useToast } from '../components/ui/ToastProvider'
 import { api } from '../lib/api'
+import BuscarJugadorModal from '../components/eventos/BuscarJugadorModal'
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 const MESES_LARGO = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
@@ -22,7 +23,7 @@ const fmtFechaHeader = (fechaStr, hoyStr) => {
 // ─── Fila de reserva ──────────────────────────────────────────────────────────
 // showDate=true: muestra el date box (usado en historial donde no hay header de fecha)
 
-const FilaReserva = ({ r, onCancelar, showDate = false }) => {
+const FilaReserva = ({ r, onCancelar, onBuscar, sol, showDate = false }) => {
   const esPendiente = r.estado === 'pendiente'
   const esPasada = r.esPasada
   const mesIdx = parseInt(r.fecha.slice(5, 7)) - 1
@@ -80,12 +81,24 @@ const FilaReserva = ({ r, onCancelar, showDate = false }) => {
           <CheckCircle size={12} /> Finalizado
         </span>
       ) : (
-        <button
-          onClick={() => onCancelar(r)}
-          className="shrink-0 flex items-center gap-1 text-xs font-medium text-red-400/60 hover:text-red-400 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-500/8"
-        >
-          <XCircle size={13} /> Cancelar
-        </button>
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          {sol ? (
+            sol.estado === 'cubierta' ? (
+              <span className="flex items-center gap-1 text-[11px] font-bold text-club">✓ {sol.cubiertoPor}</span>
+            ) : (
+              <span className="flex items-center gap-1 text-[11px] font-medium text-club/70"><span className="w-1.5 h-1.5 rounded-full bg-club animate-pulse" /> Buscando…</span>
+            )
+          ) : (
+            <button onClick={() => onBuscar(r)}
+              className="flex items-center gap-1 text-xs font-semibold text-club/80 hover:text-club transition-colors px-2 py-1.5 rounded-lg hover:bg-club/8">
+              <UserPlus size={13} /> Buscar jugador
+            </button>
+          )}
+          <button onClick={() => onCancelar(r)}
+            className="flex items-center gap-1 text-[11px] font-medium text-red-400/50 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/8">
+            <XCircle size={11} /> Cancelar
+          </button>
+        </div>
       )}
     </div>
   )
@@ -105,6 +118,8 @@ export default function PlayerMisReservasPage() {
   const [reservaACancelar, setReservaACancelar] = useState(null)
   const [cancelando, setCancelando] = useState(false)
   const [filtro, setFiltro] = useState('proximas') // 'proximas' | 'todas'
+  const [misSol, setMisSol] = useState([]) // mis búsquedas (para mostrar estado por reserva)
+  const [buscarPrefill, setBuscarPrefill] = useState(null) // { fecha, horaInicio, nota, reservaId }
 
   const fetchReservas = () => {
     if (!token) return
@@ -113,6 +128,21 @@ export default function PlayerMisReservasPage() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }
+  const fetchSolicitudes = () => {
+    if (!token) return
+    api.get('/solicitudes/mias', { Authorization: `Bearer ${token}` })
+      .then((d) => setMisSol(Array.isArray(d) ? d : [])).catch(() => {})
+  }
+  // Última búsqueda activa (abierta/cubierta) por reservaId.
+  const solPorReserva = useMemo(() => {
+    const map = {}
+    for (const s of misSol) {
+      if (!s.reservaId || s.estado === 'cancelada') continue
+      if (!map[s.reservaId]) map[s.reservaId] = s
+    }
+    return map
+  }, [misSol])
+  const abrirBuscar = (r) => setBuscarPrefill({ fecha: r.fecha, horaInicio: r.hora, nota: r.canchaNombre ? `${r.canchaNombre}` : '', reservaId: r.id })
 
   useEffect(() => {
     const clubId = club?.id
@@ -124,6 +154,7 @@ export default function PlayerMisReservasPage() {
 
   useEffect(() => {
     fetchReservas()
+    fetchSolicitudes()
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reservasMapped = useMemo(() => {
@@ -136,8 +167,10 @@ export default function PlayerMisReservasPage() {
         const [y, m, d] = r.fecha.split('-').map(Number)
         const [hh, mm] = (r.horaFin || r.horaInicio || '23:59').split(':').map(Number)
         const finDt = new Date(y, m - 1, d, hh, mm)
-        // "00:00" es medianoche del día siguiente: sin esto, un turno 22:30–00:00 se marca "pasado" todo el día.
-        if (r.horaFin === '00:00') finDt.setDate(finDt.getDate() + 1)
+        // Si el turno CRUZA MEDIANOCHE (horaFin <= horaInicio, ej. 23:00→00:30), el fin es al día
+        // siguiente. Sin esto, un turno 23:00–00:30 se marca "pasado" todo el día.
+        const toMin = (t) => { const [h, mi] = t.split(':').map(Number); return h * 60 + mi }
+        if (r.horaFin && toMin(r.horaFin) <= toMin(r.horaInicio || '00:00')) finDt.setDate(finDt.getDate() + 1)
         return {
           id: r.id,
           canchaNombre: r.cancha?.nombre ?? canchaDB?.nombre ?? 'Cancha',
@@ -267,7 +300,7 @@ export default function PlayerMisReservasPage() {
                   )}
                 </div>
                 <div className="divide-y divide-white/5">
-                  {reservasDia.map((r) => <FilaReserva key={r.id} r={r} onCancelar={setReservaACancelar} />)}
+                  {reservasDia.map((r) => <FilaReserva key={r.id} r={r} onCancelar={setReservaACancelar} onBuscar={abrirBuscar} sol={solPorReserva[r.id]} />)}
                 </div>
               </div>
             ))}
@@ -293,7 +326,7 @@ export default function PlayerMisReservasPage() {
                       )}
                     </div>
                     <div className="divide-y divide-white/5">
-                      {reservasDia.map((r) => <FilaReserva key={r.id} r={r} onCancelar={setReservaACancelar} />)}
+                      {reservasDia.map((r) => <FilaReserva key={r.id} r={r} onCancelar={setReservaACancelar} onBuscar={abrirBuscar} sol={solPorReserva[r.id]} />)}
                     </div>
                   </div>
                 ))}
@@ -322,6 +355,13 @@ export default function PlayerMisReservasPage() {
             ver todas
           </button>
         </p>
+      )}
+
+      {/* Modal "busco jugador/pareja" pre-llenado desde la reserva */}
+      {buscarPrefill && (
+        <BuscarJugadorModal token={token} prefill={buscarPrefill}
+          onClose={() => setBuscarPrefill(null)}
+          onCreado={() => { setBuscarPrefill(null); fetchSolicitudes() }} />
       )}
 
       {/* Modal cancelación */}

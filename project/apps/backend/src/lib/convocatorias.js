@@ -1,6 +1,7 @@
 import prisma from './prisma.js'
 import { runSerializable } from './serializable.js'
 import { generarConvocatoriaWhatsapp } from './insight.js'
+import { hoyArgStr, ahoraArgHHMM } from './tiempo.js'
 
 // Helpers de horario (cross-midnight aware), autocontenidos para no tocar reservas.js.
 const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
@@ -20,6 +21,11 @@ const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 's
 // (anti doble-booking). Las reservas quedan linkeadas vía convocatoriaId. Lanza {status:409}
 // si no hay N canchas libres a esa hora.
 export async function organizarConvocatoria({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias = [], genero = null, cupoMax, canchas = 1, precio = null, visibilidad = 'publica' }) {
+  // Guard de fecha/hora pasada (defensa en profundidad: el front filtra, pero el backend no confía).
+  const hoy = hoyArgStr()
+  if (fecha < hoy || (fecha === hoy && horaInicio <= ahoraArgHHMM())) {
+    throw Object.assign(new Error(`No se puede organizar en un horario que ya pasó (${fecha} ${horaInicio}).`), { status: 400 })
+  }
   const horaFin = sumar90(horaInicio)
   const [fy, fm, fd] = fecha.split('-').map(Number)
   const diaKey = DIAS[new Date(fy, fm - 1, fd).getDay()]

@@ -82,13 +82,14 @@ const esPasado = (fecha, inicio) => {
 const MIN_GRACIA_COBRO = 60
 
 // ¿El turno está vencido para cobro? = terminó hace más de MIN_GRACIA_COBRO minutos.
-const venceCobro = (fecha, horaFin) => {
+const venceCobro = (fecha, horaInicio, horaFin) => {
   const hoy = todayISO()
   if (fecha < hoy) return true
   if (fecha > hoy) return false
-  // Cruce de medianoche: horaFin '00:00' = medianoche del día siguiente (1440), no el arranque
-  // del día → un turno que termina a las 00:00 no vence para cobro durante su propia jornada.
-  const finMin = horaFin === '00:00' ? 1440 : toMin(horaFin)
+  // Cruce de medianoche: si horaFin <= horaInicio (ej. 23:30→01:00, o 22:30→00:00), el turno
+  // termina al día siguiente (+1440) → no vence para cobro durante su propia jornada.
+  let finMin = toMin(horaFin)
+  if (finMin <= toMin(horaInicio)) finMin += 1440
   return finMin + MIN_GRACIA_COBRO <= toMin(horaActual())
 }
 
@@ -1354,11 +1355,17 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar, onChe
   const pagoCfg = reserva.pago ? PAGO_CONFIG[reserva.pago] : null
   const estadoCfg = ESTADO_CONFIG[reserva.estado]
   // Turno ya terminó: bloquear acciones destructivas para preservar historial y cargos.
-  // Cruce de medianoche: un turno que termina a las '00:00' termina a la medianoche del día
-  // siguiente, no al arranque del día → lo tratamos como '24:00' (1440 min) para no marcarlo
-  // terminado durante su propia jornada.
-  const finParaCorte = reserva.fin === '00:00' ? '24:00' : reserva.fin
-  const yaTermino = reserva.fecha && reserva.fin ? esPasado(reserva.fecha, finParaCorte) : false
+  // Cruce de medianoche: si fin <= inicio (ej. 23:30→01:00, o 22:30→00:00) el turno termina al
+  // día siguiente (+1440 min) → no se marca terminado durante su propia jornada.
+  const yaTermino = (() => {
+    if (!reserva.fecha || !reserva.fin) return false
+    const hoy = todayISO()
+    if (reserva.fecha < hoy) return true
+    if (reserva.fecha > hoy) return false
+    let finMin = toMin(reserva.fin)
+    if (finMin <= toMin(reserva.inicio || '00:00')) finMin += 1440
+    return finMin <= toMin(horaActual())
+  })()
 
   return (
     <div className="flex flex-col">
@@ -3108,7 +3115,7 @@ const ReservasPage = () => {
     else if (precio > 0 && atribuido >= precio) pago = 'en_cuenta'       // turno cerrado, parte/todo quedó a deber
     else if (r.cobroOmitido && pagadoTurno === 0 && aCuentaTurno === 0) pago = 'en_cuenta' // omitido sin cargos
     else if (pagadoTurno > 0 || aCuentaTurno > 0) pago = 'parcial'       // falta registrar gente (turno abierto)
-    else pago = venceCobro(r.fecha, r.horaFin) ? 'debe' : 'pendiente'    // impago: dentro/fuera de gracia
+    else pago = venceCobro(r.fecha, r.horaInicio, r.horaFin) ? 'debe' : 'pendiente'    // impago: dentro/fuera de gracia
 
     return {
       id: `backend_${r.id}`,

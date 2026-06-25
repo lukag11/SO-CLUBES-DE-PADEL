@@ -19,12 +19,21 @@ const TITULOS = {
   torneo_promovido_espera:      '¡Pasaste a la lista principal!',
   convocatoria_abierta:         '¡Nuevo evento en el club!',
   convocatoria_cancelada:       'Evento cancelado',
+  busca_jugador:                '¡Buscan un jugador!',
+  solicitud_cubierta:           '¡Conseguiste tu cuarto!',
 }
 
 const formatCuerpo = (tipo, data = {}) => {
   const { canchaNombre = '', fecha = '', horaInicio = '', horaFin = '', dia = '', monto,
           torneoNombre = '', categoria = '', jugador1 = '', jugador2 = '',
-          modalidad = '', categorias = [], motivo = '' } = data
+          modalidad = '', categorias = [], motivo = '', nota = '', cubiertoPor = '', busco = '' } = data
+  if (tipo === 'busca_jugador') {
+    const que = busco === 'pareja' ? 'Buscan una pareja rival' : 'Falta un jugador'
+    return `${que}${categoria ? ` · ${categoria}` : ''} · ${fecha} ${horaInicio}${nota ? ` · ${nota}` : ''}`
+  }
+  if (tipo === 'solicitud_cubierta') {
+    return `${cubiertoPor} se suma · ${fecha} ${horaInicio}`
+  }
   if (tipo === 'convocatoria_abierta') {
     const mod = modalidad === 'super8' ? 'Super 8' : 'Americano'
     const cats = Array.isArray(categorias) && categorias.length ? ` · ${categorias.join('/')}` : ''

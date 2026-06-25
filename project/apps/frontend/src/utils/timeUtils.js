@@ -175,6 +175,17 @@ export const offsetFecha = (fechaISO, n) => {
 export const cruzaMedianoche = (inicio, fin) => toMin(fin) <= toMin(inicio)
 
 /**
+ * ⚠️ REGLA DE ORO para FINES DE TURNO: usá SIEMPRE finEnMin/duracionMin, NUNCA escribas a mano
+ * `horaFin === '00:00' ? 1440 : toMin(fin)` — ese patrón se rompe con fines 00:30/01:00
+ * (clubes que cierran después de medianoche) e invierte el rango. Bug histórico, ya cazado.
+ */
+// Fin del turno en minutos, contando el cruce de medianoche (+1440 si termina al día siguiente).
+// Ej: finEnMin('23:30','01:00') = 1500. finEnMin('08:00','09:30') = 570.
+export const finEnMin = (inicio, fin) => cruzaMedianoche(inicio, fin) ? toMin(fin) + 1440 : toMin(fin)
+// Duración del turno en minutos (siempre positiva, cross-midnight aware).
+export const duracionMin = (inicio, fin) => finEnMin(inicio, fin) - toMin(inicio)
+
+/**
  * Genera los slots de 1.5h para un día dado, respetando apertura y cierre.
  * Idéntico al generateFranjas de ReservasPage — fuente única de verdad.
  * @param {{ apertura: string, cierre: string, activo: boolean }} horarioDia

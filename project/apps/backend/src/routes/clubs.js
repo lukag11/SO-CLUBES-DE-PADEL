@@ -2,7 +2,7 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireOwner } from '../middleware/auth.js'
 import { tienePermiso } from '../lib/permisos.js'
-import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg } from '../lib/tiempo.js'
+import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg, finEnMin } from '../lib/tiempo.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
 import { gatherInsightData, generarInsightIA, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado, responderChatAgente } from '../lib/insight.js'
 import { organizarConvocatoria, crearConvocatoriaCompleta } from '../lib/convocatorias.js'
@@ -134,10 +134,8 @@ router.get('/me/dashboard', requireAuth, requireRole('admin'), async (req, res) 
 
     // ── Canchas en uso AHORA (snapshot) ──
     const ahoraMinOcup = toMinT(ahoraHHMM)
-    const enCurso = (ini, fin) => {
-      const i = toMinT(ini), f = fin === '00:00' ? 1440 : toMinT(fin)
-      return i <= ahoraMinOcup && ahoraMinOcup < f
-    }
+    // Fin cross-midnight aware vía helper único (ver tiempo.js) → no marca mal de noche.
+    const enCurso = (ini, fin) => toMinT(ini) <= ahoraMinOcup && ahoraMinOcup < finEnMin(ini, fin)
     const ocupadasAhora = reservasHoyList.filter((r) => enCurso(r.horaInicio, r.horaFin)).length
       + tfHoyActivos.filter((t) => enCurso(t.horaInicio, t.horaFin)).length
 

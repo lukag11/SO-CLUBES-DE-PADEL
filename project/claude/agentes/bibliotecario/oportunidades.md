@@ -7,6 +7,81 @@
 
 ---
 
+## 2026-06-24 (quad) · Matching need-driven — VEREDICTO: construir CASO 2 ("falta un cuarto YA") YA. Caso 1 reciclado como puerta a convocatorias.
+
+> CORRIGE el veredicto anterior (tablón pasivo). La afinada de Luca = 2 casos de uso need-driven + push, NO un tablón. El caso 2 esquiva la liquidez que hundía al tablón. WebSearch/WebFetch denegados este turno; me apoyo en Open Match Playtomic/MATCHi ya verificado (2026-06-21) + análisis de mecánica de liquidez (marcado inferencia).
+
+**Caso 1** — botón landing "¿no sabés con quién jugar?" → login → armar partido con jugadores de tu categoría. Captación + matching.
+**Caso 2** (el fuerte) — se te baja un jugador → necesitás un CUARTO YA → dispara notificación a la categoría → el primero que dice "voy" entra.
+
+### Cómo lo hacen los grandes [Verificado]
+"Completar el partido / buscar el que falta" ES la función estrella de Open Match (Playtomic) y Public Match (MATCHi), no un accesorio. MATCHi nace literal del caso 2: "reservaste y te faltan jugadores → hacés pública la reserva". Canal = PUSH a jugadores que encajan por NIVEL/rango. Organizador aprueba. Pago confirma. Fuente: matchiplayers.zendesk.com, playerhelp.playtomic.com. Las plataformas serias eligieron EMPUJE (push), no feed pasivo.
+
+### Need-driven + push vs tablón pasivo — por qué cambia la liquidez
+- [Verificado] Los serios usan push, no feed pasivo.
+- [Inferencia sólida] Tablón pasivo falla en base chica porque multiplica dos probabilidades bajas: que HAYA publicaciones × que la gente ENTRE a mirarlas. La notif de urgencia elimina el segundo factor (llega sin que entren) y agrega disparador emocional (escasez+urgencia+bajo compromiso).
+- **ARGUMENTO CLAVE (la diferencia real de liquidez):** un tablón necesita densidad de gente BUSCANDO al mismo tiempo (necesitás 3 buscadores). El caso 2 necesita densidad de gente DISPONIBLE para responder (necesitás 1 que diga "voy"). Con 15 en una categoría, que UNO esté libre esta noche es muy probable; que TRES busquen partido en el tablón ahora, improbable. Por eso el caso 2 SÍ funciona en base chica y el tablón no. [Inferencia, mecánica sólida — no dato duro de tasa de respuesta]
+
+### Apps específicas del "completar un 4to"
+[Verificado] Vive dentro de Open Match, no como app aparte dominante. [Probable] En AR hoy lo resuelve el grupo de WhatsApp ("falta uno para hoy 20, ¿alguien?") = el caso 2 hecho a mano. Que ya exista como comportamiento manual es la mejor prueba de que es real. Ancla anti-no-show: grandes = pago; amateur = compromiso social + registrar no-shows (data de ausencias ya existe).
+
+### Versión mínima del caso 2 con lo que YA hay (casi gratis)
+Infra del canal YA existe (notif por categoría tipo convocatoria_abierta, categorías, reservas, mensaje WhatsApp pre-hecho). Caso 2 = reusar convocatoria apuntada a una reserva existente, cupo 1:
+1. Botón "Se me bajó un jugador" en tu turno confirmado.
+2. Mini-convocatoria cupo 1 atada a esa reserva (día/hora/cancha ya definidos — nada que armar), categoría ± 1.
+3. Notif a la categoría (in-app existente + mensaje WhatsApp para pegar al grupo).
+4. Primero que dice "voy" entra. Cierra solo. Deadline = hora del turno.
+Nuevo mínimo: atar convocatoria a reserva existente + tipo "cupo 1 urgente". Mucho menos que el tablón, aporta más.
+
+### VEREDICTO
+- **Caso 2: construir YA.** Construible con valor real en club chico. Es el problema más frecuente/doloroso del amateur (ya se resuelve a mano). Esquiva liquidez (pide 1 disponible, no 3 buscadores). Casi gratis (reusa infra). Need-driven → nunca se ve vacío (no existe hasta que se necesita) → no hay pantalla triste que quemar. MEJOR relación valor/esfuerzo de todo el matching visto.
+- **Caso 1: después, RECICLADO.** Más cercano al tablón (sin urgencia, sin turno armado, depende de coincidencia). PERO el gancho de captación vale: el botón landing, en vez de abrir buscador vacío, MUESTRA las convocatorias abiertas de tu categoría (ya existen) o deja CREAR una. Captación que desemboca en contenido existente, sin riesgo de liquidez. No construir buscador nuevo.
+
+Impacto caso 2: alto. Esfuerzo: bajo (reusa convocatoria/notif/WhatsApp). Estado: caso 2 recomendado YA; caso 1 reciclado a futuro. Fuentes: hallazgos 2026-06-21 (Open matches/matching) + matchiplayers.zendesk.com, playerhelp.playtomic.com.
+
+---
+
+## 2026-06-24 (tri) · Matching jugador↔jugador — VEREDICTO: (a) tablón con disparo WhatsApp, pero PRIMERO exprimir (d) convocatorias y medir fill-rate
+
+> NOTA: WebSearch/WebFetch denegados este turno. Este eje ya fue investigado a fondo el 2026-06-21 (Open Matches Playtomic, Public Matches MATCHi, niveles, cold-start, diseño Fase B). Esta entrada consolida ese material para la pregunta específica de matching j↔j. Sin refresh 2026-06-24, pero el patrón Open Match no cambió en lo sustancial.
+
+**Opciones evaluadas:** (a) tablón "busco para jugar"; (b) perfiles públicos + buscar jugadores; (c) sugerencias automáticas de compañero; (d) no construir aún, exprimir convocatorias.
+
+**Veredicto: (a) como destino, pero la secuencia correcta es (d) → (a). NO lanzar (b) ni (c) en clubes nuevos.**
+
+### Cómo lo hacen los grandes [Verificado, 2026-06-21]
+Playtomic y MATCHi = mismo patrón de 5 pasos: (1) un jugador/club publica partido con RANGO DE NIVEL y cupos, (2) descubrimiento por lista filtrada (nivel/hora/lugar), (3) join con declaración de nivel + APROBACIÓN del organizador (MATCHi: control total; Playtomic: rechazo si no encaja), (4) PAGO = confirmación (corazón anti-no-show), (5) DEADLINE + auto-cancelación 1h antes + reembolso. Fuente: playtomic.com, playerhelp.playtomic.com, matchiplayers.zendesk.com. Es el NÚCLEO de Playtomic como red social — pero funciona por su MASA NACIONAL.
+
+### El nivel [Verificado]
+Match por rango. Playtomic: ELO 0–7 fino que sube/baja por resultado, ajuste -0.25/+0.75. Sí muestran "no encajás". Ese ajuste fino NECESITA MASA. La `categoria` de PadelwIArk (1ra–8va) es etiqueta gruesa: suficiente para "juntá 6ta+7ma", mejor para club chico (menos fricción). Matching por categoría ± 1 para no morir por falta de gente exacta.
+
+### Contexto AR / apps chicas [Verificado/Probable]
+El matching real en clubes de a pie pasa por GRUPOS DE WHATSAPP (tablón humano: "busco un cuarto mañana 20hs, 6ta"). No hace falta ELO; hace falta DIGITALIZAR ese tablón y empujarlo por el canal que ya usan. Fuente: padelmix.app, contexto AR.
+
+### Liquidez — el problema central, honesto [Verificado]
+Huevo y gallina de marketplace 2 lados: matching vacío QUEMA la feature. Playtomic tardó AÑOS construyendo oferta. Fuente: medium.com/@oleg2014. PERO PadelwIArk no es marketplace nacional: liquidez POR CLUB, ya sembrada (base de socios). El problema real: "¿hay suficientes jugadores ACTIVOS buscando en ESE club AHORA?" — en club nuevo chico, suele ser NO.
+
+### Por qué (a) y no (b)/(c)
+- (b) perfiles públicos + buscador y (c) sugerencias automáticas son las que MÁS sufren la liquidez: con 8 jugadores se ven vacías → queman la feature en club nuevo. NO ahora.
+- (a) tablón = menor masa crítica necesaria: con UN jugador que publica ya hay contenido. Mismo patrón del WhatsApp que ya funciona, digitalizado. Es el camino correcto.
+- PERO el tablón TAMBIÉN muere si nadie ve la publicación. El cuello NO es el matching, es el CANAL DE AVISO. Tablón in-app = pasivo. En AR el desbloqueo es WhatsApp: publicar "busco cuarto" debe DISPARAR mensaje al grupo/categoría.
+
+### Por qué (d) PRIMERO
+Las convocatorias jugador→jugador que ya existen YA SON matching j↔j (estructurado alrededor de un evento). Antes de construir tablón nuevo: MEDIR EL FILL-RATE de las convocatorias actuales. Si NO llenan → problema es canal/densidad → un tablón nuevo fracasa igual. Si SÍ llenan → liquidez validada en ese club → el tablón suma como formato MÁS LIVIANO (no quiero organizar evento entero, solo busco un cuarto suelto).
+
+### Versión mínima de (a), cuando se construya
+1. Publicar "busco para jugar": día/franja + categoría ± 1 + cuántos faltan. Reusar modelo Convocatoria con tipo "partido casual" (sin fixture).
+2. El que publica APRUEBA quién entra (control del organizador, MATCHi).
+3. Disparo por WhatsApp (mensaje pre-armado copy-paste al inicio). Sin esto, pasivo → no llena.
+4. Deadline + se cae solo si no completa.
+
+### Riesgo de liquidez, sin maquillar
+En club nuevo (5–15 activos), CUALQUIER matching j↔j puede verse vacío al inicio. Mitigación = SECUENCIA, no técnica: que el club gane densidad con convocatorias empujadas por el admin (anti-cold-start), y prender el tablón cuando ese club ya demuestre actividad. NO lanzarlo como feature destacada del onboarding de un club nuevo — sería prometer algo que se ve vacío.
+
+Impacto: alto si hay densidad / negativo si se lanza vacío. Esfuerzo: medio (reusa modelo Convocatoria). Estado: nueva — recomendada DESPUÉS de medir fill-rate de convocatorias. Fuentes: ver hallazgos 2026-06-21 (Open matches / matching).
+
+---
+
 ## 2026-06-24 (bis) · Persistencia/historial de Americano/Super 8 — VEREDICTO: opción (b), historial liviano del evento, SIN tocar stats serias
 
 **Pregunta:** ¿guardar estas estadísticas? (a) no persistir, el evento muere ahí; (b) historial liviano del evento consultable, SIN tocar rating/stats; (c) alimentar el módulo de stats del jugador (winRate, comparativa, ascenso).

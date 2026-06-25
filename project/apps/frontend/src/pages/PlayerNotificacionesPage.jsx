@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, CheckCircle, Repeat, CalendarDays, BellOff, UserCheck, XCircle, Megaphone } from 'lucide-react'
+import { Bell, CheckCircle, Repeat, CalendarDays, BellOff, UserCheck, XCircle, Megaphone, Search } from 'lucide-react'
 import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
@@ -52,6 +52,18 @@ const TIPO_META = {
     color: 'text-red-400',
     bg: 'bg-red-400/10',
     border: 'border-red-400/20',
+  },
+  busca_jugador: {
+    icon: Search,
+    color: 'text-club',
+    bg: 'bg-club/10',
+    border: 'border-club/20',
+  },
+  solicitud_cubierta: {
+    icon: UserCheck,
+    color: 'text-club',
+    bg: 'bg-club/10',
+    border: 'border-club/20',
   },
   turno_fijo_rechazado: {
     icon: XCircle,
@@ -138,7 +150,8 @@ const PlayerNotificacionesPage = () => {
                 border: 'border-white/10',
               }
               const Icon = meta.icon
-              const esConvocatoria = notif.tipo === 'convocatoria_abierta'
+              const linkEventos = notif.tipo === 'convocatoria_abierta' || notif.tipo === 'busca_jugador'
+              const ctaTexto = notif.tipo === 'busca_jugador' ? 'Ver y sumarme →' : 'Ver evento y anotarme →'
 
               const contenido = (
                 <>
@@ -159,14 +172,14 @@ const PlayerNotificacionesPage = () => {
                     </div>
                     <p className="text-white/40 text-xs mt-0.5 leading-relaxed">{notif.cuerpo}</p>
                     <p className="text-white/20 text-[10px] mt-1.5">{fmtTimestamp(notif.timestamp)}</p>
-                    {esConvocatoria && <p className="text-club text-[11px] font-semibold mt-1.5">Ver evento y anotarme →</p>}
+                    {linkEventos && <p className="text-club text-[11px] font-semibold mt-1.5">{ctaTexto}</p>}
                   </div>
                 </>
               )
 
               const claseBase = `flex items-start gap-4 px-6 py-4 transition-colors ${notif.leida ? '' : 'bg-white/2'}`
 
-              return esConvocatoria ? (
+              return linkEventos ? (
                 <Link key={notif.id} to="/dashboardJugadores/eventos" className={`${claseBase} hover:bg-white/5`}>
                   {contenido}
                 </Link>

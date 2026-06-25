@@ -38,6 +38,7 @@ model Club {
   movimientosStock MovimientoStock[]
   categorias     Categoria[]
   convocatorias  Convocatoria[]
+  solicitudesJugador SolicitudJugador[]
 
   @@map("clubs")
 }
@@ -142,6 +143,8 @@ model Jugador {
   parejasComoJ2  Pareja[]       @relation("ParejaJugador2")
   resetTokens    PasswordResetToken[]
   convocatoriaCupos ConvocatoriaCupo[]
+  solicitudesHechas    SolicitudJugador[] @relation("SolicitudSolicitante")
+  solicitudesCubiertas SolicitudJugador[] @relation("SolicitudCubierto")
 
   @@unique([clubId, dni])
   @@map("jugadores")
@@ -501,4 +504,29 @@ model ConvocatoriaCupo {
   jugador      Jugador?     @relation(fields: [jugadorId], references: [id], onDelete: SetNull)
 
   @@map("convocatoria_cupos")
+}
+
+// "Busco un jugador" (caso 2 del matching): un jugador necesita un cuarto YA para un turno
+// suyo. Se notifica a los de su categoría; el primero que dice "voy" la cubre. NO reserva
+// cancha (el turno ya existe) — por eso es un modelo propio, no una convocatoria.
+model SolicitudJugador {
+  id            String   @id @default(cuid())
+  clubId        String
+  solicitanteId String   // jugador que busca
+  busco         String   @default("jugador") // 'jugador' (falta 1) | 'pareja' (buscan rival, 2)
+  reservaId     String?  // turno al que pertenece (para contexto / pre-llenado)
+  categoria     String?  // categoría objetivo (a quién se le notifica)
+  fecha         String   // YYYY-MM-DD
+  horaInicio    String   // HH:MM
+  nota          String?  // ej: "Cancha 2, falta drive"
+  estado        String   @default("abierta") // abierta | cubierta | cancelada
+  cubiertoPorId String?  // jugador que la cubrió (en 'pareja' = el que trae a su compañero)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  solicitante Jugador  @relation("SolicitudSolicitante", fields: [solicitanteId], references: [id], onDelete: Cascade)
+  cubiertoPor Jugador? @relation("SolicitudCubierto", fields: [cubiertoPorId], references: [id], onDelete: SetNull)
+
+  @@map("solicitudes_jugador")
 }

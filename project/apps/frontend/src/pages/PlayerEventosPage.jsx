@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Megaphone, Repeat, Users, CalendarDays, Clock, Check, Loader2, ChevronDown, Plus, X, Copy, Trophy } from 'lucide-react'
+import { Megaphone, Repeat, Users, CalendarDays, Clock, Check, Loader2, ChevronDown, Plus, X, Copy, Trophy, Search, UserPlus } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import { api } from '../lib/api'
 import CargarResultados from '../components/eventos/CargarResultados'
@@ -37,6 +37,8 @@ export default function PlayerEventosPage() {
   const [mias, setMias] = useState(null)
   const [abiertos, setAbiertos] = useState(null)
   const [jugados, setJugados] = useState(null) // { miNombre, eventos } — historial social
+  const [solAbiertas, setSolAbiertas] = useState(null) // "buscan un cuarto" de mi categoría
+  const [misSol, setMisSol] = useState(null) // mis búsquedas
   const [accion, setAccion] = useState(null) // id en proceso
   const [organizarOpen, setOrganizarOpen] = useState(false)
   const [confirmAccion, setConfirmAccion] = useState(null) // { tipo: 'bajar'|'cancelar', id }
@@ -50,6 +52,23 @@ export default function PlayerEventosPage() {
     api.get('/convocatorias/mis-jugados', { Authorization: `Bearer ${token}` })
       .then((r) => setJugados(r && Array.isArray(r.eventos) ? r : { miNombre: '', eventos: [] }))
       .catch(() => setJugados({ miNombre: '', eventos: [] }))
+    api.get('/solicitudes/abiertas', { Authorization: `Bearer ${token}` })
+      .then((r) => setSolAbiertas(Array.isArray(r) ? r : [])).catch(() => setSolAbiertas([]))
+    api.get('/solicitudes/mias', { Authorization: `Bearer ${token}` })
+      .then((r) => setMisSol(Array.isArray(r) ? r : [])).catch(() => setMisSol([]))
+  }
+
+  const sumarmeSolicitud = (id) => {
+    if (accion) return
+    setAccion(id)
+    api.post(`/solicitudes/${id}/voy`, {}, { Authorization: `Bearer ${token}` })
+      .then(() => cargar()).catch((e) => alert(e?.message || 'No se pudo')).finally(() => setAccion(null))
+  }
+  const cancelarSolicitud = (id) => {
+    if (accion) return
+    setAccion(id)
+    api.post(`/solicitudes/${id}/cancelar`, {}, { Authorization: `Bearer ${token}` })
+      .then(() => cargar()).catch(() => alert('No se pudo')).finally(() => setAccion(null))
   }
   useEffect(() => { if (token) cargar() }, [token])
 
@@ -111,6 +130,62 @@ export default function PlayerEventosPage() {
           onConfirmar={ejecutarConfirm}
           onClose={() => setConfirmAccion(null)}
         />
+      )}
+
+      {/* Buscan jugadores — solicitudes abiertas de mi categoría (urgente, va arriba) */}
+      {solAbiertas && solAbiertas.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-white/70 mb-2.5 flex items-center gap-1.5"><Search size={15} className="text-club" /> Buscan para jugar</h2>
+          <div className="flex flex-col gap-2.5">
+            {solAbiertas.map((s) => {
+              const esPareja = s.busco === 'pareja'
+              return (
+                <div key={s.id} className="rounded-2xl border border-club/25 bg-club/5 p-4 flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-xl bg-club/15 grid place-items-center shrink-0">{esPareja ? <Users size={18} className="text-club" /> : <UserPlus size={18} className="text-club" />}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-semibold truncate">{esPareja ? 'Buscan una pareja rival' : 'Falta un jugador'}{s.categoria ? ` · ${s.categoria}` : ''}</p>
+                    <p className="text-white/40 text-xs flex items-center gap-2 mt-0.5 capitalize">
+                      <span className="flex items-center gap-1"><CalendarDays size={11} /> {fmtFecha(s.fecha)}</span>
+                      <span className="flex items-center gap-1"><Clock size={11} /> {s.horaInicio}</span>
+                    </p>
+                    <p className="text-white/30 text-[11px] mt-0.5 truncate">{s.solicitante}{s.nota ? ` · ${s.nota}` : ''}</p>
+                  </div>
+                  <button onClick={() => sumarmeSolicitud(s.id)} disabled={accion === s.id}
+                    className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-club text-dark-900 text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50">
+                    {accion === s.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {esPareja ? '¡Vamos!' : '¡Voy!'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Mis búsquedas */}
+      {misSol && misSol.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-white/70 mb-2.5">Mis búsquedas</h2>
+          <div className="flex flex-col gap-2">
+            {misSol.map((s) => (
+              <div key={s.id} className="rounded-2xl border border-white/8 bg-[#0d1117] p-3.5 flex items-center gap-3">
+                <span className="w-9 h-9 rounded-xl bg-white/5 grid place-items-center shrink-0"><Search size={16} className="text-white/40" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-semibold truncate">{s.busco === 'pareja' ? 'Busco una pareja' : 'Busco un jugador'}{s.categoria ? ` · ${s.categoria}` : ''}</p>
+                  <p className="text-white/40 text-xs flex items-center gap-2 mt-0.5 capitalize"><CalendarDays size={11} /> {fmtFecha(s.fecha)} · {s.horaInicio}</p>
+                </div>
+                {s.estado === 'cubierta' ? (
+                  <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-club/15 text-club shrink-0">✓ {s.cubiertoPor}</span>
+                ) : s.estado === 'cancelada' ? (
+                  <span className="text-[11px] text-white/30 shrink-0">Cancelada</span>
+                ) : (
+                  <button onClick={() => cancelarSolicitud(s.id)} disabled={accion === s.id} className="text-[11px] text-white/40 hover:text-red-400 transition-colors shrink-0 disabled:opacity-50">
+                    {accion === s.id ? '…' : 'Cancelar'}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Mis eventos */}

@@ -35,7 +35,11 @@ const todayISO = () => toISO(new Date())
 const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 
 const duracionHs = (inicio, fin) => {
-  const diff = toMin(fin === '00:00' ? '24:00' : fin) - toMin(inicio)
+  // Cruce de medianoche: si fin <= inicio (ej. 23:30→01:00, o 22:30→00:00), el fin es al día
+  // siguiente → +1440. Sin esto, la duración de una clase nocturna sale 0.
+  let finMin = toMin(fin)
+  if (finMin <= toMin(inicio)) finMin += 1440
+  const diff = finMin - toMin(inicio)
   return diff > 0 ? diff / 60 : 0
 }
 

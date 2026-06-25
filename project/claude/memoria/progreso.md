@@ -1,6 +1,8 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-06-23 (tarde) — Convocatorias: form admin DINÁMICO (picker de horarios con 2+ canchas, filtra hora actual, tope canchas del club, buscador de organizador igual al de turnos, categorías checkbox 1ra-8va, género). Super 8 = solo parejas sugeridas drive/revés (el fixture se arma en la cancha). Lado jugador ve anotados por Drive/Revés. Notif `convocatoria_abierta` renderizada + clickeable. **WIarky endurecido por código**: verifica disponibilidad real antes de crear, paso por paso obligatorio, herramientas `horarios_para_evento`/`buscar_jugador`, matching sin acentos, validaciones de alta. Detalle abajo.
+**Última actualización:** 2026-06-24 — **HARDENING RESERVAS + matching "busco un cuarto".** (1) Bug cross-midnight: turnos que terminan 00:30/01:00 rompían deuda/cobro/display (el chequeo `horaFin === '00:00'` invertía el rango) — corregido en deudas/clubs/ReservasPage/AdminDashboard/Clases/PlayerMisReservas/PlayerDashboard + helper único `finEnMin`/`cruzaMedianoche`/`duracionMin` (tiempo.js + timeUtils.js) con tests + regla en CLAUDE.md. (2) Agujero cross-resource: el TF del jugador con auto-confirma ON solo chequeaba otros TF — cerrado con **fuente única `conflictos.js`** (conflictoEnFecha/conflictoEnDia, chequea reservas+clases+TF cross-midnight). (3) `runSerializable` con backoff+jitter (anti-livelock). (4) **Suite de concurrencia** `npm run test:concurrencia` (12 escenarios verde x3). (5) Matching **"Busco un jugador"** (caso 2) validado e2e. Detalle abajo.
+
+**Anterior (2026-06-23 tarde):** Convocatorias: form admin DINÁMICO (picker de horarios con 2+ canchas, filtra hora actual, tope canchas del club, buscador de organizador igual al de turnos, categorías checkbox 1ra-8va, género). Super 8 = solo parejas sugeridas drive/revés. WIarky endurecido por código.
 
 **Anterior (2026-06-23 mañana):** Convocatorias: cierre del bloque. **Visibilidad pública/privada** (pública se lista + notifica; privada solo por link, para el grupo del organizador). **Sección "Americano y Super 8" en el dash jugador** (Abiertos + Mis eventos). **Login con retorno + auto-anotado**: "Voy" sin login → te registrás → volvés anotado solo (embudo de socios). El bloque quedó operable de punta a punta.
 
@@ -2702,4 +2704,31 @@ El backend corría con código viejo (proceso Node.js iniciado antes de aplicar 
 - **REGLA DURA respetada**: `/mis-jugados` es totalmente aparte — NO toca winRate / comparativa / ascensos (exclusivo de torneos). Motivo: Playtomic guarda lo "friendly" pero no mueve el rating.
 
 ### Pendiente
-- Borrar convocatorias de prueba. Matching jugador→jugador (capa viral, más adelante).
+- Borrar convocatorias de prueba.
+
+---
+
+## Sesión 2026-06-24 (tarde) — Hardening RESERVAS + "Busco un cuarto" (caso 2)
+
+### Bug cross-midnight (turnos que terminan 00:30/01:00) — CORREGIDO + blindado
+- Clubes que cierran después de medianoche → reservas/clases que terminan 00:30/01:00. El chequeo angosto `horaFin === '00:00' ? 1440 : toMin(fin)` invertía el rango (finMin < inicio) → deuda/cobro fantasma, "en curso"/%ocupación mal, duración 0, turnos futuros marcados "Finalizado".
+- Corregido en: `deudas.js`, `clubs.js` (enCurso), `AdminDashboardPage`, `ReservasPage` (venceCobro + yaTermino), `ClasesProfesorAdminPage`, `PlayerMisReservasPage`, `PlayerDashboardPage`.
+- **Prevención**: helper único `finEnMin`/`cruzaMedianoche`/`duracionMin` en `backend/src/lib/tiempo.js` y `frontend/src/utils/timeUtils.js` + tests (`tiempo.test.js`, `npm test`) + regla dura en `CLAUDE.md` (prohibido el patrón viejo).
+
+### Agujero cross-resource en turnos fijos — CERRADO (fuente única)
+- El TF que pide el jugador con auto-confirma ON chequeaba SOLO otros TF (no reservas ni clases) → podía pisar una reserva/clase. **Cerrado** con `lib/conflictos.js`: `conflictoEnFecha`/`conflictoEnDia` (chequean reservas+clases+TF, cross-midnight). Lo usa el TF (crear + confirmar). `duracionMin` para validar 90' (un TF 23:00→00:30 ya no se rechaza mal).
+- **Pendiente de consolidar** (correcto pero no unificado): reserva eventual / clase / convocatoria todavía usan su `overlaps` local — falta migrarlas a `conflictoEnFecha` para que NO puedan divergir.
+
+### Concurrencia
+- `runSerializable`: más reintentos + backoff con jitter (evita livelock bajo ráfaga concurrente). El anti-doble-booking ya era correcto (Serializable); esto lo hace robusto bajo carga.
+- **Suite `npm run test:concurrencia`** (`scripts/concurrencia.mjs`): 12 escenarios verde x3 — idénticos/solapados/no-solapados/multi-cancha, reserva↔TF↔clase↔convocatoria, cross-midnight, stress 50, cancelar+rebook, y el fix del agujero TF. **Probado bajo fuego real, no solo auditoría.**
+- ⏳ Agente QA enumerando matriz exhaustiva (ausencias, auto-confirma ON/OFF, liberar+reservar) — relanzar la próxima sesión para sumar a la suite los que falten.
+
+### "Busco un jugador" (matching caso 2) — VALIDADO e2e
+- Modelo `SolicitudJugador` (busco jugador|pareja, reservaId). `routes/solicitudes.js`. **Crear desde Mis Reservas** (botón por reserva, pre-llenado, estado Buscando/Cubierto). **Responder desde Eventos** (¡Voy!/¡Vamos!). Notifs `busca_jugador`/`solicitud_cubierta`. Probado de punta a punta con 2 jugadores de 4ta.
+- **DEUDA #2 (categorías)**: los chips dicen "4ta" pero la base guarda "4ta Categoría" → no matchean. Hoy funciona dejando la categoría vacía. Alinear (afecta busco-jugador Y convocatorias).
+
+### ▶️ ARRANCAR PRÓXIMA SESIÓN POR
+1. Relanzar agente QA de concurrencia → sumar escenarios faltantes a la suite + **consolidar reserva/clase/convocatoria a `conflictos.js`** (cierre total del bloque reservas).
+2. **Deuda #2**: alinear formato de categorías (chips ↔ base).
+3. Matching caso 1 (botón landing "no tengo con quién jugar" → convocatorias abiertas de mi categoría). Borrar data de prueba.

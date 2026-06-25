@@ -993,46 +993,51 @@ router.post('/:id/cobrar', requireAuth, requireRole('admin'), requirePermiso('ve
     const metodo = esACuenta ? null : normalizarMetodo(metodoPago)
     const now = new Date()
 
-    // TURNO
-    if (cobrarTurno && (reserva.precio ?? 0) > 0) {
-      // ¿El turno ya tenía una deuda explícita (de un "a cuenta" previo)?
-      const turnoCargoPend = await prisma.cargo.findFirst({ where: { reservaId: id, tipo: 'reserva', estado: 'pendiente' } })
-      if (!esACuenta) {
-        if (turnoCargoPend) {
-          // Saldar la deuda previa del turno (no tocar la reserva, evita doble conteo)
-          await prisma.cargo.update({ where: { id: turnoCargoPend.id }, data: { estado: 'pagado', metodoPago: metodo, pagadoAt: now } })
+    // Todas las escrituras en una sola TX Serializable: atómicas (todo-o-nada) y a prueba de
+    // carreras. El turno es idempotente (re-lee el cargo pendiente DENTRO de la TX), así un
+    // doble-submit no marca pagado dos veces ni duplica la deuda del turno.
+    await runSerializable(async (tx) => {
+      // TURNO
+      if (cobrarTurno && (reserva.precio ?? 0) > 0) {
+        // ¿El turno ya tenía una deuda explícita (de un "a cuenta" previo)?
+        const turnoCargoPend = await tx.cargo.findFirst({ where: { reservaId: id, tipo: 'reserva', estado: 'pendiente' } })
+        if (!esACuenta) {
+          if (turnoCargoPend) {
+            // Saldar la deuda previa del turno (no tocar la reserva, evita doble conteo)
+            await tx.cargo.update({ where: { id: turnoCargoPend.id }, data: { estado: 'pagado', metodoPago: metodo, pagadoAt: now } })
+          } else {
+            // Fresco → cobrado en la reserva (aparece en Caja + grilla "Pagado")
+            await tx.reserva.update({ where: { id }, data: { pagado: true, pagadoAt: now, metodoPago: metodo } })
+          }
         } else {
-          // Fresco → cobrado en la reserva (aparece en Caja + grilla "Pagado")
-          await prisma.reserva.update({ where: { id }, data: { pagado: true, pagadoAt: now, metodoPago: metodo } })
+          // A cuenta → deuda EXPLÍCITA del turno (cargo pendiente), igual que las consumiciones.
+          if (!turnoCargoPend) {
+            const cancha = await tx.cancha.findUnique({ where: { id: reserva.canchaId }, select: { nombre: true } })
+            await tx.cargo.create({
+              data: {
+                clubId, jugadorId, reservaId: id,
+                concepto: `Turno ${cancha?.nombre ?? ''} · ${reserva.fecha} ${reserva.horaInicio}`.trim(),
+                monto: reserva.precio, tipo: 'reserva', estado: 'pendiente',
+              },
+            })
+          }
+          // Neutralizo la reserva para que el turno no se cuente DOBLE con turnos-impagos
+          await tx.reserva.update({ where: { id }, data: { cobroOmitido: true } })
         }
-      } else {
-        // A cuenta → deuda EXPLÍCITA del turno (cargo pendiente), igual que las consumiciones.
-        if (!turnoCargoPend) {
-          const cancha = await prisma.cancha.findUnique({ where: { id: reserva.canchaId }, select: { nombre: true } })
-          await prisma.cargo.create({
-            data: {
-              clubId, jugadorId, reservaId: id,
-              concepto: `Turno ${cancha?.nombre ?? ''} · ${reserva.fecha} ${reserva.horaInicio}`.trim(),
-              monto: reserva.precio, tipo: 'reserva', estado: 'pendiente',
-            },
-          })
-        }
-        // Neutralizo la reserva para que el turno no se cuente DOBLE con turnos-impagos
-        await prisma.reserva.update({ where: { id }, data: { cobroOmitido: true } })
       }
-    }
 
-    // CONSUMICIONES → cargos (atados al jugador + reserva). Pagadas o a cuenta según el ticket.
-    for (const l of lineas) {
-      await prisma.cargo.create({
-        data: {
-          clubId, jugadorId, reservaId: id,
-          concepto: l.concepto, monto: l.monto, tipo: 'producto',
-          estado: esACuenta ? 'pendiente' : 'pagado',
-          ...(esACuenta ? {} : { metodoPago: metodo, pagadoAt: now }),
-        },
-      })
-    }
+      // CONSUMICIONES → cargos (atados al jugador + reserva). Pagadas o a cuenta según el ticket.
+      for (const l of lineas) {
+        await tx.cargo.create({
+          data: {
+            clubId, jugadorId, reservaId: id,
+            concepto: l.concepto, monto: l.monto, tipo: 'producto',
+            estado: esACuenta ? 'pendiente' : 'pagado',
+            ...(esACuenta ? {} : { metodoPago: metodo, pagadoAt: now }),
+          },
+        })
+      }
+    })
 
     res.json({ ok: true })
   } catch (err) {
@@ -1090,25 +1095,24 @@ router.post('/:id/cuenta', requireAuth, requireRole('admin'), requirePermiso('ve
       }
     }
 
-    // Guard anti-sobrecobro del turno: lo ya cubierto + lo nuevo no puede superar el precio
-    const precioTurno = reserva.precio ?? 0
     const nuevoTurno = items.reduce((s, i) => s + i.turnoMonto, 0)
-    if (nuevoTurno > 0) {
-      if (precioTurno <= 0) return res.status(400).json({ error: 'Este turno no tiene precio para cobrar' })
-      const cargosTurno = await prisma.cargo.findMany({ where: { reservaId: id, tipo: 'reserva' }, select: { monto: true } })
-      const yaCubierto = (reserva.pagado ? precioTurno : 0) + cargosTurno.reduce((s, c) => s + c.monto, 0)
-      if (yaCubierto + nuevoTurno > precioTurno) {
-        return res.status(400).json({ error: 'El monto del turno supera el precio del turno' })
-      }
-    }
-
     const now = new Date()
     const cancha = nuevoTurno > 0 ? await prisma.cancha.findUnique({ where: { id: reserva.canchaId }, select: { nombre: true } }) : null
     const conceptoTurno = `Turno ${cancha?.nombre ?? ''} · ${reserva.fecha} ${reserva.horaInicio}`.trim()
     // Snapshot de categoría/costo de los productos consumidos (para reportes/margen)
     const snap = await snapshotProductos(clubId, items.flatMap((i) => i.consumos.map((c) => c.productoId)))
 
-    await prisma.$transaction(async (tx) => {
+    await runSerializable(async (tx) => {
+      // Guard anti-sobrecobro DENTRO de la TX (Serializable): dos /cuenta concurrentes no pueden
+      // superar JUNTOS el precio del turno — se re-lee lo ya cubierto dentro de la transacción.
+      if (nuevoTurno > 0) {
+        const r = await tx.reserva.findUnique({ where: { id }, select: { precio: true, pagado: true } })
+        const precioT = r?.precio ?? 0
+        if (precioT <= 0) throw Object.assign(new Error('Este turno no tiene precio para cobrar'), { status: 400 })
+        const cargosTurno = await tx.cargo.findMany({ where: { reservaId: id, tipo: 'reserva' }, select: { monto: true } })
+        const yaCubierto = (r.pagado ? precioT : 0) + cargosTurno.reduce((s, c) => s + c.monto, 0)
+        if (yaCubierto + nuevoTurno > precioT) throw Object.assign(new Error('El monto del turno supera el precio del turno'), { status: 400 })
+      }
       for (const it of items) {
         const metodo = it.esACuenta ? null : normalizarMetodo(it.metodoPago)
         const estado = it.esACuenta ? 'pendiente' : 'pagado'
@@ -1142,6 +1146,7 @@ router.post('/:id/cuenta', requireAuth, requireRole('admin'), requirePermiso('ve
 
     res.json({ ok: true })
   } catch (err) {
+    if (err?.status === 400) return res.status(400).json({ error: err.message })
     console.error(err)
     res.status(500).json({ error: 'Error al cobrar la cuenta del turno' })
   }

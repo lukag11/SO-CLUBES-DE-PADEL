@@ -56,6 +56,18 @@ const crearTF = (canchaId, dia, hi, hf, desdeFecha, tag) => runSerializable(asyn
 })
 const cuenta = (res) => res.filter(r => r.status === 'fulfilled').length
 
+// Réplica fiel del handler /cuenta ARREGLADO: el guard anti-sobrecobro se lee DENTRO de la
+// TX Serializable, así dos cobros concurrentes nunca superan juntos el precio del turno.
+const cobrarCuenta = (reservaId, turnoMonto, tag) => runSerializable(async (tx) => {
+  const r = await tx.reserva.findUnique({ where: { id: reservaId }, select: { precio: true, pagado: true } })
+  const precioT = r?.precio ?? 0
+  if (precioT <= 0) throw new Error('SIN_PRECIO')
+  const cargosTurno = await tx.cargo.findMany({ where: { reservaId, tipo: 'reserva' }, select: { monto: true } })
+  const yaCubierto = (r.pagado ? precioT : 0) + cargosTurno.reduce((s, c) => s + c.monto, 0)
+  if (yaCubierto + turnoMonto > precioT) throw new Error('SOBRECOBRO')
+  return tx.cargo.create({ data: { clubId, jugadorId: jug.id, reservaId, concepto: `${NOTA}-cuenta-${tag}`, monto: turnoMonto, tipo: 'reserva', estado: 'pendiente' } })
+})
+
 const esperar = async (nombre, exp, fn) => {
   await limpiar()
   try {
@@ -173,6 +185,28 @@ await esperar('16. Mismo PROFESOR, 2 canchas distintas, mismo horario → 1 gana
     return tx.reserva.create({ data: { clubId, canchaId, profesorId: prof.id, fecha: '2026-12-18', horaInicio: '20:00', horaFin: '21:30', estado: 'confirmada', tipo: 'clase', precio: 0, jugadores: [], notas: `${NOTA}-prof-${tag}` } })
   })
   return cuenta(await Promise.allSettled([crearClaseProf(C1, 'a'), crearClaseProf(C2, 'b')]))
+})
+
+await esperar('17. Dos /cuenta concurrentes cobrando el turno COMPLETO → solo 1 cobra (no sobrecobro)', true, async () => {
+  const precio = 10000
+  const orig = await crearReserva(C1, '2026-12-19', '20:00', '21:30', 'cuenta')
+  await prisma.reserva.update({ where: { id: orig.id }, data: { precio } })
+  await Promise.allSettled(Array.from({ length: 6 }, (_, n) => cobrarCuenta(orig.id, precio, n)))
+  const cargos = await prisma.cargo.findMany({ where: { clubId, reservaId: orig.id, tipo: 'reserva' }, select: { monto: true } })
+  const total = cargos.reduce((s, c) => s + c.monto, 0)
+  // Invariante: la suma cobrada por el turno NUNCA supera el precio (y solo 1 de los 6 cobra)
+  return cargos.length === 1 && total <= precio
+})
+
+await esperar('18. Dos /cuenta concurrentes cobrando MITAD cada uno → ambos cobran, total = precio exacto', true, async () => {
+  const precio = 10000
+  const orig = await crearReserva(C1, '2026-12-22', '20:00', '21:30', 'cuenta2')
+  await prisma.reserva.update({ where: { id: orig.id }, data: { precio } })
+  await Promise.allSettled([cobrarCuenta(orig.id, precio / 2, 'a'), cobrarCuenta(orig.id, precio / 2, 'b')])
+  const cargos = await prisma.cargo.findMany({ where: { clubId, reservaId: orig.id, tipo: 'reserva' }, select: { monto: true } })
+  const total = cargos.reduce((s, c) => s + c.monto, 0)
+  // El guard NO es sobre-restrictivo: dos mitades legítimas entran y suman exactamente el precio
+  return cargos.length === 2 && total === precio
 })
 
 console.log('\n══════ RESULTADO SUITE DE CONCURRENCIA ══════')

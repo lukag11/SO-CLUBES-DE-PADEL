@@ -1,0 +1,36 @@
+name: CI
+
+# Red de seguridad: corre la suite de tests del backend en cada push/PR a main.
+# Si un test se rompe (ej: la lógica de cruce de medianoche o anti-conflicto),
+# el check queda en rojo y se ve ANTES de mergear. No deja pasar regresiones.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    name: Backend · tests unitarios
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: project/apps/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: project/apps/backend/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tests unitarios (lógica de tiempo + conflictos)
+        run: npm test
+
+# Nota: la suite de concurrencia (npm run test:concurrencia) NO corre acá porque
+# necesita una base Postgres con el club demo sembrado. Se corre en local antes de
+# cada release (ver project/claude/context/governance/flujo_desarrollo.md).

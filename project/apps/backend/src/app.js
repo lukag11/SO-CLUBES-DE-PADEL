@@ -26,6 +26,19 @@ import convocatoriasPublicasRouter from './routes/convocatorias-publicas.js'
 import solicitudesRouter from './routes/solicitudes.js'
 import { requireAuth, requireRole, requireFeature, requireClubActivo, requirePermiso } from './middleware/auth.js'
 
+// Sentry (error tracking en producción). DORMIDO si no hay SENTRY_DSN: ni siquiera se
+// importa el paquete, así en local no afecta el arranque. Para activarlo en el deploy:
+// setear SENTRY_DSN en las env vars de Railway. No hay nada más que tocar.
+let Sentry = null
+if (process.env.SENTRY_DSN) {
+  Sentry = await import('@sentry/node')
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'production',
+    tracesSampleRate: 0.1,
+  })
+}
+
 const app = express()
 
 const corsOrigin = (origin, callback) => {
@@ -70,5 +83,8 @@ app.use('/api/empleados', empleadosRouter)
 app.use('/api/convocatorias/publica', convocatoriasPublicasRouter) // público (sin auth) — debe ir ANTES del router autenticado
 app.use('/api/convocatorias', requireAuth, requireClubActivo, convocatoriasRouter)
 app.use('/api/solicitudes', requireAuth, requireClubActivo, solicitudesRouter)
+
+// Captura de errores no manejados → Sentry (solo si está activo). Va DESPUÉS de las rutas.
+if (Sentry) Sentry.setupExpressErrorHandler(app)
 
 export default app

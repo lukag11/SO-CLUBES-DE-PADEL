@@ -10,6 +10,17 @@
 
 ---
 
+## Red de seguridad: CI + monitoreo pre-deploy (2026-06-25)
+
+Idea de Luca de cara a la entrega: "agentes que revisen en tiempo real y corrijan errores". Veredicto asesor: la auto-corrección autónoma en prod es peligrosa para un sistema con plata; lo sano es **detección en tiempo real + propuesta de fix con humano en el loop**. Se dejó armada la red sin tocar la lógica de la app. Ver `flujo_desarrollo.md` §"Red de seguridad".
+
+- **CI (`.github/workflows/ci.yml`, NUEVO):** corre `npm test` del backend en cada push/PR a `main` (Node 22, `npm ci`). Bloquea regresiones en la lógica de tiempo/conflictos antes de mergear. La suite de concurrencia NO va en CI (necesita Postgres sembrado) → se corre a mano antes de cada release.
+- **Sentry DORMIDO (`src/app.js` + dep `@sentry/node`):** init condicionado a `SENTRY_DSN` con **dynamic import** → si no hay DSN, ni se importa el paquete (local = cero impacto, probado: arranca igual con y sin DSN). `setupExpressErrorHandler` al final de las rutas. Para activar en deploy: setear `SENTRY_DSN` en Railway, nada más. Captura crashes de proceso (auto) + errores que burbujean de Express.
+- **Limitación conocida (post-entrega):** los `try/catch` que responden 500 no se reportan a Sentry todavía (quedan en logs de Railway). Refinamiento: `Sentry.captureException` en los catches o arranque con `--import instrument.mjs`.
+- **`qa-flujos` pre-release** quedó escrito como paso obligatorio antes de demo/entrega.
+
+---
+
 ## Reservas — cierre del bloque: caminos de plata blindados (2026-06-25)
 
 Última pasada antes de la entrega al primer cliente. El agente `qa-flujos` enumeró la matriz completa de concurrencia de TODOS los flujos que tocan plata; quedaban 2 caminos 🟠 que leían su guard fuera de la transacción.

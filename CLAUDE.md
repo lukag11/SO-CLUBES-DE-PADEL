@@ -21,8 +21,12 @@ Antes de cualquier tarea, leer en orden:
 - Área admin: dashboard "pulso en tiempo real" (% ocupación, agenda hoy, tendencia 7d, cobros — con gating financiero por permiso), notificaciones, aprobación turnos fijos
 - Área jugador: login, registro stepper, reservas, turnos fijos, estadísticas
 - Flujo turno fijo: pendiente → aprobación admin → confirmada
+- **Torneos: COMPLETO** (admin + jugador + público): inscripción con DNI/compañero + deuda, fase de grupos, draws APA, brackets, fixture, scheduling, landing con templates, flyer (Satori), página pública. Detalle en `progreso.md` y memoria.
+- **Convocatorias (Americano/Super 8): COMPLETO** — admin (WIarky) + jugador + público, fixture balanceado, matching "busco un cuarto".
+- **Reservas: BLINDADO bajo concurrencia** (anti-doble-booking, cruce de medianoche, cancelación, sobrecobro) — suite `npm run test:concurrencia` (18 esc.) + unit (`npm test`).
+- **Red de seguridad:** CI en GitHub Actions (corre tests por push) + Sentry dormido (se activa con `SENTRY_DSN` en el deploy). Ver `flujo_desarrollo.md`.
 
-**Próximo en cola:** Torneos jugador (alta prioridad)
+**Pendientes reales (chicos):** (1) categorías no matchean (`"4ta"` vs `"4ta Categoría"`); (2) matching caso 1 (botón landing "no tengo con quién jugar"); (3) consolidar creación reserva/clase/convocatoria a `conflictos.js`; (4) borrar convocatorias de prueba; (5) refinamiento Sentry (`captureException` en catches, post-deploy). **Lo grande que falta: DEPLOY a producción.**
 
 ## Reglas críticas de negocio
 

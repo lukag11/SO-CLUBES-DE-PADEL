@@ -8,6 +8,7 @@ import { loginLimiter } from '../middleware/rateLimit.js'
 import { featuresEfectivas, accesoBloqueado } from '../lib/planes.js'
 import { getMatriz } from '../lib/planesConfig.js'
 import { permisosEfectivos } from '../lib/permisos.js'
+import { normalizarCategoria } from '../lib/categorias.js'
 
 // Mensaje de bloqueo según el motivo (club suspendido / prueba vencida).
 const mensajeBloqueo = (motivo) =>
@@ -265,7 +266,7 @@ router.post('/jugador/registro', async (req, res) => {
           ciudad:              ciudad              ?? existe.ciudad,
           posicion:            posicion            ?? existe.posicion,
           mano:                mano                ?? existe.mano,
-          categoria:           categoria           ?? existe.categoria,
+          categoria:           normalizarCategoria(categoria) ?? existe.categoria,
           frecuencia:          frecuencia          ?? existe.frecuencia,
           diasDisponibles:     diasDisponibles     ?? existe.diasDisponibles,
           horariosDisponibles: horariosDisponibles ?? existe.horariosDisponibles,
@@ -291,7 +292,7 @@ router.post('/jugador/registro', async (req, res) => {
         ciudad:              ciudad              ?? null,
         posicion:            posicion            ?? null,
         mano:                mano                ?? null,
-        categoria:           categoria           ?? null,
+        categoria:           normalizarCategoria(categoria),
         frecuencia:          frecuencia          ?? null,
         diasDisponibles:     diasDisponibles     ?? [],
         horariosDisponibles: horariosDisponibles ?? [],

@@ -4,8 +4,7 @@ import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
 import BuscadorJugador from '../components/jugadores/BuscadorJugador'
 import CargarResultados from '../components/eventos/CargarResultados'
-
-const CATEGORIAS = ['1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va']
+import { CATEGORIAS_JUGADOR, catLabel } from '../constants/categorias'
 const GENEROS = [{ k: 'masculino', l: '♂ Masculino' }, { k: 'femenino', l: '♀ Femenino' }, { k: 'mixto', l: '⚥ Mixto' }]
 
 const fmtFecha = (f) => {
@@ -440,9 +439,9 @@ function CrearConvocatoriaModal({ token, onClose, onCreada }) {
             <div>
               <label className="text-xs font-semibold text-slate-500 mb-1 block">Categorías <span className="font-normal text-slate-400">(opcional, podés elegir varias)</span></label>
               <div className="grid grid-cols-4 gap-1.5">
-                {CATEGORIAS.map((c) => (
+                {CATEGORIAS_JUGADOR.map((c) => (
                   <button key={c} onClick={() => toggleCategoria(c)} className={`py-2 rounded-lg text-sm font-semibold border transition-all ${form.categorias.includes(c) ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-200 text-slate-600 hover:border-brand-300'}`}>
-                    {c}
+                    {catLabel(c)}
                   </button>
                 ))}
               </div>

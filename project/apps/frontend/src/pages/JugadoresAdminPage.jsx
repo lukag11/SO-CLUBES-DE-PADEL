@@ -7,8 +7,7 @@ import {
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
 import { useToast } from '../components/ui/ToastProvider'
-
-const CATEGORIAS = ['1ª', '2ª', '3ª', '4ª', '5ª', '6ª', '7ª', '8ª']
+import { CATEGORIAS_JUGADOR, catLabel } from '../constants/categorias'
 
 const AVATAR_COLORS = [
   'from-violet-500 to-purple-600',
@@ -206,7 +205,7 @@ const ModalAlta = ({ onClose, onCreado }) => {
               <select name="categoria" value={form.categoria} onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
                 className="bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-brand-500/60 transition-all appearance-none">
                 <option value="" className="bg-[#0d1117] text-white/40">Sin categoría</option>
-                {CATEGORIAS.map((c) => <option key={c} value={c} className="bg-[#0d1117] text-white">{c}</option>)}
+                {CATEGORIAS_JUGADOR.map((c) => <option key={c} value={c} className="bg-[#0d1117] text-white">{catLabel(c)}</option>)}
               </select>
             </div>
 
@@ -363,7 +362,7 @@ const ModalEditar = ({ jugador, onClose, onActualizado }) => {
               <select value={form.categoria} onChange={(e) => setForm((p) => ({ ...p, categoria: e.target.value }))}
                 className="bg-white/5 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-brand-500/60 transition-all appearance-none">
                 <option value="" className="bg-[#0d1117] text-white/40">Sin categoría</option>
-                {CATEGORIAS.map((c) => <option key={c} value={c} className="bg-[#0d1117] text-white">{c}</option>)}
+                {CATEGORIAS_JUGADOR.map((c) => <option key={c} value={c} className="bg-[#0d1117] text-white">{catLabel(c)}</option>)}
               </select>
             </div>
 

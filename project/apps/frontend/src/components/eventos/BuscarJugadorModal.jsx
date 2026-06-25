@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Search, X, Check, Copy, Loader2, UserPlus, Users } from 'lucide-react'
 import { api } from '../../lib/api'
-
-const CATEGORIAS = ['1ra', '2da', '3ra', '4ta', '5ta', '6ta', '7ma', '8va']
+import { CATEGORIAS_JUGADOR, catLabel } from '../../constants/categorias'
 
 // Modal "Busco jugador/pareja" (caso 2). Se puede abrir suelto o pre-llenado desde una reserva
 // (prefill: { fecha, horaInicio, nota, reservaId }). Notifica a la categoría del jugador.
@@ -90,8 +89,8 @@ export default function BuscarJugadorModal({ token, prefill = {}, onClose, onCre
             <div>
               <label className="text-xs font-semibold text-white/50 mb-1 block">Categoría <span className="font-normal text-white/30">(si no elegís, usamos la tuya)</span></label>
               <div className="grid grid-cols-4 gap-1.5">
-                {CATEGORIAS.map((c) => (
-                  <button key={c} onClick={() => set('categoria', form.categoria === c ? '' : c)} className={`py-2 rounded-lg text-sm font-semibold border transition-all ${form.categoria === c ? 'border-club bg-club text-dark-900' : 'border-white/10 text-white/60 hover:border-club/50'}`}>{c}</button>
+                {CATEGORIAS_JUGADOR.map((c) => (
+                  <button key={c} onClick={() => set('categoria', form.categoria === c ? '' : c)} className={`py-2 rounded-lg text-sm font-semibold border transition-all ${form.categoria === c ? 'border-club bg-club text-dark-900' : 'border-white/10 text-white/60 hover:border-club/50'}`}>{catLabel(c)}</button>
                 ))}
               </div>
             </div>

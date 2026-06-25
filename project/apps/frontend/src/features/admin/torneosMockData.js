@@ -1,9 +1,6 @@
 // ── Constantes ────────────────────────────────────────────────────────────────
+// (Las categorías de jugador viven en src/constants/categorias.js — fuente única.)
 
-export const CATEGORIAS = [
-  '1° Categoría', '2° Categoría', '3° Categoría', '4° Categoría',
-  '5° Categoría', '6° Categoría', '7° Categoría', '8° Categoría',
-]
 export const GENEROS  = ['Masculino', 'Femenino', 'Mixto', 'Ambos']
 export const FORMATOS = ['Round Robin', 'Eliminación directa', 'Fase de grupos + Eliminación']
 

@@ -6,8 +6,13 @@ import { cancelarConvocatoria, crearConvocatoriaCompleta, notificarConvocatoriaC
 import { generarFixtureConvocatoria } from '../lib/fixtureConvocatoria.js'
 import { gatherDisponibilidad } from '../lib/insight.js'
 import { hoyArgStr, ahoraArgHHMM } from '../lib/tiempo.js'
+import { normalizarCategoria } from '../lib/categorias.js'
 
 const router = Router()
+
+// Normaliza un array de categorías al formato canónico ("4ta Categoría"), descartando vacías.
+const normalizarCategorias = (arr) =>
+  Array.isArray(arr) ? arr.map((c) => normalizarCategoria(c)).filter(Boolean) : []
 
 const resumenCupos = (cupos) => ({
   voy: cupos.filter((c) => c.estado === 'voy').length,
@@ -45,7 +50,7 @@ router.post('/', requireRole('admin'), async (req, res) => {
       modalidad,
       fecha,
       horaInicio,
-      categorias: Array.isArray(categorias) ? categorias.map((c) => `${c}`.trim()).filter(Boolean) : [],
+      categorias: normalizarCategorias(categorias),
       genero: generoOk,
       cupoMax: parseInt(cupoMax, 10),
       canchas: canchas ? parseInt(canchas, 10) : 1,
@@ -175,7 +180,7 @@ router.post('/mias', requireRole('jugador'), async (req, res) => {
       modalidad,
       fecha,
       horaInicio,
-      categorias: Array.isArray(categorias) ? categorias.map((c) => `${c}`.trim()).filter(Boolean) : [],
+      categorias: normalizarCategorias(categorias),
       genero: generoOk,
       cupoMax: nCupos,
       canchas: nCanchas,

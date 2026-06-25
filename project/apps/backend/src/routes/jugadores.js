@@ -5,6 +5,7 @@ import { signToken } from '../lib/jwt.js'
 import { requireAuth, requireRole, requireActive, requirePermiso } from '../middleware/auth.js'
 import { lookupLimiter } from '../middleware/rateLimit.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
+import { normalizarCategoria } from '../lib/categorias.js'
 
 const router = Router()
 
@@ -118,7 +119,7 @@ router.patch('/me', requireAuth, requireRole('jugador'), requireActive, async (r
         ...(ciudad             !== undefined && { ciudad }),
         ...(posicion           !== undefined && { posicion }),
         ...(mano               !== undefined && { mano }),
-        ...(categoria          !== undefined && { categoria }),
+        ...(categoria          !== undefined && { categoria: normalizarCategoria(categoria) }),
         ...(frecuencia         !== undefined && { frecuencia }),
         ...(diasDisponibles    !== undefined && { diasDisponibles }),
         ...(horariosDisponibles !== undefined && { horariosDisponibles }),
@@ -1108,7 +1109,7 @@ router.patch('/:id', requireAuth, requireRole('admin'), requirePermiso('jugadore
         ...(apellido  !== undefined && { apellido }),
         ...(email     !== undefined && { email }),
         ...(telefono  !== undefined && { telefono }),
-        ...(categoria !== undefined && { categoria }),
+        ...(categoria !== undefined && { categoria: normalizarCategoria(categoria) }),
         ...(activo    !== undefined && { activo }),
       },
       select: {

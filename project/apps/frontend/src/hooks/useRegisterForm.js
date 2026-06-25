@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { CATEGORIAS_JUGADOR } from '../constants/categorias'
 
 export const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 export const HORARIOS = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00', '00:00']
 export const POSICIONES = ['Drive', 'Revés', 'Ambas']
 export const MANOS = ['Diestro', 'Zurdo']
-export const CATEGORIAS = ['1ra Categoría', '2da Categoría', '3ra Categoría', '4ta Categoría', '5ta Categoría', '6ta Categoría', '7ma Categoría', '8va Categoría']
+// Fuente única en src/constants/categorias.js (se re-exporta acá por compatibilidad de imports)
+export const CATEGORIAS = CATEGORIAS_JUGADOR
 export const FRECUENCIAS = ['1 vez por semana', '2-3 veces por semana', '4-5 veces por semana', 'Todos los días']
 
 const INITIAL_STATE = {

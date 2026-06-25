@@ -14,6 +14,7 @@ import useTorneosStore from '../store/torneosStore'
 import useClubStore from '../store/clubStore'
 import useAuthStore from '../store/authStore'
 import useNotificacionesStore from '../store/notificacionesStore'
+import { CATEGORIAS_JUGADOR } from '../constants/categorias'
 import { api } from '../lib/api'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -51,16 +52,10 @@ const GENERO_CAT_OPTS = [
 
 // ── Selector de categorías ────────────────────────────────────────────────────
 
-const BASES_CATEGORIAS = [
-  { num: 1, label: '1° Categoría' },
-  { num: 2, label: '2° Categoría' },
-  { num: 3, label: '3° Categoría' },
-  { num: 4, label: '4° Categoría' },
-  { num: 5, label: '5° Categoría' },
-  { num: 6, label: '6° Categoría' },
-  { num: 7, label: '7° Categoría' },
-  { num: 8, label: '8° Categoría' },
-]
+// Bases del selector de torneo, derivadas de la fuente única (idioma pádel: "1ra/2da/4ta
+// Categoría", NUNCA grados "4°"). Las variantes ("4ta Categoría B", "+35") se construyen
+// sobre estas bases con startsWith(label + ' '), igual que antes.
+const BASES_CATEGORIAS = CATEGORIAS_JUGADOR.map((label, i) => ({ num: i + 1, label }))
 
 const CHECK = ({ size = 2 }) => (
   <svg viewBox="0 0 10 8" className={`w-${size} h-${size}`}>
@@ -969,7 +964,7 @@ const ModalTorneo = ({ onClose, onGuardar, torneoEditar = null }) => {
             {errors.categorias && <p className="text-red-500 text-xs mt-1.5">{errors.categorias}</p>}
             <InfoBlock label="¿Cómo funcionan las categorías?">
               <p>Cada categoría representa un nivel de juego. Las parejas se inscriben en la categoría que corresponde a su nivel, y cada una tiene su propio cuadro de partidos separado.</p>
-              <p><span className="font-semibold text-slate-700">Numeración:</span>{' '}1° categoría es el nivel más alto. A mayor número, menor nivel. Podés agregar variantes como "4° Categoría B" o "4° Categoría +35" para segmentar más.</p>
+              <p><span className="font-semibold text-slate-700">Numeración:</span>{' '}la 1ra Categoría es el nivel más alto. A mayor número, menor nivel. Podés agregar variantes como "4ta Categoría B" o "4ta Categoría +35" para segmentar más.</p>
               <p><span className="font-semibold text-slate-700">Múltiples categorías:</span>{' '}un mismo torneo puede tener varias. Cada una tendrá su propio cupo, zonas y cuadro de llaves independientes.</p>
             </InfoBlock>
           </div>

@@ -2,6 +2,13 @@ import prisma from './prisma.js'
 import { runSerializable } from './serializable.js'
 import { generarConvocatoriaWhatsapp } from './insight.js'
 import { hoyArgStr, ahoraArgHHMM } from './tiempo.js'
+import { normalizarCategoria } from './categorias.js'
+
+// Lleva las categorías al formato canónico ("4ta Categoría") sin importar por qué camino
+// llegaron (REST, WIarky, Fase B jugador). Punto único: garantiza que lo guardado y lo
+// notificado matcheen contra Jugador.categoria.
+const normalizarCategorias = (arr) =>
+  Array.isArray(arr) ? arr.map((c) => normalizarCategoria(c)).filter(Boolean) : []
 
 // Helpers de horario (cross-midnight aware), autocontenidos para no tocar reservas.js.
 const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
@@ -21,6 +28,7 @@ const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 's
 // (anti doble-booking). Las reservas quedan linkeadas vía convocatoriaId. Lanza {status:409}
 // si no hay N canchas libres a esa hora.
 export async function organizarConvocatoria({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias = [], genero = null, cupoMax, canchas = 1, precio = null, visibilidad = 'publica' }) {
+  categorias = normalizarCategorias(categorias)
   // Guard de fecha/hora pasada (defensa en profundidad: el front filtra, pero el backend no confía).
   const hoy = hoyArgStr()
   if (fecha < hoy || (fecha === hoy && horaInicio <= ahoraArgHHMM())) {
@@ -60,6 +68,7 @@ export async function organizarConvocatoria({ clubId, organizadorJugadorId, moda
 // Crea una convocatoria COMPLETA: reserva canchas (organizarConvocatoria) + notifica a la
 // categoría (si pública) + arma el mensaje de WhatsApp con el link. Lo usan WIarky y el form admin.
 export async function crearConvocatoriaCompleta({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias = [], genero = null, cupoMax, canchas = 1, visibilidad = 'publica' }) {
+  categorias = normalizarCategorias(categorias)
   const vis = visibilidad === 'privada' ? 'privada' : 'publica'
   const { convocatoria, canchasReservadas } = await organizarConvocatoria({ clubId, organizadorJugadorId, modalidad, fecha, horaInicio, categorias, genero, cupoMax, canchas, visibilidad: vis })
 

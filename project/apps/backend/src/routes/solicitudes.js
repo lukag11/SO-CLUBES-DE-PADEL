@@ -3,6 +3,7 @@ import prisma from '../lib/prisma.js'
 import { requireRole } from '../middleware/auth.js'
 import { runSerializable } from '../lib/serializable.js'
 import { hoyArgStr } from '../lib/tiempo.js'
+import { normalizarCategoria } from '../lib/categorias.js'
 
 // "Busco un jugador" (caso 2 del matching social): un jugador necesita un cuarto YA para un
 // turno suyo. Se notifica a los de su categoría; el primero que dice "voy" la cubre.
@@ -19,7 +20,9 @@ router.post('/', requireRole('jugador'), async (req, res) => {
   const buscoOk = busco === 'pareja' ? 'pareja' : 'jugador'
   try {
     const sol = await prisma.jugador.findUnique({ where: { id: solicitanteId }, select: { nombre: true, apellido: true, categoria: true } })
-    const cat = (categoria || sol?.categoria || '').toString().trim() || null
+    // Red defensiva: llevamos la categoría al formato canónico ("4ta Categoría") por si
+    // un cliente viejo manda el formato corto ("4ta"/"4ª") — así el match no falla.
+    const cat = normalizarCategoria(categoria || sol?.categoria)
     const solicitud = await prisma.solicitudJugador.create({
       data: { clubId, solicitanteId, busco: buscoOk, reservaId: reservaId || null, categoria: cat, fecha, horaInicio: horaInicio.padStart(5, '0'), nota: nota?.toString().trim() || null },
     })

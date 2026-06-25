@@ -1280,8 +1280,11 @@ router.delete('/:id', requireAuth, async (req, res) => {
         }
 
         if (horasRestantes < horasMinimas) {
-          // Fuera del plazo: cancelar la reserva
-          await prisma.reserva.update({ where: { id }, data: { estado: 'cancelada' } })
+          // Cancelación ATÓMICA: updateMany condicionado al estado activo → solo el PRIMERO de
+          // dos cancelaciones concurrentes la cancela (count=1) y crea el cargo. El segundo
+          // matchea 0 filas → no crea un segundo cargo (evita la plata fantasma por doble-submit).
+          const upd = await prisma.reserva.updateMany({ where: { id, estado: { in: ['pendiente', 'confirmada'] } }, data: { estado: 'cancelada' } })
+          if (upd.count === 0) return res.status(400).json({ error: 'La reserva ya está cancelada' })
 
           // Solo registrar cargo si hay un monto a cobrar
           const montoCargo = reserva.precio ?? 0

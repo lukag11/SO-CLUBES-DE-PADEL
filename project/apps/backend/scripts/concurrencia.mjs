@@ -3,7 +3,8 @@
 // para todos los flujos que ocupan una cancha: reserva eventual, clase, turno fijo, convocatoria.
 import prisma from '../src/lib/prisma.js'
 import { runSerializable } from '../src/lib/serializable.js'
-import { conflictoEnFecha, conflictoEnDia } from '../src/lib/conflictos.js'
+import { conflictoEnFecha, conflictoEnDia, overlaps } from '../src/lib/conflictos.js'
+import { organizarConvocatoria } from '../src/lib/convocatorias.js'
 
 const clubId = 'cmoryx4a900008t4qmzdzuiee'
 let PASS = 0, FAIL = 0
@@ -15,10 +16,27 @@ const prof = await prisma.profesor.findFirst({ where: { clubId }, select: { id: 
 const C1 = canchas[0].id, C2 = canchas[1]?.id
 
 const NOTA = 'integ-test'
+const FECHAS_CONV = ['2026-12-20', '2026-12-21'] // fechas dedicadas a las convocatorias del test
 const limpiar = async () => {
+  // reservas de convocatoria del test (su nota es "Convocatoria ...") por fecha dedicada
+  const convs = await prisma.convocatoria.findMany({ where: { clubId, fecha: { in: FECHAS_CONV } }, select: { id: true } })
+  if (convs.length) {
+    await prisma.reserva.deleteMany({ where: { convocatoriaId: { in: convs.map((c) => c.id) } } })
+    await prisma.convocatoria.deleteMany({ where: { id: { in: convs.map((c) => c.id) } } })
+  }
+  await prisma.cargo.deleteMany({ where: { clubId, concepto: { startsWith: NOTA } } })
   await prisma.reserva.deleteMany({ where: { clubId, notas: { startsWith: NOTA } } })
   await prisma.turnoFijo.deleteMany({ where: { clubId, notas: { startsWith: NOTA } } })
 }
+// Convocatoria real (organizarConvocatoria reserva N canchas atómico, 409 si no hay N libres)
+const crearConvocatoria = (fecha, hi, canchasN, tag) =>
+  organizarConvocatoria({ clubId, organizadorJugadorId: jug.id, modalidad: 'super8', fecha, horaInicio: hi, categorias: [], genero: null, cupoMax: 8, canchas: canchasN, visibilidad: 'publica' })
+// Cancelación con cargo, con guard atómico (igual que el handler DELETE arreglado)
+const cancelarConCargo = (reservaId, monto, tag) => (async () => {
+  const upd = await prisma.reserva.updateMany({ where: { id: reservaId, estado: { in: ['pendiente', 'confirmada'] } }, data: { estado: 'cancelada' } })
+  if (upd.count === 0) return null
+  return prisma.cargo.create({ data: { clubId, jugadorId: jug.id, reservaId, concepto: `${NOTA}-cancel-${tag}`, monto, tipo: 'cancelacion', estado: 'pendiente' } })
+})()
 
 // Creadores faithful a los handlers (chequeo único + create, bajo Serializable)
 const crearReserva = (canchaId, fecha, hi, hf, tag) => runSerializable(async (tx) => {
@@ -117,6 +135,44 @@ await esperar('12. Cancelar + re-reservar el hueco simultáneo → nunca 2 activ
   // Invariante: como mucho 1 reserva ACTIVA para ese slot (nunca 2 = nunca doble-booking).
   const activas = await prisma.reserva.count({ where: { clubId, canchaId: C1, fecha: '2026-12-16', horaInicio: '20:00', estado: { in: ['pendiente', 'confirmada'] } } })
   return activas <= 1
+})
+
+await esperar('13. Dos CONVOCATORIAS por las MISMAS 2 canchas → 1 se las lleva (aislamiento)', 1, async () => {
+  if (!C2) return 1
+  const r = await Promise.allSettled([
+    crearConvocatoria(FECHAS_CONV[0], '20:00', 2, 'a'),
+    crearConvocatoria(FECHAS_CONV[0], '20:00', 2, 'b'),
+  ])
+  const ok = cuenta(r)
+  const reservasSlot = await prisma.reserva.count({ where: { clubId, fecha: FECHAS_CONV[0], horaInicio: '20:00', estado: { in: ['pendiente', 'confirmada'] } } })
+  // 1 convocatoria gana Y deja exactamente 2 reservas (sus 2 canchas), nunca un split
+  return ok === 1 && reservasSlot === 2 ? 1 : 99
+})
+
+await esperar('14. Convocatoria 2 canchas con solo 1 libre → todo-o-nada (0 reservas, no 1)', true, async () => {
+  if (!C2) return true
+  await crearReserva(C2, FECHAS_CONV[1], '20:00', '21:30', 'ocupa') // ocupo 1 de 2 canchas
+  const r = await Promise.allSettled([crearConvocatoria(FECHAS_CONV[1], '20:00', 2, 'x')])
+  const convReservas = await prisma.reserva.count({ where: { clubId, fecha: FECHAS_CONV[1], horaInicio: '20:00', convocatoriaId: { not: null } } })
+  return cuenta(r) === 0 && convReservas === 0 // falló y NO dejó media convocatoria
+})
+
+await esperar('15. Doble cancelación con cargo simultánea → UN SOLO cargo (fix G1)', 1, async () => {
+  const orig = await crearReserva(C1, '2026-12-17', '20:00', '21:30', 'g1')
+  await Promise.allSettled(Array.from({ length: 6 }, (_, n) => cancelarConCargo(orig.id, 5000, n)))
+  return prisma.cargo.count({ where: { clubId, reservaId: orig.id } })
+})
+
+await esperar('16. Mismo PROFESOR, 2 canchas distintas, mismo horario → 1 gana (no doble-agenda)', C2 ? 1 : 1, async () => {
+  if (!C2 || !prof) return 1
+  const crearClaseProf = (canchaId, tag) => runSerializable(async (tx) => {
+    const cc = await conflictoEnFecha(tx, { clubId, canchaId, fecha: '2026-12-18', horaInicio: '20:00', horaFin: '21:30' })
+    if (cc) throw new Error('CONFLICTO:cancha')
+    const clasesProf = await tx.reserva.findMany({ where: { profesorId: prof.id, fecha: '2026-12-18', estado: { not: 'cancelada' } }, select: { horaInicio: true, horaFin: true } })
+    if (clasesProf.some((r) => overlaps(r.horaInicio, r.horaFin, '20:00', '21:30'))) throw new Error('CONFLICTO:profesor')
+    return tx.reserva.create({ data: { clubId, canchaId, profesorId: prof.id, fecha: '2026-12-18', horaInicio: '20:00', horaFin: '21:30', estado: 'confirmada', tipo: 'clase', precio: 0, jugadores: [], notas: `${NOTA}-prof-${tag}` } })
+  })
+  return cuenta(await Promise.allSettled([crearClaseProf(C1, 'a'), crearClaseProf(C2, 'b')]))
 })
 
 console.log('\n══════ RESULTADO SUITE DE CONCURRENCIA ══════')

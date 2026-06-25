@@ -5,6 +5,21 @@
 
 <!-- Las entradas nuevas se agregan acá abajo, la más reciente primero. -->
 
+## 2026-06-25 · MATRIZ DE CONCURRENCIA del módulo reservas — cobertura vs suite scripts/concurrencia.mjs (12 verdes) · Veredicto: suite INCOMPLETA (faltan escenarios, 2 caminos sin Serializable)
+
+No es una auditoría de "apto/no apto" sino un mapeo de qué escenarios de carrera NO cubre la suite actual. Archivos leídos completos: reservas.js, turnos-fijos.js, lib/conflictos.js, lib/serializable.js, lib/convocatorias.js, routes/solicitudes.js, routes/convocatorias.js (voy/baja), scripts/concurrencia.mjs.
+
+HALLAZGOS DE CÓDIGO (caminos que la suite no ejercita y el código podría no cubrir):
+- 🔴 [Seguro] `PATCH /:id/ausencia/:fecha` (turnos-fijos.js:458, ADMIN libera/crea ausencia) NO usa runSerializable: hace `turnoFijo.update push diasAusentes` + `reserva.update cancelada` con prisma plano, sin TX, sin re-lectura serializable. Es el ÚNICO camino que abre un hueco en un TF sin aislamiento. Carrera: admin libera la fecha (push diasAusentes) ⟂ jugador/otro admin reserva ese hueco que conflictoEnFecha recién ve libre cuando el push commitea → ventana TOCTOU. No produce doble-booking de dos reservas (eso sí lo protege el create de reserva), pero sí lecturas sucias del estado del TF. Contraste: la ausencia del JUGADOR (turnos-fijos.js:363) SÍ está bajo runSerializable. Asimetría a cerrar.
+- 🟠 [Probable] Reactivar ausencia (quitar fecha de diasAusentes) NO existe como endpoint → no auditable. Hoy una fecha liberada no se puede "re-ocupar" salvo recrear el TF. Si alguien agrega ese path, debe ir bajo Serializable + re-chequear que no haya reserva ya creada en el hueco (invariante: no se puede reactivar si el hueco ya fue tomado). Documentar como gap futuro.
+- 🟡 [Seguro] `armarFixtureConvocatoria` se dispara FUERA de la TX del /voy (convocatorias.js:294-298) tras contar voyCount con prisma plano. Dos /voy concurrentes que completan el cupo pueden disparar armarFixture dos veces (idempotencia depende de armarFixture, no del Serializable). No es doble-booking de cancha (las canchas ya están reservadas desde organizarConvocatoria), pero puede duplicar fixture/estado. Verificar idempotencia de armarFixtureConvocatoria (no leí su cuerpo completo en esta pasada).
+
+ESCENARIOS FALTANTES EN LA SUITE (entregados a Luca en el mensaje, agrupados A–I): ausencia↔reserva del hueco (jugador y admin), auto-confirm ON/OFF no cambia invariante de slot (pendiente bloquea igual que confirmada — verificado en conflictos.js ACTIVOS_RESERVA incluye 'pendiente'), confirmar TF pendiente ⟂ reserva en próxima ocurrencia, convocatoria atómica N canchas (todo-o-nada) + 2 convocatorias por mismas canchas, /voy de solicitudes (sí usa Serializable, solicitudes.js:88), clase mismo profesor 2 canchas simultáneo (chequeo profesorId está DENTRO de la TX:456 → cubierto, falta test), doble cancelación + cargo (DELETE reservas.js:1195 NO está bajo TX → posible doble cargo de cancelación), borde medianoche/cambio de día.
+
+Sin verificar (límites): no corrí la suite ni agregué escenarios (el pedido fue diseñar la matriz, no codear); no leí el cuerpo de armarFixureConvocatoria ni descontarStock; el riesgo del DELETE doble-cancelación es por trazado (no hay guard de estado dentro de TX), no reproducido con curl.
+
+
+
 ## 2026-06-24 · ADVERSARIAL cross-midnight (00:30/01:00) en TODO reservas — caza de hermanos del bug de display · Veredicto: NO APTO (2 hallazgos de PLATA + display)
 
 Contexto: ya se arreglaron 2 display (PlayerMisReservasPage, PlayerDashboardPage) con el patrón correcto `toMin(horaFin) <= toMin(horaInicio)`. Busqué todos los hermanos del guard angosto `horaFin === '00:00' ? 1440 : toMin(horaFin)`.

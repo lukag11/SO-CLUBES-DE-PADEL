@@ -459,37 +459,32 @@ router.patch('/:id/ausencia/:fecha', requireAuth, requireRole('admin'), requireP
   try {
     const { id, fecha } = req.params
 
-    const turno = await prisma.turnoFijo.findUnique({ where: { id } })
-    if (!turno) return res.status(404).json({ error: 'Turno fijo no encontrado' })
-    if (turno.clubId !== req.user.clubId) return res.status(403).json({ error: 'Acceso denegado' })
-
-    const eraAusenciaPendiente = turno.ausenciasPendientes.includes(fecha)
-
-    const updated = await prisma.turnoFijo.update({
-      where: { id },
-      data: {
-        diasAusentes: { push: fecha },
-        ...(eraAusenciaPendiente && { diasAusentesJugador: { push: fecha } }),
-        ausenciasPendientes: turno.ausenciasPendientes.filter((f) => f !== fecha),
-      },
-      include: INCLUDE_CANCHA,
-    })
-
-    // Cancelar la Reserva puntual asociada (creada cuando el admin asignó el turno fijo manualmente)
-    if (turno.jugadorId) {
-      const reservaAsociada = await prisma.reserva.findFirst({
-        where: {
-          canchaId: turno.canchaId,
-          fecha,
-          jugadorId: turno.jugadorId,
-          esTurnoFijo: true,
-          estado: { not: 'cancelada' },
+    // Abrir el hueco (push diasAusentes) + cancelar la reserva asociada, TODO atómico bajo
+    // Serializable. Sin esto: doble-submit duplicaba la fecha en el array y la apertura del hueco
+    // competía con una reserva concurrente (TOCTOU). Idempotente: si ya está ausente, no re-pushea.
+    const { updated, turno, eraAusenciaPendiente } = await runSerializable(async (tx) => {
+      const turno = await tx.turnoFijo.findUnique({ where: { id } })
+      if (!turno) throw Object.assign(new Error('Turno fijo no encontrado'), { status: 404 })
+      if (turno.clubId !== req.user.clubId) throw Object.assign(new Error('Acceso denegado'), { status: 403 })
+      const eraAusenciaPendiente = turno.ausenciasPendientes.includes(fecha)
+      const yaAusente = turno.diasAusentes.includes(fecha)
+      const updated = await tx.turnoFijo.update({
+        where: { id },
+        data: {
+          ...(yaAusente ? {} : { diasAusentes: { push: fecha } }),
+          ...(eraAusenciaPendiente && !turno.diasAusentesJugador.includes(fecha) ? { diasAusentesJugador: { push: fecha } } : {}),
+          ausenciasPendientes: turno.ausenciasPendientes.filter((f) => f !== fecha),
         },
+        include: INCLUDE_CANCHA,
       })
-      if (reservaAsociada) {
-        await prisma.reserva.update({ where: { id: reservaAsociada.id }, data: { estado: 'cancelada' } })
+      if (turno.jugadorId) {
+        const reservaAsociada = await tx.reserva.findFirst({
+          where: { canchaId: turno.canchaId, fecha, jugadorId: turno.jugadorId, esTurnoFijo: true, estado: { not: 'cancelada' } },
+        })
+        if (reservaAsociada) await tx.reserva.update({ where: { id: reservaAsociada.id }, data: { estado: 'cancelada' } })
       }
-    }
+      return { updated, turno, eraAusenciaPendiente }
+    })
 
     // Notificar al jugador según quién inició la liberación
     if (turno.jugadorId) {
@@ -512,7 +507,7 @@ router.patch('/:id/ausencia/:fecha', requireAuth, requireRole('admin'), requireP
 
     res.json(mapTurno(updated))
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    res.status(e.status || 500).json({ error: e.message })
   }
 })
 

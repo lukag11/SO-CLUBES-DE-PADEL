@@ -32,6 +32,7 @@ import TorneoPublicoPage from '../pages/TorneoPublicoPage'
 import TorneosPublicosPage from '../pages/TorneosPublicosPage'
 import EventosPage from '../pages/EventosPage'
 import ConvocatoriaPublicaPage from '../pages/ConvocatoriaPublicaPage'
+import PartidoPublicoPage from '../pages/PartidoPublicoPage'
 import JugadoresAdminPage from '../pages/JugadoresAdminPage'
 import ConvocatoriasAdminPage from '../pages/ConvocatoriasAdminPage'
 import ClasesProfesorAdminPage from '../pages/ClasesProfesorAdminPage'
@@ -143,6 +144,7 @@ const router = createBrowserRouter([
 
   // Página pública de una convocatoria (link de WhatsApp) — ver sin login, anotarse requiere login
   { path: '/convocatoria/:id', element: <ConvocatoriaPublicaPage /> },
+  { path: '/partido/:id', element: <PartidoPublicoPage /> },
 
   // Redirects de rutas viejas → nuevas (compatibilidad)
   { path: '/jugadores',           element: <Navigate to="/dashboardJugadores" replace /> },

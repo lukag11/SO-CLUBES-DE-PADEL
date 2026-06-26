@@ -2840,10 +2840,38 @@
         </div>
       </div>
 
+      <!-- PASO 10.5 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">10.5</span>
+          <div>
+            <div class="paso-titulo">Lobby público/privado + link compartible</div>
+            <div class="paso-ruta">Modal "¿Quién lo ve?" → /partido/:id</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En el modal, "¿Quién lo ve?": <strong>🌐 Público</strong> (avisa a tu categoría in-app) o <strong>🔒 Privado</strong> (solo por link, sin notif). Mismo criterio que Super 8.</li>
+              <li>Tras crear, copiá el link — o desde "Mis búsquedas" tocá el botón <strong>🔗 Compartir</strong> (lo copia al instante).</li>
+              <li>Abrí <code>/partido/:id</code> en otra ventana (sin login): se ve el <strong>lobby en vivo</strong> (faltan N, roster, barra de progreso, refresca cada 15s).</li>
+              <li>"¡Voy!" sin login → guarda <code>pending_partido</code> → registro/login → <strong>auto-sumado</strong> al volver (igual que las convocatorias).</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El link funciona para público y privado (<code>GET /solicitudes/publica/:id</code>); el feed interno (<code>/abiertas</code>) solo lista los públicos.
+            Todos los avisos son <strong>in-app</strong> (campana) — el push al celular es futuro.
+          </div>
+        </div>
+      </div>
+
       <div class="alerta" style="margin-top:20px;">
         <div class="titulo">🔜 Pendiente (futuro)</div>
         <ol style="margin:0; padding-left:18px; line-height:2; font-size:0.9rem;">
-          <li>Lobby público/privado en la página pública (otros ven y se anotan, reusa infra de convocatorias).</li>
+          <li>Feed público de partidos abiertos en la página pública del club (necesita densidad de jugadores).</li>
+          <li>Push real al celular: PWA + Web Push (Android) o app nativa + Firebase (Android+iPhone).</li>
           <li>El roster (titular + los que dijeron Voy) pre-puebla los jugadores del turno para el cobro/split.</li>
         </ol>
       </div>

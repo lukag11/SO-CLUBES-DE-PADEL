@@ -141,6 +141,19 @@ const PlayerLayout = () => {
       .catch(() => navigate('/dashboardJugadores/eventos'))
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-sumado a un partido abierto: si venía del link público ("Voy" sin login),
+  // al loguearse lo sumamos solo y lo llevamos a sus reservas.
+  useEffect(() => {
+    if (!token) return
+    let pendiente = null
+    try { pendiente = localStorage.getItem('pending_partido') } catch {}
+    if (!pendiente) return
+    try { localStorage.removeItem('pending_partido') } catch {}
+    api.post(`/solicitudes/${pendiente}/voy`, {}, { Authorization: `Bearer ${token}` })
+      .then((r) => { alert(r?.completo ? '¡Listo! Te sumaste y el partido quedó completo. 🎾' : '¡Listo! Te sumaste al partido. 🎾'); navigate('/dashboardJugadores/mis-reservas') })
+      .catch((e) => { if (e?.message) alert(e.message); navigate('/dashboardJugadores/reservas') })
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!isAuthenticated) {
     return <Navigate to="/dashboardJugadores" replace />
   }

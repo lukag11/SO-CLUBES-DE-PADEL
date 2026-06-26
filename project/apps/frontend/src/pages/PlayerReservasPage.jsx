@@ -9,6 +9,7 @@ import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 import useTorneosStore from '../store/torneosStore'
 import usePlayerStore from '../store/playerStore'
 import BuscarJugadorModal from '../components/eventos/BuscarJugadorModal'
+import InfoBlock from '../components/InfoBlock'
 import { api } from '../lib/api'
 
 import { overlaps, reservaBloquea, offsetFecha, toMin, toTime } from '../utils/timeUtils'
@@ -632,6 +633,7 @@ const PlayerReservasPage = () => {
       </div>
 
       {/* ── Card "armá tu partido" — matching need-driven (no tengo con quién jugar) ── */}
+      <div>
       <section className="rounded-2xl border border-club/25 bg-club/5 p-4 flex items-center gap-4">
         <span className="w-11 h-11 rounded-xl bg-club/15 grid place-items-center shrink-0"><Users size={20} className="text-club" /></span>
         <div className="flex-1 min-w-0">
@@ -665,6 +667,14 @@ const PlayerReservasPage = () => {
           <span className="shrink-0 text-club/70 text-xs font-semibold flex items-center gap-1">Elegí un horario <ChevronDown size={14} /></span>
         )}
       </section>
+      <InfoBlock label="¿Cómo armo mi partido?" variant="dark">
+        <p><strong className="text-white/80">1. Reservá tu cancha</strong> y desde la tarjeta de arriba tocá <strong className="text-club">"Buscar el que falta"</strong>.</p>
+        <p><strong className="text-white/80">2. Elegí cuántos faltan</strong> (1, 2 o 3 jugadores) o si buscás una <strong>pareja rival</strong> (2).</p>
+        <p><strong className="text-white/80">3. ¿Quién lo ve?</strong> <strong>🌐 Público</strong>: se avisa a los de tu categoría por la app · <strong>🔒 Privado</strong>: solo por el link que compartís con tu grupo.</p>
+        <p><strong className="text-white/80">4. Los que dicen ¡Voy!</strong> ocupan un lugar. Cuando se completa, les avisamos a todos por la app que <strong className="text-club">ya están todos</strong>. 🎾</p>
+        <p className="text-white/40">Todos los avisos llegan dentro de la app (en la 🔔 campana).</p>
+      </InfoBlock>
+      </div>
 
       {/* Modal de búsqueda atado a la reserva elegida en la card */}
       {buscarPrefill && (

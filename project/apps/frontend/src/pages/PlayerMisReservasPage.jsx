@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CalendarDays, Clock, XCircle, Info, X, CheckCircle, Search, UserPlus } from 'lucide-react'
+import { CalendarDays, Clock, XCircle, Info, X, CheckCircle, Search, UserPlus, Link2 } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import useClubStore from '../store/clubStore'
 import useReservasStore from '../store/reservasStore'
@@ -126,6 +126,7 @@ export default function PlayerMisReservasPage() {
   const [misSol, setMisSol] = useState([]) // mis búsquedas (para mostrar estado por reserva)
   const [buscarPrefill, setBuscarPrefill] = useState(null) // { fecha, horaInicio, nota, reservaId }
   const [cancelandoSol, setCancelandoSol] = useState(null) // id de búsqueda que se está cancelando
+  const [copiadoId, setCopiadoId] = useState(null) // id de búsqueda cuyo link se acaba de copiar
 
   const fetchReservas = () => {
     if (!token) return
@@ -147,6 +148,13 @@ export default function PlayerMisReservasPage() {
   }
   // Búsquedas activas (abiertas o ya cubiertas) — las canceladas no se listan.
   const misSolActivas = useMemo(() => misSol.filter((s) => s.estado !== 'cancelada'), [misSol])
+  // Copia al portapapeles el link público del partido (para re-compartir cuando quiera).
+  const compartirPartido = (s) => {
+    const link = `${window.location.origin}/partido/${s.id}`
+    navigator.clipboard?.writeText(link)
+      .then(() => { setCopiadoId(s.id); setTimeout(() => setCopiadoId(null), 2000) })
+      .catch(() => toast.error('No se pudo copiar el link'))
+  }
   // Última búsqueda activa (abierta/cubierta) por reservaId.
   const solPorReserva = useMemo(() => {
     const map = {}
@@ -392,9 +400,14 @@ export default function PlayerMisReservasPage() {
                     {completo ? (
                       <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-club/15 text-club shrink-0">✓ Completo</span>
                     ) : (
-                      <button onClick={() => cancelarSolicitud(s.id)} disabled={cancelandoSol === s.id} className="text-[11px] text-white/40 hover:text-red-400 transition-colors shrink-0 disabled:opacity-50">
-                        {cancelandoSol === s.id ? '…' : 'Cancelar'}
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => compartirPartido(s)} className="flex items-center gap-1 text-[11px] font-semibold text-club/80 hover:text-club transition-colors">
+                          <Link2 size={12} /> {copiadoId === s.id ? '¡Copiado!' : 'Compartir'}
+                        </button>
+                        <button onClick={() => cancelarSolicitud(s.id)} disabled={cancelandoSol === s.id} className="text-[11px] text-white/40 hover:text-red-400 transition-colors disabled:opacity-50">
+                          {cancelandoSol === s.id ? '…' : 'Cancelar'}
+                        </button>
+                      </div>
                     )}
                   </div>
               )

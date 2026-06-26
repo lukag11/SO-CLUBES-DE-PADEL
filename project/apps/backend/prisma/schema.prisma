@@ -516,6 +516,7 @@ model SolicitudJugador {
   solicitanteId String   // jugador que busca
   busco         String   @default("jugador") // 'jugador' (faltan 1-3) | 'pareja' (rival, 2 fijo)
   cupos         Int      @default(1) // lugares a llenar: 'jugador' 1-3 (elegible), 'pareja' = 2 fijo
+  visibilidad   String   @default("privada") // 'privada' (solo notif a la categoría) | 'publica' (link compartible + lobby)
   reservaId     String?  // turno al que pertenece (para contexto / pre-llenado)
   categoria     String?  // categoría objetivo (a quién se le notifica)
   fecha         String   // YYYY-MM-DD

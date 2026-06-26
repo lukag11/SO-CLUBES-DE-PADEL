@@ -9,6 +9,7 @@ export default function BuscarJugadorModal({ token, prefill = {}, onClose, onCre
   const [form, setForm] = useState({
     busco: 'jugador',
     cupos: 1, // cuántos faltan (solo aplica a 'jugador'; 'pareja' = 2 fijo en el backend)
+    visibilidad: 'publica', // 'publica' = avisa a tu categoría (app) | 'privada' = solo por link (tu grupo)
     fecha: prefill.fecha || '',
     horaInicio: prefill.horaInicio || '',
     categoria: prefill.categoria || '',
@@ -27,7 +28,7 @@ export default function BuscarJugadorModal({ token, prefill = {}, onClose, onCre
     if (!form.horaInicio) return setError('Elegí el horario.')
     setCreando(true)
     api.post('/solicitudes', {
-      busco: form.busco, cupos: form.cupos, fecha: form.fecha, horaInicio: form.horaInicio,
+      busco: form.busco, cupos: form.cupos, visibilidad: form.visibilidad, fecha: form.fecha, horaInicio: form.horaInicio,
       categoria: form.categoria || null, nota: form.nota || null, reservaId: prefill.reservaId || null,
     }, { Authorization: `Bearer ${token}` })
       .then((r) => setRes(r))
@@ -112,9 +113,26 @@ export default function BuscarJugadorModal({ token, prefill = {}, onClose, onCre
               <input value={form.nota} onChange={(e) => set('nota', e.target.value)} maxLength={80} placeholder="Ej: Cancha 2, falta drive"
                 className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white focus:border-club focus:outline-none placeholder:text-white/25" />
             </div>
+
+            {/* ¿Quién lo ve? — mismo criterio que Americano/Super 8. Todo el aviso es por la app. */}
+            <div>
+              <label className="text-xs font-semibold text-white/50 mb-1 block">¿Quién lo ve?</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => set('visibilidad', 'publica')} className={`py-2 px-2 rounded-lg text-left border transition-all ${form.visibilidad === 'publica' ? 'border-club bg-club/10' : 'border-white/10'}`}>
+                  <p className="text-sm font-semibold text-white/90">🌐 Público</p>
+                  <p className="text-[10px] text-white/35">Se avisa a tu categoría por la app</p>
+                </button>
+                <button onClick={() => set('visibilidad', 'privada')} className={`py-2 px-2 rounded-lg text-left border transition-all ${form.visibilidad === 'privada' ? 'border-club bg-club/10' : 'border-white/10'}`}>
+                  <p className="text-sm font-semibold text-white/90">🔒 Privado</p>
+                  <p className="text-[10px] text-white/35">Solo por link, para tu grupo</p>
+                </button>
+              </div>
+              <p className="text-[10px] text-white/30 mt-1">El aviso y las invitaciones se envían dentro de la app.</p>
+            </div>
+
             {error && <p className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{error}</p>}
             <button onClick={crear} disabled={creando} className="py-3 rounded-xl bg-club text-dark-900 text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-              {creando ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} {creando ? 'Enviando…' : 'Avisar a mi categoría'}
+              {creando ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} {creando ? 'Enviando…' : (form.visibilidad === 'publica' ? 'Avisar a mi categoría' : 'Crear y compartir link')}
             </button>
           </div>
         )}

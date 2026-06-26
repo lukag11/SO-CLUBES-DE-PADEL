@@ -24,6 +24,7 @@ import empleadosRouter from './routes/empleados.js'
 import convocatoriasRouter from './routes/convocatorias.js'
 import convocatoriasPublicasRouter from './routes/convocatorias-publicas.js'
 import solicitudesRouter from './routes/solicitudes.js'
+import solicitudesPublicasRouter from './routes/solicitudes-publicas.js'
 import { requireAuth, requireRole, requireFeature, requireClubActivo, requirePermiso } from './middleware/auth.js'
 
 // Sentry (error tracking en producción). DORMIDO si no hay SENTRY_DSN: ni siquiera se
@@ -82,6 +83,7 @@ app.use('/api/platform', platformRouter)
 app.use('/api/empleados', empleadosRouter)
 app.use('/api/convocatorias/publica', convocatoriasPublicasRouter) // público (sin auth) — debe ir ANTES del router autenticado
 app.use('/api/convocatorias', requireAuth, requireClubActivo, convocatoriasRouter)
+app.use('/api/solicitudes/publica', solicitudesPublicasRouter) // público (sin auth) — debe ir ANTES del router autenticado
 app.use('/api/solicitudes', requireAuth, requireClubActivo, solicitudesRouter)
 
 // Captura de errores no manejados → Sentry (solo si está activo). Va DESPUÉS de las rutas.

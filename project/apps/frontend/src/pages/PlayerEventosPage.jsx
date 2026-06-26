@@ -3,6 +3,7 @@ import { Megaphone, Repeat, Users, CalendarDays, Clock, Check, Loader2, ChevronD
 import usePlayerStore from '../store/playerStore'
 import { api } from '../lib/api'
 import CargarResultados from '../components/eventos/CargarResultados'
+import InfoBlock from '../components/InfoBlock'
 import { rankingAmericano, rankingSuper8 } from '../lib/eventos'
 
 const normNom = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim()
@@ -85,6 +86,12 @@ export default function PlayerEventosPage() {
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2"><Megaphone size={22} className="text-club" /> Americano y Super 8</h1>
           <p className="text-white/40 text-sm mt-1">Sumate a los eventos del club o organizá el tuyo.</p>
+          <InfoBlock label="¿Cómo funciona?" variant="dark">
+            <p><strong className="text-white/80">Qué es:</strong> un Americano o Super 8 es un evento social de 8 jugadores. Se juega por puntos y al final hay un ranking en vivo.</p>
+            <p><strong className="text-white/80">Para sumarte:</strong> en "Eventos abiertos del club" elegí uno de tu categoría y tocá <strong className="text-club">¡Voy!</strong>. Cuando se completa el cupo, el fixture se arma solo.</p>
+            <p><strong className="text-white/80">Para organizar el tuyo:</strong> tocá <strong className="text-club">Organizar</strong>, elegí día y horario (reservás 2 canchas a tu nombre) y compartí el link. Quedás anotado automáticamente.</p>
+            <p className="text-white/40">Todos los avisos llegan dentro de la app (en la 🔔 campana).</p>
+          </InfoBlock>
         </div>
         <button onClick={() => setOrganizarOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-club text-dark-900 text-sm font-bold hover:opacity-90 transition-all shrink-0">
           <Plus size={16} /> Organizar
@@ -249,6 +256,11 @@ function EventoRow({ c, mio, onVoy, onBaja, onCancelarMio, onCargar, loading, to
   const [abierto, setAbierto] = useState(false)
   const [detalle, setDetalle] = useState(null)
   const [cargando, setCargando] = useState(false)
+  const [copiado, setCopiado] = useState(false)
+  const compartir = () => {
+    navigator.clipboard?.writeText(`${window.location.origin}/convocatoria/${c.id}`)
+      .then(() => { setCopiado(true); setTimeout(() => setCopiado(false), 2000) }).catch(() => {})
+  }
 
   const toggle = () => {
     const nuevo = !abierto
@@ -284,6 +296,9 @@ function EventoRow({ c, mio, onVoy, onBaja, onCancelarMio, onCargar, loading, to
         </button>
         {mio ? (
           <div className="flex items-center gap-2 shrink-0">
+            <button onClick={compartir} className="flex items-center gap-1 text-[11px] font-semibold text-club/70 hover:text-club transition-colors">
+              <Copy size={12} /> {copiado ? '¡Copiado!' : 'Compartir'}
+            </button>
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.soyOrganizador ? 'bg-club/15 text-club' : c.miEstado === 'voy' ? 'bg-club/15 text-club' : 'bg-amber-500/15 text-amber-400'}`}>
               {c.soyOrganizador ? 'Organizás' : c.miEstado === 'voy' ? 'Anotado' : 'En espera'}
             </span>

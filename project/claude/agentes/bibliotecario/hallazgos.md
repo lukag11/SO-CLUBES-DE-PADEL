@@ -7,6 +7,43 @@
 
 ---
 
+## 2026-06-26 · UX del "no tengo con quién jugar" / completar el partido — rediseño de la card en Reservar cancha
+
+**Contexto:** ya existe `SolicitudJugador` (busca "jugador" o "pareja" desde Mis Reservas, botón "Buscar jugador" por reserva, notifica a misma categoría, primero que dice "¡Voy!" cubre). Luca quiere llevarlo a la pantalla de RESERVAR CANCHA como CARD dinámica siempre visible ("¿No tenés con quién jugar? Reservá y te ayudamos"). WebSearch/WebFetch SÍ habilitados este turno — material refrescado.
+
+### Flujo Open Match (Playtomic) — refresco 2026 [Verificado]
+- **Crear:** el jugador define deporte, lugar, fecha/hora, single o doble, y tipo+nivel (casual/competitivo). Fuente: helpmanager.playtomic.com (configure Open Matches), playerhelp (sign up).
+- **DATO NUEVO CLAVE:** la cancha **NO se reserva al crear** el open match. El booking se confirma automáticamente cuando se alcanzan umbrales de jugadores / límites de tiempo, o cuando un admin asigna cancha. → Playtomic separa "abrir partido" de "reservar cancha" (abre primero, reserva después). Fuente: playerhelp.playtomic.com / helpmanager (How to manage Open Matches). **Esto es lo OPUESTO a PadelwIArk y a MATCHi (reservás primero, después abrís).**
+- **Nivel dinámico:** el rango se ajusta según el primer que entra (-0.25 / +0.75). Sistema 1–7 (6–7 = elite/pro). Competitivo mueve el rating; friendly no. Fuente: playtomic.com.
+- **Join con aprobación:** si no encajás por nivel podés tocar **"Request your place"** → todos los jugadores ya dentro reciben notificación y deben aprobar; basta UN rechazo para que no entres. Confirmado el cupo → **pagás** y queda confirmado. Fuente: playerhelp (Request a spot in a public match).
+
+### MATCHi Public Match — refresco 2026 [Verificado]
+- Nace del caso 2 puro: abrís "Upcoming Bookings" → tocás **"Need more players"** → configurás visibilidad + rango de nivel → otros piden unirse y vos (el que reservó) **aprobás/rechazás con control total**. Solo en la app móvil, no web. Fuente: matchiplayers.zendesk.com (Public Matches Q&A), matchi.se.
+- Copy textual de MATCHi: **"Need more players"**. Cualquier reserva se puede hacer pública.
+
+### Players locales / LatAm [Verificado el feature; detalle UX parcial]
+- **Padelero (AR):** "Buscá partidos abiertos en tu club o creá uno y que se sumen otros jugadores" + **Match Maker "tipo Tinder pero para pádel"** (encontrá rivales/compañeros de tu nivel). El ángulo social/swipe es su gancho de marca. Fuente: padelero.app.
+- **GetMatch (Mar del Plata, AR):** "encontrar partidos disponibles, completar encuentros o conocer jugadores de una categoría similar" con **ELO estilo ajedrez**. Resuelve explícito el dolor de "buscar compañero sin depender de tu red de WhatsApp". Fuente: bacap.com.ar (2026-03-27).
+- **Playmix / Sportlix (AR):** "elegí cancha y horario, unite a partidos abiertos o creá el tuyo". Fuente: playmix.pro, sportlix.io.
+- **Playmatch (AR):** "encontrá partidos y jugadores", comunidad. Fuente: playmatch.app.
+- **Lectura:** el copy local converge en dos verbos — **"completar el partido"** y **"partido abierto"**. El sistema de nivel local es ELO (GetMatch) o autoevaluado; la categoría federada 1ra–8va de PadelwIArk es más gruesa pero más natural para el amateur AR.
+
+### Cruce con PadelwIArk [Verificado contra código]
+- `SolicitudJugador` ya cubre el 80% del modelo MATCHi: busco jugador/pareja, atado a reserva, notifica por categoría, estados abierta/cubierta/cancelada, cancelable. **Lo tenemos.**
+- Lo que NO tenemos vs líderes: (1) **aprobación del organizador** (hoy "el primero que dice Voy cubre" = sin filtro; MATCHi/Playtomic dejan al creador aprobar); (2) **estado visual "X de 4"** (cupos llenándose); (3) **descubrimiento** — nadie ve las solicitudes abiertas salvo por notificación push; no hay un listado/feed de partidos abiertos del club; (4) **ancla anti-no-show** (Playtomic/MATCHi = pago; nosotros = nada todavía); (5) **deadline + auto-cierre**.
+
+### Fuentes
+- https://helpmanager.playtomic.com/hc/en-gb/articles/20535035123473-How-to-configure-Open-Matches-at-your-Club
+- https://playerhelp.playtomic.com/hc/en-gb/articles/19832151055121-How-to-sign-up-for-an-Open-Match
+- https://playerhelp.playtomic.com/hc/en-gb/articles/19832027031569-How-to-request-a-spot-in-a-public-match
+- https://helpmanager.playtomic.com/hc/en-gb/articles/20534737902353-How-to-manage-Open-Matches-in-Playtomic-Manager
+- https://matchiplayers.zendesk.com/hc/en-gb/articles/21818109944221-Public-Matches-Q-A
+- https://www.padelero.app/
+- https://bacap.com.ar/2026/03/27/getmatch-la-app-marplatense-que-conecta-jugadores-partidos-y-torneos-de-padel/
+- https://playmix.pro/ · https://sportlix.io/ · https://playmatch.app/
+
+---
+
 ## 2026-06-24 (bis) · ¿Persistir el historial de Americano/Super 8 y/o alimentar stats del jugador? — cómo lo hacen los demás
 
 **Contexto:** ya está implementada la carga de resultados + ranking EN VIVO. Nueva duda de Luca: "¿estas estadísticas se guardan en algún lado? ¿cómo lo hacen los demás?". Foco de este eje = PERSISTENCIA / HISTORIAL (no el live ranking, ya cubierto).

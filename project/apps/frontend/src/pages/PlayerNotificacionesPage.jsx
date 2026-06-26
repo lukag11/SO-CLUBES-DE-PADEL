@@ -179,8 +179,10 @@ const PlayerNotificacionesPage = () => {
 
               const claseBase = `flex items-start gap-4 px-6 py-4 transition-colors ${notif.leida ? '' : 'bg-white/2'}`
 
+              // busca_jugador (matching de partido) vive en Reservas; convocatoria_abierta en Eventos.
+              const linkDestino = notif.tipo === 'busca_jugador' ? '/dashboardJugadores/reservas' : '/dashboardJugadores/eventos'
               return linkEventos ? (
-                <Link key={notif.id} to="/dashboardJugadores/eventos" className={`${claseBase} hover:bg-white/5`}>
+                <Link key={notif.id} to={linkDestino} className={`${claseBase} hover:bg-white/5`}>
                   {contenido}
                 </Link>
               ) : (

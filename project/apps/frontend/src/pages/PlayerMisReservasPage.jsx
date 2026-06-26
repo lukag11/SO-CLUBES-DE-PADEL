@@ -19,6 +19,11 @@ const fmtFechaHeader = (fechaStr, hoyStr) => {
     ? `Hoy · ${diaSemana} ${d} de ${MESES_LARGO[m - 1]}`
     : `${diaSemana} ${d} de ${MESES_LARGO[m - 1]}`
 }
+const fmtFechaCorta = (f) => {
+  if (!f) return ''
+  const [y, m, d] = f.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
+}
 
 // ─── Fila de reserva ──────────────────────────────────────────────────────────
 // showDate=true: muestra el date box (usado en historial donde no hay header de fecha)
@@ -120,6 +125,7 @@ export default function PlayerMisReservasPage() {
   const [filtro, setFiltro] = useState('proximas') // 'proximas' | 'todas'
   const [misSol, setMisSol] = useState([]) // mis búsquedas (para mostrar estado por reserva)
   const [buscarPrefill, setBuscarPrefill] = useState(null) // { fecha, horaInicio, nota, reservaId }
+  const [cancelandoSol, setCancelandoSol] = useState(null) // id de búsqueda que se está cancelando
 
   const fetchReservas = () => {
     if (!token) return
@@ -133,6 +139,14 @@ export default function PlayerMisReservasPage() {
     api.get('/solicitudes/mias', { Authorization: `Bearer ${token}` })
       .then((d) => setMisSol(Array.isArray(d) ? d : [])).catch(() => {})
   }
+  const cancelarSolicitud = (id) => {
+    if (cancelandoSol) return
+    setCancelandoSol(id)
+    api.post(`/solicitudes/${id}/cancelar`, {}, { Authorization: `Bearer ${token}` })
+      .then(() => fetchSolicitudes()).catch(() => toast.error('No se pudo cancelar la búsqueda')).finally(() => setCancelandoSol(null))
+  }
+  // Búsquedas activas (abiertas o ya cubiertas) — las canceladas no se listan.
+  const misSolActivas = useMemo(() => misSol.filter((s) => s.estado !== 'cancelada'), [misSol])
   // Última búsqueda activa (abierta/cubierta) por reservaId.
   const solPorReserva = useMemo(() => {
     const map = {}
@@ -355,6 +369,31 @@ export default function PlayerMisReservasPage() {
             ver todas
           </button>
         </p>
+      )}
+
+      {/* Mis búsquedas de jugador (caso 2) — estado de lo que pediste + cancelar */}
+      {misSolActivas.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-white/70 mb-2.5 flex items-center gap-1.5"><Search size={15} className="text-club" /> Mis búsquedas</h2>
+          <div className="flex flex-col gap-2">
+            {misSolActivas.map((s) => (
+              <div key={s.id} className="rounded-2xl border border-white/8 bg-[#0d1117] p-3.5 flex items-center gap-3">
+                <span className="w-9 h-9 rounded-xl bg-white/5 grid place-items-center shrink-0"><Search size={16} className="text-white/40" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-semibold truncate">{s.busco === 'pareja' ? 'Busco una pareja' : 'Busco un jugador'}{s.categoria ? ` · ${s.categoria}` : ''}</p>
+                  <p className="text-white/40 text-xs flex items-center gap-2 mt-0.5 capitalize"><CalendarDays size={11} /> {fmtFechaCorta(s.fecha)} · {s.horaInicio}</p>
+                </div>
+                {s.estado === 'cubierta' ? (
+                  <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-club/15 text-club shrink-0">✓ {s.cubiertoPor}</span>
+                ) : (
+                  <button onClick={() => cancelarSolicitud(s.id)} disabled={cancelandoSol === s.id} className="text-[11px] text-white/40 hover:text-red-400 transition-colors shrink-0 disabled:opacity-50">
+                    {cancelandoSol === s.id ? '…' : 'Cancelar'}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Modal "busco jugador/pareja" pre-llenado desde la reserva */}

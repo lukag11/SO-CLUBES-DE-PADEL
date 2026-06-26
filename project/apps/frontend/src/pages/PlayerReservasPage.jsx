@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useLocation, Link } from 'react-router-dom'
-import { CalendarDays, Clock, MapPin, CheckCircle, XCircle, ChevronLeft, ChevronRight, ChevronDown, Info, Repeat, X, Trophy } from 'lucide-react'
+import { CalendarDays, Clock, MapPin, CheckCircle, XCircle, ChevronLeft, ChevronRight, ChevronDown, Info, Repeat, X, Trophy, UserPlus, Users, Search, Loader2, Check } from 'lucide-react'
 import useClubStore from '../store/clubStore'
 import useReservasStore from '../store/reservasStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
@@ -8,6 +8,7 @@ import useReservasAdminStore from '../store/reservasAdminStore'
 import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 import useTorneosStore from '../store/torneosStore'
 import usePlayerStore from '../store/playerStore'
+import BuscarJugadorModal from '../components/eventos/BuscarJugadorModal'
 import { api } from '../lib/api'
 
 import { overlaps, reservaBloquea, offsetFecha, toMin, toTime } from '../utils/timeUtils'
@@ -204,6 +205,13 @@ const PlayerReservasPage = () => {
   const [reservasDB, setReservasDB] = useState([])
   const [misReservasDB, setMisReservasDB] = useState([])
   const [errorReserva, setErrorReserva] = useState(null)
+  // Matching "no tengo con quién jugar": mis búsquedas activas (para saber qué reserva próxima
+  // todavía no tiene una búsqueda abierta) + el modal de búsqueda atado a esa reserva.
+  const [misSol, setMisSol] = useState([])
+  const [buscarPrefill, setBuscarPrefill] = useState(null) // { fecha, horaInicio, nota, reservaId }
+  // Feed: partidos de OTROS de mi categoría que buscan gente (el receptor de la notif dice "¡Voy!").
+  const [solAbiertas, setSolAbiertas] = useState([])
+  const [accionSol, setAccionSol] = useState(null)
 
   const [slotsOcupadosClub, setSlotsOcupadosClub] = useState([])
 
@@ -233,6 +241,27 @@ const PlayerReservasPage = () => {
     api.get('/reservas/me', { Authorization: `Bearer ${token}` })
       .then((data) => setMisReservasDB(data))
       .catch(() => setMisReservasDB([]))
+  }
+
+  // Mis búsquedas (para la card need-driven: detectar reservas próximas sin partido completo).
+  const fetchMisSol = () => {
+    if (!token) return
+    api.get('/solicitudes/mias', { Authorization: `Bearer ${token}` })
+      .then((d) => setMisSol(Array.isArray(d) ? d : [])).catch(() => setMisSol([]))
+  }
+  // Partidos abiertos de OTROS de mi categoría (el backend ya filtra por categoría y excluye los míos).
+  const fetchSolAbiertas = () => {
+    if (!token) return
+    api.get('/solicitudes/abiertas', { Authorization: `Bearer ${token}` })
+      .then((d) => setSolAbiertas(Array.isArray(d) ? d : [])).catch(() => setSolAbiertas([]))
+  }
+  useEffect(() => { fetchMisSol(); fetchSolAbiertas() }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+  // "¡Voy!" del receptor — mismo mecanismo que el Voy de Super 8/Americano.
+  const sumarmeSolicitud = (id) => {
+    if (accionSol) return
+    setAccionSol(id)
+    api.post(`/solicitudes/${id}/voy`, {}, { Authorization: `Bearer ${token}` })
+      .then(() => { fetchSolAbiertas(); fetchMisSol() }).catch((e) => setErrorReserva(e?.message || 'No se pudo sumar')).finally(() => setAccionSol(null))
   }
 
   // Recarga reservas del día cada vez que cambia la fecha seleccionada
@@ -577,6 +606,22 @@ const PlayerReservasPage = () => {
     )
   }
 
+  // ── Card "armá tu partido" (matching need-driven): se apoya en MIS reservas, así nunca se ve
+  // vacía (no depende de la actividad de otros). Estado A: tengo un turno futuro sin búsqueda →
+  // "buscá el que falta". Estado B: ya estoy buscando. Estado C: no tengo turnos → gancho a reservar.
+  const fechaHoraTs = (f, h) => {
+    const [y, mo, d] = f.split('-').map(Number)
+    const [hh, mm] = (h || '00:00').split(':').map(Number)
+    return new Date(y, mo - 1, d, hh, mm).getTime()
+  }
+  const ahoraTs = Date.now()
+  const reservasFuturas = misReservasMapped
+    .filter((r) => !r.esTurnoFijo && r.estado !== 'cancelada' && fechaHoraTs(r.fecha, r.hora) > ahoraTs)
+    .sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora))
+  const solReservaIds = new Set(misSol.filter((s) => s.reservaId && s.estado === 'abierta').map((s) => s.reservaId))
+  const proximaSinBusqueda = reservasFuturas.find((r) => !solReservaIds.has(r.id))
+  const tengoBusquedaActiva = misSol.some((s) => s.estado === 'abierta')
+
   return (
     <div className="flex flex-col gap-6">
 
@@ -585,6 +630,79 @@ const PlayerReservasPage = () => {
         <h1 className="text-2xl font-bold text-white">Reservar cancha</h1>
         <p className="text-white/40 text-sm mt-1">Seleccioná el día, la cancha y el horario.</p>
       </div>
+
+      {/* ── Card "armá tu partido" — matching need-driven (no tengo con quién jugar) ── */}
+      <section className="rounded-2xl border border-club/25 bg-club/5 p-4 flex items-center gap-4">
+        <span className="w-11 h-11 rounded-xl bg-club/15 grid place-items-center shrink-0"><Users size={20} className="text-club" /></span>
+        <div className="flex-1 min-w-0">
+          {proximaSinBusqueda ? (
+            <>
+              <p className="text-white text-sm font-bold">Te falta gente para tu turno</p>
+              <p className="text-white/50 text-xs mt-0.5 capitalize">{proximaSinBusqueda.canchaNombre} · {fmtLegible(proximaSinBusqueda.fecha)} · {proximaSinBusqueda.hora} — todavía no completaste el partido.</p>
+            </>
+          ) : tengoBusquedaActiva ? (
+            <>
+              <p className="text-white text-sm font-bold">Estás buscando jugadores</p>
+              <p className="text-white/50 text-xs mt-0.5">Avisamos a los de tu categoría. Te avisamos cuando alguien se suma.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-white text-sm font-bold">¿No tenés con quién jugar?</p>
+              <p className="text-white/50 text-xs mt-0.5">Reservá tu cancha y avisamos a los de tu categoría. El primero que se suma, juega.</p>
+            </>
+          )}
+        </div>
+        {proximaSinBusqueda ? (
+          <button onClick={() => setBuscarPrefill({ fecha: proximaSinBusqueda.fecha, horaInicio: proximaSinBusqueda.hora, nota: proximaSinBusqueda.canchaNombre, reservaId: proximaSinBusqueda.id })}
+            className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-club text-dark-900 text-sm font-bold hover:opacity-90 transition-all">
+            <UserPlus size={15} /> Buscar el que falta
+          </button>
+        ) : tengoBusquedaActiva ? (
+          <Link to="/dashboardJugadores/mis-reservas" className="shrink-0 px-4 py-2.5 rounded-xl border border-club/40 text-club text-sm font-bold hover:bg-club/10 transition-all">
+            Ver mis búsquedas
+          </Link>
+        ) : (
+          <span className="shrink-0 text-club/70 text-xs font-semibold flex items-center gap-1">Elegí un horario <ChevronDown size={14} /></span>
+        )}
+      </section>
+
+      {/* Modal de búsqueda atado a la reserva elegida en la card */}
+      {buscarPrefill && (
+        <BuscarJugadorModal token={token} prefill={buscarPrefill}
+          onClose={() => setBuscarPrefill(null)}
+          onCreado={() => { setBuscarPrefill(null); fetchMisSol() }} />
+      )}
+
+      {/* Feed: partidos de otros que buscan gente de tu categoría → "¡Voy!" (lugar del receptor) */}
+      {solAbiertas.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-white/70 mb-2.5 flex items-center gap-1.5">
+            <Search size={15} className="text-club" /> Buscan jugadores en tu categoría
+          </h2>
+          <div className="flex flex-col gap-2.5">
+            {solAbiertas.map((s) => {
+              const esPareja = s.busco === 'pareja'
+              return (
+                <div key={s.id} className="rounded-2xl border border-club/25 bg-club/5 p-4 flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-xl bg-club/15 grid place-items-center shrink-0">{esPareja ? <Users size={18} className="text-club" /> : <UserPlus size={18} className="text-club" />}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-semibold truncate">{esPareja ? 'Buscan una pareja rival' : 'Falta un jugador'}{s.categoria ? ` · ${s.categoria}` : ''}</p>
+                    <p className="text-white/40 text-xs flex items-center gap-2 mt-0.5 capitalize">
+                      <span className="flex items-center gap-1"><CalendarDays size={11} /> {fmtLegible(s.fecha)}</span>
+                      <span className="flex items-center gap-1"><Clock size={11} /> {s.horaInicio}</span>
+                    </p>
+                    <p className="text-white/30 text-[11px] mt-0.5 truncate">{s.solicitante}{s.nota ? ` · ${s.nota}` : ''}</p>
+                  </div>
+                  <button onClick={() => sumarmeSolicitud(s.id)} disabled={accionSol === s.id}
+                    className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-club text-dark-900 text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50">
+                    {accionSol === s.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {esPareja ? '¡Vamos!' : '¡Voy!'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ── Helper informativo ── */}
       <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">

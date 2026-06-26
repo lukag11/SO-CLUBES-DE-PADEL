@@ -374,6 +374,7 @@
     <li><a href="#notificaciones">Resumen de notificaciones</a></li>
     <li><a href="#bloque8">Bloque 8 — Prueba real con dos jugadores simultáneos (doble ventana)</a></li>
     <li><a href="#bloque9">Bloque 9 — Horarios personalizados por cancha</a></li>
+    <li><a href="#bloque10">Bloque 10 — Matching "Busco jugador" para tu partido (Reservas)</a></li>
     <li><a href="#checklist">Checklist final de validación</a></li>
   </ol>
 </div>
@@ -2703,6 +2704,120 @@
             es con datos reales en ambas sesiones, no con mocks.
           </div>
         </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════ BLOQUE 10 ══════ -->
+  <div class="seccion" id="bloque10">
+    <div class="seccion-header">
+      <div class="numero">10</div>
+      <h2>Bloque 10 — Matching "Busco jugador" para tu partido</h2>
+      <span class="rol-chip chip-admin">Jugador A + Jugador B</span>
+    </div>
+    <div class="seccion-body">
+
+      <p style="margin-bottom:20px; font-size:0.93rem; color:var(--texto-suave);">
+        El matching de jugadores vive <strong>enteramente en el bloque Reservas</strong> (no en Americano y Super 8,
+        que es otro producto). Un jugador que reservó y no tiene los 4 puede pedir gente; se avisa a los de su
+        categoría; el primero que dice "¡Voy!" cubre el lugar. Probar con <strong>dos jugadores de la misma
+        categoría</strong> (ej. ambos 4ta). Estado actual: Fase 1 — busca 1 lugar, el primero que llega cubre.
+      </p>
+
+      <!-- PASO 10.1 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">10.1</span>
+          <div>
+            <div class="paso-titulo">Jugador A — la card "armá tu partido" en Reservar cancha</div>
+            <div class="paso-ruta">/dashboardJugadores/reservas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Logueate como Jugador A (con categoría, ej. 4ta) y reservá un turno <strong>futuro</strong>.</li>
+              <li>Arriba de la grilla aparece la card <strong>"Te falta gente para tu turno"</strong> con la reserva (cancha · fecha · hora).</li>
+              <li>Si NO tenés reservas futuras, la card muestra <strong>"¿No tenés con quién jugar?"</strong> (estado educativo).</li>
+              <li>Tocá <strong>"Buscar el que falta"</strong> → se abre el modal con la reserva precargada → confirmá la búsqueda.</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La card pasa al estado <strong>"Estás buscando jugadores"</strong>. Se crea una <code>SolicitudJugador</code>
+            atada a la reserva y se notifica a los jugadores de la categoría de A.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 10.2 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">10.2</span>
+          <div>
+            <div class="paso-titulo">Jugador B — recibe la notificación y dice "¡Voy!"</div>
+            <div class="paso-ruta">Notificaciones → /dashboardJugadores/reservas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Logueate como Jugador B (misma categoría que A, ej. 4ta).</li>
+              <li>En Notificaciones aparece <strong>"¡Buscan un jugador!"</strong> con el CTA <strong>"Ver y sumarme →"</strong>.</li>
+              <li>Tocá el CTA → te lleva a <strong>Reservar cancha</strong> (no a Americano y Super 8).</li>
+              <li>En el feed <strong>"Buscan jugadores en tu categoría"</strong> aparece el partido de A → tocá <strong>"¡Voy!"</strong>.</li>
+            </ol>
+          </div>
+          <div class="notif-item">A Jugador B: tipo <code>busca_jugador</code> — "¡Buscan un jugador!". El link va a <code>/dashboardJugadores/reservas</code>.</div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El lugar queda cubierto por B (<code>POST /solicitudes/:id/voy</code>, el primero que llega gana, mismo
+            mecanismo que el "Voy" de Super 8/Americano). El feed deja de mostrar ese partido.
+          </div>
+          <div class="resultado error" style="margin-top:10px;">
+            <div class="titulo">❌ Si falla</div>
+            Si el CTA lleva a Americano y Super 8 (donde ya no hay lista para sumarse), revisar
+            <code>linkDestino</code> en <code>PlayerNotificacionesPage.jsx</code>.
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 10.3 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">10.3</span>
+          <div>
+            <div class="paso-titulo">Jugador A — ve su búsqueda cubierta</div>
+            <div class="paso-ruta">/dashboardJugadores/mis-reservas</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Como Jugador A, andá a <strong>Mis reservas</strong>.</li>
+              <li>En la sección <strong>"Mis búsquedas"</strong> (y en el chip de la reserva) figura <strong>"✓ {nombre de B}"</strong>.</li>
+              <li>Mientras está abierta, podés <strong>Cancelar</strong> la búsqueda desde "Mis búsquedas".</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            La búsqueda figura cubierta por B. El loop social queda cerrado de punta a punta, todo dentro de Reservas.
+          </div>
+        </div>
+      </div>
+
+      <div class="alerta" style="margin-top:20px;">
+        <div class="titulo">🔜 Fase 2 (pendiente)</div>
+        <ol style="margin:0; padding-left:18px; line-height:2; font-size:0.9rem;">
+          <li>Cupos configurables ("me faltan 2") + roster visible "X de 4" que se va llenando.</li>
+          <li>Notif <strong>"¡Ya estamos todos!"</strong> al completar el partido.</li>
+          <li>Lobby público/privado en la página pública (otros ven y se anotan).</li>
+          <li>Futuro: el roster (titular + los que dijeron Voy) pre-puebla los jugadores del turno para el cobro.</li>
+        </ol>
       </div>
 
     </div>

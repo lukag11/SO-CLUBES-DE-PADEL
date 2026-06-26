@@ -20,19 +20,23 @@ const TITULOS = {
   convocatoria_abierta:         '¡Nuevo evento en el club!',
   convocatoria_cancelada:       'Evento cancelado',
   busca_jugador:                '¡Buscan un jugador!',
-  solicitud_cubierta:           '¡Conseguiste tu cuarto!',
+  solicitud_cubierta:           '¡Alguien se sumó a tu partido!',
+  partido_completo:             '¡Ya están todos! 🎾',
 }
 
 const formatCuerpo = (tipo, data = {}) => {
   const { canchaNombre = '', fecha = '', horaInicio = '', horaFin = '', dia = '', monto,
           torneoNombre = '', categoria = '', jugador1 = '', jugador2 = '',
-          modalidad = '', categorias = [], motivo = '', nota = '', cubiertoPor = '', busco = '' } = data
+          modalidad = '', categorias = [], motivo = '', nota = '', cubiertoPor = '', busco = '', faltan, cupos } = data
   if (tipo === 'busca_jugador') {
-    const que = busco === 'pareja' ? 'Buscan una pareja rival' : 'Falta un jugador'
+    const que = busco === 'pareja' ? 'Buscan una pareja rival' : `Faltan ${cupos || 1} jugador${(cupos || 1) !== 1 ? 'es' : ''}`
     return `${que}${categoria ? ` · ${categoria}` : ''} · ${fecha} ${horaInicio}${nota ? ` · ${nota}` : ''}`
   }
   if (tipo === 'solicitud_cubierta') {
-    return `${cubiertoPor} se suma · ${fecha} ${horaInicio}`
+    return `${cubiertoPor} se suma${faltan ? `, faltan ${faltan}` : ''} · ${fecha} ${horaInicio}`
+  }
+  if (tipo === 'partido_completo') {
+    return `Tu partido está completo · ${fecha} ${horaInicio} · ¡A jugar!`
   }
   if (tipo === 'convocatoria_abierta') {
     const mod = modalidad === 'super8' ? 'Super 8' : 'Americano'

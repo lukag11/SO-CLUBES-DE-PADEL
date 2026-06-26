@@ -376,22 +376,29 @@ export default function PlayerMisReservasPage() {
         <section>
           <h2 className="text-sm font-semibold text-white/70 mb-2.5 flex items-center gap-1.5"><Search size={15} className="text-club" /> Mis búsquedas</h2>
           <div className="flex flex-col gap-2">
-            {misSolActivas.map((s) => (
-              <div key={s.id} className="rounded-2xl border border-white/8 bg-[#0d1117] p-3.5 flex items-center gap-3">
-                <span className="w-9 h-9 rounded-xl bg-white/5 grid place-items-center shrink-0"><Search size={16} className="text-white/40" /></span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-semibold truncate">{s.busco === 'pareja' ? 'Busco una pareja' : 'Busco un jugador'}{s.categoria ? ` · ${s.categoria}` : ''}</p>
-                  <p className="text-white/40 text-xs flex items-center gap-2 mt-0.5 capitalize"><CalendarDays size={11} /> {fmtFechaCorta(s.fecha)} · {s.horaInicio}</p>
-                </div>
-                {s.estado === 'cubierta' ? (
-                  <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-club/15 text-club shrink-0">✓ {s.cubiertoPor}</span>
-                ) : (
-                  <button onClick={() => cancelarSolicitud(s.id)} disabled={cancelandoSol === s.id} className="text-[11px] text-white/40 hover:text-red-400 transition-colors shrink-0 disabled:opacity-50">
-                    {cancelandoSol === s.id ? '…' : 'Cancelar'}
-                  </button>
-                )}
-              </div>
-            ))}
+            {misSolActivas.map((s) => {
+              const completo = s.estado === 'completa' || s.estado === 'cubierta'
+              return (
+                  <div key={s.id} className="rounded-2xl border border-white/8 bg-[#0d1117] p-3.5 flex items-center gap-3">
+                    <span className="w-9 h-9 rounded-xl bg-white/5 grid place-items-center shrink-0"><Search size={16} className="text-white/40" /></span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-semibold truncate">
+                        {s.busco === 'pareja' ? 'Busco una pareja' : 'Busco un jugador'}{s.categoria ? ` · ${s.categoria}` : ''}
+                        {!completo && s.faltan != null && <span className="text-club/70 font-normal"> · faltan {s.faltan}</span>}
+                      </p>
+                      <p className="text-white/40 text-xs flex items-center gap-2 mt-0.5 capitalize"><CalendarDays size={11} /> {fmtFechaCorta(s.fecha)} · {s.horaInicio}</p>
+                      {s.roster?.length > 0 && <p className="text-club/70 text-[11px] mt-0.5 truncate">Se sumaron: {s.roster.join(', ')}</p>}
+                    </div>
+                    {completo ? (
+                      <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-club/15 text-club shrink-0">✓ Completo</span>
+                    ) : (
+                      <button onClick={() => cancelarSolicitud(s.id)} disabled={cancelandoSol === s.id} className="text-[11px] text-white/40 hover:text-red-400 transition-colors shrink-0 disabled:opacity-50">
+                        {cancelandoSol === s.id ? '…' : 'Cancelar'}
+                      </button>
+                    )}
+                  </div>
+              )
+            })}
           </div>
         </section>
       )}

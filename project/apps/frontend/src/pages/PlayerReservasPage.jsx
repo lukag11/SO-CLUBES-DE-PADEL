@@ -686,7 +686,7 @@ const PlayerReservasPage = () => {
                 <div key={s.id} className="rounded-2xl border border-club/25 bg-club/5 p-4 flex items-center gap-3">
                   <span className="w-10 h-10 rounded-xl bg-club/15 grid place-items-center shrink-0">{esPareja ? <Users size={18} className="text-club" /> : <UserPlus size={18} className="text-club" />}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-semibold truncate">{esPareja ? 'Buscan una pareja rival' : 'Falta un jugador'}{s.categoria ? ` · ${s.categoria}` : ''}</p>
+                    <p className="text-white text-sm font-semibold truncate">{esPareja ? 'Buscan una pareja rival' : `Faltan ${s.faltan ?? 1} jugador${(s.faltan ?? 1) !== 1 ? 'es' : ''}`}{s.categoria ? ` · ${s.categoria}` : ''}</p>
                     <p className="text-white/40 text-xs flex items-center gap-2 mt-0.5 capitalize">
                       <span className="flex items-center gap-1"><CalendarDays size={11} /> {fmtLegible(s.fecha)}</span>
                       <span className="flex items-center gap-1"><Clock size={11} /> {s.horaInicio}</span>

@@ -2721,8 +2721,10 @@
       <p style="margin-bottom:20px; font-size:0.93rem; color:var(--texto-suave);">
         El matching de jugadores vive <strong>enteramente en el bloque Reservas</strong> (no en Americano y Super 8,
         que es otro producto). Un jugador que reservó y no tiene los 4 puede pedir gente; se avisa a los de su
-        categoría; el primero que dice "¡Voy!" cubre el lugar. Probar con <strong>dos jugadores de la misma
-        categoría</strong> (ej. ambos 4ta). Estado actual: Fase 1 — busca 1 lugar, el primero que llega cubre.
+        categoría; los que dicen "¡Voy!" ocupan un cupo (roster). Probar con <strong>jugadores de la misma
+        categoría</strong> (ej. 4ta). <strong>Fase 2 (implementada):</strong> cupos configurables — "Un jugador"
+        deja elegir <strong>cuántos faltan (1-3)</strong>; "Una pareja" = 2 fijo. Se va llenando hasta completar →
+        notif <strong>"¡Ya están todos!"</strong> a todo el roster.
       </p>
 
       <!-- PASO 10.1 -->
@@ -2810,13 +2812,39 @@
         </div>
       </div>
 
+      <!-- PASO 10.4 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">10.4</span>
+          <div>
+            <div class="paso-titulo">Cupos múltiples (Fase 2) — "faltan 2" → se llena → "¡Ya están todos!"</div>
+            <div class="paso-ruta">3 jugadores de la misma categoría</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Jugador A: en el modal, "Un jugador" → selector <strong>"¿Cuántos te faltan?"</strong> → elegí <strong>2</strong> → crear.</li>
+              <li>Jugador B: en el feed ve <strong>"Faltan 2 jugadores"</strong> → <strong>¡Voy!</strong> → queda "Faltan 1". A recibe <em>"B se suma, faltan 1"</em>.</li>
+              <li>Jugador C: <strong>¡Voy!</strong> → se completa (faltan 0).</li>
+            </ol>
+          </div>
+          <div class="notif-item">Al completar: tipo <code>partido_completo</code> — "¡Ya están todos! 🎾" a TODO el roster (titular + los que se sumaron).</div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            El cupo nunca se pasa de lo pedido (anti-carrera Serializable). Al llenarse, la búsqueda pasa a
+            <code>estado='completa'</code> y en "Mis búsquedas" se ve <strong>"✓ Completo · Se sumaron: B, C"</strong>.
+            "Una pareja" no muestra selector (2 fijo).
+          </div>
+        </div>
+      </div>
+
       <div class="alerta" style="margin-top:20px;">
-        <div class="titulo">🔜 Fase 2 (pendiente)</div>
+        <div class="titulo">🔜 Pendiente (futuro)</div>
         <ol style="margin:0; padding-left:18px; line-height:2; font-size:0.9rem;">
-          <li>Cupos configurables ("me faltan 2") + roster visible "X de 4" que se va llenando.</li>
-          <li>Notif <strong>"¡Ya estamos todos!"</strong> al completar el partido.</li>
-          <li>Lobby público/privado en la página pública (otros ven y se anotan).</li>
-          <li>Futuro: el roster (titular + los que dijeron Voy) pre-puebla los jugadores del turno para el cobro.</li>
+          <li>Lobby público/privado en la página pública (otros ven y se anotan, reusa infra de convocatorias).</li>
+          <li>El roster (titular + los que dijeron Voy) pre-puebla los jugadores del turno para el cobro/split.</li>
         </ol>
       </div>
 

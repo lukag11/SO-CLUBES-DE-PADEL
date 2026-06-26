@@ -145,6 +145,7 @@ model Jugador {
   convocatoriaCupos ConvocatoriaCupo[]
   solicitudesHechas    SolicitudJugador[] @relation("SolicitudSolicitante")
   solicitudesCubiertas SolicitudJugador[] @relation("SolicitudCubierto")
+  participacionesPartido SolicitudParticipante[]
 
   @@unique([clubId, dni])
   @@map("jugadores")
@@ -513,20 +514,37 @@ model SolicitudJugador {
   id            String   @id @default(cuid())
   clubId        String
   solicitanteId String   // jugador que busca
-  busco         String   @default("jugador") // 'jugador' (falta 1) | 'pareja' (buscan rival, 2)
+  busco         String   @default("jugador") // 'jugador' (faltan 1-3) | 'pareja' (rival, 2 fijo)
+  cupos         Int      @default(1) // lugares a llenar: 'jugador' 1-3 (elegible), 'pareja' = 2 fijo
   reservaId     String?  // turno al que pertenece (para contexto / pre-llenado)
   categoria     String?  // categoría objetivo (a quién se le notifica)
   fecha         String   // YYYY-MM-DD
   horaInicio    String   // HH:MM
   nota          String?  // ej: "Cancha 2, falta drive"
-  estado        String   @default("abierta") // abierta | cubierta | cancelada
-  cubiertoPorId String?  // jugador que la cubrió (en 'pareja' = el que trae a su compañero)
+  estado        String   @default("abierta") // abierta | completa | cubierta(legacy) | cancelada
+  cubiertoPorId String?  // legacy (1 cupo): jugador que la cubrió. El roster nuevo va en participantes.
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  solicitante Jugador  @relation("SolicitudSolicitante", fields: [solicitanteId], references: [id], onDelete: Cascade)
-  cubiertoPor Jugador? @relation("SolicitudCubierto", fields: [cubiertoPorId], references: [id], onDelete: SetNull)
+  club         Club                    @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  solicitante  Jugador                 @relation("SolicitudSolicitante", fields: [solicitanteId], references: [id], onDelete: Cascade)
+  cubiertoPor  Jugador?                @relation("SolicitudCubierto", fields: [cubiertoPorId], references: [id], onDelete: SetNull)
+  participantes SolicitudParticipante[]
 
   @@map("solicitudes_jugador")
+}
+
+// Roster de un partido abierto: los jugadores que dijeron "¡Voy!" y ocuparon un cupo.
+// (El solicitante NO va acá — es el titular; los participantes son los que se sumaron.)
+model SolicitudParticipante {
+  id          String   @id @default(cuid())
+  solicitudId String
+  jugadorId   String
+  createdAt   DateTime @default(now())
+
+  solicitud SolicitudJugador @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  jugador   Jugador          @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
+
+  @@unique([solicitudId, jugadorId]) // un jugador no se anota dos veces al mismo partido
+  @@map("solicitud_participantes")
 }

@@ -8,6 +8,7 @@ import { CATEGORIAS_JUGADOR, catLabel } from '../../constants/categorias'
 export default function BuscarJugadorModal({ token, prefill = {}, onClose, onCreado }) {
   const [form, setForm] = useState({
     busco: 'jugador',
+    cupos: 1, // cuántos faltan (solo aplica a 'jugador'; 'pareja' = 2 fijo en el backend)
     fecha: prefill.fecha || '',
     horaInicio: prefill.horaInicio || '',
     categoria: prefill.categoria || '',
@@ -26,7 +27,7 @@ export default function BuscarJugadorModal({ token, prefill = {}, onClose, onCre
     if (!form.horaInicio) return setError('Elegí el horario.')
     setCreando(true)
     api.post('/solicitudes', {
-      busco: form.busco, fecha: form.fecha, horaInicio: form.horaInicio,
+      busco: form.busco, cupos: form.cupos, fecha: form.fecha, horaInicio: form.horaInicio,
       categoria: form.categoria || null, nota: form.nota || null, reservaId: prefill.reservaId || null,
     }, { Authorization: `Bearer ${token}` })
       .then((r) => setRes(r))
@@ -69,8 +70,20 @@ export default function BuscarJugadorModal({ token, prefill = {}, onClose, onCre
                   <Users size={15} /> Una pareja
                 </button>
               </div>
-              <p className="text-[11px] text-white/35 mt-1">{form.busco === 'pareja' ? 'Estás con tu compañero y buscás una pareja para jugar en contra.' : 'Te falta un cuarto para completar el partido.'}</p>
+              <p className="text-[11px] text-white/35 mt-1">{form.busco === 'pareja' ? 'Estás con tu compañero y buscás una pareja para jugar en contra.' : 'Te faltan jugadores para completar el partido.'}</p>
             </div>
+
+            {/* Cuántos faltan — solo para "un jugador" (una pareja = 2 fijo) */}
+            {form.busco === 'jugador' && (
+              <div>
+                <label className="text-xs font-semibold text-white/50 mb-1 block">¿Cuántos te faltan?</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[1, 2, 3].map((n) => (
+                    <button key={n} onClick={() => set('cupos', n)} className={`py-2 rounded-xl text-sm font-bold border transition-all ${form.cupos === n ? 'border-club bg-club text-dark-900' : 'border-white/10 text-white/60 hover:border-club/50'}`}>{n}</button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-2">
               <div>

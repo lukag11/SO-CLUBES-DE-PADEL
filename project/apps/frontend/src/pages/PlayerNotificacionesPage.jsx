@@ -65,6 +65,12 @@ const TIPO_META = {
     bg: 'bg-club/10',
     border: 'border-club/20',
   },
+  partido_completo: {
+    icon: UserCheck,
+    color: 'text-club',
+    bg: 'bg-club/10',
+    border: 'border-club/20',
+  },
   turno_fijo_rechazado: {
     icon: XCircle,
     color: 'text-red-400',
@@ -150,8 +156,8 @@ const PlayerNotificacionesPage = () => {
                 border: 'border-white/10',
               }
               const Icon = meta.icon
-              const linkEventos = notif.tipo === 'convocatoria_abierta' || notif.tipo === 'busca_jugador'
-              const ctaTexto = notif.tipo === 'busca_jugador' ? 'Ver y sumarme →' : 'Ver evento y anotarme →'
+              const linkEventos = notif.tipo === 'convocatoria_abierta' || notif.tipo === 'busca_jugador' || notif.tipo === 'partido_completo'
+              const ctaTexto = notif.tipo === 'busca_jugador' ? 'Ver y sumarme →' : notif.tipo === 'partido_completo' ? 'Ver el partido →' : 'Ver evento y anotarme →'
 
               const contenido = (
                 <>
@@ -179,8 +185,11 @@ const PlayerNotificacionesPage = () => {
 
               const claseBase = `flex items-start gap-4 px-6 py-4 transition-colors ${notif.leida ? '' : 'bg-white/2'}`
 
-              // busca_jugador (matching de partido) vive en Reservas; convocatoria_abierta en Eventos.
-              const linkDestino = notif.tipo === 'busca_jugador' ? '/dashboardJugadores/reservas' : '/dashboardJugadores/eventos'
+              // busca_jugador (sumarse) → Reservar cancha; partido_completo (mi partido) → Mis reservas;
+              // convocatoria_abierta → Eventos.
+              const linkDestino = notif.tipo === 'busca_jugador' ? '/dashboardJugadores/reservas'
+                : notif.tipo === 'partido_completo' ? '/dashboardJugadores/mis-reservas'
+                : '/dashboardJugadores/eventos'
               return linkEventos ? (
                 <Link key={notif.id} to={linkDestino} className={`${claseBase} hover:bg-white/5`}>
                   {contenido}

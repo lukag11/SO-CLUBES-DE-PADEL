@@ -5,6 +5,8 @@ import { api } from '../lib/api'
 import BuscadorJugador from '../components/jugadores/BuscadorJugador'
 import CargarResultados from '../components/eventos/CargarResultados'
 import { CATEGORIAS_JUGADOR, catLabel } from '../constants/categorias'
+import { useToast } from '../components/ui/ToastProvider'
+import { useConfirm } from '../components/ui/ConfirmProvider'
 const GENEROS = [{ k: 'masculino', l: '♂ Masculino' }, { k: 'femenino', l: '♀ Femenino' }, { k: 'mixto', l: '⚥ Mixto' }]
 
 const fmtFecha = (f) => {
@@ -22,6 +24,8 @@ const ESTADO_CHIP = {
 
 export default function ConvocatoriasAdminPage() {
   const token = useAuthStore((s) => s.token)
+  const toast = useToast()
+  const confirmar = useConfirm()
   const [lista, setLista] = useState(null)
   const [abierta, setAbierta] = useState(null) // id expandido
   const [detalle, setDetalle] = useState(null)
@@ -54,7 +58,7 @@ export default function ConvocatoriasAdminPage() {
     setAccionando(true)
     api.patch(`/convocatorias/${id}/estado`, { estado: 'cancelada', motivo: motivo || null }, { Authorization: `Bearer ${token}` })
       .then(() => { cargar(); setAbierta(null); setDetalle(null) })
-      .catch(() => alert('No se pudo cancelar'))
+      .catch(() => toast.error('No se pudo cancelar'))
       .finally(() => { setAccionando(false); setMotivoModal(null) })
   }
 
@@ -64,24 +68,24 @@ export default function ConvocatoriasAdminPage() {
     const qs = motivo ? `?motivo=${encodeURIComponent(motivo)}` : ''
     api.delete(`/convocatorias/${id}${qs}`, { Authorization: `Bearer ${token}` })
       .then(() => { cargar(); if (abierta === id) { setAbierta(null); setDetalle(null) } })
-      .catch(() => alert('No se pudo eliminar'))
+      .catch(() => toast.error('No se pudo eliminar'))
       .finally(() => { setAccionando(false); setMotivoModal(null) })
   }
 
-  const armarFixture = (id, modalidad) => {
+  const armarFixture = async (id, modalidad) => {
     if (accionando) return
     const esSuper8 = modalidad === 'super8'
     const msg = esSuper8
       ? '¿Cerrar la inscripción y generar las parejas sugeridas (drive/revés)? El fixture se arma en la cancha.'
       : '¿Armar el fixture con los anotados? La convocatoria queda confirmada (se cierra la inscripción).'
-    if (!confirm(msg)) return
+    if (!(await confirmar({ titulo: esSuper8 ? 'Cerrar inscripción' : 'Armar fixture', mensaje: msg, confirmText: esSuper8 ? 'Cerrar y generar' : 'Armar fixture' }))) return
     setAccionando(true)
     api.post(`/convocatorias/${id}/armar-fixture`, {}, { Authorization: `Bearer ${token}` })
       .then(() => {
         cargar()
         return api.get(`/convocatorias/${id}`, { Authorization: `Bearer ${token}` }).then((r) => setDetalle(r))
       })
-      .catch((e) => alert(e?.message || 'No se pudo (¿hay al menos 4 anotados?)'))
+      .catch((e) => toast.error(e?.message || 'No se pudo (¿hay al menos 4 anotados?)'))
       .finally(() => setAccionando(false))
   }
 

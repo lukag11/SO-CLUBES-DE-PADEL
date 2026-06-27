@@ -7,6 +7,7 @@ import {
   Palette, ChevronDown, Maximize2, Minimize2, Share2, Upload, Search, Info, Flag,
 } from 'lucide-react'
 import { useToast } from '../components/ui/ToastProvider'
+import { useConfirm } from '../components/ui/ConfirmProvider'
 import useTorneosStore from '../store/torneosStore'
 import useAuthStore from '../store/authStore'
 import { api, uploadImage } from '../lib/api'
@@ -1432,6 +1433,7 @@ const ImageZonePreview = ({ src, children }) =>
 const ImagenFileInput = ({ value, onChange, onImageLoad, hint, className = '', profile = 'fondo', folder = 'torneos' }) => {
   const ref = useRef(null)
   const token = useAuthStore((s) => s.token)
+  const toast = useToast()
   const [uploading, setUploading] = useState(false)
   const handleFile = async (e) => {
     const file = e.target.files?.[0]
@@ -1445,7 +1447,7 @@ const ImagenFileInput = ({ value, onChange, onImageLoad, hint, className = '', p
       onImageLoad?.(url)
     } catch (err) {
       console.error('Error al subir imagen:', err)
-      alert('No se pudo subir la imagen. Probá de nuevo.')
+      toast.error('No se pudo subir la imagen. Probá de nuevo.')
     } finally {
       setUploading(false)
     }
@@ -3533,6 +3535,7 @@ const TorneoDetallePage = () => {
   const [reprogramarFecha, setReprogramarFecha] = useState('')
   const [reprogramarSaving, setReprogramarSaving] = useState(false)
   const toast = useToast()
+  const confirmar = useConfirm()
   const showToast = toast.info // los mensajes eran neutros (éxito y error en el mismo estilo)
   const toastEstadoInscripcion = (estado) => {
     if (estado === 'open') toast.success('Las inscripciones están abiertas', { label: 'Inscripción abierta', icon: ToggleRight })
@@ -4225,10 +4228,10 @@ const TorneoDetallePage = () => {
     setModalAsignarManual(null)
   }
 
-  const handleConfirmarGrupos = () => {
+  const handleConfirmarGrupos = async () => {
     const sinHorario = torneo.grupos?.flatMap((z) => z.partidos).filter((p) => p.sinHorario).length ?? 0
     if (sinHorario > 0) {
-      if (!window.confirm(`Hay ${sinHorario} partido${sinHorario !== 1 ? 's' : ''} sin horario asignado. ¿Confirmás igual?`)) return
+      if (!(await confirmar({ titulo: 'Confirmar grupos', mensaje: `Hay ${sinHorario} partido${sinHorario !== 1 ? 's' : ''} sin horario asignado. ¿Confirmás igual?`, confirmText: 'Confirmar igual' }))) return
     }
     setEstado(torneo.id, 'in_progress')
     syncEstado('in_progress')

@@ -833,7 +833,7 @@ const ProfesorAgendaPage = () => {
       setModalNueva(false)
       showToast('Clase creada exitosamente')
     } catch (err) {
-      alert(err?.message || 'Error al crear la clase')
+      toast.error(err?.message || 'Error al crear la clase')
     } finally {
       setSubmitting(false)
     }
@@ -842,7 +842,7 @@ const ProfesorAgendaPage = () => {
   const handleAbrirAutoFill = () => {
     const rangosPorCancha = Object.fromEntries(canchasHabilitadas.map((c) => [c.id, getRangoCancha(c)]))
     const bloques = calcularBloquesFaltantes(canchasHabilitadas, franjasDelDia, todasReservasDia, turnosFijosDia, misClasesDia, rangosPorCancha)
-    if (!bloques.length) { alert('No hay slots libres. Todos los horarios de tu disponibilidad ya están cubiertos.'); return }
+    if (!bloques.length) { toast.error('No hay slots libres. Todos los horarios de tu disponibilidad ya están cubiertos.'); return }
     setBloquesAutoFill(bloques)
     setModalAutoFill(true)
   }
@@ -868,7 +868,7 @@ const ProfesorAgendaPage = () => {
     setBloquesAutoFill([])
     setSubmitting(false)
     if (errores.length) {
-      alert(`Algunas clases no pudieron crearse:\n${errores.join('\n')}`)
+      toast.error(`Algunas clases no pudieron crearse: ${errores.join(' · ')}`)
     } else if (nuevas.length) {
       showToast(`${nuevas.length} clase${nuevas.length !== 1 ? 's' : ''} creada${nuevas.length !== 1 ? 's' : ''} exitosamente`)
     }
@@ -886,7 +886,7 @@ const ProfesorAgendaPage = () => {
       }))
       setClaseEliminar(null)
     } catch (err) {
-      alert(err?.message || 'Error al cancelar la clase')
+      toast.error(err?.message || 'Error al cancelar la clase')
     } finally {
       setSubmitting(false)
     }
@@ -908,7 +908,7 @@ const ProfesorAgendaPage = () => {
       showToast('Clase actualizada exitosamente')
       fetchTodasDia(fecha)
     } catch (err) {
-      alert(err?.message || 'Error al editar la clase')
+      toast.error(err?.message || 'Error al editar la clase')
     } finally {
       setSubmitting(false)
     }

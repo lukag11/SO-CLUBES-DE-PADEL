@@ -127,6 +127,7 @@ const SaveButton = ({ onClick, saved, label = 'Guardar cambios' }) => (
 
 const TabInfo = ({ club, updateClub, saveClub }) => {
   const token = useAuthStore((s) => s.token)
+  const toast = useToast()
   const [form, setForm] = useState({ ...club })
   const [saved, setSaved] = useState(false)
   const [preview, setPreview] = useState(club.logo)
@@ -147,7 +148,7 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
       setForm((prev) => ({ ...prev, logo: url }))
     } catch (err) {
       console.error('Error al subir logo:', err)
-      alert('No se pudo subir el logo. Probá de nuevo.')
+      toast.error('No se pudo subir el logo. Probá de nuevo.')
     }
   }
 
@@ -1357,6 +1358,7 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
 
 const TabHero = ({ club, updateClub, saveClub }) => {
   const token = useAuthStore((s) => s.token)
+  const toast = useToast()
   const [form, setForm] = useState({
     heroTitulo:            club.heroTitulo            ?? '',
     heroTituloDestacado:   club.heroTituloDestacado   ?? '',
@@ -1383,7 +1385,7 @@ const TabHero = ({ club, updateClub, saveClub }) => {
       setForm((prev) => ({ ...prev, heroImagen: url }))
     } catch (err) {
       console.error('Error al subir imagen:', err)
-      alert('No se pudo subir la imagen. Probá de nuevo.')
+      toast.error('No se pudo subir la imagen. Probá de nuevo.')
     }
   }
 
@@ -1522,6 +1524,7 @@ const TabHero = ({ club, updateClub, saveClub }) => {
 
 const TabHistoria = ({ club, updateClub, saveClub }) => {
   const token = useAuthStore((s) => s.token)
+  const toast = useToast()
   const [form, setForm] = useState({
     tituloBio:     club.tituloBio     ?? 'Quiénes Somos',
     historia:      club.historia      ?? '',
@@ -1545,7 +1548,7 @@ const TabHistoria = ({ club, updateClub, saveClub }) => {
       setForm((prev) => ({ ...prev, fotoPrincipal: url }))
     } catch (err) {
       console.error('Error al subir imagen:', err)
-      alert('No se pudo subir la imagen. Probá de nuevo.')
+      toast.error('No se pudo subir la imagen. Probá de nuevo.')
     }
   }
 
@@ -1653,6 +1656,7 @@ const TabHistoria = ({ club, updateClub, saveClub }) => {
 
 const TabGaleria = ({ club, updateClub, saveClub }) => {
   const token = useAuthStore((s) => s.token)
+  const toast = useToast()
   const [items, setItems] = useState(club.galeria ?? [])
   const [saved, setSaved] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -1670,7 +1674,7 @@ const TabGaleria = ({ club, updateClub, saveClub }) => {
       }
     } catch (err) {
       console.error('Error al subir imágenes:', err)
-      alert('No se pudieron subir todas las imágenes. Probá de nuevo.')
+      toast.error('No se pudieron subir todas las imágenes. Probá de nuevo.')
     } finally {
       setUploading(false)
     }
@@ -1852,6 +1856,7 @@ const TabServicios = ({ club, updateClub, saveClub }) => {
 
 const StaffCard = ({ miembro, onUpdate, onDelete }) => {
   const token = useAuthStore((s) => s.token)
+  const toast = useToast()
   const [editing, setEditing] = useState(false)
   const [local, setLocal] = useState({ ...miembro })
   const fileRef = useRef()
@@ -1866,7 +1871,7 @@ const StaffCard = ({ miembro, onUpdate, onDelete }) => {
       setLocal((p) => ({ ...p, foto: url }))
     } catch (err) {
       console.error('Error al subir foto:', err)
-      alert('No se pudo subir la foto. Probá de nuevo.')
+      toast.error('No se pudo subir la foto. Probá de nuevo.')
     }
   }
 

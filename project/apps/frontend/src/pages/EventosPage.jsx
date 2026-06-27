@@ -6,6 +6,7 @@ import {
   generarFixtureSuper8, rankingSuper8, validarSetPadel,
 } from '../lib/eventos'
 import { api } from '../lib/api'
+import { useConfirm } from '../components/ui/ConfirmProvider'
 
 // Herramienta pública self-service: un grupo arma su Americano o Super 8 desde el celu.
 // Estado client-side, persistido en localStorage (dato transitorio de un evento social, no
@@ -32,6 +33,7 @@ const surface = {
 }
 
 export default function EventosPage() {
+  const confirmar = useConfirm()
   const [fixture, setFixture] = useState(() => {
     try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null } catch { return null }
   })
@@ -43,7 +45,7 @@ export default function EventosPage() {
     else localStorage.removeItem(LS_KEY)
   }, [fixture])
 
-  const reset = () => { if (confirm('¿Empezar un evento nuevo? Se borra el actual.')) setFixture(null) }
+  const reset = async () => { if (await confirmar({ titulo: 'Empezar de nuevo', mensaje: 'Se borra el evento actual.', danger: true, confirmText: 'Empezar de nuevo' })) setFixture(null) }
 
   const titulo = modo === 'jugar' ? 'Jugá ahora' : modo === 'eventos' ? 'Eventos del club' : 'Americano y Super 8'
 

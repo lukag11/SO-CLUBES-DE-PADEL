@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Plus, Pencil, Trash2, X, Package, AlertTriangle, Boxes, History, Camera, Loader2, FileText, Truck, Tags } from 'lucide-react'
 import { api, uploadImage } from '../../lib/api'
 import { METODO_MAP } from '../../lib/metodosPago'
+import { useConfirm } from '../../components/ui/ConfirmProvider'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
@@ -11,6 +12,7 @@ const MOVTIPO = { entrada: { t: 'Entrada', c: 'text-emerald-600' }, salida: { t:
 const fmtFecha = (s) => { const d = new Date(s); return `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
 
 const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
+  const confirmar = useConfirm()
   const auth = { Authorization: `Bearer ${token}` }
   const [productos, setProductos] = useState([])
   const [categorias, setCategorias] = useState([]) // [{id, nombre}]
@@ -33,7 +35,7 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
 
   const editar = (p) => setProdModal({ producto: p })
   const eliminar = async (p) => {
-    if (!window.confirm(`¿Eliminar "${p.nombre}" del catálogo?`)) return
+    if (!(await confirmar({ titulo: 'Eliminar producto', mensaje: `¿Eliminar "${p.nombre}" del catálogo?`, danger: true, confirmText: 'Eliminar' }))) return
     try { await api.delete(`/productos/${p.id}`, auth); fetchData(); showToast?.('exito', 'Producto eliminado') } catch (e) { showToast?.('error', e?.message || 'No se pudo eliminar') }
   }
   const verMovs = async (p) => {

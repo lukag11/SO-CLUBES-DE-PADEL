@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Plus, Trash2, Star, Upload, ImageOff, Sparkles } from 'lucide-react'
 import { api, uploadImage, fileToDataUrl } from '../lib/api'
 import useAuthStore from '../store/authStore'
+import { useToast } from '../components/ui/ToastProvider'
 
 const blobToBase64 = (blob) =>
   new Promise((res) => {
@@ -11,6 +12,7 @@ const blobToBase64 = (blob) =>
   })
 
 const LogoPicker = ({ value, onChange, token }) => {
+  const toast = useToast()
   const refBg  = useRef(null) // con eliminación de fondo
   const refRaw = useRef(null) // tal cual
   const [processing, setProcessing] = useState(false)
@@ -45,7 +47,7 @@ const LogoPicker = ({ value, onChange, token }) => {
       onChange(url)
     } catch (err) {
       console.error('Error al subir logo:', err)
-      alert('No se pudo subir el logo. Probá de nuevo.')
+      toast.error('No se pudo subir el logo. Probá de nuevo.')
     } finally {
       setProcessing(false)
     }

@@ -18,6 +18,7 @@ import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
 import { METODO_MAP } from '../lib/metodosPago'
 import { api } from '../lib/api'
+import { useToast } from '../components/ui/ToastProvider'
 import { overlaps, toMin, toTime } from '../utils/timeUtils'
 import InfoBlock from '../components/InfoBlock'
 import TabClasesProfesor from '../features/admin/TabClasesProfesor'
@@ -2098,6 +2099,7 @@ const PanelAlertas = ({
   onMarcarLeida, onEliminar, onMarcarTodas, onLiberacionAprobada,
   onReservasPendientesChange, onSolicitudFijoClick,
 }) => {
+  const toast = useToast()
   const [modalNotif, setModalNotif] = useState(null)
   const [aprobandoId, setAprobandoId] = useState(null)
   const [toastPanel, setToastPanel] = useState(null)
@@ -2131,7 +2133,7 @@ const PanelAlertas = ({
       })
       onReservasPendientesChange?.()
     } catch (err) {
-      alert(err.message || 'No se pudo aprobar la reserva')
+      toast.error(err.message || 'No se pudo aprobar la reserva')
     }
     setAprobandoId(null)
   }
@@ -2143,7 +2145,7 @@ const PanelAlertas = ({
       await api.patch(`/reservas/${reserva.id}/estado`, { estado: 'cancelada' }, { Authorization: `Bearer ${panelAdminToken}` })
       onReservasPendientesChange?.()
     } catch (err) {
-      alert(err.message || 'No se pudo rechazar la reserva')
+      toast.error(err.message || 'No se pudo rechazar la reserva')
     }
     setAprobandoId(null)
   }
@@ -2957,6 +2959,7 @@ const TabTurnosFijos = ({ canchas = [], franjas = [] }) => {
 
 const ReservasPage = () => {
   const location = useLocation()
+  const toastUi = useToast()
   const [fecha, setFecha] = useState(todayISO())
   const [clases, setClases] = useState(CLASES_PROFESOR)
   const [seleccion, setSeleccion] = useState(null)
@@ -3240,7 +3243,7 @@ const ReservasPage = () => {
         showToast('reserva', `Reserva creada · ${nueva.canchaNombre} ${nueva.inicio}–${nueva.fin} · ${jugador}`)
       }
     } catch (err) {
-      alert(err.message || 'No se pudo crear la reserva')
+      toastUi.error(err.message || 'No se pudo crear la reserva')
     }
     setSeleccion(null)
   }
@@ -3251,7 +3254,7 @@ const ReservasPage = () => {
       await api.patch(`/reservas/${backendId}/estado`, { estado: 'confirmada' }, { Authorization: `Bearer ${adminToken}` })
       setReservasBackend((prev) => prev.map((r) => r.id === backendId ? { ...r, estado: 'confirmada' } : r))
     } catch (err) {
-      alert(err.message || 'No se pudo aprobar la reserva')
+      toastUi.error(err.message || 'No se pudo aprobar la reserva')
     }
     setSeleccion(null)
   }
@@ -3272,7 +3275,7 @@ const ReservasPage = () => {
           }
           showToast('cancelada', 'Reserva cancelada correctamente')
         })
-        .catch((err) => alert(err.message || 'No se pudo cancelar'))
+        .catch((err) => toastUi.error(err.message || 'No se pudo cancelar'))
       setSeleccion(null)
       return
     }

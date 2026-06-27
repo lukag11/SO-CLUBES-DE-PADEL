@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { Users, UserPlus, CalendarDays, Clock, Check, Zap, LogIn } from 'lucide-react'
+import { Users, UserPlus, CalendarDays, Clock, Check, Zap, LogIn, Share2 } from 'lucide-react'
 import { api } from '../lib/api'
 import usePlayerStore from '../store/playerStore'
 
@@ -37,6 +37,13 @@ export default function PartidoPublicoPage() {
   useEffect(() => { cargar() }, [id])
   // Auto-refresh suave: ver el lobby llenarse en vivo.
   useEffect(() => { const t = setInterval(cargar, 15000); return () => clearInterval(t) }, [id])
+
+  const compartirWhatsapp = () => {
+    const link = window.location.href
+    const que = p.busco === 'pareja' ? 'Buscamos una pareja rival' : `Faltan ${p.faltan} jugador${p.faltan !== 1 ? 'es' : ''}`
+    const texto = `🎾 ${que}${p.categoria ? ` · ${p.categoria}` : ''}\n📅 ${fmtFecha(p.fecha)} · ⏰ ${p.horaInicio} hs\n\n¿Te sumás? Entrá acá 👇\n${link}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank')
+  }
 
   const anotarme = () => {
     if (anotando) return
@@ -143,6 +150,15 @@ export default function PartidoPublicoPage() {
               </button>
               <p className="text-[11px] text-center" style={{ color: C.muted }}>Necesitás tu cuenta del club para sumarte. Al iniciar sesión te sumamos solo.</p>
             </div>
+          )}
+
+          {/* Compartir por WhatsApp — el motor real de captación (link 1-a-1 con intención) */}
+          {!completo && (
+            <button onClick={compartirWhatsapp}
+              className="w-full mt-2.5 py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              style={{ backgroundColor: 'rgba(37,211,102,0.12)', border: '1px solid rgba(37,211,102,0.45)', color: '#25D366' }}>
+              <Share2 size={16} /> Compartir por WhatsApp
+            </button>
           )}
 
           {error && <p className="text-[12px] text-center mt-2" style={{ color: '#ffb4ab' }}>{error}</p>}

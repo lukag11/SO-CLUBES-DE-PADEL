@@ -32,6 +32,7 @@ import ProfesorDisponibilidadPage from '../pages/ProfesorDisponibilidadPage'
 import TorneoPublicoPage from '../pages/TorneoPublicoPage'
 import TorneosPublicosPage from '../pages/TorneosPublicosPage'
 import EventosPage from '../pages/EventosPage'
+import PartidosPublicosPage from '../pages/PartidosPublicosPage'
 import ConvocatoriaPublicaPage from '../pages/ConvocatoriaPublicaPage'
 import PartidoPublicoPage from '../pages/PartidoPublicoPage'
 import JugadoresAdminPage from '../pages/JugadoresAdminPage'
@@ -143,6 +144,7 @@ const router = createBrowserRouter([
 
   // Herramienta pública self-service: Americano / Super 8 (sin login)
   { path: '/eventos', element: <EventosPage /> },
+  { path: '/partidos', element: <PartidosPublicosPage /> },
 
   // Página pública de una convocatoria (link de WhatsApp) — ver sin login, anotarse requiere login
   { path: '/convocatoria/:id', element: <ConvocatoriaPublicaPage /> },

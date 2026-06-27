@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Zap, Menu, X, GraduationCap, User } from 'lucide-react'
+import { Zap, Menu, X, GraduationCap, User, Swords } from 'lucide-react'
 import useClubStore from '../../store/clubStore'
 
 // CENTRO = navegar el sitio. El último (Americano y Super 8) va destacado con el color del club.
@@ -9,6 +9,7 @@ const navLinks = [
   { to: '/#reservas', label: 'Reservas' },
   { to: '/torneos', label: 'Torneos', route: true },
   { to: '/#contacto', label: 'Contacto' },
+  { to: '/partidos', label: 'Partidos', route: true, destacado: true, icon: Swords },
   { to: '/eventos', label: 'Americano y Super 8', route: true, destacado: true },
 ]
 
@@ -50,10 +51,11 @@ const PublicNavbar = () => {
 
   // Render de un link del centro. `destacado` lo pinta con el acento del club.
   const renderNavLink = (item, onClick) => {
-    const { to, label, route, destacado } = item
+    const { to, label, route, destacado, icon } = item
     const Cmp = route ? Link : 'a'
     const props = route ? { to } : { href: to }
     if (destacado) {
+      const Icono = icon || Zap
       const cls = 'flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg transition-all duration-150 whitespace-nowrap'
       const extra = esColorSolido ? 'bg-black/15 hover:bg-black/25 text-black' : 'hover:brightness-110'
       const style = esColorSolido
@@ -61,7 +63,7 @@ const PublicNavbar = () => {
         : { color: colorPrimario, backgroundColor: `${colorPrimario}1a`, border: `1px solid ${colorPrimario}40` }
       return (
         <Cmp key={to} {...props} onClick={onClick} className={`${cls} ${extra}`} style={style}>
-          <Zap size={14} /> {label}
+          <Icono size={14} /> {label}
         </Cmp>
       )
     }

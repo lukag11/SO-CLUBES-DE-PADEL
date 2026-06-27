@@ -2,7 +2,7 @@
 // Fondo claro, tipografía limpia, mucho espacio. Profesional y sobrio.
 
 import { Zap, CalendarDays, Trophy, Users, ArrowRight, CheckCircle } from 'lucide-react'
-import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section } from './LandingSections'
+import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection } from './LandingSections'
 
 const FEATURES = [
   { icon: CalendarDays, title: 'Reservas online',  desc: 'Reservá tu cancha en segundos, 24/7, desde cualquier dispositivo.' },
@@ -132,6 +132,7 @@ const Template3 = ({ club, onCta, onTorneos }) => {
 
       {/* AMERICANO Y SUPER 8 */}
       <AmericanoSuper8Section colorPrimario={colorPrimario} dark={false} />
+      <PartidosAbiertosSection colorPrimario={colorPrimario} dark={false} />
 
       {/* HISTORIA */}
       {parrafos.length > 0 && (seccionesVisibles?.historia ?? true) && (

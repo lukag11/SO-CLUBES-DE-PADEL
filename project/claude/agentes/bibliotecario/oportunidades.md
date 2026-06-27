@@ -7,6 +7,40 @@
 
 ---
 
+## 2026-06-27 · Feed público "Partidos" en la landing del club — SÍ, pero con el motor en el LINK, no en el feed
+
+**Impacto:** alto (captación + reúso de infra existente) · **Esfuerzo:** medio (el embudo ya existe; falta feed + sección + navbar) · **Estado:** nueva, recomendada.
+
+**Veredicto:** construir la cara pública de Partidos vale la pena, PERO con una corrección de premisa: el motor de adquisición NO es el feed público (los líderes ni lo exponen a anónimos — está detrás de login). El motor real es el **link compartible 1-a-1 por WhatsApp + push a la categoría**, que ya tenés. El feed público es el complemento de descubrimiento/marca ("algo que venda"), no el que llena los partidos. Fuente: hallazgos 2026-06-27.
+
+### (a) Sección en la landing del club — layout + copy
+- Banner gemelo al de Convocatorias (banda con CTA), idealmente UNIFICADO en un solo bloque "Jugá hoy en [Club]" que mezcle partidos abiertos + Americano/Super 8 → **así el feed nunca está vacío** (mitiga cold-start).
+- Copy del banner (rioplatense, vendedor): titular **"¿Te falta un cuarto? Sumate a un partido abierto"** · sub **"Jugadores de tu categoría buscan completar partido esta semana. Entrá, decí «¡Voy!» y a la cancha."** · CTA primario **"Ver partidos abiertos"** · CTA secundario **"Armá el tuyo"**.
+- Si hay partidos: mostrar 2-3 cards preview (cupos X/4, categoría, día/hora) + "ver todos". Si NO hay: NO mostrar vacío frío → mostrar el CTA "Armá tu partido y que se sumen" como estado primario + dato de demanda latente si existe ("8 de 4ta buscando partido").
+
+### (b) Página pública "Partidos" (navbar `/partidos`) — layout + conversión anónimo→registrado
+- Agregar ítem al `PublicNavbar` (hoy falta): "Partidos" junto a "Americano y Super 8". Mismo patrón visual.
+- Feed = grid de cards. Cada card (vista ANÓNIMA, privacidad): **categoría + día/hora + cancha/club + cupos "2/4"** + barra de cupos + badge "Abierto". **NO nombres completos** de jugadores a anónimos (privacidad / Habeas Data AR) — sólo "Organiza: Juan P." o avatares.
+- Filtros simples: categoría, día. No más (evitar sensación de vacío por sobre-filtrado).
+- Conversión: card → lobby público `/partido/:id` (ya existe) → botón "¡Voy!" → si anónimo, login-con-retorno (patrón ya hecho en Convocatorias) → vuelve y queda anotado, pendiente de aprobación del organizador.
+- **Botón "Compartir por WhatsApp" prominente en cada partido** (el embudo que realmente convierte según Playtomic/MATCHi): texto pre-armado "Falta uno para el sábado 20hs en [Club], 4ta. Entrá: [link]". Esto trae gente de afuera con intención.
+
+### Qué NOS FALTA (gap concreto)
+1. Ítem "Partidos" en `PublicNavbar.jsx`.
+2. Página/feed público `/partidos` (componente nuevo, reusa estética de `EventosPage.jsx`).
+3. Sección/banner en `LandingSections.jsx` (idealmente fusionar con el de convocatorias en "Jugá hoy").
+4. Endpoint público que liste partidos abiertos del club SIN PII (sólo categoría/hora/cupos).
+5. Botón "Compartir por WhatsApp" con texto pre-armado en el lobby `/partido/:id`.
+6. Empty-state diseñado (NO feed vacío frío).
+
+### Puntos ciegos / advertencias
+- **COLD-START es el riesgo #1.** Un club chico arranca con feed vacío. Los líderes lo esquivan con masa multi-club; vos no la tenés. Mitigá: feed unificado partidos+convocatorias, empty-state con CTA "armá el tuyo", y NO prometas en marketing un feed lleno que no vas a tener el día 1.
+- **El feed NO es el motor.** Si Luca espera que el feed público por sí solo llene partidos, se va a frustrar. El motor es link+push (ya lo tenés). Vender el feed como "descubrimiento + marca", no como adquisición principal.
+- **Privacidad:** auditar que `PartidoPublicoPage` no muestre nombres/teléfonos completos a anónimos.
+- Fuente: hallazgos.md 2026-06-27 (Playtomic, MATCHi, PadelBridge, PadelOS).
+
+---
+
 ## 2026-06-24 (quad) · Matching need-driven — VEREDICTO: construir CASO 2 ("falta un cuarto YA") YA. Caso 1 reciclado como puerta a convocatorias.
 
 > CORRIGE el veredicto anterior (tablón pasivo). La afinada de Luca = 2 casos de uso need-driven + push, NO un tablón. El caso 2 esquiva la liquidez que hundía al tablón. WebSearch/WebFetch denegados este turno; me apoyo en Open Match Playtomic/MATCHi ya verificado (2026-06-21) + análisis de mecánica de liquidez (marcado inferencia).

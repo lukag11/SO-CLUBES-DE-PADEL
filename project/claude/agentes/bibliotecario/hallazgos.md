@@ -7,6 +7,47 @@
 
 ---
 
+## 2026-06-27 · Feed PÚBLICO de "partidos abiertos" (pre-login, cara de captación) — cómo lo exponen los referentes
+
+**Contexto:** Luca quiere replicar la cara pública de Convocatorias (sección en landing del club + ítem navbar "Americano y Super 8" → `/eventos` + login-con-retorno) para los PARTIDOS DE 4: navbar público "Partidos" + sección en landing + feed de partidos abiertos donde el visitante anónimo se une registrándose. Quiere "algo que venda". El matching INTERNO ya está (PlayerPartidosPage, PartidoPublicoPage en `/partido/:id`, "¡Voy!" + aprobación del organizador, rango de categorías). WebSearch SÍ habilitado este turno.
+
+### HALLAZGO CENTRAL (cambia la premisa) [Verificado]
+**Ni Playtomic ni MATCHi exponen un feed público de partidos a usuarios anónimos. El feed vive DETRÁS del login/app.**
+- Playtomic: *"In order to join a public match, you must have a Playtomic account"* / *"any player who wants to sign up for a match must have a Playtomic account"*. No hay vista web pública del feed de open matches. El descubrimiento ("matches near me") es DENTRO de la app logueado. Fuente: playerhelp.playtomic.com (How to sign up for an Open Match).
+- MATCHi: Public Matches **solo en la app móvil, no en web** (*"Public matches are only available in the mobile app, not on the web"*). Lo público que ofrecen al sitio del club es el **booking widget** (reservar cancha), no el feed de partidos. Fuente: matchiplayers.zendesk.com (Public Matches Q&A), playmore.matchi.com (booking widget).
+- **Lectura:** los líderes NO usan el feed de partidos como anzuelo de adquisición anónima — lo usan como retención DENTRO de una base ya registrada. El gancho de adquisición de ellos es el **marketplace global** (descubrís clubes/partidos en TODA la ciudad una vez dentro de la app). Un club suelto no tiene esa masa. → La idea de Luca (feed público en la landing del UN club) es un movimiento DISTINTO al de los líderes, no una copia. Puede ser diferenciador, pero hereda el problema que los líderes esquivan con masa: **cold-start / liquidez** (ver abajo).
+
+### El puente anónimo→registrado que SÍ usan: el LINK COMPARTIBLE [Verificado]
+- El mecanismo real de captación de Playtomic/MATCHi no es un feed público: es **compartir el partido por WhatsApp**. *"You can share a match by clicking the 'Share' icon... choosing WhatsApp"*; quien recibe el link *"can click on it and add themselves to the game by clicking on the remaining free slots"* — **pero igual debe crear cuenta para entrar**. Fuente: playerhelp.playtomic.com (Add my friends; sign up for Open Match), helpmanager (Sharing a Match to increase participants).
+- **Implicancia para PadelwIArk:** el embudo que funciona es *organizador comparte link de SU partido → el de afuera entra al lobby público (`/partido/:id`, que ya existe) → "¡Voy!" → registro con retorno → queda anotado*. Es el mismo patrón login-con-retorno que ya hiciste en Convocatorias. El link 1-a-1 por WhatsApp convierte mejor que un feed pasivo, porque llega con intención ("che, falta uno, entrá acá"). El feed público es el complemento de descubrimiento, no el motor.
+
+### Apps que SÍ hacen feed público de descubrimiento (el ángulo de Luca) [Verificado parcial]
+- **PadelBridge** (padelbridge.com): se posiciona literal como *"Find & Join Padel Matches In Your City"* — *"discover open games at all local clubs and simplifies finding and joining games"*. Es un agregador multi-club de descubrimiento. (Fetch directo falló por cert; dato del título + snippet de búsqueda.) Fuente: búsqueda padelbridge.com.
+- **PadelOS** (padelos.co/features/open-matches): tiene módulo dedicado "Open Match System for Padel Clubs", copy *"Encourage more padel matches with Open Matches, where players can easily create or join games based on skill level and availability"*. La página de feature NO documenta vista pública anónima ni embudo de captación — está orientada a jugadores ya dentro. Fuente: padelos.co.
+- **Locales AR ya fichados (turno 06-26):** Padelero (*"Buscá partidos abiertos en tu club o creá uno"* + Match Maker "tipo Tinder"), GetMatch, Playmix/Sportlix (*"unite a partidos abiertos o creá el tuyo"*). Convergen en el copy **"partido abierto"** + **"completar el partido"**. Casi todos detrás de registro/app.
+
+### Cold-start / feed vacío — qué hacen (y qué no dicen) [Verificado el riesgo / Probable la mitigación]
+- Ninguna fuente documenta un buen empty-state. Los líderes lo esquivan por diseño: con masa multi-club, el feed nunca está vacío. **Un club chico AR arranca con feed vacío casi seguro** — el riesgo real de la idea de Luca.
+- [Probable, sólido] La mitigación estándar en productos con liquidez baja: (1) **no mostrar feed vacío frío**; mostrar siempre un CTA "creá el primero / armá tu partido" como estado primario, con el feed como secundario; (2) **sembrar con lo que ya tenés** — convocatorias (Americano/Super 8) y partidos abiertos en un mismo feed "Jugá hoy" para que nunca esté vacío; (3) **partido fantasma / demanda latente**: "12 jugadores de 4ta buscan partido esta semana" (agrega intención aunque no haya partido armado). El motor de adquisición no puede ser el feed: tiene que ser el **link compartible + push a la categoría** (que ya tenés).
+
+### Privacidad anónimo vs logueado [Verificado el patrón general]
+- Patrón de mercado: a un anónimo NO se le muestran nombres completos de jugadores reales. Se muestra el partido (cancha, hora, nivel/categoría, cupos X/4) y, a lo sumo, nombre de pila o iniciales/avatar. Identidad completa = post-login. Aplica a PadelwIArk: tu lobby público `/partido/:id` debería mostrar "Cupos 2/4 · 4ta Categoría · Sáb 20:00" y NO "Juan Pérez, María García" a un desconocido (privacidad + Habeas Data AR). Confirmar contra el render actual de `PartidoPublicoPage`. [Verificado patrón; aplicación a tu código = recomendación, no auditado este turno]
+
+### Estado actual de PadelwIArk [Verificado contra código]
+- Navbar público (`PublicNavbar.jsx`) hoy: Quiénes Somos · Reservas · Torneos · Contacto · **Americano y Super 8** (destacado → `/eventos`). **NO hay ítem "Partidos".** ← exactamente el hueco que Luca quiere llenar.
+- Ya existen: `PartidoPublicoPage.jsx` (lobby público del partido en `/partido/:id`), `EventosPage.jsx` (feed público de convocatorias), `LandingSections.jsx`, patrón login-con-retorno. **La infra del embudo existe; falta el FEED público de partidos + la sección en landing + el ítem navbar.**
+
+### Fuentes
+- https://playerhelp.playtomic.com/hc/en-gb/articles/19832151055121-How-to-sign-up-for-an-Open-Match
+- https://matchiplayers.zendesk.com/hc/en-gb/articles/21818109944221-Public-Matches-Q-A
+- https://playmore.matchi.com/matchi-booking-widget
+- https://helpmanager.playtomic.com/hc/en-gb/articles/20535063385873-Sharing-a-Match-to-increase-participants
+- https://www.padelos.co/features/open-matches
+- https://www.padelbridge.com/
+- https://playerhelp.playtomic.com/hc/en-gb/articles/19832050848017-Add-my-friends-to-a-reservation
+
+---
+
 ## 2026-06-26 · UX del "no tengo con quién jugar" / completar el partido — rediseño de la card en Reservar cancha
 
 **Contexto:** ya existe `SolicitudJugador` (busca "jugador" o "pareja" desde Mis Reservas, botón "Buscar jugador" por reserva, notifica a misma categoría, primero que dice "¡Voy!" cubre). Luca quiere llevarlo a la pantalla de RESERVAR CANCHA como CARD dinámica siempre visible ("¿No tenés con quién jugar? Reservá y te ayudamos"). WebSearch/WebFetch SÍ habilitados este turno — material refrescado.

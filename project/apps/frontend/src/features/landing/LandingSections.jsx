@@ -7,7 +7,7 @@ import {
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   ShowerHead, Car, GraduationCap, Wifi, Coffee,
   Dumbbell, Shield, Wind, Utensils, Music, Wrench,
-  CalendarDays, CheckCircle, Lock, Trophy, Zap, Users, Medal,
+  CalendarDays, CheckCircle, Lock, Trophy, Zap, Users, Medal, Swords, UserPlus,
 } from 'lucide-react'
 import usePlayerStore from '../../store/playerStore'
 import useTorneosStore from '../../store/torneosStore'
@@ -144,6 +144,60 @@ export const AmericanoSuper8Section = ({ colorPrimario = '#afca0b', dark = true 
             </div>
           </div>
         </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── PartidosAbiertosSection ─────────────────────────────────────────────────
+// Captación: partidos abiertos del club (matching de 4). El motor real es el link por WhatsApp
+// + el push a la categoría (ver bibliotecario); este banner es descubrimiento + marca.
+export const PartidosAbiertosSection = ({ colorPrimario = '#afca0b', dark = true }) => {
+  const navigate = useNavigate()
+  const pasos = [
+    { icon: Swords, t: 'Buscás', d: 'Partidos abiertos de tu categoría' },
+    { icon: Zap, t: 'Decís «¡Voy!»', d: 'El organizador confirma tu lugar' },
+    { icon: CheckCircle, t: 'A la cancha', d: 'Te sumás sin armar grupo' },
+  ]
+  return (
+    <section id="partidos-abiertos" className="py-16 px-6 relative overflow-hidden"
+      style={{ background: dark ? '#0a0f0d' : '#f8fafc' }}>
+      {/* glow lateral (distinto al banner de Americano, que es un recuadro) */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(55% 80% at 90% 40%, ${colorPrimario}14, transparent 60%)` }} />
+      <div className="relative max-w-4xl mx-auto text-center">
+        <span className="inline-block text-[10px] font-bold uppercase tracking-[0.2em] px-2.5 py-1 rounded-full mb-4"
+          style={{ color: colorPrimario, backgroundColor: `${colorPrimario}18`, border: `1px solid ${colorPrimario}30` }}>
+          Sumate y jugá
+        </span>
+        <h2 className={`text-3xl md:text-4xl font-bold leading-tight ${dark ? 'text-white' : 'text-slate-900'}`}>
+          ¿Te falta un cuarto?
+        </h2>
+        <p className={`text-sm md:text-base mt-3 max-w-xl mx-auto leading-relaxed ${dark ? 'text-white/50' : 'text-slate-600'}`}>
+          No dependas del grupo de WhatsApp. Mirá los partidos abiertos del club, sumate al que va con tu nivel y a jugar.
+        </p>
+
+        {/* 3 pasos numerados (layout propio: centrado, en fila) */}
+        <div className="grid sm:grid-cols-3 gap-3 mt-9">
+          {pasos.map((p, i) => {
+            const Icon = p.icon
+            return (
+              <div key={i} className={`relative rounded-2xl p-6 border text-left ${dark ? 'border-white/8 bg-white/3' : 'border-slate-200 bg-white'}`}>
+                <span className="absolute top-3 right-4 text-3xl font-black tabular-nums leading-none" style={{ color: `${colorPrimario}26`, fontFamily: "'Space Grotesk', sans-serif" }}>{i + 1}</span>
+                <span className="w-12 h-12 rounded-2xl grid place-items-center mb-3" style={{ background: `linear-gradient(140deg, ${colorPrimario}, ${colorPrimario}cc)`, boxShadow: `0 8px 22px -8px ${colorPrimario}88` }}>
+                  <Icon size={22} style={{ color: dark ? '#0a0f0d' : '#0a0f0d' }} strokeWidth={2.4} />
+                </span>
+                <p className={`text-base font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>{p.t}</p>
+                <p className={`text-xs mt-1 leading-snug ${dark ? 'text-white/45' : 'text-slate-500'}`}>{p.d}</p>
+              </div>
+            )
+          })}
+        </div>
+
+        <button onClick={() => navigate('/partidos')}
+          className="mt-9 font-bold py-4 px-8 rounded-2xl transition-all active:scale-[0.98] inline-flex items-center justify-center gap-2 text-sm"
+          style={{ backgroundColor: colorPrimario, color: '#080b0f', boxShadow: `0 12px 32px -10px ${colorPrimario}99` }}>
+          <Swords size={17} /> Ver partidos abiertos
+        </button>
       </div>
     </section>
   )

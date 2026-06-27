@@ -2922,10 +2922,39 @@
         </div>
       </div>
 
+      <!-- PASO 10.8 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">10.8</span>
+          <div>
+            <div class="paso-titulo">Cara PÚBLICA: partidos abiertos en la landing (captación)</div>
+            <div class="paso-ruta">/ (landing) · /partidos · /partido/:id</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En la <strong>landing pública del club</strong> (sin login), después de "Americano y Super 8", aparece la sección <strong>"¿Te falta un cuarto?"</strong> (diseño distinto al Americano: 3 pasos numerados Buscás → ¡Voy! → A la cancha) con botón <strong>"Ver partidos abiertos"</strong>.</li>
+              <li>En el <strong>navbar público</strong>, después de "Contacto", está el ítem <strong>"Partidos" (⚔️ espadas)</strong> destacado con el color del club (como Americano y Super 8).</li>
+              <li>Ambos llevan a <code>/partidos</code> (<strong>página pública sin login</strong>): lista los partidos abiertos PÚBLICOS del club; refresca solo cada 15s. Si no hay, muestra un empty state con CTA <strong>"Sumarme al club"</strong> → registro.</li>
+              <li>Tocar una card → lobby <code>/partido/:id</code>: faltan N, roster, barra de progreso. <strong>"¡Voy!"</strong> pide login (login-con-retorno: te registrás y te suma solo).</li>
+              <li><strong>Privacidad:</strong> en el feed y el lobby públicos se ve <strong>solo el primer nombre</strong> (sin apellido) del organizador y de los que ya están dentro.</li>
+              <li><strong>Compartir por WhatsApp:</strong> en el lobby (si falta gente) hay un botón verde que abre WhatsApp con un mensaje pre-armado (faltan N + categoría + fecha/hora + link). Ese es el canal real para llenar el partido.</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            <code>GET /solicitudes/publica/club/:slug</code> alimenta <code>/partidos</code>;
+            <code>GET /solicitudes/publica/:id</code> el lobby. Los privados NO se listan (solo se ven por link directo).
+            Nombres recortados a primer nombre.
+          </div>
+        </div>
+      </div>
+
       <div class="alerta" style="margin-top:20px;">
         <div class="titulo">🔜 Pendiente (futuro)</div>
         <ol style="margin:0; padding-left:18px; line-height:2; font-size:0.9rem;">
-          <li>Feed público ANÓNIMO de partidos en la landing del club (el endpoint existe; falta la UI pública — necesita densidad).</li>
           <li>Deadline / auto-cierre del partido (necesita un cron — al deployar).</li>
           <li>Push real al celular: PWA + Web Push (Android) o app nativa + Firebase (Android+iPhone).</li>
           <li>El roster (titular + los que dijeron Voy) pre-puebla los jugadores del turno para el cobro/split.</li>

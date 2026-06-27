@@ -19,7 +19,8 @@ router.get('/club/:slug', async (req, res) => {
     })
     res.json(ss.map((s) => {
       const yaVan = s.participantes.filter((p) => p.estado === 'aceptado').length
-      return { id: s.id, busco: s.busco, categoria: s.categorias.length ? s.categorias.join(' · ') : s.categoria, fecha: s.fecha, horaInicio: s.horaInicio, nota: s.nota, cupos: s.cupos, yaVan, faltan: Math.max(0, s.cupos - yaVan), solicitante: `${s.solicitante.nombre} ${s.solicitante.apellido}` }
+      // Privacidad (público/anónimo): solo el PRIMER NOMBRE, sin apellido.
+      return { id: s.id, busco: s.busco, categoria: s.categorias.length ? s.categorias.join(' · ') : s.categoria, fecha: s.fecha, horaInicio: s.horaInicio, nota: s.nota, cupos: s.cupos, yaVan, faltan: Math.max(0, s.cupos - yaVan), solicitante: s.solicitante.nombre }
     }))
   } catch (err) {
     console.error('Error listar partidos públicos:', err.message)
@@ -42,7 +43,8 @@ router.get('/:id', async (req, res) => {
     // Por id (link directo) se ve cualquiera, pública o privada — el link es el acceso al lobby.
     // El LISTADO (/club/:slug) sí filtra solo públicas.
     if (!s) return res.status(404).json({ error: 'Partido no encontrado' })
-    const roster = s.participantes.filter((p) => p.estado === 'aceptado').map((p) => `${p.jugador.nombre} ${p.jugador.apellido}`)
+    // Privacidad (público/anónimo): solo PRIMER NOMBRE, sin apellido.
+    const roster = s.participantes.filter((p) => p.estado === 'aceptado').map((p) => p.jugador.nombre)
     const yaVan = roster.length
     res.json({
       id: s.id,
@@ -59,7 +61,7 @@ router.get('/:id', async (req, res) => {
       yaVan,
       faltan: Math.max(0, s.cupos - yaVan),
       roster,
-      solicitante: `${s.solicitante.nombre} ${s.solicitante.apellido}`,
+      solicitante: s.solicitante.nombre,
     })
   } catch (err) {
     console.error('Error partido público:', err.message)

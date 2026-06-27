@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
-import { requireRole } from '../middleware/auth.js'
+import { requireAuth, requireRole, requirePermiso } from '../middleware/auth.js'
 import { runSerializable } from '../lib/serializable.js'
 import { hoyArgStr } from '../lib/tiempo.js'
 import { normalizarCategoria } from '../lib/categorias.js'
@@ -161,6 +161,34 @@ router.get('/sumado', requireRole('jugador'), async (req, res) => {
   } catch (err) {
     console.error('Error solicitudes sumado:', err.message)
     res.status(500).json({ error: 'Error al obtener tus partidos' })
+  }
+})
+
+// GET /api/solicitudes/por-reserva/:reservaId — (ADMIN) roster del partido atado a una reserva,
+// para pre-poblar el split del cobro del turno. Devuelve titular + participantes ACEPTADOS.
+// Si la reserva no tiene partido (o está cancelado), responde { partido: false }.
+router.get('/por-reserva/:reservaId', requireAuth, requireRole('admin'), requirePermiso('ventas'), async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const s = await prisma.solicitudJugador.findFirst({
+      where: { clubId, reservaId: req.params.reservaId, estado: { in: ['abierta', 'completa'] } },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        solicitante: { select: { id: true, nombre: true, apellido: true } },
+        participantes: { where: { estado: 'aceptado' }, include: { jugador: { select: { id: true, nombre: true, apellido: true } } } },
+      },
+    })
+    if (!s) return res.json({ partido: false, jugadores: [] })
+    // Roster = titular + aceptados (sin duplicar al titular si también figura como participante).
+    const jugadores = [{ jugadorId: s.solicitante.id, nombre: nombreDe(s.solicitante), titular: true }]
+    for (const p of s.participantes) {
+      if (p.jugadorId === s.solicitante.id) continue
+      jugadores.push({ jugadorId: p.jugador.id, nombre: nombreDe(p.jugador), titular: false })
+    }
+    res.json({ partido: true, solicitudId: s.id, estado: s.estado, cupos: s.cupos, jugadores })
+  } catch (err) {
+    console.error('Error roster por reserva:', err.message)
+    res.status(500).json({ error: 'Error al obtener el roster del partido' })
   }
 })
 

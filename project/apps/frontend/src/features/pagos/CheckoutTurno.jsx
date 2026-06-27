@@ -45,9 +45,19 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   const [mode, setMode] = useState('simple')        // 'simple' | 'split'
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [rosterPartido, setRosterPartido] = useState(null) // { jugadores:[{jugadorId,nombre,titular}] } si el turno es un partido abierto
+  const [rosterCargado, setRosterCargado] = useState(false)
 
   useEffect(() => {
     api.get('/productos', auth).then((d) => setProductos(Array.isArray(d) ? d : [])).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Si el turno es un partido abierto (matching), traigo su roster para OFRECER pre-poblar el split.
+  useEffect(() => {
+    if (!reserva._backendId) return
+    api.get(`/solicitudes/por-reserva/${reserva._backendId}`, auth)
+      .then((d) => { if (d?.partido && d.jugadores?.length) setRosterPartido(d) })
+      .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const activos = productos.filter((p) => p.activo)
 
@@ -89,6 +99,22 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
     if (!autoSplit || saldoTurno <= 0) return
     setPersonas((prev) => dividirTurno(prev))
   }, [jugadoresKey, autoSplit, saldoTurno]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Híbrido matching→caja: el admin confirma y pre-poblamos el split con los jugadores del partido.
+  // Merge por jugadorId → no duplica al titular ni pisa lo que el admin ya haya cargado a mano.
+  const cargarRoster = () => {
+    if (!rosterPartido) return
+    setMode('split')
+    setAutoSplit(true)
+    setPersonas((prev) => {
+      const existentes = new Set(prev.map((p) => p.jugadorId).filter(Boolean))
+      const nuevos = rosterPartido.jugadores
+        .filter((j) => !existentes.has(j.jugadorId))
+        .map((j) => nuevaPersona({ tipo: j.jugadorId === reserva.jugadorId ? 'titular' : 'jugador', jugadorId: j.jugadorId, nombre: j.nombre, jugo: true }))
+      return dividirTurno([...prev, ...nuevos])
+    })
+    setRosterCargado(true)
+  }
 
   // ── Totales SIMPLE ──
   const totalConsumosSimple = lineas.reduce((s, l) => s + l.precio * l.cantidad, 0)
@@ -211,6 +237,25 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
 
           {turnoSaldado && <p className="mt-2 text-[11px] text-slate-400">El turno ya está saldado. Podés agregar consumiciones.</p>}
         </div>
+
+        {/* Híbrido matching→caja: si el turno es un partido abierto, ofrecer cargar el roster */}
+        {rosterPartido && !rosterCargado && (
+          <div className="px-6 pt-3 shrink-0">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-3">
+              <span className="text-lg shrink-0">🎾</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-emerald-800">Este turno es un partido abierto</p>
+                <p className="text-xs text-emerald-600 truncate">{rosterPartido.jugadores.length} anotado{rosterPartido.jugadores.length !== 1 ? 's' : ''} · {rosterPartido.jugadores.map((j) => j.nombre.split(' ')[0]).join(', ')}</p>
+              </div>
+              <button onClick={cargarRoster} className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold whitespace-nowrap shrink-0">+ Cargar al split</button>
+            </div>
+          </div>
+        )}
+        {rosterCargado && (
+          <div className="px-6 pt-3 shrink-0">
+            <p className="text-[11px] text-emerald-600">✓ Jugadores del partido cargados en «Dividir»</p>
+          </div>
+        )}
 
         {/* Tabs de modo */}
         <div className="px-6 pt-3 shrink-0">

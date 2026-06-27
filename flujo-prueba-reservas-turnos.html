@@ -2952,12 +2952,40 @@
         </div>
       </div>
 
+      <!-- PASO 10.9 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">10.9</span>
+          <div>
+            <div class="paso-titulo">Cobrar el turno con el roster del partido (matching → caja)</div>
+            <div class="paso-ruta">Admin · grilla del día → turno → Cobrar</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>Tené un <strong>partido abierto</strong> armado sobre un turno (titular + al menos un jugador <strong>aceptado</strong>).</li>
+              <li>Entrá como <strong>admin</strong> a la grilla del día, tocá ese turno y abrí <strong>"Cobrar turno"</strong>.</li>
+              <li>Arriba aparece un <strong>aviso verde</strong>: "🎾 Este turno es un partido abierto · N anotados · nombres" con botón <strong>"+ Cargar al split"</strong>.</li>
+              <li>Tocá el botón → pasa a modo <strong>Dividir</strong> con los jugadores cargados y el turno repartido en partes iguales. Cada uno elige cómo paga (cobrar / a cuenta / método).</li>
+              <li>Probar que <strong>no duplica</strong>: si el titular ya estaba precargado, sigue una sola vez. Y si ya habías agregado a alguien a mano, no lo pisa (hace merge).</li>
+              <li>Probar que un turno <strong>normal</strong> (sin partido) abre el cobro igual que siempre, sin el aviso.</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            <code>GET /solicitudes/por-reserva/:reservaId</code> (guard admin + permiso <code>ventas</code>) devuelve el roster;
+            el split se pre-puebla con merge por <code>jugadorId</code>. UX híbrida: el aviso es visible pero la carga es manual (no pisa nada).
+          </div>
+        </div>
+      </div>
+
       <div class="alerta" style="margin-top:20px;">
         <div class="titulo">🔜 Pendiente (futuro)</div>
         <ol style="margin:0; padding-left:18px; line-height:2; font-size:0.9rem;">
           <li>Deadline / auto-cierre del partido (necesita un cron — al deployar).</li>
           <li>Push real al celular: PWA + Web Push (Android) o app nativa + Firebase (Android+iPhone).</li>
-          <li>El roster (titular + los que dijeron Voy) pre-puebla los jugadores del turno para el cobro/split.</li>
           <li>Barrer los <code>alert()</code> que quedan en el área admin (ReservasPage es frágil).</li>
         </ol>
       </div>

@@ -1,18 +1,20 @@
 import { useState } from 'react'
 import { Search, X, Check, Copy, Loader2, UserPlus, Users } from 'lucide-react'
 import { api } from '../../lib/api'
+import usePlayerStore from '../../store/playerStore'
 import { CATEGORIAS_JUGADOR, catLabel } from '../../constants/categorias'
 
 // Modal "Busco jugador/pareja" (caso 2). Se puede abrir suelto o pre-llenado desde una reserva
-// (prefill: { fecha, horaInicio, nota, reservaId }). Notifica a la categoría del jugador.
+// (prefill: { fecha, horaInicio, nota, reservaId }). Notifica a las categorías elegidas (rango).
 export default function BuscarJugadorModal({ token, prefill = {}, onClose, onCreado }) {
+  const miCategoria = usePlayerStore((s) => s.player?.categoria)
   const [form, setForm] = useState({
     busco: 'jugador',
     cupos: 1, // cuántos faltan (solo aplica a 'jugador'; 'pareja' = 2 fijo en el backend)
     visibilidad: 'publica', // 'publica' = avisa a tu categoría (app) | 'privada' = solo por link (tu grupo)
     fecha: prefill.fecha || '',
     horaInicio: prefill.horaInicio || '',
-    categoria: prefill.categoria || '',
+    categorias: miCategoria ? [miCategoria] : [], // tu categoría preseleccionada; podés sumar las cercanas
     nota: prefill.nota || '',
   })
   const [creando, setCreando] = useState(false)
@@ -20,6 +22,7 @@ export default function BuscarJugadorModal({ token, prefill = {}, onClose, onCre
   const [res, setRes] = useState(null)
   const [copiado, setCopiado] = useState(false)
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  const toggleCat = (c) => setForm((f) => ({ ...f, categorias: f.categorias.includes(c) ? f.categorias.filter((x) => x !== c) : [...f.categorias, c] }))
   const bloqueadoFechaHora = !!(prefill.fecha && prefill.horaInicio) // viene de una reserva
 
   const crear = () => {
@@ -29,7 +32,7 @@ export default function BuscarJugadorModal({ token, prefill = {}, onClose, onCre
     setCreando(true)
     api.post('/solicitudes', {
       busco: form.busco, cupos: form.cupos, visibilidad: form.visibilidad, fecha: form.fecha, horaInicio: form.horaInicio,
-      categoria: form.categoria || null, nota: form.nota || null, reservaId: prefill.reservaId || null,
+      categorias: form.categorias, nota: form.nota || null, reservaId: prefill.reservaId || null,
     }, { Authorization: `Bearer ${token}` })
       .then((r) => setRes(r))
       .catch((e) => setError(e?.message || 'No se pudo crear la búsqueda'))
@@ -101,10 +104,10 @@ export default function BuscarJugadorModal({ token, prefill = {}, onClose, onCre
             {bloqueadoFechaHora && <p className="text-[11px] text-white/30 -mt-2">Día y horario de tu reserva.</p>}
 
             <div>
-              <label className="text-xs font-semibold text-white/50 mb-1 block">Categoría <span className="font-normal text-white/30">(si no elegís, usamos la tuya)</span></label>
+              <label className="text-xs font-semibold text-white/50 mb-1 block">Categorías <span className="font-normal text-white/30">(tu categoría va sola; sumá las cercanas si querés)</span></label>
               <div className="grid grid-cols-4 gap-1.5">
                 {CATEGORIAS_JUGADOR.map((c) => (
-                  <button key={c} onClick={() => set('categoria', form.categoria === c ? '' : c)} className={`py-2 rounded-lg text-sm font-semibold border transition-all ${form.categoria === c ? 'border-club bg-club text-dark-900' : 'border-white/10 text-white/60 hover:border-club/50'}`}>{catLabel(c)}</button>
+                  <button key={c} onClick={() => toggleCat(c)} className={`py-2 rounded-lg text-sm font-semibold border transition-all ${form.categorias.includes(c) ? 'border-club bg-club text-dark-900' : 'border-white/10 text-white/60 hover:border-club/50'}`}>{catLabel(c)}</button>
                 ))}
               </div>
             </div>

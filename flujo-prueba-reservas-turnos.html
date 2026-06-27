@@ -2895,10 +2895,37 @@
         </div>
       </div>
 
+      <!-- PASO 10.7 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">10.7</span>
+          <div>
+            <div class="paso-titulo">Página "Partidos" (feed interno) + rango de categorías</div>
+            <div class="paso-ruta">/dashboardJugadores/partidos</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>En el navbar del jugador hay un ítem <strong>"Partidos"</strong> (⚔️): lista los partidos abiertos públicos de tu categoría → "¡Voy!" (pendiente de aprobación). Si no hay, muestra empty state con "Armá el tuyo".</li>
+              <li>El feed se movió ahí desde "Reservar cancha" (que queda solo con la card "armá tu partido").</li>
+              <li><strong>Rango de categorías:</strong> al crear, el selector es <strong>multi</strong> — tu categoría viene marcada y podés sumar las cercanas (ej. 3ra·4ta·5ta).</li>
+              <li>Probar: A crea con 4ta+5ta → un jugador <strong>5ta</strong> ve el partido en "Partidos" (antes solo los 4ta).</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            <code>SolicitudJugador.categorias[]</code> guarda el rango; se notifica a <code>categoria: {in}</code>;
+            <code>/abiertas</code> filtra <code>categorias: {has: miCategoría}</code>. Las cards muestran el rango (join).
+          </div>
+        </div>
+      </div>
+
       <div class="alerta" style="margin-top:20px;">
         <div class="titulo">🔜 Pendiente (futuro)</div>
         <ol style="margin:0; padding-left:18px; line-height:2; font-size:0.9rem;">
-          <li>Feed público de partidos abiertos en la página pública del club (necesita densidad de jugadores).</li>
+          <li>Feed público ANÓNIMO de partidos en la landing del club (el endpoint existe; falta la UI pública — necesita densidad).</li>
           <li>Deadline / auto-cierre del partido (necesita un cron — al deployar).</li>
           <li>Push real al celular: PWA + Web Push (Android) o app nativa + Firebase (Android+iPhone).</li>
           <li>El roster (titular + los que dijeron Voy) pre-puebla los jugadores del turno para el cobro/split.</li>

@@ -518,7 +518,8 @@ model SolicitudJugador {
   cupos         Int      @default(1) // lugares a llenar: 'jugador' 1-3 (elegible), 'pareja' = 2 fijo
   visibilidad   String   @default("privada") // 'privada' (solo notif a la categoría) | 'publica' (link compartible + lobby)
   reservaId     String?  // turno al que pertenece (para contexto / pre-llenado)
-  categoria     String?  // categoría objetivo (a quién se le notifica)
+  categoria     String?  // legacy (1 categoría). El match nuevo usa `categorias` (rango).
+  categorias    String[] @default([]) // categorías objetivo (rango): a quiénes se notifica y quiénes lo ven
   fecha         String   // YYYY-MM-DD
   horaInicio    String   // HH:MM
   nota          String?  // ej: "Cancha 2, falta drive"

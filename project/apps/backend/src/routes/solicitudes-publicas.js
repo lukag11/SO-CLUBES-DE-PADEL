@@ -19,7 +19,7 @@ router.get('/club/:slug', async (req, res) => {
     })
     res.json(ss.map((s) => {
       const yaVan = s.participantes.filter((p) => p.estado === 'aceptado').length
-      return { id: s.id, busco: s.busco, categoria: s.categoria, fecha: s.fecha, horaInicio: s.horaInicio, nota: s.nota, cupos: s.cupos, yaVan, faltan: Math.max(0, s.cupos - yaVan), solicitante: `${s.solicitante.nombre} ${s.solicitante.apellido}` }
+      return { id: s.id, busco: s.busco, categoria: s.categorias.length ? s.categorias.join(' · ') : s.categoria, fecha: s.fecha, horaInicio: s.horaInicio, nota: s.nota, cupos: s.cupos, yaVan, faltan: Math.max(0, s.cupos - yaVan), solicitante: `${s.solicitante.nombre} ${s.solicitante.apellido}` }
     }))
   } catch (err) {
     console.error('Error listar partidos públicos:', err.message)
@@ -50,7 +50,7 @@ router.get('/:id', async (req, res) => {
       club: s.club?.nombre ?? '',
       clubSlug: s.club?.slug ?? '',
       busco: s.busco,
-      categoria: s.categoria,
+      categoria: s.categorias.length ? s.categorias.join(' · ') : s.categoria,
       fecha: s.fecha,
       horaInicio: s.horaInicio,
       nota: s.nota,

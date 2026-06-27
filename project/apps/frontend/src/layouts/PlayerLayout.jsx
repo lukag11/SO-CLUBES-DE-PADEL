@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate, Link } from 'react-router-dom'
-import { Zap, BarChart2, Trophy, Users, LogOut, LayoutDashboard, UserCircle, Repeat, CalendarDays, Bell, Menu, X, ClipboardList, Wallet, Megaphone } from 'lucide-react'
+import { Zap, BarChart2, Trophy, Users, LogOut, LayoutDashboard, UserCircle, Repeat, CalendarDays, Bell, Menu, X, ClipboardList, Wallet, Megaphone, Swords } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 import useReservasStore from '../store/reservasStore'
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/dashboardJugadores/reservas',     label: 'Reservar cancha',  icon: CalendarDays },
   { to: '/dashboardJugadores/mis-reservas', label: 'Mis reservas',     icon: ClipboardList },
   { to: '/dashboardJugadores/eventos',      label: 'Americano y Super 8', icon: Megaphone },
+  { to: '/dashboardJugadores/partidos',     label: 'Partidos',         icon: Swords },
   { to: '/dashboardJugadores/turnos-fijos', label: 'Mis turnos fijos', icon: Repeat },
   { to: '/dashboardJugadores/mis-pagos',    label: 'Mis pagos',        icon: Wallet },
   { to: '/dashboardJugadores/estadisticas', label: 'Estadísticas',     icon: BarChart2 },

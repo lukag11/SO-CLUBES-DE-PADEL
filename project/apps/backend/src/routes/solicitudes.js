@@ -19,7 +19,7 @@ const nombreDe = (j) => `${j.nombre} ${j.apellido}`
 router.post('/', requireRole('jugador'), async (req, res) => {
   const clubId = req.user.clubId
   const solicitanteId = req.user.id
-  const { categoria, fecha, horaInicio, nota, busco, reservaId, visibilidad } = req.body || {}
+  const { categoria, categorias: catsBody, fecha, horaInicio, nota, busco, reservaId, visibilidad } = req.body || {}
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) return res.status(400).json({ error: 'Fecha inválida' })
   if (!/^\d{1,2}:\d{2}$/.test(horaInicio || '')) return res.status(400).json({ error: 'Horario inválido' })
   if (fecha < hoyArgStr()) return res.status(400).json({ error: 'La fecha ya pasó' })
@@ -28,25 +28,33 @@ router.post('/', requireRole('jugador'), async (req, res) => {
   const vis = visibilidad === 'publica' ? 'publica' : 'privada'
   try {
     const sol = await prisma.jugador.findUnique({ where: { id: solicitanteId }, select: { nombre: true, apellido: true, categoria: true } })
-    const cat = normalizarCategoria(categoria || sol?.categoria)
+    // Rango de categorías objetivo: las que elija el jugador (array) o, si no, la suya. Normalizadas.
+    let categorias = Array.isArray(catsBody) ? catsBody.map((c) => normalizarCategoria(c)).filter(Boolean) : []
+    if (!categorias.length) {
+      const propia = normalizarCategoria(categoria || sol?.categoria)
+      if (propia) categorias = [propia]
+    }
+    categorias = [...new Set(categorias)]
+    const cat = categorias[0] || null // legacy (1 sola)
+    const catTxt = categorias.join(' · ')
     const solicitud = await prisma.solicitudJugador.create({
-      data: { clubId, solicitanteId, busco: buscoOk, cupos, visibilidad: vis, reservaId: reservaId || null, categoria: cat, fecha, horaInicio: horaInicio.padStart(5, '0'), nota: nota?.toString().trim() || null },
+      data: { clubId, solicitanteId, busco: buscoOk, cupos, visibilidad: vis, reservaId: reservaId || null, categoria: cat, categorias, fecha, horaInicio: horaInicio.padStart(5, '0'), nota: nota?.toString().trim() || null },
     })
-    // Notificar (in-app) a la categoría SOLO si es público. Privado = solo por link.
+    // Notificar (in-app) a los jugadores de ESAS categorías SOLO si es público. Privado = solo por link.
     let notificados = 0
-    if (cat && vis === 'publica') {
-      const jugadores = await prisma.jugador.findMany({ where: { clubId, activo: true, categoria: cat, id: { not: solicitanteId } }, select: { id: true } })
+    if (categorias.length && vis === 'publica') {
+      const jugadores = await prisma.jugador.findMany({ where: { clubId, activo: true, categoria: { in: categorias }, id: { not: solicitanteId } }, select: { id: true } })
       if (jugadores.length) {
         await prisma.notificacion.createMany({
-          data: jugadores.map((j) => ({ clubId, jugadorId: j.id, tipo: 'busca_jugador', data: { solicitudId: solicitud.id, busco: buscoOk, cupos, categoria: cat, fecha, horaInicio: solicitud.horaInicio, nota: solicitud.nota, solicitante: nombreDe(sol) } })),
+          data: jugadores.map((j) => ({ clubId, jugadorId: j.id, tipo: 'busca_jugador', data: { solicitudId: solicitud.id, busco: buscoOk, cupos, categoria: catTxt, fecha, horaInicio: solicitud.horaInicio, nota: solicitud.nota, solicitante: nombreDe(sol) } })),
         })
         notificados = jugadores.length
       }
     }
     const club = await prisma.club.findUnique({ where: { id: clubId }, select: { nombre: true } })
     const queFalta = buscoOk === 'pareja'
-      ? `*Buscamos una pareja rival${cat ? ` de ${cat}` : ''}*`
-      : `*Faltan ${cupos} jugador${cupos > 1 ? 'es' : ''}${cat ? ` de ${cat}` : ''}*`
+      ? `*Buscamos una pareja rival${catTxt ? ` de ${categorias.join('/')}` : ''}*`
+      : `*Faltan ${cupos} jugador${cupos > 1 ? 'es' : ''}${catTxt ? ` de ${categorias.join('/')}` : ''}*`
     const cierre = buscoOk === 'pareja' ? '¿Se prenden con tu compañero? Avisá 👇' : '¿Te sumás? Avisá 👇'
     const base = process.env.APP_PUBLIC_URL || 'http://localhost:5173'
     const link = `${base}/partido/${solicitud.id}`
@@ -70,14 +78,14 @@ router.get('/abiertas', requireRole('jugador'), async (req, res) => {
         clubId, estado: 'abierta', solicitanteId: { not: jugadorId }, fecha: { gte: hoyArgStr() },
         visibilidad: 'publica', // las privadas son solo por link, no se listan en el feed
         participantes: { none: { jugadorId } }, // si ya pedí (pendiente) o estoy (aceptado), no la muestra
-        ...(yo?.categoria ? { categoria: yo.categoria } : {}),
+        ...(yo?.categoria ? { categorias: { has: yo.categoria } } : {}), // el partido incluye mi categoría en su rango
       },
       orderBy: [{ fecha: 'asc' }, { createdAt: 'desc' }],
       include: { solicitante: { select: { nombre: true, apellido: true } }, participantes: { select: { estado: true } } },
     })
     res.json(sols.map((s) => {
       const yaVan = s.participantes.filter((p) => p.estado === 'aceptado').length
-      return { id: s.id, busco: s.busco, categoria: s.categoria, fecha: s.fecha, horaInicio: s.horaInicio, nota: s.nota, solicitante: nombreDe(s.solicitante), cupos: s.cupos, yaVan, faltan: Math.max(0, s.cupos - yaVan) }
+      return { id: s.id, busco: s.busco, categoria: s.categorias.length ? s.categorias.join(' · ') : s.categoria, fecha: s.fecha, horaInicio: s.horaInicio, nota: s.nota, solicitante: nombreDe(s.solicitante), cupos: s.cupos, yaVan, faltan: Math.max(0, s.cupos - yaVan) }
     }))
   } catch (err) {
     console.error('Error solicitudes abiertas:', err.message)
@@ -105,7 +113,7 @@ router.get('/mias', requireRole('jugador'), async (req, res) => {
       const roster = aceptados.map((p) => nombreDe(p.jugador))
       const yaVan = aceptados.length
       return {
-        id: s.id, busco: s.busco, reservaId: s.reservaId, categoria: s.categoria, fecha: s.fecha, horaInicio: s.horaInicio,
+        id: s.id, busco: s.busco, reservaId: s.reservaId, categoria: s.categorias.length ? s.categorias.join(' · ') : s.categoria, fecha: s.fecha, horaInicio: s.horaInicio,
         nota: s.nota, estado: s.estado, visibilidad: s.visibilidad, cupos: s.cupos, yaVan, faltan: Math.max(0, s.cupos - yaVan), roster,
         pendientes: pendientes.map((p) => ({ jugadorId: p.jugadorId, nombre: nombreDe(p.jugador) })),
         cubiertoPor: roster.length ? roster.join(', ') : (s.cubiertoPor ? nombreDe(s.cubiertoPor) : null),
@@ -146,7 +154,7 @@ router.get('/sumado', requireRole('jugador'), async (req, res) => {
       const conQuienes = [nombreDe(s.solicitante), ...s.participantes.filter((p) => p.jugadorId !== jugadorId).map((p) => nombreDe(p.jugador))]
       return {
         id: s.id, organizador: nombreDe(s.solicitante), fecha: s.fecha, horaInicio: s.horaInicio,
-        categoria: s.categoria, estado: s.estado, cancha: s.reservaId ? (canchaPorReserva[s.reservaId] || '') : '',
+        categoria: s.categorias.length ? s.categorias.join(' · ') : s.categoria, estado: s.estado, cancha: s.reservaId ? (canchaPorReserva[s.reservaId] || '') : '',
         cupos: s.cupos, yaVan, faltan: Math.max(0, s.cupos - yaVan), conQuienes,
       }
     }))

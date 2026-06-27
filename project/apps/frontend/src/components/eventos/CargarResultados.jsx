@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Trophy, Loader2, Check, ChevronRight } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useToast } from '../ui/ToastProvider'
 import {
   generarFixtureAmericano, generarFixtureSuper8,
   validarPartidoAmericano, validarSetPadel,
@@ -11,6 +12,7 @@ import {
 // el ranking en vivo. Reusa el motor de lib/eventos.js. Guarda el fixture en el backend a
 // cada cambio (debounced) para que la vista pública (TV) lo refleje.
 export default function CargarResultados({ convId, token, onClose }) {
+  const toast = useToast()
   const [conv, setConv] = useState(null)
   const [fixture, setFixture] = useState(null) // fixture de trabajo (con rondas + resultados)
   const [step, setStep] = useState('cargando') // 'cargando' | 'pares' | 'jugar' | 'error'
@@ -101,7 +103,7 @@ export default function CargarResultados({ convId, token, onClose }) {
     clearTimeout(saveTimer.current)
     api.patch(`/convocatorias/${convId}/fixture`, { fixture, finalizar: true }, { Authorization: `Bearer ${token}` })
       .then(() => onClose())
-      .catch(() => alert('No se pudo finalizar'))
+      .catch(() => toast.error('No se pudo finalizar'))
       .finally(() => setFinalizando(false))
   }
 

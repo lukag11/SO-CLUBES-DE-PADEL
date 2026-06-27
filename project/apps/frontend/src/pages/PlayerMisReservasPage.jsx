@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CalendarDays, Clock, XCircle, Info, X, CheckCircle, Search, UserPlus, Link2 } from 'lucide-react'
+import { CalendarDays, Clock, XCircle, Info, X, CheckCircle, Search, UserPlus, Link2, Users } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import useClubStore from '../store/clubStore'
 import useReservasStore from '../store/reservasStore'
@@ -124,9 +124,11 @@ export default function PlayerMisReservasPage() {
   const [cancelando, setCancelando] = useState(false)
   const [filtro, setFiltro] = useState('proximas') // 'proximas' | 'todas'
   const [misSol, setMisSol] = useState([]) // mis búsquedas (para mostrar estado por reserva)
+  const [sumados, setSumados] = useState([]) // partidos de OTROS donde me aceptaron (voy a jugar ahí)
   const [buscarPrefill, setBuscarPrefill] = useState(null) // { fecha, horaInicio, nota, reservaId }
   const [cancelandoSol, setCancelandoSol] = useState(null) // id de búsqueda que se está cancelando
   const [copiadoId, setCopiadoId] = useState(null) // id de búsqueda cuyo link se acaba de copiar
+  const [accionPend, setAccionPend] = useState(null) // `${solId}:${jugadorId}` que se está aprobando/rechazando
 
   const fetchReservas = () => {
     if (!token) return
@@ -139,6 +141,8 @@ export default function PlayerMisReservasPage() {
     if (!token) return
     api.get('/solicitudes/mias', { Authorization: `Bearer ${token}` })
       .then((d) => setMisSol(Array.isArray(d) ? d : [])).catch(() => {})
+    api.get('/solicitudes/sumado', { Authorization: `Bearer ${token}` })
+      .then((d) => setSumados(Array.isArray(d) ? d : [])).catch(() => {})
   }
   const cancelarSolicitud = (id) => {
     if (cancelandoSol) return
@@ -148,6 +152,16 @@ export default function PlayerMisReservasPage() {
   }
   // Búsquedas activas (abiertas o ya cubiertas) — las canceladas no se listan.
   const misSolActivas = useMemo(() => misSol.filter((s) => s.estado !== 'cancelada'), [misSol])
+  // El titular acepta/rechaza a un jugador que pidió sumarse a su partido.
+  const responderPendiente = (solId, jugadorId, accion) => {
+    const k = `${solId}:${jugadorId}`
+    if (accionPend) return
+    setAccionPend(k)
+    api.post(`/solicitudes/${solId}/${accion}`, { jugadorId }, { Authorization: `Bearer ${token}` })
+      .then(() => fetchSolicitudes())
+      .catch((e) => toast.error(e?.message || 'No se pudo'))
+      .finally(() => setAccionPend(null))
+  }
   // Copia al portapapeles el link público del partido (para re-compartir cuando quiera).
   const compartirPartido = (s) => {
     const link = `${window.location.origin}/partido/${s.id}`
@@ -248,6 +262,7 @@ export default function PlayerMisReservasPage() {
       cancelarReserva(reservaACancelar.id)
       setReservas((prev) => prev.filter((r) => r.id !== reservaACancelar.id))
       setReservaACancelar(null)
+      fetchSolicitudes() // la búsqueda atada al turno se canceló en el backend → recargar para que desaparezca
       toast.success(res?.cargoAplicado
         ? 'Reserva cancelada · se aplicó un cargo por cancelar fuera de plazo'
         : 'Reserva cancelada')
@@ -287,6 +302,32 @@ export default function PlayerMisReservasPage() {
           ))}
         </div>
       </div>
+
+      {/* Vas a jugar — partidos de otros donde el titular te aceptó (aunque no reservaste vos) */}
+      {sumados.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-white/70 mb-2.5 flex items-center gap-1.5"><Users size={15} className="text-club" /> Vas a jugar</h2>
+          <div className="flex flex-col gap-2.5">
+            {sumados.map((s) => (
+              <div key={s.id} className="rounded-2xl border border-club/25 bg-club/5 p-4 flex items-center gap-3">
+                <span className="w-10 h-10 rounded-xl bg-club/15 grid place-items-center shrink-0"><Users size={18} className="text-club" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-semibold truncate">Te sumaste al partido de {s.organizador}</p>
+                  <p className="text-white/40 text-xs flex items-center gap-2 mt-0.5 capitalize">
+                    <span className="flex items-center gap-1"><CalendarDays size={11} /> {fmtFechaCorta(s.fecha)}</span>
+                    <span className="flex items-center gap-1"><Clock size={11} /> {s.horaInicio}</span>
+                    {s.cancha && <span className="text-white/30">{s.cancha}</span>}
+                  </p>
+                  {s.conQuienes?.length > 0 && <p className="text-club/70 text-[11px] mt-0.5 truncate">Jugás con: {s.conQuienes.join(', ')}</p>}
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${s.estado === 'completa' ? 'bg-club/15 text-club' : 'bg-amber-500/15 text-amber-400'}`}>
+                  {s.estado === 'completa' ? '✓ Completo' : `Faltan ${s.faltan}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Lista */}
       <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
@@ -387,7 +428,8 @@ export default function PlayerMisReservasPage() {
             {misSolActivas.map((s) => {
               const completo = s.estado === 'completa' || s.estado === 'cubierta'
               return (
-                  <div key={s.id} className="rounded-2xl border border-white/8 bg-[#0d1117] p-3.5 flex items-center gap-3">
+                <div key={s.id} className="flex flex-col gap-1.5">
+                  <div className="rounded-2xl border border-white/8 bg-[#0d1117] p-3.5 flex items-center gap-3">
                     <span className="w-9 h-9 rounded-xl bg-white/5 grid place-items-center shrink-0"><Search size={16} className="text-white/40" /></span>
                     <div className="flex-1 min-w-0">
                       <p className="text-white text-sm font-semibold truncate">
@@ -401,6 +443,7 @@ export default function PlayerMisReservasPage() {
                       <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-club/15 text-club shrink-0">✓ Completo</span>
                     ) : (
                       <div className="flex items-center gap-2 shrink-0">
+                        <a href={`/partido/${s.id}`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-white/50 hover:text-club transition-colors">Ver</a>
                         <button onClick={() => compartirPartido(s)} className="flex items-center gap-1 text-[11px] font-semibold text-club/80 hover:text-club transition-colors">
                           <Link2 size={12} /> {copiadoId === s.id ? '¡Copiado!' : 'Compartir'}
                         </button>
@@ -410,6 +453,22 @@ export default function PlayerMisReservasPage() {
                       </div>
                     )}
                   </div>
+                  {s.pendientes?.length > 0 && (
+                    <div className="ml-3 pl-3 border-l-2 border-club/25 flex flex-col gap-1.5 pb-1">
+                      <p className="text-[11px] text-white/40">Piden sumarse — aceptá o rechazá:</p>
+                      {s.pendientes.map((p) => {
+                        const k = `${s.id}:${p.jugadorId}`
+                        return (
+                          <div key={p.jugadorId} className="flex items-center gap-2">
+                            <span className="flex-1 text-[13px] text-white/80 truncate">{p.nombre}</span>
+                            <button onClick={() => responderPendiente(s.id, p.jugadorId, 'aprobar')} disabled={accionPend === k} className="text-[11px] font-bold text-club hover:opacity-80 disabled:opacity-50">Aceptar</button>
+                            <button onClick={() => responderPendiente(s.id, p.jugadorId, 'rechazar')} disabled={accionPend === k} className="text-[11px] text-white/40 hover:text-red-400 transition-colors disabled:opacity-50">Rechazar</button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>

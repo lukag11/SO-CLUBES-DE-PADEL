@@ -4,6 +4,7 @@ import usePlayerStore from '../store/playerStore'
 import { api } from '../lib/api'
 import CargarResultados from '../components/eventos/CargarResultados'
 import InfoBlock from '../components/InfoBlock'
+import { useToast } from '../components/ui/ToastProvider'
 import { rankingAmericano, rankingSuper8 } from '../lib/eventos'
 
 const normNom = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim()
@@ -34,6 +35,7 @@ const fmtFecha = (f) => {
 
 export default function PlayerEventosPage() {
   const token = usePlayerStore((s) => s.token)
+  const toast = useToast()
   const slug = import.meta.env.VITE_CLUB_SLUG
   const [mias, setMias] = useState(null)
   const [abiertos, setAbiertos] = useState(null)
@@ -58,17 +60,17 @@ export default function PlayerEventosPage() {
     if (accion) return
     setAccion(id)
     api.post(`/convocatorias/${id}/voy`, {}, { Authorization: `Bearer ${token}` })
-      .then(() => cargar()).catch((e) => alert(e?.message || 'No se pudo anotar')).finally(() => setAccion(null))
+      .then(() => { toast.success('¡Anotado al evento! 🎾'); cargar() }).catch((e) => toast.error(e?.message || 'No se pudo anotar')).finally(() => setAccion(null))
   }
   const bajarme = (id) => {
     setAccion(id)
     api.post(`/convocatorias/${id}/baja`, {}, { Authorization: `Bearer ${token}` })
-      .then(() => cargar()).catch(() => alert('No se pudo')).finally(() => { setAccion(null); setConfirmAccion(null) })
+      .then(() => { toast.success('Te bajaste del evento'); cargar() }).catch(() => toast.error('No se pudo')).finally(() => { setAccion(null); setConfirmAccion(null) })
   }
   const cancelarMio = (id) => {
     setAccion(id)
     api.post(`/convocatorias/mias/${id}/cancelar`, {}, { Authorization: `Bearer ${token}` })
-      .then(() => cargar()).catch((e) => alert(e?.message || 'No se pudo cancelar')).finally(() => { setAccion(null); setConfirmAccion(null) })
+      .then(() => { toast.success('Evento cancelado'); cargar() }).catch((e) => toast.error(e?.message || 'No se pudo cancelar')).finally(() => { setAccion(null); setConfirmAccion(null) })
   }
   // Ejecuta la acción confirmada en el modal.
   const ejecutarConfirm = () => {

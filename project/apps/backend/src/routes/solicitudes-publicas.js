@@ -15,10 +15,10 @@ router.get('/club/:slug', async (req, res) => {
     const ss = await prisma.solicitudJugador.findMany({
       where: { clubId: club.id, estado: 'abierta', visibilidad: 'publica', fecha: { gte: hoyArgStr() } },
       orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
-      include: { solicitante: { select: { nombre: true, apellido: true } }, participantes: { select: { id: true } } },
+      include: { solicitante: { select: { nombre: true, apellido: true } }, participantes: { select: { estado: true } } },
     })
     res.json(ss.map((s) => {
-      const yaVan = s.participantes.length
+      const yaVan = s.participantes.filter((p) => p.estado === 'aceptado').length
       return { id: s.id, busco: s.busco, categoria: s.categoria, fecha: s.fecha, horaInicio: s.horaInicio, nota: s.nota, cupos: s.cupos, yaVan, faltan: Math.max(0, s.cupos - yaVan), solicitante: `${s.solicitante.nombre} ${s.solicitante.apellido}` }
     }))
   } catch (err) {
@@ -42,7 +42,7 @@ router.get('/:id', async (req, res) => {
     // Por id (link directo) se ve cualquiera, pública o privada — el link es el acceso al lobby.
     // El LISTADO (/club/:slug) sí filtra solo públicas.
     if (!s) return res.status(404).json({ error: 'Partido no encontrado' })
-    const roster = s.participantes.map((p) => `${p.jugador.nombre} ${p.jugador.apellido}`)
+    const roster = s.participantes.filter((p) => p.estado === 'aceptado').map((p) => `${p.jugador.nombre} ${p.jugador.apellido}`)
     const yaVan = roster.length
     res.json({
       id: s.id,

@@ -2867,12 +2867,42 @@
         </div>
       </div>
 
+      <!-- PASO 10.6 -->
+      <div class="paso">
+        <div class="paso-header" onclick="toggle(this)">
+          <span class="paso-num jugador">10.6</span>
+          <div>
+            <div class="paso-titulo">Aprobación del organizador + cancelaciones que avisan + "Vas a jugar"</div>
+            <div class="paso-ruta">2 jugadores misma categoría</div>
+          </div>
+          <span class="paso-toggle">▶</span>
+        </div>
+        <div class="paso-body">
+          <div class="instrucciones">
+            <ol>
+              <li>B hace "¡Voy!" → queda <strong>pendiente</strong> (toast, no alert). Al titular A le llega <code>solicitud_pidio_sumarse</code>.</li>
+              <li>A va a <strong>Mis búsquedas</strong> → ve "Piden sumarse: B" → <strong>Aceptar</strong>. B recibe <code>solicitud_aceptado</code> y aparece en el roster (faltan baja).</li>
+              <li>B va a <strong>Mis reservas</strong> → sección <strong>"Vas a jugar"</strong>: "Te sumaste al partido de A · Jugás con: A, ...".</li>
+              <li><strong>Cancelar:</strong> si A cancela la búsqueda O el turno (reserva) → a B le llega <code>partido_cancelado</code> ("¡No vayas a la cancha!") y la búsqueda desaparece de Mis búsquedas. Si un admin cancela la reserva del jugador → <code>reserva_cancelada_admin</code>.</li>
+            </ol>
+          </div>
+          <div class="resultado ok">
+            <div class="titulo">✅ Resultado esperado</div>
+            Nadie cae a una cancha cancelada (todas las cancelaciones avisan). El partido se completa solo con
+            ACEPTADOS. Las búsquedas/partidos de turnos pasados desaparecen solos (filtro <code>fecha&gt;=hoy</code>).
+            Toda el área jugador usa toasts de la app, no <code>alert()</code>.
+          </div>
+        </div>
+      </div>
+
       <div class="alerta" style="margin-top:20px;">
         <div class="titulo">🔜 Pendiente (futuro)</div>
         <ol style="margin:0; padding-left:18px; line-height:2; font-size:0.9rem;">
           <li>Feed público de partidos abiertos en la página pública del club (necesita densidad de jugadores).</li>
+          <li>Deadline / auto-cierre del partido (necesita un cron — al deployar).</li>
           <li>Push real al celular: PWA + Web Push (Android) o app nativa + Firebase (Android+iPhone).</li>
           <li>El roster (titular + los que dijeron Voy) pre-puebla los jugadores del turno para el cobro/split.</li>
+          <li>Barrer los <code>alert()</code> que quedan en el área admin (ReservasPage es frágil).</li>
         </ol>
       </div>
 

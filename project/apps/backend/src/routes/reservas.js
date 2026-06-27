@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { runSerializable } from '../lib/serializable.js'
+import { cancelarBusquedasDeReserva } from '../lib/solicitudes.js'
 import { clubAutoConfirma } from '../lib/autoConfirma.js'
 import { requireAuth, requireRole, requireActive, requireFeature, requirePermiso } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
@@ -1291,6 +1292,9 @@ router.delete('/:id', requireAuth, async (req, res) => {
           const upd = await prisma.reserva.updateMany({ where: { id, estado: { in: ['pendiente', 'confirmada'] } }, data: { estado: 'cancelada' } })
           if (upd.count === 0) return res.status(400).json({ error: 'La reserva ya está cancelada' })
 
+          // La búsqueda de jugadores atada a este turno es un conjunto con la reserva: se cancela y se avisa.
+          await cancelarBusquedasDeReserva(reserva.clubId, id)
+
           // Solo registrar cargo si hay un monto a cobrar
           const montoCargo = reserva.precio ?? 0
           if (montoCargo <= 0) {
@@ -1333,6 +1337,21 @@ router.delete('/:id', requireAuth, async (req, res) => {
     }
 
     await prisma.reserva.update({ where: { id }, data: { estado: 'cancelada' } })
+
+    // La búsqueda de jugadores atada al turno se cancela también (conjunto) + avisa a los sumados.
+    await cancelarBusquedasDeReserva(reserva.clubId, id)
+
+    // Admin cancela la reserva de un JUGADOR → avisarle (antes no se enteraba y caía a la cancha).
+    if (req.user.role === 'admin' && reserva.jugadorId && reserva.tipo !== 'clase') {
+      prisma.notificacion.create({
+        data: {
+          clubId: reserva.clubId,
+          jugadorId: reserva.jugadorId,
+          tipo: 'reserva_cancelada_admin',
+          data: { canchaNombre: reserva.cancha?.nombre ?? '', fecha: reserva.fecha, horaInicio: reserva.horaInicio, horaFin: reserva.horaFin },
+        },
+      }).catch(() => {})
+    }
 
     // Admin cancela clase de un profesor → notificar al profesor
     if (req.user.role === 'admin' && reserva.profesorId && reserva.tipo === 'clase') {

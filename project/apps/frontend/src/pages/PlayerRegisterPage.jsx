@@ -4,6 +4,7 @@ import { Zap, ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import useRegisterForm from '../hooks/useRegisterForm'
 import usePlayerStore from '../store/playerStore'
 import { api } from '../lib/api'
+import { useToast } from '../components/ui/ToastProvider'
 import Step1Basicos from '../features/player-register/Step1Basicos'
 import Step2Perfil from '../features/player-register/Step2Perfil'
 import Step3Preferencias from '../features/player-register/Step3Preferencias'
@@ -117,6 +118,7 @@ const LeftPanel = ({ step }) => {
 
 const PlayerRegisterPage = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const login = usePlayerStore((s) => s.login)
   const [currentStep, setCurrentStep] = useState(1)
   const [submitting, setSubmitting] = useState(false)
@@ -170,7 +172,7 @@ const PlayerRegisterPage = () => {
       login(data.user, data.token)
       navigate('/dashboardJugadores/dashboard')
     } catch (err) {
-      alert(err.message || 'Error al registrarse')
+      toast.error(err.message || 'Error al registrarse')
       setSubmitting(false)
     }
   }

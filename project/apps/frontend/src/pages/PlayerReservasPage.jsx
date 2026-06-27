@@ -10,6 +10,7 @@ import useTorneosStore from '../store/torneosStore'
 import usePlayerStore from '../store/playerStore'
 import BuscarJugadorModal from '../components/eventos/BuscarJugadorModal'
 import InfoBlock from '../components/InfoBlock'
+import { useToast } from '../components/ui/ToastProvider'
 import { api } from '../lib/api'
 
 import { overlaps, reservaBloquea, offsetFecha, toMin, toTime } from '../utils/timeUtils'
@@ -200,6 +201,7 @@ const PlayerReservasPage = () => {
   const torneos = useTorneosStore((s) => s.torneos)
   const token  = usePlayerStore((s) => s.token)
   const player = usePlayerStore((s) => s.player)
+  const toast  = useToast()
 
   // ── Canchas y reservas desde la API ──────────────────────────────────────
   const [canchasDB, setCanchasDB] = useState([])
@@ -262,7 +264,7 @@ const PlayerReservasPage = () => {
     if (accionSol) return
     setAccionSol(id)
     api.post(`/solicitudes/${id}/voy`, {}, { Authorization: `Bearer ${token}` })
-      .then(() => { fetchSolAbiertas(); fetchMisSol() }).catch((e) => setErrorReserva(e?.message || 'No se pudo sumar')).finally(() => setAccionSol(null))
+      .then(() => { toast.success('Pediste sumarte. El organizador tiene que aceptarte. 🎾'); fetchSolAbiertas(); fetchMisSol() }).catch((e) => toast.error(e?.message || 'No se pudo sumar')).finally(() => setAccionSol(null))
   }
 
   // Recarga reservas del día cada vez que cambia la fecha seleccionada

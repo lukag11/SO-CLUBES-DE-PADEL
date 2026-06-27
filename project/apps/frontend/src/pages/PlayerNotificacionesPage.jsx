@@ -71,6 +71,30 @@ const TIPO_META = {
     bg: 'bg-club/10',
     border: 'border-club/20',
   },
+  solicitud_pidio_sumarse: {
+    icon: UserCheck,
+    color: 'text-club',
+    bg: 'bg-club/10',
+    border: 'border-club/20',
+  },
+  solicitud_aceptado: {
+    icon: UserCheck,
+    color: 'text-club',
+    bg: 'bg-club/10',
+    border: 'border-club/20',
+  },
+  solicitud_rechazado: {
+    icon: XCircle,
+    color: 'text-white/50',
+    bg: 'bg-white/5',
+    border: 'border-white/10',
+  },
+  partido_cancelado: {
+    icon: XCircle,
+    color: 'text-red-400',
+    bg: 'bg-red-400/10',
+    border: 'border-red-400/20',
+  },
   turno_fijo_rechazado: {
     icon: XCircle,
     color: 'text-red-400',
@@ -156,8 +180,11 @@ const PlayerNotificacionesPage = () => {
                 border: 'border-white/10',
               }
               const Icon = meta.icon
-              const linkEventos = notif.tipo === 'convocatoria_abierta' || notif.tipo === 'busca_jugador' || notif.tipo === 'partido_completo'
-              const ctaTexto = notif.tipo === 'busca_jugador' ? 'Ver y sumarme →' : notif.tipo === 'partido_completo' ? 'Ver el partido →' : 'Ver evento y anotarme →'
+              const linkEventos = ['convocatoria_abierta', 'busca_jugador', 'partido_completo', 'solicitud_pidio_sumarse', 'solicitud_aceptado'].includes(notif.tipo)
+              const ctaTexto = notif.tipo === 'busca_jugador' ? 'Ver y sumarme →'
+                : notif.tipo === 'solicitud_pidio_sumarse' ? 'Ver y aprobar →'
+                : notif.tipo === 'partido_completo' || notif.tipo === 'solicitud_aceptado' ? 'Ver el partido →'
+                : 'Ver evento y anotarme →'
 
               const contenido = (
                 <>
@@ -185,10 +212,10 @@ const PlayerNotificacionesPage = () => {
 
               const claseBase = `flex items-start gap-4 px-6 py-4 transition-colors ${notif.leida ? '' : 'bg-white/2'}`
 
-              // busca_jugador (sumarse) → Reservar cancha; partido_completo (mi partido) → Mis reservas;
-              // convocatoria_abierta → Eventos.
+              // busca_jugador (sumarse) → Reservar cancha; partido/solicitud (mi partido o aprobar) →
+              // Mis reservas; convocatoria_abierta → Eventos.
               const linkDestino = notif.tipo === 'busca_jugador' ? '/dashboardJugadores/reservas'
-                : notif.tipo === 'partido_completo' ? '/dashboardJugadores/mis-reservas'
+                : ['partido_completo', 'solicitud_pidio_sumarse', 'solicitud_aceptado'].includes(notif.tipo) ? '/dashboardJugadores/mis-reservas'
                 : '/dashboardJugadores/eventos'
               return linkEventos ? (
                 <Link key={notif.id} to={linkDestino} className={`${claseBase} hover:bg-white/5`}>

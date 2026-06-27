@@ -6,6 +6,7 @@ import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 import useReservasStore from '../store/reservasStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
 import useClubStore from '../store/clubStore'
+import { useToast } from '../components/ui/ToastProvider'
 import { api } from '../lib/api'
 
 const navItems = [
@@ -22,6 +23,7 @@ const navItems = [
 
 const PlayerLayout = () => {
   const { isAuthenticated, player, token } = usePlayerStore()
+  const toast = useToast()
   const logout = usePlayerStore((s) => s.logout)
   const setPlayer = usePlayerStore((s) => s.setPlayer)
   const { notificaciones, locales, fetchNotificaciones } = usePlayerNotificationsStore()
@@ -137,7 +139,7 @@ const PlayerLayout = () => {
     if (!pendiente) return
     try { localStorage.removeItem('pending_convocatoria') } catch {}
     api.post(`/convocatorias/${pendiente}/voy`, {}, { Authorization: `Bearer ${token}` })
-      .then((r) => { alert(r?.estado === 'espera' ? '¡Listo! Quedaste en la lista de espera del evento. 🎾' : '¡Listo! Quedaste anotado al evento. 🎾'); navigate('/dashboardJugadores/eventos') })
+      .then((r) => { toast.success(r?.estado === 'espera' ? '¡Listo! Quedaste en la lista de espera del evento. 🎾' : '¡Listo! Quedaste anotado al evento. 🎾'); navigate('/dashboardJugadores/eventos') })
       .catch(() => navigate('/dashboardJugadores/eventos'))
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -150,8 +152,8 @@ const PlayerLayout = () => {
     if (!pendiente) return
     try { localStorage.removeItem('pending_partido') } catch {}
     api.post(`/solicitudes/${pendiente}/voy`, {}, { Authorization: `Bearer ${token}` })
-      .then((r) => { alert(r?.completo ? '¡Listo! Te sumaste y el partido quedó completo. 🎾' : '¡Listo! Te sumaste al partido. 🎾'); navigate('/dashboardJugadores/mis-reservas') })
-      .catch((e) => { if (e?.message) alert(e.message); navigate('/dashboardJugadores/reservas') })
+      .then(() => { toast.success('¡Listo! Pediste sumarte al partido. El organizador tiene que aceptarte. 🎾'); navigate('/dashboardJugadores/mis-reservas') })
+      .catch((e) => { if (e?.message) toast.error(e.message); navigate('/dashboardJugadores/reservas') })
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isAuthenticated) {

@@ -21,13 +21,17 @@ const TITULOS = {
   convocatoria_cancelada:       'Evento cancelado',
   busca_jugador:                '¡Buscan un jugador!',
   solicitud_cubierta:           '¡Alguien se sumó a tu partido!',
+  solicitud_pidio_sumarse:      'Alguien quiere sumarse',
+  solicitud_aceptado:           '¡Te aceptaron en el partido!',
+  solicitud_rechazado:          'El partido ya se cubrió',
   partido_completo:             '¡Ya están todos! 🎾',
+  partido_cancelado:            'Se canceló un partido',
 }
 
 const formatCuerpo = (tipo, data = {}) => {
   const { canchaNombre = '', fecha = '', horaInicio = '', horaFin = '', dia = '', monto,
           torneoNombre = '', categoria = '', jugador1 = '', jugador2 = '',
-          modalidad = '', categorias = [], motivo = '', nota = '', cubiertoPor = '', busco = '', faltan, cupos } = data
+          modalidad = '', categorias = [], motivo = '', nota = '', cubiertoPor = '', busco = '', faltan, cupos, jugador = '' } = data
   if (tipo === 'busca_jugador') {
     const que = busco === 'pareja' ? 'Buscan una pareja rival' : `Faltan ${cupos || 1} jugador${(cupos || 1) !== 1 ? 'es' : ''}`
     return `${que}${categoria ? ` · ${categoria}` : ''} · ${fecha} ${horaInicio}${nota ? ` · ${nota}` : ''}`
@@ -35,8 +39,20 @@ const formatCuerpo = (tipo, data = {}) => {
   if (tipo === 'solicitud_cubierta') {
     return `${cubiertoPor} se suma${faltan ? `, faltan ${faltan}` : ''} · ${fecha} ${horaInicio}`
   }
+  if (tipo === 'solicitud_pidio_sumarse') {
+    return `${jugador} quiere sumarse · ${fecha} ${horaInicio} · Aprobalo o rechazalo en Mis reservas`
+  }
+  if (tipo === 'solicitud_aceptado') {
+    return `Te sumaste al partido · ${fecha} ${horaInicio} · ¡A jugar! 🎾`
+  }
+  if (tipo === 'solicitud_rechazado') {
+    return `El partido del ${fecha} ${horaInicio} ya se cubrió con otros. ¡A la próxima!`
+  }
   if (tipo === 'partido_completo') {
     return `Tu partido está completo · ${fecha} ${horaInicio} · ¡A jugar!`
+  }
+  if (tipo === 'partido_cancelado') {
+    return `El partido del ${fecha} ${horaInicio} se canceló${motivo ? ` · Motivo: ${motivo}` : ''}. ¡No vayas a la cancha!`
   }
   if (tipo === 'convocatoria_abierta') {
     const mod = modalidad === 'super8' ? 'Super 8' : 'Americano'

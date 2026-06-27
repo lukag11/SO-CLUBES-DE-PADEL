@@ -122,7 +122,7 @@ export default function PartidoPublicoPage() {
           {/* CTA */}
           {dentro ? (
             <div className="rounded-2xl py-3.5 px-4 text-center" style={{ backgroundColor: 'rgba(175,202,11,0.12)', border: `1px solid ${C.lima}` }}>
-              <p className="text-sm font-bold flex items-center justify-center gap-1.5" style={{ color: C.lima }}><Check size={16} /> ¡Estás dentro! Te esperamos en la cancha.</p>
+              <p className="text-sm font-bold flex items-center justify-center gap-1.5" style={{ color: C.lima }}><Check size={16} /> ¡Pediste sumarte! El organizador tiene que aceptarte.</p>
             </div>
           ) : completo ? (
             <div className="rounded-2xl py-3.5 text-center text-sm" style={{ backgroundColor: 'rgba(244,245,239,0.04)', color: C.muted }}>

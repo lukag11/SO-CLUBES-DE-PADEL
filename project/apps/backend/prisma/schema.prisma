@@ -541,6 +541,7 @@ model SolicitudParticipante {
   id          String   @id @default(cuid())
   solicitudId String
   jugadorId   String
+  estado      String   @default("aceptado") // 'pendiente' (espera OK del titular) | 'aceptado'
   createdAt   DateTime @default(now())
 
   solicitud SolicitudJugador @relation(fields: [solicitudId], references: [id], onDelete: Cascade)

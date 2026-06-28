@@ -3,6 +3,7 @@ import { X, Plus, Minus, UserPlus, Search, Users, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { METODO_MAP, metodosDelClub } from '../../lib/metodosPago'
 import useClubStore from '../../store/clubStore'
+import ModalBusquedaJugadores from '../../components/jugadores/ModalBusquedaJugadores'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 
@@ -268,7 +269,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
         <div className="overflow-y-auto px-6 py-4 flex flex-col gap-4">
           {mode === 'simple'
             ? <ModoSimple {...{ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas, activos, pagador, setPagador, hayTitular, titularNombre, cobrar, setCobrar, metodoPago, setMetodoPago, metodos, addProducto, addOtro, cambiarCant, quitarLinea }} />
-            : <ModoSplit {...{ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth }} />
+            : <ModoSplit {...{ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token }} />
           }
 
           {error && <p className="text-rose-500 text-xs">{error}</p>}
@@ -277,7 +278,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 shrink-0">
           {mode === 'split' && restoTurno > 0 && turnoAsignado > 0 && (
-            <p className="text-[11px] text-violet-500 mb-2">Quedará {money(restoTurno)} del turno sin cobrar (parcial).</p>
+            <p className="text-[11px] text-fuchsia-500 mb-2">Quedará {money(restoTurno)} del turno sin cobrar (parcial).</p>
           )}
           <button onClick={submit} disabled={saving || (mode === 'simple' ? totalSimple <= 0 : totalSplit <= 0)} className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
             {saving ? 'Procesando…' : mode === 'simple'
@@ -424,7 +425,7 @@ const ModoSimple = ({ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas
 )
 
 // ─── Modo split (cuenta por persona) ────────────────────────────────────────────
-const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth }) => {
+const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token }) => {
   const [buscando, setBuscando] = useState(false)
   const [q, setQ] = useState('')
   const [resultados, setResultados] = useState([])
@@ -504,26 +505,17 @@ const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignad
         ))}
       </div>
 
-      {/* Agregar persona */}
-      {buscando ? (
-        <div className="rounded-2xl border border-slate-200 p-3 flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <Search size={15} className="text-slate-400" />
-            <input autoFocus value={q} onChange={(e) => buscar(e.target.value)} placeholder="Buscar por nombre o DNI…" className={`flex-1 ${inputCls}`} />
-            <button onClick={() => { setBuscando(false); setQ(''); setResultados([]) }} className="text-slate-300 hover:text-slate-600"><X size={16} /></button>
-          </div>
-          {resultados.map((j) => (
-            <button key={j.id} onClick={() => agregarJugador(j)} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 text-left">
-              <span className="text-sm text-slate-700">{j.nombre} {j.apellido}</span>
-              <span className="text-xs text-slate-400">DNI {j.dni}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <button onClick={() => setBuscando(true)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium"><UserPlus size={14} /> Jugador</button>
-          <button onClick={agregarCasual} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium"><Plus size={14} /> Casual</button>
-        </div>
+      {/* Agregar persona: "Jugador" abre el modal de búsqueda completo (el mismo de la reserva manual) */}
+      <div className="flex gap-2">
+        <button onClick={() => setBuscando(true)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium"><UserPlus size={14} /> Jugador</button>
+        <button onClick={agregarCasual} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium"><Plus size={14} /> Casual</button>
+      </div>
+      {buscando && (
+        <ModalBusquedaJugadores
+          adminToken={token}
+          onSelect={(j) => agregarJugador(j)}
+          onClose={() => setBuscando(false)}
+        />
       )}
 
       {/* Consumo compartido */}

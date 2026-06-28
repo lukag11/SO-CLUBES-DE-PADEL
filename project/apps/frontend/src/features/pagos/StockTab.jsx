@@ -56,8 +56,11 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
 
   const estadoBadge = (p) => {
     if (!p.controlaStock) return null
-    const cls = p.stock <= 0 ? 'text-rose-600 bg-rose-50' : p.stock <= (p.stockMin || 0) ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50'
-    return <button onClick={() => editar(p)} title="Ver / ajustar stock" className={`text-[11px] font-semibold px-2 py-1 rounded-lg ${cls}`}>{p.stock <= 0 ? 'Sin stock' : `${p.stock} u.`}</button>
+    // stock < 0 = sobreventa (vendiste sin cargar): se muestra el número real, no "Sin stock", para que el dueño sepa cuánto debe reponer.
+    const neg = p.stock < 0
+    const cls = neg ? 'text-rose-700 bg-rose-100 ring-1 ring-rose-300' : p.stock === 0 ? 'text-rose-600 bg-rose-50' : p.stock <= (p.stockMin || 0) ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50'
+    const titulo = neg ? `Vendiste ${Math.abs(p.stock)} sin stock cargado · ajustá o cargá reposición` : 'Ver / ajustar stock'
+    return <button onClick={() => editar(p)} title={titulo} className={`text-[11px] font-semibold px-2 py-1 rounded-lg ${cls}`}>{neg ? `${p.stock} u.` : p.stock === 0 ? 'Sin stock' : `${p.stock} u.`}</button>
   }
 
   return (

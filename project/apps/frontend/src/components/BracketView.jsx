@@ -554,6 +554,8 @@ export const BracketCard = ({
   if (cardLayout === 'stat') {
     const isTransp = effectiveStyle === 'transparente'
     const isClara2 = effectiveStyle === 'clara'
+    // Nombre un toque más grande que el base en este layout (legibilidad del cuadro).
+    const statNameCls = fontScale === 'muy-grande' ? 'text-xl' : fontScale === 'grande' ? 'text-[17px]' : 'text-[15px]'
 
     // Sets por lado (solo si finalizado). Para pareja1 = s.p1, pareja2 = s.p2.
     const setsP1 = fin && resultado?.length > 0 ? resultado.map((s) => ({ v: s.p1, win: s.p1 > s.p2 })) : null
@@ -590,9 +592,9 @@ export const BracketCard = ({
 
           {/* Seed chip circular */}
           <span
-            className="shrink-0 flex items-center justify-center text-[10px] font-bold"
+            className="shrink-0 flex items-center justify-center text-[12px] font-bold"
             style={{
-              width: 22, height: 22, borderRadius: cardSeedRadius,
+              width: 26, height: 26, borderRadius: cardSeedRadius,
               color: hasSeed ? accentColor : (isClara2 ? 'rgba(0,0,0,0.20)' : 'rgba(255,255,255,0.20)'),
               background: hasSeed ? `${accentColor}1a` : (isClara2 ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)'),
               border: `1px solid ${hasSeed ? `${accentColor}40` : (isClara2 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.08)')}`,
@@ -605,14 +607,18 @@ export const BracketCard = ({
               ? <span className={`italic text-[11px] ${isClara2 ? 'text-amber-600/70' : 'text-amber-400/60'}`}>{pareja.label}</span>
               : nameText
                 ? <span
-                    className={`${nameCls} truncate block ${perdió && fin && !isBye ? 'line-through opacity-60' : ''}`}
+                    className={`${statNameCls} block leading-tight ${perdió && fin && !isBye ? 'line-through opacity-60' : ''}`}
                     style={{
                       color: textColor,
                       fontWeight: ganó ? Math.min(cardNameFontWeight + 100, 800) : cardNameFontWeight,
                       textTransform: cardNameTransform,
-                      letterSpacing: cardNameLetterSpacing,
+                      letterSpacing: cardNameLetterSpacing || '0.035em',
                     }}
-                  >{nameText}</span>
+                  >
+                    {/* Un apellido por línea: nunca se corta, aunque sean largos */}
+                    <span className="block truncate">{apellido(pareja.jugador1)}</span>
+                    <span className="block truncate">{apellido(pareja.jugador2)}</span>
+                  </span>
                 : isBye
                   ? <span className={`italic font-mono text-[9px] tracking-widest ${byeSlotCls}`}>BYE</span>
                   : <span className={`italic text-[10px] ${emClr}`}>—</span>}
@@ -653,13 +659,13 @@ export const BracketCard = ({
         {showHorarioRow && (
           <div className={`flex items-center justify-between px-3.5 py-1.5 border-b ${hdCls}`}>
             <div className="flex items-center gap-2 min-w-0">
-              {hora  && <span className={`text-[11px] font-mono font-bold ${hrClr}`}>{hora} hs</span>}
-              {fecha && fmtFecha(fecha) && <span className={`text-[10px] ${dtClr}`}>{fmtFecha(fecha)}</span>}
-              {cancha && <span className={`text-[10px] font-medium ${hrClr} opacity-70`}>· {canchaName ? (canchaName(cancha) ?? `C.${cancha}`) : `C.${cancha}`}</span>}
-              {!hora && !fecha && onHorario && <span className={`text-[10px] ${emClr}`}>Sin horario</span>}
+              {hora  && <span className={`text-[13px] font-mono font-bold ${hrClr}`}>{hora} hs</span>}
+              {fecha && fmtFecha(fecha) && <span className={`text-[12px] ${dtClr}`}>{fmtFecha(fecha)}</span>}
+              {cancha && <span className={`text-[12px] font-medium ${hrClr} opacity-70`}>· {canchaName ? (canchaName(cancha) ?? `C.${cancha}`) : `C.${cancha}`}</span>}
+              {!hora && !fecha && onHorario && <span className={`text-[12px] ${emClr}`}>Sin horario</span>}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {fin && !isBye && <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: accentColor }}>Final</span>}
+              {fin && !isBye && <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: accentColor }}>Final</span>}
               {onHorario && (
                 <button
                   onClick={() => onHorario(partido)}
@@ -913,6 +919,7 @@ const BracketView = ({
   accentColorOverride = null,
   colorCardOverride = null,
   bracketTemplate = 'default',
+  cardLayoutOverride = null, // fuerza el layout de las cards (ej. 'stat' = sets por lado) sin cambiar el theme
 }) => {
   const theme        = BRACKET_THEMES[bracketTemplate] ?? BRACKET_THEMES.default
   const { rondas }   = bracket
@@ -1648,7 +1655,7 @@ const BracketView = ({
                             canchaName={canchaName}
                             cardBorderOverride={theme.cardBorderOverride}
                             cardGlow={theme.cardGlow}
-                            cardLayout={theme.cardLayout ?? 'default'}
+                            cardLayout={cardLayoutOverride ?? theme.cardLayout ?? 'default'}
                             cardBorderRadius={theme.cardBorderRadius ?? '12px'}
                             cardNameTransform={theme.cardNameTransform ?? 'none'}
                             cardNameLetterSpacing={theme.cardNameLetterSpacing ?? null}

@@ -1846,11 +1846,11 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
     zonaHdr:    tplBg
       ? `flex items-center justify-between px-5 py-3 border-b ${isClara ? 'border-gray-200' : 'border-white/8'}`
       : (isClara ? 'flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200' : 'flex items-center justify-between px-5 py-3 bg-white/3 border-b border-white/8'),
-    zonaNombre: isClara ? 'text-gray-800 font-semibold text-sm' : 'text-white font-semibold text-sm',
-    catBadge:   isClara ? 'text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md'    : 'text-xs text-white/35 bg-white/5 px-2 py-0.5 rounded-md',
+    zonaNombre: isClara ? 'text-gray-800 font-semibold text-base' : 'text-white font-semibold text-base',
+    catBadge:   isClara ? 'text-sm text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md'    : 'text-sm text-white/35 bg-white/5 px-2 py-0.5 rounded-md',
     secBorder:  isClara ? 'border-b border-gray-100'  : 'border-b border-white/5',
-    secLabel:   isClara ? 'text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2.5' : 'text-[10px] font-bold text-white/20 uppercase tracking-widest mb-2.5',
-    thCls:      isClara ? 'pb-1.5 text-gray-400 font-semibold' : 'pb-1.5 text-white/20 font-semibold',
+    secLabel:   isClara ? 'text-[12px] font-bold text-gray-300 uppercase tracking-widest mb-2.5' : 'text-[12px] font-bold text-white/20 uppercase tracking-widest mb-2.5',
+    thCls:      isClara ? 'pb-1.5 text-gray-400 font-semibold text-[12px]' : 'pb-1.5 text-white/20 font-semibold text-[12px]',
     trBorder:   isClara ? 'border-b border-gray-100'  : 'border-b border-white/8',
     trRowBorder:isClara ? 'border-b border-gray-50 last:border-0' : 'border-b border-white/5 last:border-0',
     rankNum:    isClara ? 'py-2 font-bold text-gray-300' : 'py-2 font-bold text-white/20',
@@ -2044,14 +2044,14 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
               <div className={`relative z-10 ${imagenFondo ? 'flex items-center justify-between px-5 py-4 border-b border-white/10' : st.zonaHdr}`}>
                 <div className="flex items-center gap-3">
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: imagenFondo ? 'rgba(255,255,255,0.12)' : accentColor + '22' }}>
-                    <span className="text-xs font-black" style={{ color: imagenFondo ? (colorTexto ?? '#fff') : accentColor }}>{zona.nombre.replace('Zona ','')}</span>
+                    <span className="text-sm font-black" style={{ color: imagenFondo ? (colorTexto ?? '#fff') : accentColor }}>{zona.nombre.replace('Zona ','')}</span>
                   </div>
-                  <span className={imagenFondo ? 'font-semibold text-sm' : st.zonaNombre} style={imagenFondo ? { color: colorTexto ?? '#fff' } : {}}>{zona.nombre}</span>
-                  {zona.categoria && <span className={imagenFondo ? 'text-xs bg-white/10 px-2 py-0.5 rounded-md' : st.catBadge} style={imagenFondo ? { color: colorTexto ? colorTexto + 'aa' : 'rgba(255,255,255,0.5)' } : {}}>{zona.categoria}</span>}
+                  <span className={imagenFondo ? 'font-semibold text-base' : st.zonaNombre} style={imagenFondo ? { color: colorTexto ?? '#fff' } : {}}>{zona.nombre}</span>
+                  {zona.categoria && <span className={imagenFondo ? 'text-sm bg-white/10 px-2 py-0.5 rounded-md' : st.catBadge} style={imagenFondo ? { color: colorTexto ? colorTexto + 'aa' : 'rgba(255,255,255,0.5)' } : {}}>{zona.categoria}</span>}
                 </div>
                 {zona.clasificados && (
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400">
-                    <CheckCircle size={10} /> Completada
+                  <span className="flex items-center gap-1 text-[12px] font-bold text-emerald-400">
+                    <CheckCircle size={12} /> Completada
                   </span>
                 )}
               </div>
@@ -2060,7 +2060,7 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
             {/* Posiciones */}
             <div className={`px-5 pt-4 pb-3 ${st.secBorder}`}>
               <p className={st.secLabel}>Posiciones</p>
-              <table className="w-full text-[11px]">
+              <table className="w-full text-[13px]">
                 <thead>
                   <tr className={st.trBorder}>
                     <th className={`${st.thCls} text-left w-7`}>Pos.</th>
@@ -2093,7 +2093,7 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
                           <span className={esClasificado ? st.nameClasif : eliminado ? st.nameOut : st.nameNeutro}>
                             {pareja.jugador1} / {pareja.jugador2}
                           </span>
-                          {esClasificado && zona.clasificados && <span className="ml-1.5 text-[9px] text-emerald-400">✓</span>}
+                          {esClasificado && zona.clasificados && <span className="ml-1.5 text-[11px] text-emerald-400">✓</span>}
                         </td>
                         <td className="py-2 text-center font-bold tabular-nums" style={{ color: tClrScoreW }}>{st2.pts}</td>
                         <td className="py-2 text-center font-semibold text-emerald-400">{st2.wins}</td>
@@ -2103,7 +2103,7 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
                         <td className="py-2 text-center">
                           <button
                             onClick={(e) => handleCritClick(e, i, `${zona.nombre}-${i}`)}
-                            className={`text-[9px] font-bold border rounded px-1 py-0.5 transition-opacity hover:opacity-70 ${criterio ? critCls : 'opacity-0 cursor-default'}`}
+                            className={`text-[11px] font-bold border rounded px-1.5 py-0.5 transition-opacity hover:opacity-70 ${criterio ? critCls : 'opacity-0 cursor-default'}`}
                           >
                             {criterio ?? '—'}
                           </button>
@@ -2131,8 +2131,8 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
                     <div className={finalizado ? st.matchBodyFin : st.matchBody}>
                       {/* P1 */}
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${ganP1 ? 'bg-emerald-500 text-white' : `${st.seedBg}${finalizado ? ' opacity-60' : ''}`}`}>{n1 ?? '?'}</span>
-                        <span className="text-xs font-semibold leading-tight"
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${ganP1 ? 'bg-emerald-500 text-white' : `${st.seedBg}${finalizado ? ' opacity-60' : ''}`}`}>{n1 ?? '?'}</span>
+                        <span className="text-sm font-semibold leading-tight"
                           style={{ color: ganP1 ? tNameW : finalizado ? tNameL : tNameW, textDecoration: ganP2 && finalizado ? 'line-through' : 'none', opacity: ganP2 && finalizado ? 0.5 : 1 }}>
                           {m.pareja1 ? `${m.pareja1.jugador1.split(' ')[0]} / ${m.pareja1.jugador2.split(' ')[0]}` : '—'}
                         </span>
@@ -2141,32 +2141,32 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
                       <div className="flex items-center gap-0.5 shrink-0">
                         {finalizado && m.resultado?.length > 0 ? (
                           m.resultado.map((s, i) => (
-                            <span key={i} className="text-[12px] font-mono font-semibold px-1.5 py-0.5 rounded border"
+                            <span key={i} className="text-[14px] font-mono font-semibold px-1.5 py-0.5 rounded border"
                               style={{ color: s.p1 > s.p2 ? tClrScoreW : tClrScoreL, background: s.p1 > s.p2 ? `${tClrScoreW}18` : 'transparent', borderColor: s.p1 > s.p2 ? `${tClrScoreW}30` : 'transparent' }}>
                               {s.p1}-{s.p2}
                             </span>
                           ))
                         ) : (
-                          <span className="text-[10px] px-1" style={{ color: tClrScoreL }}>vs</span>
+                          <span className="text-[12px] px-1" style={{ color: tClrScoreL }}>vs</span>
                         )}
                       </div>
                       {/* P2 */}
                       <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
-                        <span className="text-xs text-right font-semibold leading-tight"
+                        <span className="text-sm text-right font-semibold leading-tight"
                           style={{ color: ganP2 ? tNameW : finalizado ? tNameL : tNameW, textDecoration: ganP1 && finalizado ? 'line-through' : 'none', opacity: ganP1 && finalizado ? 0.5 : 1 }}>
                           {m.pareja2 ? `${m.pareja2.jugador1.split(' ')[0]} / ${m.pareja2.jugador2.split(' ')[0]}` : '—'}
                         </span>
-                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${ganP2 ? 'bg-emerald-500 text-white' : `${st.seedBg}${finalizado ? ' opacity-60' : ''}`}`}>{n2 ?? '?'}</span>
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${ganP2 ? 'bg-emerald-500 text-white' : `${st.seedBg}${finalizado ? ' opacity-60' : ''}`}`}>{n2 ?? '?'}</span>
                       </div>
                     </div>
                     {/* Footer horario */}
                     <div className={st.ftBorder}>
                       {m.slot
-                        ? <span className="text-[11px] font-medium" style={{ color: tClrScoreW }}>{m.slot.dia} · {m.slot.hora ?? m.slot.franja.split('(')[0].trim()}</span>
-                        : <span className="text-[10px]" style={{ color: tClrScoreL }}>Sin horario</span>
+                        ? <span className="text-[13px] font-medium" style={{ color: tClrScoreW }}>{m.slot.dia} · {m.slot.hora ?? m.slot.franja.split('(')[0].trim()}</span>
+                        : <span className="text-[12px]" style={{ color: tClrScoreL }}>Sin horario</span>
                       }
                       {finalizado && ganN !== null
-                        ? <span className="text-[10px] font-bold text-emerald-400">✓ P{ganN} ganó</span>
+                        ? <span className="text-[12px] font-bold text-emerald-400">✓ P{ganN} ganó</span>
                         : <span className="text-[10px]" style={{ color: tClrScoreL }}>pendiente</span>
                       }
                     </div>
@@ -2243,6 +2243,7 @@ const TabDraw = ({ torneo, club }) => {
       selectedCat={catTabD}
       onSelectCat={multiCatD ? setCatTabD : null}
       bracketTemplate={torneo.bracketTemplate ?? 'default'}
+      cardLayoutOverride="stat"
     />
   )
 }
@@ -2504,7 +2505,7 @@ const TabResumen = ({ torneo, club, accentColor }) => {
                       </span>
                     </div>
 
-                    <p className="relative text-white font-black leading-tight text-lg sm:text-xl">
+                    <p className="relative text-white font-black leading-relaxed tracking-wide text-lg sm:text-xl">
                       {nombrePareja(campeon)}
                     </p>
                   </div>
@@ -2556,7 +2557,7 @@ const TabResumen = ({ torneo, club, accentColor }) => {
                       </span>
                     </div>
 
-                    <p className="relative text-white/85 font-black leading-tight text-lg sm:text-xl">
+                    <p className="relative text-white/85 font-black leading-relaxed tracking-wide text-lg sm:text-xl">
                       {nombrePareja(subcampeon)}
                     </p>
                   </div>
@@ -2914,14 +2915,14 @@ const TorneoPublicoPage = () => {
             </div>
           </div>
 
-          {/* Tabs pill */}
+          {/* Tabs pill — scrolleable en mobile para no desbordar el ancho de la pantalla */}
           <div className="max-w-4xl mx-auto px-4 pb-2.5">
-            <div className="flex items-center gap-1.5 bg-white/[0.05] rounded-2xl p-1.5 w-fit">
+            <div className="flex items-center gap-1 sm:gap-1.5 bg-white/[0.05] rounded-2xl p-1 sm:p-1.5 w-fit max-w-full overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
               {TABS.map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
                   onClick={() => setTab(key)}
-                  className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all"
+                  className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-[11px] sm:text-xs font-semibold rounded-xl transition-all shrink-0 whitespace-nowrap"
                   style={tab === key
                     ? { backgroundColor: accentColor, color: '#0d1117' }
                     : { color: 'rgba(255,255,255,0.35)' }

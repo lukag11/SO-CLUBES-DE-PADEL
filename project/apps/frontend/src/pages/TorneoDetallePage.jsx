@@ -5080,6 +5080,7 @@ const TorneoDetallePage = () => {
                             accentColorOverride={color}
                             colorCardOverride={torneo.bracketColorCards?.[cat] || null}
                             bracketTemplate="default"
+                            cardLayoutOverride="stat"
                             hideHeader
                           />
                         </div>
@@ -5099,6 +5100,7 @@ const TorneoDetallePage = () => {
                     accentColorOverride={torneo.bracketColores?.[selectedBracketCat] || null}
                     colorCardOverride={torneo.bracketColorCards?.[selectedBracketCat] || null}
                     bracketTemplate="default"
+                    cardLayoutOverride="stat"
                     hideHeader
                   />
                 )}
@@ -5131,6 +5133,7 @@ const TorneoDetallePage = () => {
                     accentColorOverride={torneo.bracketColores?.[selectedBracketCat] || null}
                     colorCardOverride={torneo.bracketColorCards?.[selectedBracketCat] || null}
                     bracketTemplate="default"
+                    cardLayoutOverride="stat"
                   />
                 </div>
               </div>

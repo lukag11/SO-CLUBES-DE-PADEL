@@ -20,6 +20,27 @@ export default function AsistenteWiark() {
   const [started, setStarted] = useState(false)
   const scrollRef = useRef(null)
 
+  // ── Drag: WIarky se puede arrastrar a cualquier lado; recuerda la posición.
+  // Se ancla por (right, bottom) para que el chat siga abriéndose hacia arriba.
+  const wrapRef = useRef(null)
+  const pelotaRef = useRef(null)
+  const dragRef = useRef({ dragging: false, moved: false, offR: 0, offB: 0, sx: 0, sy: 0 })
+  const [pos, setPos] = useState(() => {
+    try { const s = localStorage.getItem('wiarky_pos'); return s ? JSON.parse(s) : null } catch { return null }
+  })
+  const posRef = useRef(pos)
+  posRef.current = pos
+  // Dirección de apertura del chat, según dónde quedó la pelotita (para no abrir fuera de pantalla).
+  const [openDir, setOpenDir] = useState({ v: 'up', h: 'right' })
+
+  const onDragStart = (e) => {
+    const p = pelotaRef.current?.getBoundingClientRect()
+    if (!p) return
+    const cx = e.touches ? e.touches[0].clientX : e.clientX
+    const cy = e.touches ? e.touches[0].clientY : e.clientY
+    dragRef.current = { dragging: true, moved: false, offR: p.right - cx, offB: p.bottom - cy, sx: cx, sy: cy }
+  }
+
   // Globito de saludo: aparece a poco de entrar y se va solo (no invasivo).
   useEffect(() => {
     const t1 = setTimeout(() => setBubble(true), 1400)
@@ -33,8 +54,54 @@ export default function AsistenteWiark() {
     if (el) el.scrollTop = el.scrollHeight
   }, [messages, sending])
 
+  // Listeners globales del drag (mouse + touch). El click de abrir se ignora si hubo arrastre.
+  useEffect(() => {
+    const onMove = (e) => {
+      const d = dragRef.current
+      if (!d.dragging) return
+      const cx = e.touches ? e.touches[0].clientX : e.clientX
+      const cy = e.touches ? e.touches[0].clientY : e.clientY
+      if (!d.moved && Math.hypot(cx - d.sx, cy - d.sy) < 4) return // umbral: distingue click de drag
+      d.moved = true
+      if (e.cancelable) e.preventDefault()
+      const w = wrapRef.current?.offsetWidth ?? 80
+      const h = wrapRef.current?.offsetHeight ?? 80
+      let right = window.innerWidth - cx - d.offR
+      let bottom = window.innerHeight - cy - d.offB
+      right = Math.max(8, Math.min(window.innerWidth - w - 8, right))
+      bottom = Math.max(8, Math.min(window.innerHeight - h - 8, bottom))
+      setPos({ right, bottom })
+    }
+    const onUp = () => {
+      const d = dragRef.current
+      if (d.dragging && d.moved && posRef.current) {
+        try { localStorage.setItem('wiarky_pos', JSON.stringify(posRef.current)) } catch { /* */ }
+      }
+      d.dragging = false
+      setTimeout(() => { d.moved = false }, 0) // que el onClick lea `moved` antes de resetear
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
+    }
+  }, [])
+
   const abrir = () => {
     const abriendo = !open
+    // Antes de abrir, decido hacia qué lado se despliega el chat según la posición de la pelotita.
+    if (abriendo && pelotaRef.current) {
+      const r = pelotaRef.current.getBoundingClientRect()
+      setOpenDir({
+        v: r.top > window.innerHeight / 2 ? 'up' : 'down',
+        h: r.left > window.innerWidth / 2 ? 'right' : 'left',
+      })
+    }
     setOpen(abriendo)
     setBubble(false)
     if (abriendo && !started) {
@@ -78,10 +145,15 @@ export default function AsistenteWiark() {
   }
 
   return (
-    <div className="fixed bottom-20 right-5 lg:bottom-5 z-50 flex flex-col items-end gap-3 print:hidden">
-      {/* Panel del chat */}
+    <div
+      ref={wrapRef}
+      className={`fixed z-50 print:hidden ${pos ? '' : 'bottom-20 right-5 lg:bottom-5'}`}
+      style={pos ? { right: pos.right, bottom: pos.bottom } : undefined}
+    >
+     <div className="relative flex flex-col items-end gap-3">
+      {/* Panel del chat — se ancla con `absolute` hacia el lado con espacio (openDir) */}
       {open && (
-        <div className="w-[340px] max-w-[calc(100vw-2.5rem)] h-[480px] max-h-[calc(100vh-8rem)] flex flex-col rounded-2xl overflow-hidden border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl shadow-black/30 animate-[wiark-pop_.18s_ease-out]">
+        <div className={`absolute ${openDir.v === 'up' ? 'bottom-full mb-3' : 'top-full mt-3'} ${openDir.h === 'right' ? 'right-0' : 'left-0'} w-[340px] max-w-[calc(100vw-2.5rem)] h-[480px] max-h-[calc(100vh-8rem)] flex flex-col rounded-2xl overflow-hidden border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl shadow-black/30 animate-[wiark-pop_.18s_ease-out]`}>
           <style>{`@keyframes wiark-pop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
             @keyframes wiark-dot{0%,80%,100%{opacity:.25}40%{opacity:1}}`}</style>
 
@@ -173,15 +245,19 @@ export default function AsistenteWiark() {
         </div>
       )}
 
-      {/* Botón pelotita */}
+      {/* Botón pelotita — arrastrable (drag) y clickeable (abrir). Si hubo arrastre, no abre. */}
       <button
-        onClick={abrir}
-        aria-label="Abrir asistente WIarky"
-        className="relative w-16 h-16 rounded-full grid place-items-center transition-transform hover:scale-105 active:scale-95"
+        ref={pelotaRef}
+        onMouseDown={onDragStart}
+        onTouchStart={onDragStart}
+        onClick={() => { if (!dragRef.current.moved) abrir() }}
+        aria-label="Abrir o mover el asistente WIarky"
+        className="relative w-16 h-16 rounded-full grid place-items-center transition-transform hover:scale-105 active:scale-95 cursor-grab active:cursor-grabbing touch-none"
         style={{ filter: 'drop-shadow(0 8px 20px rgba(175,202,11,0.45))' }}
       >
         <AsistentePelota size={64} expresion={open ? 'feliz' : 'idle'} />
       </button>
+     </div>
     </div>
   )
 }

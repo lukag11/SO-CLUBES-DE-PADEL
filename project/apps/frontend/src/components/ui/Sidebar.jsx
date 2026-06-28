@@ -96,10 +96,13 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
         )}
       </Link>
 
-      {/* Tarjeta de plan (+ upsell) — solo el dueño la ve */}
-      {expanded && planInfo && esDueno && (
-        <div className="px-3 pt-3 shrink-0">
-          <div className="relative overflow-hidden rounded-xl border border-white/8 bg-gradient-to-br from-white/[0.07] to-transparent p-3">
+      {/* Tarjeta de plan (+ upsell) — solo el dueño la ve.
+          Fade + colapso de altura con delay y overflow-hidden: al expandir/colapsar el
+          sidebar la card no "salta" mientras el ancho del aside transiciona. Ancho fijo
+          (w-[216px]) para que su contenido no se reacomode con el ancho del aside. */}
+      {planInfo && esDueno && (
+        <div className={`px-3 shrink-0 overflow-hidden transition-all duration-200 ${expanded ? 'pt-3 max-h-40 opacity-100 delay-100' : 'max-h-0 pt-0 opacity-0 pointer-events-none'}`}>
+          <div className="relative overflow-hidden rounded-xl border border-white/8 bg-gradient-to-br from-white/[0.07] to-transparent p-3 w-[216px] max-w-full">
             <div className="flex items-center gap-2.5">
               <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${planInfo.chip}`}>
                 <planInfo.icon size={16} />

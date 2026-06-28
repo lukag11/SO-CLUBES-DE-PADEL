@@ -886,12 +886,28 @@ const CanchaRow = ({ cancha, onUpdate }) => {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="indoor" checked={local.indoor} onChange={handleChange} className="rounded accent-emerald-500" />
-                <span className="text-sm text-slate-600">Indoor</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="flex flex-wrap items-end gap-5">
+              {/* Modalidad: Indoor / Outdoor — en el modelo es `indoor` (boolean), Outdoor = indoor:false */}
+              <div>
+                <span className="block text-slate-500 text-xs font-medium mb-1.5">Modalidad</span>
+                <div className="inline-flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                  <button
+                    type="button"
+                    onClick={() => setLocal((prev) => ({ ...prev, indoor: true }))}
+                    className={`px-3.5 py-1.5 rounded-md text-sm font-semibold transition-all ${local.indoor ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Indoor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLocal((prev) => ({ ...prev, indoor: false }))}
+                    className={`px-3.5 py-1.5 rounded-md text-sm font-semibold transition-all ${!local.indoor ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Outdoor
+                  </button>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer pb-2">
                 <input type="checkbox" name="activa" checked={local.activa} onChange={handleChange} className="rounded accent-emerald-500" />
                 <span className="text-sm text-slate-600">Cancha activa</span>
               </label>

@@ -1504,7 +1504,7 @@ const DetalleReserva = ({ reserva, onCancelar, onPago, onClose, onAprobar, onChe
               Aprobar reserva
             </button>
           )}
-          {reserva._backendId && reserva.estado === 'confirmada' && onCheckout && (
+          {(reserva._backendId || reserva.tipo === 'fijo') && reserva.estado === 'confirmada' && onCheckout && (
             <button
               onClick={() => onCheckout(reserva)}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors"
@@ -2964,6 +2964,7 @@ const ReservasPage = () => {
   const [clases, setClases] = useState(CLASES_PROFESOR)
   const [seleccion, setSeleccion] = useState(null)
   const [checkoutReserva, setCheckoutReserva] = useState(null)
+  const preparandoCobroRef = useRef(false) // guard anti doble-submit al materializar un turno fijo para cobrar
   const [editando, setEditando] = useState(null)
   const [tabActiva, setTabActiva] = useState(() => location.state?.tab ?? 'grilla')
   const [toast, setToast] = useState(null) // { tipo: 'reserva'|'bloqueo'|'cancelada', msg: '' }
@@ -3177,7 +3178,8 @@ const ReservasPage = () => {
         fin: t.fin,
         tipo: 'fijo',
         jugadores: [t.jugador || t.canchaNombre],
-        pago: 'pendiente',
+        // Mismo criterio que una reserva: si el turno ya venció e impago → 'debe' (rojo), si no 'pendiente'.
+        pago: venceCobro(fecha, t.inicio, t.fin) ? 'debe' : 'pendiente',
         monto: t.precio,
         estado: 'confirmada',
         notas: 'Turno fijo jugador',
@@ -3257,6 +3259,37 @@ const ReservasPage = () => {
       toastUi.error(err.message || 'No se pudo aprobar la reserva')
     }
     setSeleccion(null)
+  }
+
+  // Abre el cobro del turno. Un turno fijo "virtual" (proyección sin Reserva real) se materializa
+  // primero en el backend (idempotente) para tener una reserva cobrable, y se cobra igual que una normal.
+  const abrirCheckout = async (r) => {
+    setSeleccion(null)
+    if (r.tipo === 'fijo' && !r._backendId) {
+      if (preparandoCobroRef.current) return // evita doble materialización si se toca dos veces rápido
+      preparandoCobroRef.current = true
+      const tfId = String(r.id).replace('fijo_player_', '')
+      try {
+        const m = await api.post(`/turnos-fijos/${tfId}/materializar`, { fecha: r.fecha }, { Authorization: `Bearer ${adminToken}` })
+        fetchReservasBackend(fecha)
+        setCheckoutReserva({
+          _backendId: m.id,
+          monto: m.monto,
+          jugadorId: m.jugadorId,
+          jugadores: (m.jugadores?.length ? m.jugadores : r.jugadores) ?? [],
+          canchaNombre: m.canchaNombre || r.canchaNombre || '',
+          inicio: m.inicio, fin: m.fin,
+          pago: venceCobro(r.fecha, r.inicio, r.fin) ? 'debe' : 'pendiente',
+          pagadoTurno: 0, saldoTurno: m.monto, cargosCuenta: [],
+        })
+      } catch (e) {
+        toastUi.error(e?.message || 'No se pudo preparar el cobro del turno fijo')
+      } finally {
+        preparandoCobroRef.current = false
+      }
+      return
+    }
+    setCheckoutReserva(r)
   }
 
   const handleCancelar = (id) => {
@@ -3613,7 +3646,7 @@ const ReservasPage = () => {
                   <EditarReserva reserva={editando} onSave={handleGuardarEdicion} onCancel={() => setEditando(null)} />
                 ) : seleccion.tipo === 'detalle' ? (
                   <div className="flex flex-col">
-                    <DetalleReserva reserva={seleccion.reserva} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} onAprobar={handleAprobarBackend} onCheckout={(r) => { setSeleccion(null); setCheckoutReserva(r) }} />
+                    <DetalleReserva reserva={seleccion.reserva} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} onAprobar={handleAprobarBackend} onCheckout={abrirCheckout} />
                     {seleccion.reserva.tipo !== 'bloqueado' && seleccion.reserva.tipo !== 'clase' && seleccion.reserva.estado !== 'cancelada' && (
                       <div className="px-5 pb-4">
                         <button onClick={() => handleEditar(seleccion.reserva)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 transition-colors">
@@ -3623,7 +3656,7 @@ const ReservasPage = () => {
                     )}
                   </div>
                 ) : (
-                  <PanelContent seleccion={seleccion} fecha={fecha} franjas={franjasMainGrilla} onSave={handleSave} onBloquear={handleSave} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} onCheckout={(r) => { setSeleccion(null); setCheckoutReserva(r) }} />
+                  <PanelContent seleccion={seleccion} fecha={fecha} franjas={franjasMainGrilla} onSave={handleSave} onBloquear={handleSave} onCancelar={handleCancelar} onPago={handlePago} onClose={() => setSeleccion(null)} onCheckout={abrirCheckout} />
                 )}
               </div>
             </div>

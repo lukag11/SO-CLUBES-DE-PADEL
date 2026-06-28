@@ -511,4 +511,46 @@ router.patch('/:id/ausencia/:fecha', requireAuth, requireRole('admin'), requireP
   }
 })
 
+// ── POST /:id/materializar — admin: crea la Reserva REAL de un día puntual de un turno fijo,
+// para poder cobrarlo igual que una reserva normal. El turno fijo en la grilla es una proyección
+// virtual; sin esta Reserva no hay nada cobrable. Idempotente (si ya existe la del día, la devuelve)
+// y bajo runSerializable (anti doble-materialización concurrente). Body: { fecha: 'YYYY-MM-DD' }.
+router.post('/:id/materializar', requireAuth, requireRole('admin'), requirePermiso('ventas'), async (req, res) => {
+  const { fecha } = req.body || {}
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) return res.status(400).json({ error: 'Fecha inválida' })
+  const clubId = req.user.clubId
+  try {
+    const { reserva, canchaNombre } = await runSerializable(async (tx) => {
+      const turno = await tx.turnoFijo.findFirst({ where: { id: req.params.id, clubId }, include: INCLUDE_CANCHA })
+      if (!turno) throw Object.assign(new Error('Turno fijo no encontrado'), { status: 404 })
+      if ((turno.diasAusentes ?? []).includes(fecha)) {
+        throw Object.assign(new Error('Ese día está liberado (ausencia): no hay turno para cobrar'), { status: 409 })
+      }
+      const cn = turno.cancha?.nombre ?? ''
+      // Idempotente: si la reserva del día ya existe (no cancelada), la reutilizamos.
+      const existente = await tx.reserva.findFirst({
+        where: { clubId, canchaId: turno.canchaId, fecha, jugadorId: turno.jugadorId, esTurnoFijo: true, estado: { not: 'cancelada' } },
+      })
+      if (existente) return { reserva: existente, canchaNombre: cn }
+      const nombre = turno.jugador ? `${turno.jugador.nombre} ${turno.jugador.apellido ?? ''}`.trim() : ''
+      const creada = await tx.reserva.create({
+        data: {
+          clubId, canchaId: turno.canchaId, jugadorId: turno.jugadorId,
+          fecha, horaInicio: turno.horaInicio, horaFin: turno.horaFin,
+          estado: 'confirmada', precio: turno.precio ?? 0, esTurnoFijo: true, tipo: 'fijo',
+          jugadores: nombre ? [nombre] : [], pagado: false,
+        },
+      })
+      return { reserva: creada, canchaNombre: cn }
+    })
+    res.json({
+      id: reserva.id, fecha: reserva.fecha, inicio: reserva.horaInicio, fin: reserva.horaFin,
+      monto: reserva.precio ?? 0, jugadorId: reserva.jugadorId, jugadores: reserva.jugadores ?? [],
+      canchaNombre, estado: reserva.estado, pagado: reserva.pagado, esTurnoFijo: true,
+    })
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'No se pudo preparar el cobro del turno fijo' })
+  }
+})
+
 export default router

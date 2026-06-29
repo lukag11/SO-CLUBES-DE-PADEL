@@ -4,6 +4,7 @@ import { api } from '../../lib/api'
 import { METODO_MAP, metodosDelClub } from '../../lib/metodosPago'
 import useClubStore from '../../store/clubStore'
 import ModalBusquedaJugadores from '../../components/jugadores/ModalBusquedaJugadores'
+import { useConfirm } from '../../components/ui/ConfirmProvider'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 
@@ -49,8 +50,8 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
     const resueltos = new Set(cgs.filter((c) => c.jugadorId && c.tipo === 'reserva').map((c) => c.jugadorId))
     return cgs.some((c) => c.jugadorId && c.tipo === 'producto' && !resueltos.has(c.jugadorId)) ? 'split' : 'simple'
   })
-  // En "Dividir" los consumos se muestran por persona → el ticket de arriba muestra solo el turno (no duplica).
-  const ticketArriba = mode === 'split' ? yaEnCuenta.filter((c) => c.tipo === 'reserva') : yaEnCuenta
+  // El bloque "Ya en la cuenta" muestra SOLO las porciones del turno (los consumos se ven por persona / por pagador, no acá → no se duplica).
+  const ticketArriba = yaEnCuenta.filter((c) => c.tipo === 'reserva')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [rosterPartido, setRosterPartido] = useState(null) // { jugadores:[{jugadorId,nombre,titular}] } si el turno es un partido abierto
@@ -297,7 +298,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+      <div className={`relative w-full ${mode === 'split' ? 'max-w-4xl' : 'max-w-lg'} bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] transition-[max-width] duration-200`} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
@@ -360,9 +361,9 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
           </div>
         </div>
 
-        <div className="overflow-y-auto px-6 py-4 flex flex-col gap-4">
+        <div className="overflow-y-auto px-6 py-3 flex flex-col gap-3">
           {mode === 'simple'
-            ? <ModoSimple {...{ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas, activos, pagador, setPagador, hayTitular, titularNombre, cobrar, setCobrar, metodoPago, setMetodoPago, metodos, addProducto, addOtro, cambiarCant, quitarLinea, persistirConsumo, reservaJugadorId: reserva.jugadorId, saving }} />
+            ? <ModoSimple {...{ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas, activos, pagador, setPagador, hayTitular, titularNombre, cobrar, setCobrar, metodoPago, setMetodoPago, metodos, addProducto, addOtro, cambiarCant, quitarLinea, persistirConsumo, reservaJugadorId: reserva.jugadorId, saving, cuenta, eliminarLineaTicket }} />
             : <ModoSplit {...{ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token, persistirConsumo, saving, cuenta, eliminarLineaTicket, persistirCompartido, resolverPersona }} />
           }
 
@@ -371,14 +372,16 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 shrink-0">
-          {mode === 'split' && restoTurno > 0 && turnoAsignado > 0 && (
-            <p className="text-[11px] text-fuchsia-500 mb-2">Quedará {money(restoTurno)} del turno sin cobrar (parcial).</p>
+          {mode === 'split' ? (
+            // En "Dividir" cada persona se cobra individual con su botón "Cobrar $X" → acá solo cerrar.
+            <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm transition-colors">
+              Listo
+            </button>
+          ) : (
+            <button onClick={submit} disabled={saving || totalSimple <= 0} className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
+              {saving ? 'Procesando…' : esACuentaSimple ? `Anotar ${money(totalSimple)} a la cuenta` : `Cobrar ${money(totalSimple)}`}
+            </button>
           )}
-          <button onClick={submit} disabled={saving || (mode === 'simple' ? totalSimple <= 0 : totalSplit <= 0)} className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
-            {saving ? 'Procesando…' : mode === 'simple'
-              ? (esACuentaSimple ? `Anotar ${money(totalSimple)} a la cuenta` : `Cobrar ${money(totalSimple)}`)
-              : `Confirmar ${money(totalSplit)}`}
-          </button>
         </div>
       </div>
     </div>
@@ -474,7 +477,7 @@ const LineasList = ({ lineas, onCant, onQuitar }) => (
 )
 
 // ─── Modo simple (un pagador) ───────────────────────────────────────────────────
-const ModoSimple = ({ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas, activos, pagador, setPagador, hayTitular, titularNombre, cobrar, setCobrar, metodoPago, setMetodoPago, metodos, addProducto, addOtro, cambiarCant, quitarLinea, persistirConsumo, reservaJugadorId, saving }) => (
+const ModoSimple = ({ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas, activos, pagador, setPagador, hayTitular, titularNombre, cobrar, setCobrar, metodoPago, setMetodoPago, metodos, addProducto, addOtro, cambiarCant, quitarLinea, persistirConsumo, reservaJugadorId, saving, cuenta, eliminarLineaTicket }) => (
   <>
     {saldoTurno > 0 && (
       <button onClick={() => setCobrarTurno((v) => !v)} className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${cobrarTurno ? 'border-brand-300 bg-brand-50/60' : 'border-slate-200'}`}>
@@ -491,6 +494,23 @@ const ModoSimple = ({ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas
         onAdd={(id) => { const pr = activos.find((x) => x.id === id); if (pr) persistirConsumo({ jugadorId: pagador === 'titular' ? reservaJugadorId : null, prodId: pr.id, nombre: pr.nombre, precio: pr.precio }) }}
         onAddOtro={(n, p) => persistirConsumo({ jugadorId: pagador === 'titular' ? reservaJugadorId : null, nombre: n.trim(), precio: Number(p) })}
       />
+      {/* Lo que cargó el pagador (persistido), para tenerlo a la vista sin un ticket duplicado */}
+      {(() => {
+        const jid = pagador === 'titular' ? reservaJugadorId : null
+        const mis = (cuenta || []).filter((c) => c.tipo === 'producto' && (pagador === 'casual' ? !c.jugadorId : c.jugadorId === jid))
+        return mis.length > 0 ? (
+          <div className="flex flex-col gap-1 rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5 mt-2">
+            {mis.map((c) => (
+              <div key={c.id} className="flex items-center gap-2 text-[12px]">
+                <span className="flex-1 text-slate-600 truncate">{c.concepto}</span>
+                <span className="text-slate-700 font-medium shrink-0">{money(c.monto)}</span>
+                <span className={`text-[10px] shrink-0 ${c.estado === 'pagado' ? 'text-emerald-600' : 'text-blue-600'}`}>{c.estado === 'pagado' ? 'cobrado' : 'a cuenta'}</span>
+                <button onClick={() => eliminarLineaTicket(c)} disabled={saving} className="text-slate-300 hover:text-rose-500 shrink-0" title="Quitar"><X size={13} /></button>
+              </div>
+            ))}
+          </div>
+        ) : null
+      })()}
       {saving && <p className="text-[11px] text-slate-400 mt-1">Guardando…</p>}
     </div>
 
@@ -531,7 +551,18 @@ const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignad
 
   const setPersona = (key, patch) => setPersonas((prev) => prev.map((p) => p.key === key ? { ...p, ...patch } : p))
   const setConsumosPersona = (key, updater) => setPersonas((prev) => prev.map((p) => p.key === key ? { ...p, consumos: typeof updater === 'function' ? updater(p.consumos) : updater } : p))
-  const quitarPersona = (key) => setPersonas((prev) => prev.filter((p) => p.key !== key))
+  const confirmar = useConfirm()
+  const quitarPersona = async (key) => {
+    const persona = personas.find((p) => p.key === key)
+    // Sus consumos YA persistidos: hay que borrarlos también, sino la persona reaparece al reabrir.
+    const sus = (cuenta || []).filter((c) => c.tipo === 'producto' && (persona?.tipo === 'casual' ? !c.jugadorId : c.jugadorId === persona?.jugadorId))
+    const msg = sus.length
+      ? `¿Quitar a ${persona?.nombre || 'esta persona'}? Se borran sus ${sus.length} consumo${sus.length !== 1 ? 's' : ''} cargado${sus.length !== 1 ? 's' : ''}.`
+      : `¿Quitar a ${persona?.nombre || 'esta persona'} del cobro?`
+    if (!(await confirmar({ titulo: 'Quitar del cobro', mensaje: msg, confirmText: 'Quitar', danger: true }))) return
+    for (const c of sus) { await eliminarLineaTicket(c) }
+    setPersonas((prev) => prev.filter((p) => p.key !== key))
+  }
 
   // Consumos PERSISTIDOS de una persona (del ticket real, agrupados por jugador).
   // Casual (sin jugadorId): comparten los cargos sin jugador — impreciso con varios casuales, pero el casual se cobra al toque.
@@ -563,9 +594,10 @@ const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignad
         <p className="text-[11px] text-amber-600">Marcaste más de 4 jugadores. Un turno de pádel suele ser de 4 — los demás podrían ser acompañantes.</p>
       )}
 
-      <div className="flex flex-col gap-3">
+      {/* Grilla 2 columnas en desktop (1 en mobile) → se ven más personas sin scrollear tanto */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {personas.map((p) => (
-          <div key={p.key} className="rounded-2xl border border-slate-200 p-3 flex flex-col gap-2.5">
+          <div key={p.key} className="rounded-2xl border border-slate-200 p-2.5 flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <p className="flex-1 text-sm font-semibold text-slate-700 truncate">{p.nombre}{p.tipo === 'casual' && <span className="text-[10px] text-slate-400 ml-1">(contado)</span>}</p>
               {saldoTurno > 0 && (
@@ -608,22 +640,24 @@ const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignad
               </div>
             )}
 
-            {/* Cómo paga */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 flex-1">
+            {/* Cómo paga — apilado para entrar cómodo en la grilla de 2 columnas */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
                 <button onClick={() => setPersona(p.key, { modo: 'cobrar' })} className={`flex-1 py-1 rounded-md text-[11px] font-semibold transition-all ${p.modo === 'cobrar' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Cobrar</button>
                 <button onClick={() => setPersona(p.key, { modo: 'cuenta' })} disabled={p.tipo === 'casual'} className={`flex-1 py-1 rounded-md text-[11px] font-semibold transition-all disabled:opacity-40 ${p.modo === 'cuenta' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>A cuenta</button>
               </div>
-              {p.modo === 'cobrar' && (
-                <select value={p.metodoPago} onChange={(e) => setPersona(p.key, { metodoPago: e.target.value })} className={`w-32 ${inputCls} py-1.5`}>
-                  {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
-                </select>
-              )}
-              {/* Cobro rápido: registra a esta persona (turno + sus consumos) al instante */}
-              <button onClick={() => resolverPersona(p)} disabled={saving || subPersona(p) <= 0}
-                className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold disabled:opacity-40 whitespace-nowrap">
-                {p.modo === 'cobrar' ? 'Cobrar' : 'A cuenta'} {money(subPersona(p))}
-              </button>
+              <div className="flex items-center gap-2">
+                {p.modo === 'cobrar' && (
+                  <select value={p.metodoPago} onChange={(e) => setPersona(p.key, { metodoPago: e.target.value })} className={`flex-1 min-w-0 ${inputCls} py-1.5`}>
+                    {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
+                  </select>
+                )}
+                {/* Cobro rápido: registra a esta persona (turno + sus consumos) al instante */}
+                <button onClick={() => resolverPersona(p)} disabled={saving || subPersona(p) <= 0}
+                  className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold disabled:opacity-40 whitespace-nowrap">
+                  {p.modo === 'cobrar' ? 'Cobrar' : 'A cuenta'} {money(subPersona(p))}
+                </button>
+              </div>
             </div>
           </div>
         ))}

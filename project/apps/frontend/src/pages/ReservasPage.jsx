@@ -1994,11 +1994,12 @@ const PanelAlertas = ({
     setTimeout(() => setToastPanel(null), 3000)
   }
 
-  // Notificaciones que NO son reservas normales (esas las manejamos directo desde backend)
+  // Notificaciones que NO son reservas normales (esas las manejamos directo desde backend).
+  // `stock_bajo` es un aviso de inventario (no de jugadores): va a la campana del Navbar, no a este panel.
   const notifFiltradas = notificaciones.filter((n) =>
-    n.tipo !== 'nueva_reserva' && n.tipo !== 'inscripcion_torneo' && n.tipo !== 'baja_torneo' && n.tipo !== 'actualizacion_torneo'
+    n.tipo !== 'nueva_reserva' && n.tipo !== 'inscripcion_torneo' && n.tipo !== 'baja_torneo' && n.tipo !== 'actualizacion_torneo' && n.tipo !== 'stock_bajo'
   )
-  const sinLeer = notificaciones.filter((n) => !n.leida && n.tipo !== 'nueva_reserva').length
+  const sinLeer = notificaciones.filter((n) => !n.leida && n.tipo !== 'nueva_reserva' && n.tipo !== 'stock_bajo').length
 
   const hayContenido = reservasPendientes.length > 0 || notifFiltradas.length > 0
   if (!hayContenido) return null

@@ -43,7 +43,14 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   const yaEnCuenta = cuenta
 
   const [productos, setProductos] = useState([])
-  const [mode, setMode] = useState('simple')        // 'simple' | 'split'
+  // Reapertura: si ya hay consumos cargados por jugador, abro directo en "Dividir" (no en el ticket plano).
+  const [mode, setMode] = useState(() => {
+    const cgs = Array.isArray(reserva.cargosCuenta) ? reserva.cargosCuenta : []
+    const resueltos = new Set(cgs.filter((c) => c.jugadorId && c.tipo === 'reserva').map((c) => c.jugadorId))
+    return cgs.some((c) => c.jugadorId && c.tipo === 'producto' && !resueltos.has(c.jugadorId)) ? 'split' : 'simple'
+  })
+  // En "Dividir" los consumos se muestran por persona → el ticket de arriba muestra solo el turno (no duplica).
+  const ticketArriba = mode === 'split' ? yaEnCuenta.filter((c) => c.tipo === 'reserva') : yaEnCuenta
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [rosterPartido, setRosterPartido] = useState(null) // { jugadores:[{jugadorId,nombre,titular}] } si el turno es un partido abierto
@@ -72,9 +79,21 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   // ── Estado modo SPLIT ──
   // Turno nuevo → precargo al titular. Reapertura (ya hay movimientos) → arranca vacío:
   // el titular pudo haber pagado y haberse ido; agregás a los que pagan ahora.
-  const [personas, setPersonas] = useState(() =>
-    (hayTitular && yaEnCuenta.length === 0) ? [nuevaPersona({ tipo: 'titular', jugadorId: reserva.jugadorId, nombre: titularNombre })] : []
-  )
+  const [personas, setPersonas] = useState(() => {
+    // Reapertura: reconstruyo las personas desde los consumos ya persistidos (agrupados por jugador),
+    // así al volver a entrar ves la carga como la dejaste (cada uno con lo suyo), no un ticket plano.
+    const cgs = Array.isArray(reserva.cargosCuenta) ? reserva.cargosCuenta : []
+    // Ya resueltos = los que ya tienen su porción del turno registrada → NO reaparecen en el split.
+    const idsResueltos = new Set(cgs.filter((c) => c.jugadorId && c.tipo === 'reserva').map((c) => c.jugadorId))
+    const idsConConsumo = [...new Set(cgs.filter((c) => c.jugadorId && c.tipo === 'producto').map((c) => c.jugadorId))].filter((jid) => !idsResueltos.has(jid))
+    if (idsConConsumo.length) {
+      return idsConConsumo.map((jid) => {
+        const cc = cgs.find((c) => c.jugadorId === jid && c.jugador)
+        return { key: uid(), tipo: 'jugador', jugadorId: jid, nombre: cc?.jugador ? `${cc.jugador.nombre} ${cc.jugador.apellido}` : 'Jugador', jugo: true, turnoMonto: 0, consumos: [], modo: 'cobrar', metodoPago: metodoDefault }
+      })
+    }
+    return (hayTitular && yaEnCuenta.length === 0) ? [nuevaPersona({ tipo: 'titular', jugadorId: reserva.jugadorId, nombre: titularNombre })] : []
+  })
   // Auto-reparto: activo hasta que el admin edite un monto a mano (ahí respeta su edición).
   const [autoSplit, setAutoSplit] = useState(true)
 
@@ -163,6 +182,81 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
     () => setCuenta((prev) => prev.filter((x) => x.id !== c.id)),
   )
 
+  // ── Persistencia instantánea (estilo comanda): cada consumo se guarda al toque ──
+  // Re-lee la cuenta del backend (cargos reales) para refrescar el ticket sin recargar la grilla.
+  const refrescarCuenta = async () => {
+    if (!reserva._backendId) return
+    try {
+      const d = await api.get(`/reservas/${reserva._backendId}/cuenta`, auth)
+      if (Array.isArray(d?.cargosCuenta)) setCuenta(d.cargosCuenta)
+    } catch { /* el cambio optimista ya quedó reflejado */ }
+  }
+  // Agrega un consumo y lo PERSISTE al instante. Jugador con cuenta → queda a cuenta (pendiente).
+  // Casual (sin jugadorId) → se cobra en el acto (no puede quedar a cuenta).
+  const persistirConsumo = async ({ jugadorId = null, prodId = null, nombre, precio, cantidad = 1 }) => {
+    if (!reserva._backendId || saving) return
+    if (!nombre || !(precio > 0)) return
+    setError(''); setSaving(true)
+    try {
+      await api.post(`/reservas/${reserva._backendId}/cuenta`, {
+        pagos: [{
+          jugadorId: jugadorId || null,
+          metodoPago: jugadorId ? null : metodoDefault, // jugador → a cuenta · casual → cobrado al instante
+          turnoMonto: 0,
+          consumos: [{ concepto: cantidad > 1 ? `${cantidad}× ${nombre}` : nombre, monto: precio * cantidad, productoId: prodId, cantidad }],
+        }],
+      }, auth)
+      await refrescarCuenta()
+    } catch (e) { setError(e?.message || 'No se pudo agregar el consumo') }
+    finally { setSaving(false) }
+  }
+
+  // Reparte un consumo compartido entre varias personas y PERSISTE la parte de cada una (1 sola llamada).
+  // Jugador → su parte a cuenta · casual → su parte cobrada al instante.
+  const persistirCompartido = async (concepto, repartos) => {
+    if (!reserva._backendId || saving) return
+    const pagos = (repartos || []).filter((r) => r.monto > 0).map((r) => ({
+      jugadorId: r.jugadorId || null,
+      metodoPago: r.jugadorId ? null : metodoDefault,
+      turnoMonto: 0,
+      consumos: [{ concepto, monto: r.monto, productoId: null, cantidad: 1 }],
+    }))
+    if (!pagos.length) return
+    setError(''); setSaving(true)
+    try {
+      await api.post(`/reservas/${reserva._backendId}/cuenta`, { pagos }, auth)
+      await refrescarCuenta()
+    } catch (e) { setError(e?.message || 'No se pudo agregar el consumo compartido') }
+    finally { setSaving(false) }
+  }
+
+  // Cobro rápido por persona: registra su porción del turno + cobra sus consumos pendientes al instante,
+  // y la saca del split (queda en el ticket). Jugador puede quedar a cuenta; casual debe cobrarse.
+  const resolverPersona = async (p) => {
+    if (!reserva._backendId || saving) return
+    const esCobrar = p.modo === 'cobrar'
+    if (p.tipo === 'casual' && !esCobrar) { setError('Un casual no puede quedar a cuenta'); return }
+    const metodo = esCobrar ? p.metodoPago : null
+    const jid = p.tipo === 'casual' ? null : p.jugadorId
+    setError(''); setSaving(true)
+    try {
+      // Porción del turno de esta persona (cobrada o a cuenta)
+      if ((p.turnoMonto || 0) > 0) {
+        await api.post(`/reservas/${reserva._backendId}/cuenta`, { pagos: [{ jugadorId: jid, metodoPago: metodo, turnoMonto: p.turnoMonto, consumos: [] }] }, auth)
+      }
+      // Si se cobra: marcar pagados sus consumos pendientes
+      if (esCobrar) {
+        const pendientes = (cuenta || []).filter((c) => c.tipo === 'producto' && c.estado === 'pendiente' && (p.tipo === 'casual' ? !c.jugadorId : c.jugadorId === p.jugadorId))
+        for (const c of pendientes) {
+          await api.patch(`/cargos/${c.id}/estado`, { estado: 'pagado', metodoPago: metodo }, auth)
+        }
+      }
+      await refrescarCuenta()
+      setPersonas((prev) => prev.filter((x) => x.key !== p.key)) // ya quedó registrada
+    } catch (e) { setError(e?.message || 'No se pudo cobrar a esta persona') }
+    finally { setSaving(false) }
+  }
+
   // ── Submit ──
   const submit = async () => {
     setError('')
@@ -227,10 +321,10 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
           </div>
 
           {/* Ticket de lo ya registrado (reapertura) — accionable: anular / cobrar / quitar */}
-          {yaEnCuenta.length > 0 && (
+          {ticketArriba.length > 0 && (
             <div className="mt-2 rounded-xl border border-slate-100 divide-y divide-slate-50 max-h-52 overflow-y-auto">
               <p className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wide bg-white sticky top-0 z-10">Ya en la cuenta</p>
-              {yaEnCuenta.map((c) => (
+              {ticketArriba.map((c) => (
                 <TicketLinea key={c.id} c={c} metodos={metodos} saving={saving} onAnular={anularLinea} onCobrar={cobrarLinea} onQuitar={eliminarLineaTicket} />
               ))}
             </div>
@@ -268,8 +362,8 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
 
         <div className="overflow-y-auto px-6 py-4 flex flex-col gap-4">
           {mode === 'simple'
-            ? <ModoSimple {...{ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas, activos, pagador, setPagador, hayTitular, titularNombre, cobrar, setCobrar, metodoPago, setMetodoPago, metodos, addProducto, addOtro, cambiarCant, quitarLinea }} />
-            : <ModoSplit {...{ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token }} />
+            ? <ModoSimple {...{ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas, activos, pagador, setPagador, hayTitular, titularNombre, cobrar, setCobrar, metodoPago, setMetodoPago, metodos, addProducto, addOtro, cambiarCant, quitarLinea, persistirConsumo, reservaJugadorId: reserva.jugadorId, saving }} />
+            : <ModoSplit {...{ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token, persistirConsumo, saving, cuenta, eliminarLineaTicket, persistirCompartido, resolverPersona }} />
           }
 
           {error && <p className="text-rose-500 text-xs">{error}</p>}
@@ -380,7 +474,7 @@ const LineasList = ({ lineas, onCant, onQuitar }) => (
 )
 
 // ─── Modo simple (un pagador) ───────────────────────────────────────────────────
-const ModoSimple = ({ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas, activos, pagador, setPagador, hayTitular, titularNombre, cobrar, setCobrar, metodoPago, setMetodoPago, metodos, addProducto, addOtro, cambiarCant, quitarLinea }) => (
+const ModoSimple = ({ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas, activos, pagador, setPagador, hayTitular, titularNombre, cobrar, setCobrar, metodoPago, setMetodoPago, metodos, addProducto, addOtro, cambiarCant, quitarLinea, persistirConsumo, reservaJugadorId, saving }) => (
   <>
     {saldoTurno > 0 && (
       <button onClick={() => setCobrarTurno((v) => !v)} className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${cobrarTurno ? 'border-brand-300 bg-brand-50/60' : 'border-slate-200'}`}>
@@ -392,8 +486,12 @@ const ModoSimple = ({ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas
 
     <div>
       <p className="text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide">Consumiciones</p>
-      <ConsumoAdder activos={activos} onAdd={(id) => addProducto(id, setLineas)} onAddOtro={(n, p) => addOtro(n, p, setLineas)} />
-      <LineasList lineas={lineas} onCant={(id, d) => cambiarCant(id, d, setLineas)} onQuitar={(id) => quitarLinea(id, setLineas)} />
+      {/* Persistencia instantánea: el consumo se guarda al toque y aparece arriba en "Ya en la cuenta". */}
+      <ConsumoAdder activos={activos}
+        onAdd={(id) => { const pr = activos.find((x) => x.id === id); if (pr) persistirConsumo({ jugadorId: pagador === 'titular' ? reservaJugadorId : null, prodId: pr.id, nombre: pr.nombre, precio: pr.precio }) }}
+        onAddOtro={(n, p) => persistirConsumo({ jugadorId: pagador === 'titular' ? reservaJugadorId : null, nombre: n.trim(), precio: Number(p) })}
+      />
+      {saving && <p className="text-[11px] text-slate-400 mt-1">Guardando…</p>}
     </div>
 
     <div>
@@ -425,7 +523,7 @@ const ModoSimple = ({ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas
 )
 
 // ─── Modo split (cuenta por persona) ────────────────────────────────────────────
-const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token }) => {
+const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token, persistirConsumo, saving, cuenta, eliminarLineaTicket, persistirCompartido, resolverPersona }) => {
   const [buscando, setBuscando] = useState(false)
   const [q, setQ] = useState('')
   const [resultados, setResultados] = useState([])
@@ -434,6 +532,12 @@ const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignad
   const setPersona = (key, patch) => setPersonas((prev) => prev.map((p) => p.key === key ? { ...p, ...patch } : p))
   const setConsumosPersona = (key, updater) => setPersonas((prev) => prev.map((p) => p.key === key ? { ...p, consumos: typeof updater === 'function' ? updater(p.consumos) : updater } : p))
   const quitarPersona = (key) => setPersonas((prev) => prev.filter((p) => p.key !== key))
+
+  // Consumos PERSISTIDOS de una persona (del ticket real, agrupados por jugador).
+  // Casual (sin jugadorId): comparten los cargos sin jugador — impreciso con varios casuales, pero el casual se cobra al toque.
+  const consumosDe = (p) => (cuenta || []).filter((c) => c.tipo === 'producto' && (p.tipo === 'casual' ? !c.jugadorId : c.jugadorId === p.jugadorId))
+  // Subtotal de la persona = su porción del turno + lo que consumió (persistido).
+  const subPersona = (p) => (p.turnoMonto || 0) + consumosDe(p).reduce((s, c) => s + c.monto, 0)
 
   const buscar = async (texto) => {
     setQ(texto)
@@ -485,8 +589,24 @@ const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignad
             )}
 
             {/* Consumos de la persona */}
-            <ConsumoAdder activos={activos} onAdd={(id) => addProducto(id, (u) => setConsumosPersona(p.key, u))} onAddOtro={(n, pr) => addOtro(n, pr, (u) => setConsumosPersona(p.key, u))} />
-            <LineasList lineas={p.consumos} onCant={(id, d) => cambiarCant(id, d, (u) => setConsumosPersona(p.key, u))} onQuitar={(id) => quitarLinea(id, (u) => setConsumosPersona(p.key, u))} />
+            {/* Persistencia instantánea: el consumo de esta persona se guarda al toque y va a "Ya en la cuenta" (arriba). */}
+            <ConsumoAdder activos={activos}
+              onAdd={(id) => { const prod = activos.find((x) => x.id === id); if (prod) persistirConsumo({ jugadorId: p.tipo === 'casual' ? null : p.jugadorId, prodId: prod.id, nombre: prod.nombre, precio: prod.precio }) }}
+              onAddOtro={(n, pr) => persistirConsumo({ jugadorId: p.tipo === 'casual' ? null : p.jugadorId, nombre: n.trim(), precio: Number(pr) })}
+            />
+            {/* Lo que consumió esta persona (persistido y agrupado debajo de ella) */}
+            {consumosDe(p).length > 0 && (
+              <div className="flex flex-col gap-1 rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5">
+                {consumosDe(p).map((c) => (
+                  <div key={c.id} className="flex items-center gap-2 text-[12px]">
+                    <span className="flex-1 text-slate-600 truncate">{c.concepto}</span>
+                    <span className="text-slate-700 font-medium shrink-0">{money(c.monto)}</span>
+                    <span className={`text-[10px] shrink-0 ${c.estado === 'pagado' ? 'text-emerald-600' : 'text-blue-600'}`}>{c.estado === 'pagado' ? 'cobrado' : 'a cuenta'}</span>
+                    <button onClick={() => eliminarLineaTicket(c)} disabled={saving} className="text-slate-300 hover:text-rose-500 shrink-0" title="Quitar"><X size={13} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Cómo paga */}
             <div className="flex items-center gap-2">
@@ -499,7 +619,11 @@ const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignad
                   {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
                 </select>
               )}
-              <span className="text-sm font-semibold text-slate-700 w-20 text-right shrink-0">{money(subtotalPersona(p))}</span>
+              {/* Cobro rápido: registra a esta persona (turno + sus consumos) al instante */}
+              <button onClick={() => resolverPersona(p)} disabled={saving || subPersona(p) <= 0}
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold disabled:opacity-40 whitespace-nowrap">
+                {p.modo === 'cobrar' ? 'Cobrar' : 'A cuenta'} {money(subPersona(p))}
+              </button>
             </div>
           </div>
         ))}
@@ -521,7 +645,16 @@ const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignad
       {/* Consumo compartido */}
       {personas.length >= 2 && (
         compartidoOpen
-          ? <CompartidoForm activos={activos} personas={personas} onCancel={() => setCompartidoOpen(false)} onApply={(asignaciones) => { setPersonas((prev) => prev.map((p) => asignaciones[p.key] ? { ...p, consumos: [...p.consumos, asignaciones[p.key]] } : p)); setCompartidoOpen(false) }} />
+          ? <CompartidoForm activos={activos} personas={personas} onCancel={() => setCompartidoOpen(false)} onApply={async (asignaciones) => {
+              // Persiste la parte de cada persona (con su jugador) → aparece debajo de cada una.
+              const concepto = Object.values(asignaciones)[0]?.nombre || 'Compartido'
+              const repartos = Object.entries(asignaciones).map(([key, val]) => {
+                const persona = personas.find((pp) => pp.key === key)
+                return { jugadorId: persona?.tipo === 'casual' ? null : persona?.jugadorId, monto: val.precio }
+              })
+              await persistirCompartido(concepto, repartos)
+              setCompartidoOpen(false)
+            }} />
           : <button onClick={() => setCompartidoOpen(true)} className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-300 text-slate-500 hover:bg-slate-50 text-xs font-medium"><Users size={14} /> Consumo compartido</button>
       )}
     </>

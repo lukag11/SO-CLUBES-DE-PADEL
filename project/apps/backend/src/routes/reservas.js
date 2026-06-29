@@ -1047,6 +1047,28 @@ router.post('/:id/cobrar', requireAuth, requireRole('admin'), requirePermiso('ve
   }
 })
 
+// GET /api/reservas/:id/cuenta — (admin) re-lee la cuenta del turno (cargos + precio + pagado).
+// Mismo shape que `cargosCuenta` del listado. Sirve para refrescar el modal de cobro tras cada
+// acción (persistencia instantánea estilo comanda), sin recargar toda la grilla.
+router.get('/:id/cuenta', requireAuth, requireRole('admin'), requirePermiso('ventas'), async (req, res) => {
+  const { id } = req.params
+  const clubId = req.user.clubId
+  try {
+    const reserva = await prisma.reserva.findUnique({ where: { id }, select: { clubId: true, precio: true, pagado: true } })
+    if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
+    if (reserva.clubId !== clubId) return res.status(403).json({ error: 'Sin permisos' })
+    const cargosCuenta = await prisma.cargo.findMany({
+      where: { clubId, reservaId: id, tipo: { in: ['reserva', 'producto'] } },
+      select: { id: true, reservaId: true, jugadorId: true, concepto: true, monto: true, tipo: true, estado: true, metodoPago: true, jugador: { select: { nombre: true, apellido: true } } },
+      orderBy: { createdAt: 'asc' },
+    })
+    res.json({ cargosCuenta, precio: reserva.precio ?? 0, pagadoSimple: !!reserva.pagado })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al leer la cuenta del turno' })
+  }
+})
+
 // POST /api/reservas/:id/cuenta — checkout con split (Fase 2).
 // Salda una o varias "personas" del turno a la vez; se puede llamar repetidamente
 // (cobro parcial/diferido). Cada persona paga su porción del turno (turnoMonto) y/o

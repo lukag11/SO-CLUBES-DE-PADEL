@@ -3,6 +3,7 @@ import { runSerializable } from './serializable.js'
 import { generarConvocatoriaWhatsapp } from './insight.js'
 import { hoyArgStr, ahoraArgHHMM } from './tiempo.js'
 import { normalizarCategoria } from './categorias.js'
+import { tarifaListaSnapshot } from './finanzas.js'
 
 // Lleva las categorías al formato canónico ("4ta Categoría") sin importar por qué camino
 // llegaron (REST, WIarky, Fase B jugador). Punto único: garantiza que lo guardado y lo
@@ -58,7 +59,7 @@ export async function organizarConvocatoria({ clubId, organizadorJugadorId, moda
     })
     for (const c of libres) {
       await tx.reserva.create({
-        data: { clubId, canchaId: c.id, jugadorId: organizadorJugadorId, fecha, horaInicio, horaFin, estado: 'confirmada', tipo: 'eventual', precio, jugadores: [], notas: `Convocatoria ${modalidad === 'super8' ? 'Super 8' : 'Americano'}`, convocatoriaId: conv.id },
+        data: { clubId, canchaId: c.id, jugadorId: organizadorJugadorId, fecha, horaInicio, horaFin, estado: 'confirmada', tipo: 'eventual', precio, tarifaLista: await tarifaListaSnapshot(tx, c.id), jugadores: [], notas: `Convocatoria ${modalidad === 'super8' ? 'Super 8' : 'Americano'}`, convocatoriaId: conv.id },
       })
     }
     return { convocatoria: conv, canchasReservadas: libres.map((c) => c.nombre) }

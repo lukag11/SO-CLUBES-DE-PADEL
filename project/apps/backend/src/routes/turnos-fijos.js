@@ -4,6 +4,7 @@ import { runSerializable } from '../lib/serializable.js'
 import { clubAutoConfirma } from '../lib/autoConfirma.js'
 import { conflictoEnDia } from '../lib/conflictos.js'
 import { duracionMin } from '../lib/tiempo.js'
+import { tarifaListaSnapshot } from '../lib/finanzas.js'
 import { requireAuth, requireRole, requireActive, requirePermiso } from '../middleware/auth.js'
 
 const router = Router()
@@ -538,6 +539,7 @@ router.post('/:id/materializar', requireAuth, requireRole('admin'), requirePermi
           clubId, canchaId: turno.canchaId, jugadorId: turno.jugadorId,
           fecha, horaInicio: turno.horaInicio, horaFin: turno.horaFin,
           estado: 'confirmada', precio: turno.precio ?? 0, esTurnoFijo: true, tipo: 'fijo',
+          tarifaLista: await tarifaListaSnapshot(tx, turno.canchaId),
           jugadores: nombre ? [nombre] : [], pagado: false,
         },
       })

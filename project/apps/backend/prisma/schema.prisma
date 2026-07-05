@@ -39,6 +39,8 @@ model Club {
   categorias     Categoria[]
   convocatorias  Convocatoria[]
   solicitudesJugador SolicitudJugador[]
+  eventosUso     EventoUso[]
+  costos         Costo[]
 
   @@map("clubs")
 }
@@ -195,6 +197,7 @@ model Reserva {
   horaFin     String
   estado      String   @default("pendiente")
   precio      Int?
+  tarifaLista Int?     // snapshot del precio de lista de la cancha al crear la reserva (para yield real; la tarifa cambia con inflación)
   pagado      Boolean  @default(false)
   metodoPago  String?  // efectivo | transferencia | mercadopago
   pagadoAt    DateTime?
@@ -202,6 +205,7 @@ model Reserva {
   esTurnoFijo Boolean  @default(false)
   tipo        String   @default("online")
   jugadores   String[]
+  cobroRoster String[] @default([]) // jugadorIds del cobro en curso (armado del split) — recordar al reabrir sin crear cargos
   notas       String?
   convocatoriaId String?  // si la reserva es una de las canchas de una convocatoria (evento)
   createdAt   DateTime @default(now())
@@ -408,6 +412,35 @@ model Gasto {
   @@map("gastos")
 }
 
+// Costo estructural del club (la "mochila" fija + los variables) que el DUEÑO carga a mano —
+// no lo genera la operación. Es el cimiento de break-even, contribución por sector y flujo 90d.
+// Diseño simple a propósito (sin drivers de asignación): costo directo por sector cuando se
+// sabe, y el resto (sector null = "general") se prorratea por ingreso al calcular márgenes.
+model Costo {
+  id           String   @id @default(cuid())
+  clubId       String
+  concepto     String                          // "Alquiler", "Sueldo Juan", "Luz"
+  categoria    String                          // alquiler | sueldos | energia | amortizacion | otros
+  tipo         String   @default("fijo")       // fijo | variable
+  monto        Int                             // monto por período (según periodicidad)
+  periodicidad String   @default("mensual")    // mensual | bimestral | anual | unico
+  diaPago      Int?                            // día del mes que vence (para el flujo 90d)
+  mesesPago    Int[]                           // p/anual: [6,12] aguinaldo · vacío = todos
+  sector       String?                         // bar | clases | canchas | proshop | null(general→prorratea)
+  ajustaPorIPC Boolean  @default(false)        // para la capa Argentina (real vs nominal)
+  moneda       String   @default("ARS")        // ARS | USD (costos dolarizados)
+  activo       Boolean  @default(true)
+  desde        String?                         // YYYY-MM-DD vigencia (la tarifa cambia con inflación)
+  hasta        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, activo])
+  @@map("costos")
+}
+
 model Notificacion {
   id         String   @id @default(cuid())
   clubId     String
@@ -423,6 +456,25 @@ model Notificacion {
   profesor Profesor? @relation(fields: [profesorId], references: [id], onDelete: Cascade)
 
   @@map("notificaciones")
+}
+
+// Telemetría de uso (para el agente de onboarding / mejora continua): registra qué hace el
+// admin/dueño en la plataforma para detectar dónde se traba, qué no usa y dónde abandona.
+// SIN PII sensible: solo tipo de evento + referencia de pantalla/acción. "Caño bajo el piso":
+// hay que capturarlo desde el día 1 porque el onboarding del primer club real no se repite.
+model EventoUso {
+  id        String   @id @default(cuid())
+  clubId    String
+  adminId   String?  // quién (opcional) — admin/staff que generó el evento
+  tipo      String   // pantalla | click | abandono | error | ayuda_abierta
+  ref       String   // "dashboard" | "costos.nuevo" | "checkout.split" | ...
+  meta      Json?    // contexto extra (sin datos sensibles)
+  createdAt DateTime @default(now())
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, tipo, createdAt])
+  @@map("eventos_uso")
 }
 
 model Sponsor {

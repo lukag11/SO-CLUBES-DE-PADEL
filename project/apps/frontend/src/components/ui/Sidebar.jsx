@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
-import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X, Users, GraduationCap, Star, Crown, Sparkles, ArrowUpRight, UserCog, LayoutDashboard } from 'lucide-react'
+import { Zap, Info, CalendarDays, Trophy, CreditCard, LogOut, X, Users, GraduationCap, Star, Crown, Sparkles, ArrowUpRight, UserCog, LayoutDashboard, Compass } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
 import useClubStore from '../../store/clubStore'
@@ -24,6 +24,7 @@ const navItems = [
   { to: '/dashboardAdmin/torneos',   label: 'Torneos',   icon: Trophy,        feature: 'torneos',    permiso: 'torneos' },
   { to: '/dashboardAdmin/sponsors',  label: 'Sponsors',  icon: Star,          feature: 'sponsors',   permiso: 'sponsors' },
   { to: '/dashboardAdmin/pagos',     label: 'Finanzas',  icon: CreditCard,    feature: 'finanzas',   permisoAny: ['ventas', 'caja'] },
+  { to: '/dashboardAdmin/direccion', label: 'Dirección', icon: Compass,       feature: 'direccion',  permiso: 'caja' },
   { to: '/dashboardAdmin/equipo',    label: 'Equipo',    icon: UserCog,       ownerOnly: true },
 ]
 

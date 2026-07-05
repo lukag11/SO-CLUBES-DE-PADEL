@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Outlet, Navigate, NavLink } from 'react-router-dom'
+import { Outlet, Navigate, NavLink, useLocation } from 'react-router-dom'
 import { LayoutDashboard, CalendarDays, Trophy, CreditCard, Users, GraduationCap } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useNotificacionesStore from '../store/notificacionesStore'
@@ -12,6 +12,7 @@ import usePageTitle from '../hooks/usePageTitle'
 import { useFeatures } from '../hooks/useFeature'
 import { puedeVerItem } from '../components/ui/Sidebar'
 import { api } from '../lib/api'
+import { trackEvento } from '../lib/telemetria'
 
 const BOTTOM_NAV_ITEMS = [
   { to: '/dashboardAdmin',           label: 'Inicio',     icon: LayoutDashboard, exact: true },
@@ -85,6 +86,7 @@ const DashboardLayout = () => {
   const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
   const fetchNotificaciones = useNotificacionesStore((s) => s.fetchNotificaciones)
   const title = usePageTitle()
+  const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [navVisible, setNavVisible] = useState(true)
   const mainRef = useRef(null)
@@ -128,6 +130,13 @@ const DashboardLayout = () => {
     window.addEventListener('focus', onFocus)
     return () => { clearInterval(interval); window.removeEventListener('focus', onFocus) }
   }, [token])
+
+  // Telemetría: registra cada pantalla del dashboard que abre el admin (para el
+  // agente de onboarding). Fire-and-forget; nunca afecta la navegación.
+  useEffect(() => {
+    if (!token) return
+    trackEvento('pantalla', location.pathname)
+  }, [location.pathname, token])
 
   useEffect(() => {
     const el = mainRef.current

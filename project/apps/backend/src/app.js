@@ -25,6 +25,9 @@ import convocatoriasRouter from './routes/convocatorias.js'
 import convocatoriasPublicasRouter from './routes/convocatorias-publicas.js'
 import solicitudesRouter from './routes/solicitudes.js'
 import solicitudesPublicasRouter from './routes/solicitudes-publicas.js'
+import eventosRouter from './routes/eventos.js'
+import costosRouter from './routes/costos.js'
+import finanzasRouter from './routes/finanzas.js'
 import { requireAuth, requireRole, requireFeature, requireClubActivo, requirePermiso } from './middleware/auth.js'
 
 // Sentry (error tracking en producción). DORMIDO si no hay SENTRY_DSN: ni siquiera se
@@ -74,6 +77,8 @@ app.use('/api/cargos', cargosRouter)
 app.use('/api/productos', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), productosRouter)
 app.use('/api/categorias', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), categoriasRouter)
 app.use('/api/gastos', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('caja'), gastosRouter)
+app.use('/api/costos', requireAuth, requireRole('admin'), requireFeature('direccion'), requirePermiso('caja'), costosRouter)
+app.use('/api/finanzas', requireAuth, requireRole('admin'), requireFeature('direccion'), requirePermiso('caja'), finanzasRouter)
 app.use('/api/comandas', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), comandasRouter)
 app.use('/api/caja', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('caja'), cajaRouter)
 app.use('/api/profesores', requireAuth, requireRole('admin'), requireFeature('profesores'), requirePermiso('clases'), profesoresRouter)
@@ -85,6 +90,7 @@ app.use('/api/convocatorias/publica', convocatoriasPublicasRouter) // público (
 app.use('/api/convocatorias', requireAuth, requireClubActivo, convocatoriasRouter)
 app.use('/api/solicitudes/publica', solicitudesPublicasRouter) // público (sin auth) — debe ir ANTES del router autenticado
 app.use('/api/solicitudes', requireAuth, requireClubActivo, solicitudesRouter)
+app.use('/api/eventos', requireAuth, eventosRouter) // telemetría de uso (fire-and-forget)
 
 // Captura de errores no manejados → Sentry (solo si está activo). Va DESPUÉS de las rutas.
 if (Sentry) Sentry.setupExpressErrorHandler(app)

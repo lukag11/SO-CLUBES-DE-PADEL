@@ -3,6 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import prisma from './prisma.js'
 import { hoyArgStr, inicioDiaArg, inicioMesArg, ahoraArgHHMM } from './tiempo.js'
+import { calcularSaludFinanciera } from './finanzas.js'
 
 // Si la fecha es HOY, deja solo las franjas cuyo horario todavía no pasó (compara con la hora
 // actual argentina). Recalcula total. Para fechas futuras devuelve la disponibilidad tal cual.
@@ -376,6 +377,11 @@ const WIARK_TOOLS = [
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
+    name: 'consultar_salud_financiera',
+    description: 'Devuelve la salud financiera del club (últimos 30 días): punto de equilibrio (break-even) en turnos y en %, rinde por turno (RevPACH), ocupación, costo del turno vacío y plata que se pierde por canchas vacías, rendimiento de tarifa (yield) con sus fugas, y turnos vencidos sin cobrar (ausencias). Usala cuando el dueño pregunta cómo va el club, si gana o pierde, cuántos turnos necesita para no perder, por qué pierde plata, cuál es su rinde/ocupación, o cuánto pierde por canchas vacías o ausencias.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
     name: 'cargar_gasto',
     description: 'Prepara la carga de un gasto/factura del club. NO lo guarda: el dueño lo confirma después con un botón. Usala cuando el dueño pide cargar, anotar o registrar un gasto o una factura.',
     input_schema: {
@@ -533,6 +539,24 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
     const ing = await gatherIngresos(clubId)
     return { paraModelo: `Ingresos cobrados — hoy: $${ing.hoy.toLocaleString('es-AR')}; últimos 7 días: $${ing.semana.toLocaleString('es-AR')}; este mes: $${ing.mes.toLocaleString('es-AR')}.` }
   }
+  if (name === 'consultar_salud_financiera') {
+    const s = await calcularSaludFinanciera(clubId)
+    const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
+    if (s.falta.costosFijos) {
+      return { paraModelo: `El dueño TODAVÍA no cargó sus costos fijos, así que no se puede calcular el punto de equilibrio ni si gana o pierde. Decile que entre a la sección "Dirección" y cargue cuánto le sale tener el club abierto por mes (son 2 preguntas). Lo que sí sé: rinde por turno ${money(s.rindePorTurno)}, ocupación ${s.ocupacionPct}%, ${s.turnosVendidos} de ${s.turnosDisponibles} turnos vendidos (30 días).` }
+    }
+    const partes = [
+      `Salud financiera (últimos 30 días, todo en turnos de 1.5h):`,
+      s.breakEvenTurnos != null ? `- Punto de equilibrio: ${s.breakEvenTurnos} turnos/mes (${s.breakEvenPct}% de ocupación). Vendió ${s.turnosVendidos} → está ${s.porEncimaDelEquilibrio >= 0 ? s.porEncimaDelEquilibrio + ' turnos POR ENCIMA (ganando)' : Math.abs(s.porEncimaDelEquilibrio) + ' turnos POR DEBAJO (perdiendo)'}.` : '- Punto de equilibrio: no calculable (falta precio o costo variable).',
+      `- Rinde por turno (RevPACH): ${money(s.rindePorTurno)}. Ocupación: ${s.ocupacionPct}%.`,
+      `- Costo del turno vacío: ${money(s.costoTurnoVacio)}. Hay ${s.turnosVacios} turnos vacíos = ${money(s.costoTurnosVacios)} que se pierden sin recuperar.`,
+      s.yieldPct != null ? `- Rendimiento de tarifa (yield): ${s.yieldPct}%. Se fuga ${s.fugaVacioPct}% por canchas vacías y ${s.fugaDescuentoPct}% por descuentos.` : '',
+      s.ausenciasPct != null ? `- Ausencias: ${s.ausencias} turnos vencidos sin cobrar = ${money(s.ausenciasMonto)} (${s.ausenciasPct}% de los vencidos).` : '',
+      `- Costos fijos del mes: ${money(s.fijoMensual)}. Precio ${s.precioRealizado > 0 ? 'realizado' : 'de lista'}: ${money(s.precioRef)}.`,
+      `Respondé la pregunta del dueño con estos números reales, en criollo y breve. No inventes datos que no estén acá.`,
+    ]
+    return { paraModelo: partes.filter(Boolean).join('\n') }
+  }
   if (name === 'cargar_gasto') {
     const monto = Math.round(Number(input.monto) || 0)
     const concepto = (input.concepto || '').toString().trim()
@@ -618,6 +642,7 @@ Reglas:
 - Recién con día + horario (de 2+ canchas) + organizador armado, ofrecé el botón de confirmar. NO se crea hasta que el dueño confirme. Si el organizador no está registrado, avisá que primero hay que registrarlo (crear_jugador).
 - Para cargar un gasto usá la herramienta cargar_gasto con el monto y el concepto. El gasto NO se guarda hasta que el dueño confirme con un botón que aparece abajo de tu mensaje; vos solo decí una línea corta (ej. "Te dejo el gasto para confirmar 👇"). Si falta el monto o el concepto, pediselo.
 - Para "quién me debe" usá consultar_deudores y para "cuánto facturé" usá consultar_ingresos. La lista de deudores (con nombres) se le muestra al usuario abajo: NUNCA repitas nombres de jugadores en tu texto (privacidad); referite al total y la cantidad.
+- Para preguntas sobre CÓMO VA EL NEGOCIO (¿gano o pierdo?, ¿cuántos turnos necesito para no perder?, mi punto de equilibrio, mi rinde/ocupación, por qué pierdo plata, cuánto pierdo por canchas vacías o por ausencias, mi yield) usá consultar_salud_financiera. Explicá el número en criollo, sin tecnicismos, y si sirve sugerí la palanca (ej: "llená los horarios fríos"). Si el dueño no cargó los costos, invitalo a hacerlo en la sección Dirección (son 2 preguntas).
 - Para reservar un turno usá crear_reserva (cancha + fecha + hora de inicio; el turno dura 1.5h, la hora de fin se calcula sola). NO se crea hasta que el dueño confirme con el botón. Si falta la cancha, la fecha o la hora, pediselas.
 - Para registrar/dar de alta un jugador usá crear_jugador (nombre + apellido + DNI; el DNI es OBLIGATORIO). NO se crea hasta que el dueño confirme. Si falta el DNI, pediselo. El nombre completo separalo en nombre y apellido.
 - En tus propios mensajes del chat escribí en texto plano, sin markdown.

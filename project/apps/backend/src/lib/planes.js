@@ -11,6 +11,7 @@ export const FEATURES = [
   { id: 'jugadores',    label: 'Jugadores',                  core: true },
   { id: 'turnos_fijos', label: 'Turnos fijos',               core: true },
   { id: 'finanzas',     label: 'Finanzas (caja/stock)',      core: false },
+  { id: 'direccion',    label: 'Dirección (análisis financiero)', core: false },
   { id: 'torneos',      label: 'Torneos',                    core: false },
   { id: 'profesores',   label: 'Profesores / Clases',        core: false },
   { id: 'estadisticas', label: 'Estadísticas',               core: false },
@@ -28,7 +29,7 @@ export const PLANES = ['basico', 'pro', 'premium']
 export const DEFAULT_MATRIZ = {
   basico:  ['reservas', 'jugadores', 'turnos_fijos'],
   pro:     ['reservas', 'jugadores', 'turnos_fijos', 'finanzas', 'torneos', 'profesores', 'estadisticas', 'sponsors'],
-  premium: ['reservas', 'jugadores', 'turnos_fijos', 'finanzas', 'torneos', 'profesores', 'estadisticas', 'sponsors', 'ia', 'multisede', 'branding'],
+  premium: ['reservas', 'jugadores', 'turnos_fijos', 'finanzas', 'torneos', 'profesores', 'estadisticas', 'sponsors', 'ia', 'multisede', 'branding', 'direccion'],
 }
 
 // ¿El club tiene el acceso cortado por completo? (suspendido o prueba vencida)

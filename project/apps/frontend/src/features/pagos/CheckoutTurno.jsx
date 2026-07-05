@@ -56,6 +56,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   const [error, setError] = useState('')
   const [rosterPartido, setRosterPartido] = useState(null) // { jugadores:[{jugadorId,nombre,titular}] } si el turno es un partido abierto
   const [rosterCargado, setRosterCargado] = useState(false)
+  const [rosterListo, setRosterListo] = useState(false) // evita pisar el armado guardado antes de leerlo
 
   useEffect(() => {
     api.get('/productos', auth).then((d) => setProductos(Array.isArray(d) ? d : [])).catch(() => {})
@@ -120,6 +121,34 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
     if (!autoSplit || saldoTurno <= 0) return
     setPersonas((prev) => dividirTurno(prev))
   }, [jugadoresKey, autoSplit, saldoTurno]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Al abrir: traigo el ARMADO guardado (cobroRoster, con nombres) + los cargos, y reconstruyo las
+  // personas (qué jugadores pagan), así no se pierde lo que cargaste aunque no hayas cobrado nada.
+  useEffect(() => {
+    if (!reserva._backendId) { setRosterListo(true); return }
+    api.get(`/reservas/${reserva._backendId}/cuenta`, auth).then((d) => {
+      const cargos = Array.isArray(d?.cargosCuenta) ? d.cargosCuenta : []
+      const roster = Array.isArray(d?.cobroRoster) ? d.cobroRoster : []
+      setCuenta(cargos)
+      const idsResueltos = new Set(cargos.filter((c) => c.jugadorId && c.tipo === 'reserva').map((c) => c.jugadorId))
+      const map = new Map()
+      for (const j of roster) { if (!idsResueltos.has(j.id)) map.set(j.id, nuevaPersona({ tipo: 'jugador', jugadorId: j.id, nombre: `${j.nombre} ${j.apellido ?? ''}`.trim() })) }
+      for (const c of cargos.filter((c) => c.jugadorId && c.tipo === 'producto')) {
+        if (idsResueltos.has(c.jugadorId) || map.has(c.jugadorId)) continue
+        map.set(c.jugadorId, nuevaPersona({ tipo: 'jugador', jugadorId: c.jugadorId, nombre: c.jugador ? `${c.jugador.nombre} ${c.jugador.apellido}` : 'Jugador' }))
+      }
+      const recon = [...map.values()]
+      if (recon.length) setPersonas(recon)
+    }).catch(() => {}).finally(() => setRosterListo(true))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Guarda el armado (qué jugadores pagan) cuando cambia el set, para recordarlo al reabrir (sin crear cargos).
+  const rosterKey = personas.filter((p) => p.tipo !== 'casual' && p.jugadorId).map((p) => p.jugadorId).join(',')
+  useEffect(() => {
+    if (!reserva._backendId || !rosterListo) return // no pisar el armado guardado antes de haberlo leído
+    const ids = personas.filter((p) => p.tipo !== 'casual' && p.jugadorId).map((p) => p.jugadorId)
+    api.patch(`/reservas/${reserva._backendId}/cobro-roster`, { jugadorIds: ids }, auth).catch(() => {})
+  }, [rosterKey, rosterListo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Híbrido matching→caja: el admin confirma y pre-poblamos el split con los jugadores del partido.
   // Merge por jugadorId → no duplica al titular ni pisa lo que el admin ya haya cargado a mano.
@@ -298,7 +327,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-      <div className={`relative w-full ${mode === 'split' ? 'max-w-4xl' : 'max-w-lg'} bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] transition-[max-width] duration-200`} onClick={(e) => e.stopPropagation()}>
+      <div className={`relative w-full ${personas.length > 1 ? 'max-w-4xl' : 'max-w-lg'} bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] transition-[max-width] duration-200`} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
@@ -353,35 +382,19 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
           </div>
         )}
 
-        {/* Tabs de modo */}
-        <div className="px-6 pt-3 shrink-0">
-          <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
-            <button onClick={() => setMode('simple')} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${mode === 'simple' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Uno paga todo</button>
-            <button onClick={() => { setMode('split'); setPersonas((l) => dividirTurno(l)) }} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${mode === 'split' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Dividir</button>
-          </div>
-        </div>
-
+        {/* Flujo único: agregás quién paga. 1 persona → paga todo · varias → se reparte. */}
         <div className="overflow-y-auto px-6 py-3 flex flex-col gap-3">
-          {mode === 'simple'
-            ? <ModoSimple {...{ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas, activos, pagador, setPagador, hayTitular, titularNombre, cobrar, setCobrar, metodoPago, setMetodoPago, metodos, addProducto, addOtro, cambiarCant, quitarLinea, persistirConsumo, reservaJugadorId: reserva.jugadorId, saving, cuenta, eliminarLineaTicket }} />
-            : <ModoSplit {...{ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token, persistirConsumo, saving, cuenta, eliminarLineaTicket, persistirCompartido, resolverPersona }} />
-          }
+          <ModoSplit {...{ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token, persistirConsumo, saving, cuenta, eliminarLineaTicket, persistirCompartido, resolverPersona }} />
 
           {error && <p className="text-rose-500 text-xs">{error}</p>}
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 shrink-0">
-          {mode === 'split' ? (
-            // En "Dividir" cada persona se cobra individual con su botón "Cobrar $X" → acá solo cerrar.
-            <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm transition-colors">
-              Listo
-            </button>
-          ) : (
-            <button onClick={submit} disabled={saving || totalSimple <= 0} className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
-              {saving ? 'Procesando…' : esACuentaSimple ? `Anotar ${money(totalSimple)} a la cuenta` : `Cobrar ${money(totalSimple)}`}
-            </button>
-          )}
+          {/* Cada persona se cobra individual con su botón "Cobrar $X" → acá solo cerrar. */}
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm transition-colors">
+            Listo
+          </button>
         </div>
       </div>
     </div>
@@ -594,8 +607,8 @@ const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignad
         <p className="text-[11px] text-amber-600">Marcaste más de 4 jugadores. Un turno de pádel suele ser de 4 — los demás podrían ser acompañantes.</p>
       )}
 
-      {/* Grilla 2 columnas en desktop (1 en mobile) → se ven más personas sin scrollear tanto */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* 1 persona → 1 columna (llena el contenedor). 2+ → 2 columnas en desktop (menos scroll). */}
+      <div className={`grid grid-cols-1 ${personas.length > 1 ? 'sm:grid-cols-2' : ''} gap-3`}>
         {personas.map((p) => (
           <div key={p.key} className="rounded-2xl border border-slate-200 p-2.5 flex flex-col gap-2">
             <div className="flex items-center gap-2">

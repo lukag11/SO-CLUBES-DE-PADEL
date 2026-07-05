@@ -1,0 +1,437 @@
+// Helpers del módulo financiero / "Dirección del club".
+// Incluye: snapshot de tarifa de lista + el MOTOR DE SALUD FINANCIERA (break-even,
+// rinde por turno / RevPACH, costo del turno vacío). Todo se mide en TURNOS de 1.5h,
+// que es la unidad natural del sistema (el precio se cobra por turno, la ocupación se
+// cuenta en slots) → cero conversiones, coherente con el dashboard.
+import prisma from './prisma.js'
+import { hoyArgStr } from './tiempo.js'
+
+// Días capitalizados con acento, como los guarda club.config.horarios.
+const DIAS_CFG = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+const toMin = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m }
+
+// Cantidad de turnos de 1.5h que entran en un horario {activo, apertura, cierre}.
+// "00:00" = medianoche siguiente (1440); cierres 00:30/01:00 cruzan (ci += 1440).
+// DEUDA: esta función está triplicada (clubs.js, insight.js, acá) — unificar en tiempo.js.
+const franjasDia = (h) => {
+  if (!h?.activo) return 0
+  const ap = toMin(h.apertura)
+  let ci = h.cierre === '00:00' ? 1440 : toMin(h.cierre)
+  if (ci <= ap) ci += 1440
+  return Math.max(0, Math.floor((ci - ap) / 90))
+}
+
+// Horas de inicio de las franjas de 1.5h de un horario {activo, apertura, cierre}.
+// Ej: {08:00 → 23:30} → ['08:00','09:30',...,'22:30']. Cruce de medianoche aware.
+const franjaTimes = (h) => {
+  if (!h?.activo) return []
+  const ap = toMin(h.apertura)
+  let ci = h.cierre === '00:00' ? 1440 : toMin(h.cierre)
+  if (ci <= ap) ci += 1440
+  const out = []
+  for (let t = ap; t + 90 <= ci; t += 90) {
+    const mm = t % 1440
+    out.push(`${String(Math.floor(mm / 60)).padStart(2, '0')}:${String(mm % 60).padStart(2, '0')}`)
+  }
+  return out
+}
+
+// Para ordenar franjas: las de madrugada (antes de las 06:00) son cruce de medianoche →
+// van al FINAL del día, no al principio. Les sumamos 1440 al ordenar.
+const ordenFranja = (hhmm) => { const m = toMin(hhmm); return m < 360 ? m + 1440 : m }
+
+// Lista de las últimas N fechas YYYY-MM-DD (incluyendo hoy), en hora Argentina.
+const ultimasNFechas = (hoyStr, n) => {
+  const [y, m, d] = hoyStr.split('-').map(Number)
+  const out = []
+  for (let i = n - 1; i >= 0; i--) {
+    const dt = new Date(Date.UTC(y, m - 1, d - i))
+    out.push(dt.toISOString().slice(0, 10))
+  }
+  return out
+}
+
+// Turnos-cancha disponibles en un conjunto de fechas = Σ (por cada fecha, por cada cancha
+// activa) franjas de 1.5h de ese día. Respeta horario propio de la cancha si lo tiene.
+const turnosDisponiblesEnFechas = (horariosClub, canchas, fechas) => {
+  let total = 0
+  for (const f of fechas) {
+    const [y, m, d] = f.split('-').map(Number)
+    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+    const diaCfg = DIAS_CFG[dow]
+    for (const c of canchas) {
+      const h = (c.horarios && c.horarios[diaCfg]) || horariosClub[diaCfg]
+      total += franjasDia(h)
+    }
+  }
+  return total
+}
+
+// Normaliza un costo a su equivalente MENSUAL (la "mochila" es mensual).
+// unico no es recurrente → no suma a la mochila mensual.
+const montoMensual = (costo) => {
+  switch (costo.periodicidad) {
+    case 'mensual': return costo.monto
+    case 'bimestral': return Math.round(costo.monto / 2)
+    case 'anual': return Math.round(costo.monto / 12)
+    default: return 0 // 'unico'
+  }
+}
+
+/**
+ * MOTOR DE SALUD FINANCIERA. Cruza costos + reservas + horarios y devuelve las métricas
+ * base del break-even, todo en TURNOS de 1.5h, sobre una ventana móvil de 30 días (para que
+ * ingreso y disponibilidad cubran el MISMO período → número estable y comparable).
+ *
+ * @param {string} clubId
+ * @returns {Promise<object>} métricas + flags de "faltan datos" para guiar el onboarding
+ */
+export async function calcularSaludFinanciera(clubId) {
+  const hoy = hoyArgStr()
+  const fechas = ultimasNFechas(hoy, 30)
+  const desde = fechas[0]
+
+  const [club, canchas, costos, reservas] = await Promise.all([
+    prisma.club.findUnique({ where: { id: clubId }, select: { config: true } }),
+    prisma.cancha.findMany({ where: { clubId, activo: true }, select: { horarios: true, precioTurno: true } }),
+    prisma.costo.findMany({ where: { clubId, activo: true } }),
+    // Reservas de los últimos 30 días (por fecha). Para ocupación: no canceladas. Para
+    // ingreso/precio realizado: pagadas.
+    prisma.reserva.findMany({
+      where: { clubId, fecha: { gte: desde, lte: hoy }, estado: { not: 'cancelada' } },
+      select: { precio: true, pagado: true, fecha: true, cobroOmitido: true },
+    }),
+  ])
+
+  const horariosClub = club?.config?.horarios || {}
+  const turnosDisponibles = turnosDisponiblesEnFechas(horariosClub, canchas, fechas)
+
+  // Costos: mochila fija mensual + costo variable por turno.
+  const fijoMensual = costos.filter((c) => c.tipo === 'fijo').reduce((s, c) => s + montoMensual(c), 0)
+  // Los costos 'variable' se cargan como "por turno" (ej. luz+limpieza de un turno).
+  const variablePorTurno = costos.filter((c) => c.tipo === 'variable').reduce((s, c) => s + c.monto, 0)
+
+  // Reservas: ocupación (no canceladas) e ingreso (pagadas).
+  const turnosVendidos = reservas.length
+  const pagadas = reservas.filter((r) => r.pagado)
+  const ingresoCanchas = pagadas.reduce((s, r) => s + (r.precio ?? 0), 0)
+  const turnosPagados = pagadas.length
+  const precioRealizado = turnosPagados > 0 ? Math.round(ingresoCanchas / turnosPagados) : 0
+  // Precio de lista promedio de las canchas activas (fallback para el break-even cuando el
+  // club es nuevo y todavía no cobró ningún turno → así el onboarding muestra algo útil).
+  const canchasConPrecio = canchas.filter((c) => c.precioTurno > 0)
+  const precioLista = canchasConPrecio.length > 0
+    ? Math.round(canchasConPrecio.reduce((s, c) => s + c.precioTurno, 0) / canchasConPrecio.length)
+    : 0
+  // Precio de referencia para el break-even: lo realizado si hay ventas, si no la lista.
+  const precioRef = precioRealizado > 0 ? precioRealizado : precioLista
+
+  // AUSENTISMO (inferido, automático): turnos de días YA pasados que quedaron impagos y que
+  // el club no marcó "no cobrar". Proxy honesto de no-shows: el sistema no "ve" si el jugador
+  // vino, pero un turno vencido sin cobrar es plata perdida. La seña (a futuro) lo resuelve.
+  const vencidas = reservas.filter((r) => r.fecha < hoy)
+  const ausentes = vencidas.filter((r) => !r.pagado && !r.cobroOmitido)
+  const ausencias = ausentes.length
+  const ausenciasMonto = ausentes.reduce((s, r) => s + (r.precio ?? 0), 0)
+  const ausenciasPct = vencidas.length > 0 ? Math.round((ausencias / vencidas.length) * 100) : null
+
+  // Métricas derivadas (null cuando faltan datos para calcularlas honestamente).
+  const contribPorTurno = precioRef - variablePorTurno
+  const breakEvenTurnos = fijoMensual > 0 && contribPorTurno > 0 ? Math.ceil(fijoMensual / contribPorTurno) : null
+  const costoTurnoVacio = turnosDisponibles > 0 ? Math.round(fijoMensual / turnosDisponibles) : 0
+  const turnosVacios = Math.max(0, turnosDisponibles - turnosVendidos)
+  const rindePorTurno = turnosDisponibles > 0 ? Math.round(ingresoCanchas / turnosDisponibles) : 0 // RevPACH
+  const ocupacionPct = turnosDisponibles > 0 ? Math.round((turnosVendidos / turnosDisponibles) * 100) : 0
+  const breakEvenPct = breakEvenTurnos && turnosDisponibles > 0 ? Math.round((breakEvenTurnos / turnosDisponibles) * 100) : null
+
+  // YIELD (rendimiento de tarifa): del máximo posible (vender TODO a precio de lista),
+  // cuánto se hace de verdad. Se descompone en dos fugas que suman con el yield 100%:
+  //   yield = ocupación(ingreso) × (precio realizado / precio lista)
+  //   fuga por vacío = 1 − ocupación · fuga por descuento = ocupación × (1 − realizado/lista)
+  // Solo calculable si hay precio de lista y ya se cobró algún turno.
+  let yieldPct = null, fugaVacioPct = null, fugaDescuentoPct = null
+  if (precioLista > 0 && turnosDisponibles > 0 && turnosPagados > 0) {
+    const ocupIngreso = turnosPagados / turnosDisponibles
+    const ratioPrecio = Math.min(1, precioRealizado / precioLista) // clamp: cobrar > lista no es "fuga"
+    const y = ocupIngreso * ratioPrecio
+    yieldPct = Math.round(y * 100)
+    fugaVacioPct = Math.round((1 - ocupIngreso) * 100)
+    fugaDescuentoPct = Math.max(0, 100 - yieldPct - fugaVacioPct) // el resto, para que sumen 100
+  }
+
+  return {
+    periodo: { desde, hasta: hoy, dias: 30 },
+    // Insumos (para mostrar y para el simulador del Bloque 4)
+    turnosDisponibles,
+    turnosVendidos,
+    turnosVacios,
+    ingresoCanchas,
+    precioRealizado,
+    precioLista,
+    precioRef,      // el que usa el break-even (realizado si hay ventas, si no lista)
+    fijoMensual,
+    variablePorTurno,
+    contribPorTurno,
+    // Métricas estrella
+    rindePorTurno,                                   // RevPACH ("Rinde por turno")
+    ocupacionPct,
+    yieldPct,                                        // rendimiento de tarifa (0-100)
+    fugaVacioPct,                                    // % que se pierde por turnos vacíos
+    fugaDescuentoPct,                                // % que se pierde por descuentos
+    ausencias,                                       // turnos vencidos impagos (proxy no-show)
+    ausenciasMonto,                                  // plata perdida por ausencias
+    ausenciasPct,                                    // % de turnos vencidos que quedaron sin cobrar
+    breakEvenTurnos,
+    breakEvenPct,
+    costoTurnoVacio,
+    costoTurnosVacios: costoTurnoVacio * turnosVacios, // la "sangría" de las canchas vacías
+    porEncimaDelEquilibrio: breakEvenTurnos != null ? turnosVendidos - breakEvenTurnos : null,
+    // Flags para guiar el onboarding (qué falta cargar)
+    falta: {
+      costosFijos: fijoMensual === 0,
+      costoVariable: variablePorTurno === 0,
+      horarios: turnosDisponibles === 0,
+      reservas: turnosVendidos === 0,
+    },
+  }
+}
+
+/**
+ * CONTRIBUCIÓN POR SECTOR: para cada sector (canchas / clases / bar-tienda) calcula
+ * ingreso − costos directos − parte prorrateada de los costos generales (por % de ingreso).
+ * Es el "margen que no miente": desenmascara al sector que parece rentable y no lo es.
+ * Ventana 30 días. Solo cuenta lo cobrado (pagado).
+ * @param {string} clubId
+ */
+export async function calcularContribucionSectores(clubId) {
+  const hoy = hoyArgStr()
+  const fechas = ultimasNFechas(hoy, 30)
+  const desde = fechas[0]
+
+  const [reservas, cargos, costos] = await Promise.all([
+    // Reservas cobradas: separamos clases (profesor) de canchas.
+    prisma.reserva.findMany({
+      where: { clubId, fecha: { gte: desde, lte: hoy }, pagado: true, estado: { not: 'cancelada' } },
+      select: { precio: true, profesorId: true, tipo: true },
+    }),
+    // Ventas de bar/tienda cobradas (Cargo tipo producto), con su COGS (costo).
+    prisma.cargo.findMany({
+      where: { clubId, tipo: 'producto', estado: 'pagado', pagadoAt: { not: null } },
+      select: { monto: true, costo: true, pagadoAt: true },
+    }),
+    prisma.costo.findMany({ where: { clubId, activo: true, tipo: 'fijo' } }),
+  ])
+
+  // ── Ingresos por sector ──
+  let ingCanchas = 0, ingClases = 0, ingBar = 0, cogsBar = 0
+  for (const r of reservas) {
+    const esClase = r.profesorId || r.tipo === 'clase'
+    if (esClase) ingClases += r.precio ?? 0
+    else ingCanchas += r.precio ?? 0
+  }
+  // Cargos de producto en la ventana de 30 días (filtramos por pagadoAt).
+  const desdeDate = new Date(`${desde}T00:00:00`)
+  for (const c of cargos) {
+    if (c.pagadoAt && new Date(c.pagadoAt) >= desdeDate) {
+      ingBar += c.monto ?? 0
+      cogsBar += c.costo ?? 0
+    }
+  }
+
+  // ── Costos directos por sector (los que el dueño asignó a un sector) ──
+  const directo = { canchas: 0, clases: 0, bar: 0 }
+  let fijoGeneral = 0
+  for (const c of costos) {
+    const m = montoMensual(c)
+    if (c.sector === 'canchas') directo.canchas += m
+    else if (c.sector === 'clases') directo.clases += m
+    else if (c.sector === 'bar' || c.sector === 'proshop') directo.bar += m
+    else fijoGeneral += m // sector null = general → se prorratea
+  }
+
+  // ── Armado de sectores ──
+  const base = [
+    { key: 'canchas', nombre: 'Canchas', ingreso: ingCanchas, directos: directo.canchas },
+    { key: 'clases', nombre: 'Clases', ingreso: ingClases, directos: directo.clases },
+    { key: 'bar', nombre: 'Bar / Tienda', ingreso: ingBar, directos: directo.bar + cogsBar }, // COGS es directo del bar
+  ].filter((s) => s.ingreso > 0 || s.directos > 0) // no mostrar sectores sin actividad
+
+  const ingresoTotal = base.reduce((s, x) => s + x.ingreso, 0)
+  const sectores = base.map((s) => {
+    // Prorrateo del fijo general por participación en el ingreso.
+    const fijoAsignado = ingresoTotal > 0 ? Math.round(fijoGeneral * (s.ingreso / ingresoTotal)) : 0
+    const contribucion = s.ingreso - s.directos - fijoAsignado
+    const margenPct = s.ingreso > 0 ? Math.round((contribucion / s.ingreso) * 100) : null
+    return { ...s, cogs: s.key === 'bar' ? cogsBar : 0, fijoAsignado, contribucion, margenPct }
+  })
+
+  return {
+    periodo: { desde, hasta: hoy, dias: 30 },
+    fijoGeneral,
+    ingresoTotal,
+    sectores,
+    sinCostosPorSector: Object.values(directo).every((v) => v === 0), // aviso: todo prorrateado
+  }
+}
+
+// TF guardan el día en minúscula sin acento; mapeo a índice getUTCDay (0=domingo).
+const DIA_TF_IDX = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 }
+// Cuántas veces cae un día de semana (índice 0-6) en un mes (year, month 1-12).
+const ocurrenciasDia = (idx, year, month) => {
+  const dias = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  let n = 0
+  for (let d = 1; d <= dias; d++) if (new Date(Date.UTC(year, month - 1, d)).getUTCDay() === idx) n++
+  return n
+}
+
+/**
+ * FLUJO DE CAJA a 90 días (3 meses). Proyecta, mes a mes, cobros esperados (turnos fijos
+ * recurrentes + reservas ya agendadas) − pagos esperados (costos según su periodicidad y
+ * meses de pago). Muestra el neto por mes y el acumulado, para ver los baches por adelantado.
+ * Aproximado: sin saldo inicial real (arranca de 0 → importa la FORMA de la curva).
+ * @param {string} clubId
+ * @param {{year:number, month:number}} desdeMes - mes de arranque (hoy en ARG lo pasa el router)
+ */
+export async function calcularFlujoCaja(clubId, desdeMes) {
+  const hoy = hoyArgStr()
+  const [hy, hm] = hoy.split('-').map(Number)
+  const y0 = desdeMes?.year ?? hy
+  const m0 = desdeMes?.month ?? hm
+
+  const [tfs, reservasFuturas, costos] = await Promise.all([
+    prisma.turnoFijo.findMany({ where: { clubId, estado: 'confirmado' }, select: { dia: true, precio: true } }),
+    // Reservas ya agendadas a futuro y todavía no cobradas (cobro esperado). Excluye TF materializados
+    // para no duplicar con la proyección de turnos fijos.
+    prisma.reserva.findMany({
+      where: { clubId, fecha: { gt: hoy }, pagado: false, estado: { not: 'cancelada' }, esTurnoFijo: false },
+      select: { fecha: true, precio: true },
+    }),
+    prisma.costo.findMany({ where: { clubId, activo: true } }),
+  ])
+
+  const MESES_LBL = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+  const meses = []
+  let acumulado = 0
+
+  for (let k = 0; k < 3; k++) {
+    const month = ((m0 - 1 + k) % 12) + 1
+    const year = y0 + Math.floor((m0 - 1 + k) / 12)
+
+    // Cobros: turnos fijos recurrentes (ocurrencias del día en el mes × precio).
+    let cobros = 0
+    for (const tf of tfs) {
+      const idx = DIA_TF_IDX[tf.dia]
+      if (idx == null) continue
+      cobros += ocurrenciasDia(idx, year, month) * (tf.precio ?? 0)
+    }
+    // Cobros: reservas ya agendadas en ese mes (solo aplica al primer mes/próximos, futuras).
+    const ym = `${year}-${String(month).padStart(2, '0')}`
+    for (const r of reservasFuturas) if (r.fecha.startsWith(ym)) cobros += r.precio ?? 0
+
+    // Pagos: costos FIJOS que caen ese mes según periodicidad. Los variables (por turno) no son
+    // un compromiso de calendario — escalan con la actividad, no van en la proyección de caja.
+    let pagos = 0
+    for (const c of costos) {
+      if (c.tipo !== 'fijo') continue
+      if (c.periodicidad === 'mensual') pagos += c.monto
+      else if (c.periodicidad === 'bimestral') { if (k % 2 === 0) pagos += c.monto } // este mes y cada 2
+      else if (c.periodicidad === 'anual') {
+        if (c.mesesPago?.length) { if (c.mesesPago.includes(month)) pagos += c.monto }
+        else pagos += Math.round(c.monto / 12) // sin mes definido → prorrateo
+      }
+      // 'unico' no se proyecta como recurrente
+    }
+
+    const neto = cobros - pagos
+    acumulado += neto
+    meses.push({ year, month, label: `${MESES_LBL[month - 1]} ${year}`, cobros, pagos, neto, acumulado })
+  }
+
+  return { meses, tfsProyectados: tfs.length }
+}
+
+// Orden de los días para mostrar (Lunes primero, como una agenda).
+const DIAS_ORDEN = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+
+/**
+ * HEATMAP día × franja: para cada (día de semana, franja de 1.5h) calcula el % de ocupación
+ * histórico sobre una ventana de semanas. Clasifica en pico (>80%) / medio (40-80%) / frío (<40%).
+ * @param {string} clubId
+ * @param {number} semanas - ventana de historia (default 8, para tener muestras por celda)
+ */
+export async function calcularHeatmap(clubId, semanas = 8) {
+  const hoy = hoyArgStr()
+  const dias = semanas * 7
+  const fechas = ultimasNFechas(hoy, dias)
+  const desde = fechas[0]
+
+  const [club, canchas, reservas] = await Promise.all([
+    prisma.club.findUnique({ where: { id: clubId }, select: { config: true } }),
+    prisma.cancha.findMany({ where: { clubId, activo: true }, select: { horarios: true } }),
+    prisma.reserva.findMany({
+      where: { clubId, fecha: { gte: desde, lte: hoy }, estado: { not: 'cancelada' } },
+      select: { fecha: true, horaInicio: true },
+    }),
+  ])
+  const horariosClub = club?.config?.horarios || {}
+
+  // Acumuladores: disponibles[dia][franja] y vendidos[dia][franja].
+  const disp = {}, vend = {}
+  const franjasSet = new Set()
+  const bump = (obj, dia, fr, n = 1) => { (obj[dia] ??= {})[fr] = (obj[dia]?.[fr] ?? 0) + n }
+
+  // Disponibilidad: por cada fecha × cancha activa, cada franja de ese día suma 1.
+  for (const f of fechas) {
+    const [y, m, d] = f.split('-').map(Number)
+    const diaCfg = DIAS_CFG[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]
+    for (const c of canchas) {
+      const h = (c.horarios && c.horarios[diaCfg]) || horariosClub[diaCfg]
+      for (const fr of franjaTimes(h)) { bump(disp, diaCfg, fr); franjasSet.add(fr) }
+    }
+  }
+  // Vendidos: cada reserva suma 1 a su (día, franja).
+  for (const r of reservas) {
+    const [y, m, d] = r.fecha.split('-').map(Number)
+    const diaCfg = DIAS_CFG[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]
+    bump(vend, diaCfg, r.horaInicio)
+    franjasSet.add(r.horaInicio)
+  }
+
+  const franjas = [...franjasSet].sort((a, b) => ordenFranja(a) - ordenFranja(b))
+  const diasConHorario = DIAS_ORDEN.filter((d) => disp[d] && Object.keys(disp[d]).length)
+
+  // Matriz de celdas con % y zona.
+  const zona = (pct) => (pct >= 80 ? 'pico' : pct >= 40 ? 'medio' : 'frio')
+  const celdas = {}
+  for (const dia of diasConHorario) {
+    celdas[dia] = {}
+    for (const fr of franjas) {
+      const d = disp[dia]?.[fr] ?? 0
+      const v = vend[dia]?.[fr] ?? 0
+      const pct = d > 0 ? Math.round((v / d) * 100) : null // null = el club no abre ese día/franja
+      celdas[dia][fr] = pct == null ? null : { pct: Math.min(100, pct), vendidos: v, disponibles: d, zona: zona(pct) }
+    }
+  }
+
+  return { periodo: { desde, hasta: hoy, semanas }, dias: diasConHorario, franjas, celdas, umbrales: { pico: 80, medio: 40 } }
+}
+
+
+/**
+ * Devuelve la tarifa de lista vigente de una cancha (su precioTurno) para congelarla
+ * como snapshot en la reserva. Se guarda al crear porque el precio de la cancha cambia
+ * con la inflación: sin el snapshot, el yield (cuánto se descontó) no se puede reconstruir.
+ *
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx - cliente Prisma (o tx)
+ * @param {string} canchaId
+ * @returns {Promise<number|null>} precioTurno de la cancha, o null si no tiene/no existe
+ */
+export async function tarifaListaSnapshot(tx, canchaId) {
+  if (!canchaId) return null
+  const cancha = await tx.cancha.findUnique({
+    where: { id: canchaId },
+    select: { precioTurno: true },
+  })
+  // precioTurno 0 (sin precio configurado) lo tratamos como "sin tarifa de lista" → null
+  return cancha?.precioTurno ? cancha.precioTurno : null
+}

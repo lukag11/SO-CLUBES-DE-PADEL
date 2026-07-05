@@ -8,6 +8,7 @@ import { normalizarMetodo } from '../lib/metodosPago.js'
 import { snapshotProductos } from '../lib/productos.js'
 import { descontarStock } from '../lib/stock.js'
 import { tienePermiso } from '../lib/permisos.js'
+import { tarifaListaSnapshot } from '../lib/finanzas.js'
 
 const router = Router()
 
@@ -354,6 +355,7 @@ router.post('/', requireAuth, requireRole('jugador'), requireActive, async (req,
           horaInicio,
           horaFin,
           precio: precio ? Math.round(parseFloat(precio)) : null,
+          tarifaLista: await tarifaListaSnapshot(tx, canchaId),
           esTurnoFijo: !!esTurnoFijo,
           tipo: esTurnoFijo ? 'solicitud_fijo' : 'online',
           estado: estadoInicial,
@@ -472,6 +474,7 @@ router.post('/profesor', requireAuth, requireRole('profesor'), async (req, res) 
           tipo: 'clase',
           estado: 'confirmada',
           precio: precio ? Math.round(parseFloat(precio)) : null,
+          tarifaLista: await tarifaListaSnapshot(tx, canchaId),
           jugadores: jugadores ?? [],
           notas: notas || '',
         },
@@ -643,6 +646,7 @@ router.post('/admin/clase-profesor', requireAuth, requireRole('admin'), requireP
           tipo: 'clase',
           estado: 'confirmada',
           precio: precio ? Math.round(parseFloat(precio)) : null,
+          tarifaLista: await tarifaListaSnapshot(tx, canchaId),
           jugadores: [],
           notas: notas || '',
         },
@@ -726,6 +730,7 @@ router.post('/admin', requireAuth, requireRole('admin'), requirePermiso('reserva
           tipo: tipo || 'manual',
           estado: 'confirmada',
           precio: precio ? Math.round(parseFloat(precio)) : null,
+          tarifaLista: await tarifaListaSnapshot(tx, canchaId),
           esTurnoFijo: !!esTurnoFijo,
           jugadores: jugadores ?? [],
           notas: notas || '',
@@ -1054,7 +1059,7 @@ router.get('/:id/cuenta', requireAuth, requireRole('admin'), requirePermiso('ven
   const { id } = req.params
   const clubId = req.user.clubId
   try {
-    const reserva = await prisma.reserva.findUnique({ where: { id }, select: { clubId: true, precio: true, pagado: true } })
+    const reserva = await prisma.reserva.findUnique({ where: { id }, select: { clubId: true, precio: true, pagado: true, cobroRoster: true } })
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
     if (reserva.clubId !== clubId) return res.status(403).json({ error: 'Sin permisos' })
     const cargosCuenta = await prisma.cargo.findMany({
@@ -1062,12 +1067,36 @@ router.get('/:id/cuenta', requireAuth, requireRole('admin'), requirePermiso('ven
       select: { id: true, reservaId: true, jugadorId: true, concepto: true, monto: true, tipo: true, estado: true, metodoPago: true, jugador: { select: { nombre: true, apellido: true } } },
       orderBy: { createdAt: 'asc' },
     })
-    res.json({ cargosCuenta, precio: reserva.precio ?? 0, pagadoSimple: !!reserva.pagado })
+    const rosterIds = reserva.cobroRoster ?? []
+    const cobroRoster = rosterIds.length
+      ? await prisma.jugador.findMany({ where: { id: { in: rosterIds }, clubId }, select: { id: true, nombre: true, apellido: true } })
+      : []
+    res.json({ cargosCuenta, precio: reserva.precio ?? 0, pagadoSimple: !!reserva.pagado, cobroRoster })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al leer la cuenta del turno' })
   }
 })
+
+// PATCH /api/reservas/:id/cobro-roster — (admin) guarda el "armado" del cobro (qué jugadores pagan),
+// para recordarlo al reabrir SIN crear cargos ni deuda. Body: { jugadorIds: [...] }.
+router.patch('/:id/cobro-roster', requireAuth, requireRole('admin'), requirePermiso('ventas'), async (req, res) => {
+  const { id } = req.params
+  const clubId = req.user.clubId
+  const jugadorIds = Array.isArray(req.body?.jugadorIds) ? [...new Set(req.body.jugadorIds.filter((x) => typeof x === 'string' && x))] : []
+  try {
+    const reserva = await prisma.reserva.findUnique({ where: { id }, select: { clubId: true } })
+    if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
+    if (reserva.clubId !== clubId) return res.status(403).json({ error: 'Sin permisos' })
+    await prisma.reserva.update({ where: { id }, data: { cobroRoster: jugadorIds } })
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Error cobro-roster:', err.message)
+    res.status(500).json({ error: 'Error al guardar el armado del cobro' })
+  }
+})
+
+// GET /api/reservas/:id/cuenta arriba ya incluye cobroRoster.
 
 // POST /api/reservas/:id/cuenta — checkout con split (Fase 2).
 // Salda una o varias "personas" del turno a la vez; se puede llamar repetidamente

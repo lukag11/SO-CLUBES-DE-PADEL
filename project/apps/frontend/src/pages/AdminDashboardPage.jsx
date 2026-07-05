@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   CalendarDays, Users, Trophy, TrendingUp, TrendingDown, DollarSign, Activity,
   Wallet, Clock, ArrowRight, CheckCircle2, AlertCircle, UserPlus, Receipt, Sparkles, RefreshCw,
-  MessageCircle, Copy, Check, Zap, Users2, Megaphone, Bell,
+  MessageCircle, Copy, Check, Zap, Users2, Megaphone, Bell, Compass, Target,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
@@ -61,6 +61,7 @@ const DashboardPage = () => {
   const token = useAuthStore((s) => s.token)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [saludFin, setSaludFin] = useState(null) // salud financiera para el widget (solo si permiso caja)
   // Insight del día con IA (solo dueño; si el backend devuelve 403/error, no se muestra la tarjeta)
   const [insight, setInsight] = useState(null)
   const [insightLoading, setInsightLoading] = useState(true)
@@ -203,6 +204,17 @@ const DashboardPage = () => {
     return () => { activo = false }
   }, [token])
 
+  // Salud financiera para el widget de "Dirección". El backend filtra por permiso caja
+  // (403 si no tiene) → si falla, queda null y el widget no se muestra.
+  useEffect(() => {
+    if (!token) return
+    let activo = true
+    api.get('/finanzas/salud', { Authorization: `Bearer ${token}` })
+      .then((r) => { if (activo) setSaludFin(r) })
+      .catch(() => { if (activo) setSaludFin(null) })
+    return () => { activo = false }
+  }, [token])
+
   // Permisos: 'caja' = ingresos/totales (SENSIBLE) · 'ventas o caja' = estado de cobro/deuda
   const verCaja = !!data?.verCaja
   const verCobros = !!data?.verCobros
@@ -211,9 +223,14 @@ const DashboardPage = () => {
   const ocu = data?.ocupacionPct ?? 0
   const ocuColor = ocu >= 60 ? 'bg-emerald-500' : ocu >= 35 ? 'bg-amber-500' : 'bg-rose-500'
   const ocuText = ocu >= 60 ? 'text-emerald-600' : ocu >= 35 ? 'text-amber-600' : 'text-rose-500'
-  // Cuántas tarjetas de plata se muestran (Ingresos=caja, Por cobrar=cobros) → la ocupación rellena el resto
+  // Cuántas tarjetas de plata se muestran (Ingresos=caja, Por cobrar=cobros)
   const moneyCount = (verCaja ? 1 : 0) + (verCobros ? 1 : 0)
-  const ocuSpan = moneyCount === 0 ? 'lg:col-span-3' : moneyCount === 1 ? 'lg:col-span-2' : ''
+  // Tarjeta de salud financiera (solo con permiso caja y datos cargados) — 4ta de la grilla superior
+  const saludCard = verCaja && !!saludFin
+  // La grilla superior se ajusta al total de tarjetas para quedar pareja (sin huecos ni spans raros)
+  const totalTop = 1 + moneyCount + (saludCard ? 1 : 0)
+  const topCols = { 1: 'lg:grid-cols-1', 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3', 4: 'lg:grid-cols-4' }[Math.min(totalTop, 4)]
+  const ocuSpan = '' // con grilla pareja la ocupación ya no necesita expandirse
 
   // ── Necesita tu atención: foco en lo que falta cobrar (deuda + impagos) ──
   const at = data?.atencion ?? {}
@@ -498,8 +515,8 @@ const DashboardPage = () => {
         </div>
       ) : (
         <>
-          {/* ── HERO: Ocupación (+ Ingresos si caja, + Por cobrar si cobros) ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* ── HERO: Ocupación (+ Ingresos si caja, + Por cobrar si cobros, + Salud si caja) ── */}
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${topCols} gap-4`}>
             {/* Ocupación del día — rellena el ancho según cuántas tarjetas de plata haya */}
             <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col ${ocuSpan}`}>
               <div className="flex items-center gap-2 text-slate-500">
@@ -546,6 +563,37 @@ const DashboardPage = () => {
                 <p className="text-xs text-amber-600 mt-auto pt-3 flex items-center gap-1 font-medium">
                   Ir a Cobranzas <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
                 </p>
+              </Link>
+            )}
+
+            {/* Salud del club — puerta a Dirección (solo permiso caja) */}
+            {saludCard && (
+              <Link to="/dashboardAdmin/direccion" className="group bg-gradient-to-br from-lime-100 to-lime-50 rounded-2xl border border-lime-300 shadow-sm p-5 flex flex-col hover:shadow-md hover:border-lime-400 transition-all">
+                <div className="flex items-center gap-2 text-lime-800">
+                  <span className="w-6 h-6 rounded-lg bg-lime-500 text-white flex items-center justify-center"><Compass size={14} /></span>
+                  <span className="text-sm font-semibold">Cómo va el club</span>
+                </div>
+                {saludFin.falta?.costosFijos ? (
+                  <>
+                    <div className="flex items-end gap-2 mt-2"><span className="text-2xl font-bold text-slate-800">Configurá</span></div>
+                    <p className="text-xs text-lime-700 mt-auto pt-3 flex items-center gap-1 font-medium">
+                      Cargá tus costos <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-end gap-2 mt-2">
+                      <span className="text-4xl font-bold text-slate-800">{saludFin.breakEvenPct != null ? `${saludFin.breakEvenPct}%` : '—'}</span>
+                      <span className="text-sm text-slate-400 mb-1.5">equilibrio</span>
+                    </div>
+                    <p className={`text-xs mt-auto pt-3 flex items-center gap-1 font-medium ${saludFin.porEncimaDelEquilibrio >= 0 ? 'text-lime-700' : 'text-amber-600'}`}>
+                      {saludFin.porEncimaDelEquilibrio >= 0
+                        ? `Vas ${saludFin.porEncimaDelEquilibrio} turnos arriba 🎾`
+                        : `Faltan ${Math.abs(saludFin.porEncimaDelEquilibrio)} turnos`}
+                      <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+                    </p>
+                  </>
+                )}
               </Link>
             )}
           </div>

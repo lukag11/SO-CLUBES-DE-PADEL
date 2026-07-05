@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checklist de Deploy — PadelwIArk</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#181b22; --card2:#1f232c; --line:#2a2f3a;
+    --txt:#e7eaf0; --muted:#9aa3b2; --lime:#afca0b; --lime-d:#8aa00a;
+    --red:#ff5a5a; --amber:#ffb340; --green:#3ecf8e; --blue:#5aa9ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;padding:32px 16px 80px}
+  .wrap{max-width:920px;margin:0 auto}
+  header h1{font-size:26px;margin:0 0 4px}
+  header p{color:var(--muted);margin:0 0 8px}
+  .meta{font-size:13px;color:var(--muted)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0 6px;font-size:13px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:var(--card2)}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .d-red{background:var(--red)} .d-amber{background:var(--amber)} .d-blue{background:var(--blue)} .d-green{background:var(--green)}
+  .progress{margin:20px 0;background:var(--card2);border-radius:10px;height:14px;overflow:hidden;border:1px solid var(--line)}
+  .progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--lime),var(--green));transition:width .25s}
+  .progress-label{font-size:13px;color:var(--muted);margin-top:6px}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:18px 0;overflow:hidden}
+  section > h2{margin:0;padding:16px 18px;font-size:17px;display:flex;align-items:center;gap:10px;background:var(--card2);border-bottom:1px solid var(--line)}
+  .tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:6px}
+  .t-block{background:rgba(255,90,90,.15);color:var(--red);border:1px solid rgba(255,90,90,.35)}
+  .t-imp{background:rgba(255,179,64,.15);color:var(--amber);border:1px solid rgba(255,179,64,.35)}
+  .t-after{background:rgba(90,169,255,.15);color:var(--blue);border:1px solid rgba(90,169,255,.35)}
+  ul.items{list-style:none;margin:0;padding:6px 0}
+  li.item{display:flex;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);align-items:flex-start}
+  li.item:last-child{border-bottom:none}
+  li.item input{margin-top:3px;width:18px;height:18px;accent-color:var(--lime);cursor:pointer;flex:0 0 auto}
+  .it-body{flex:1}
+  .it-title{font-weight:600}
+  .it-desc{color:var(--muted);font-size:13.5px;margin-top:2px}
+  code{background:#0c0e12;border:1px solid var(--line);padding:1px 6px;border-radius:5px;font-size:12.5px;color:var(--lime)}
+  .it-done .it-title{text-decoration:line-through;color:var(--muted)}
+  .note{font-size:12.5px;color:var(--muted);padding:10px 18px;background:rgba(90,169,255,.06);border-top:1px dashed var(--line)}
+  footer{margin-top:30px;text-align:center;color:var(--muted);font-size:12.5px}
+  .reset{background:none;border:1px solid var(--line);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12.5px}
+  .reset:hover{color:var(--txt);border-color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🚀 Checklist de Deploy — PadelwIArk</h1>
+    <p>Todo lo que falta hacer / recordar cuando pasemos de local a producción.</p>
+    <div class="meta">Stack prod: Railway (backend) · Vercel (frontend) · Supabase (DB + Storage) · Generado 2026-06-22</div>
+  </header>
+
+  <div class="legend">
+    <span class="pill"><span class="dot d-red"></span> Bloqueante — sin esto no levanta o queda inseguro</span>
+    <span class="pill"><span class="dot d-amber"></span> Importante — hacer en el día del deploy</span>
+    <span class="pill"><span class="dot d-blue"></span> Después del deploy — requiere URL pública / cliente real</span>
+  </div>
+
+  <div class="progress"><i id="bar"></i></div>
+  <div class="progress-label"><span id="count">0</span> de <span id="total">0</span> completados &nbsp;·&nbsp;
+    <button class="reset" onclick="resetAll()">Reiniciar marcas</button>
+  </div>
+
+  <!-- ===================== BASE DE DATOS ===================== -->
+  <section>
+    <h2>🗄️ Base de datos (Supabase cloud) <span class="tag t-block">Bloqueante</span></h2>
+    <ul class="items">
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Despausar proyecto Supabase <code>PadelOSwlArk</code></div>
+          <div class="it-desc">Quedó pausado el 2026-06-13 por egress. Se reanuda con 1 clic (límite ~2026-09-11, después solo backups descargables).</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Descomentar las líneas del cloud en <code>backend/.env</code></div>
+          <div class="it-desc">Hoy están activas las de <code>localhost:5432</code> y comentadas las del cloud (Supabase). Invertir eso. NO borrar ninguna.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Subir el schema actualizado con <code>prisma db push</code></div>
+          <div class="it-desc">Contra la DB cloud. Los clientes reales arrancan vacíos (multi-tenant por <code>clubId</code>) — normalmente NO se sube la data de prueba local.</div>
+        </div>
+      </li>
+    </ul>
+    <div class="note">⚠️ Local y cloud son bases SEPARADAS, sin sync automático. Lo trabajado en local se queda en local hasta este push.</div>
+  </section>
+
+  <!-- ===================== SECRETS / SEGURIDAD ===================== -->
+  <section>
+    <h2>🔐 Secrets &amp; seguridad <span class="tag t-block">Bloqueante</span></h2>
+    <ul class="items">
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Rotar <code>JWT_SECRET</code> y <code>SUPABASE_SERVICE_ROLE_KEY</code></div>
+          <div class="it-desc">Aparecieron en capturas durante el desarrollo. La service_role vieja (<code>BEUUk…</code>) ya se eliminó; usar la secret <code>backend_prod</code> (<code>sb_secret_…</code>).</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Agregar <code>app.set('trust proxy', 1)</code> en <code>app.js</code></div>
+          <div class="it-desc">Detrás del proxy de Railway, sin esto el rate-limit cuenta la IP del proxy y no la real (X-Forwarded-For). El rate-limit ya está implementado (login 10/min, signup 5/h, lookup 30/min).</div>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ===================== BACKEND RAILWAY ===================== -->
+  <section>
+    <h2>⚙️ Backend — Railway <span class="tag t-imp">Importante</span></h2>
+    <ul class="items">
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Cargar variables de entorno en el servicio (pestaña Variables)</div>
+          <div class="it-desc">
+            <code>SUPABASE_URL</code> · <code>SUPABASE_SERVICE_ROLE_KEY</code> · <code>SUPABASE_BUCKET=media</code> ·
+            <code>DATABASE_URL</code> · <code>DIRECT_URL</code> · <code>JWT_SECRET</code>. Railway setea <code>PORT</code> solo.
+          </div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Verificar que el arranque use el script <code>start</code> (no <code>dev</code>)</div>
+          <div class="it-desc"><code>npm run dev</code> es nodemon, solo para local. Producción levanta con <code>start</code>.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Bajar el body limit global de 8mb a ~2mb en <code>app.js</code></div>
+          <div class="it-desc">No bloqueante. Hacer una vez confirmado que todas las imágenes suben por Storage y no como base64.</div>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ===================== FRONTEND VERCEL ===================== -->
+  <section>
+    <h2>🖥️ Frontend — Vercel <span class="tag t-imp">Importante</span></h2>
+    <ul class="items">
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Setear <code>VITE_API_URL</code> apuntando al backend</div>
+          <div class="it-desc"><code>https://&lt;backend&gt;.up.railway.app/api</code>. Hoy el front no tiene esta var y usa fallback a localhost.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Setear <code>VITE_CLUB_SLUG</code> y <code>VITE_CLUB_ID</code></div>
+          <div class="it-desc">Identifican el club/tenant que sirve el frontend.</div>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ===================== EMAIL ===================== -->
+  <section>
+    <h2>📧 Proveedor de email (Resend / SendGrid / SMTP) <span class="tag t-imp">Importante</span></h2>
+    <ul class="items">
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Configurar proveedor de mail</div>
+          <div class="it-desc">Necesario para los 2 puntos de abajo. Hasta ahora todo lo de email está "deploy-ready" pero sin enchufar.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Recuperar contraseña: enviar el token por email</div>
+          <div class="it-desc">Hoy <code>POST /auth/jugador/forgot</code> DEVUELVE el token crudo en la respuesta. Al deployar: mandarlo por email y dejar de devolverlo. El endpoint <code>/reset</code> NO cambia. Ya está marcado con TODO en el código.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Verificación por email del signup público (SaaS)</div>
+          <div class="it-desc"><code>POST /api/platform/signup</code> + <code>PwRegistro.jsx</code>. Hoy el alta self-service crea el club y entra DIRECTO sin confirmar email → abierto a registros truchos. Falta: email de confirmación + no activar el club hasta verificar.</div>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ===================== STORAGE ===================== -->
+  <section>
+    <h2>🖼️ Imágenes / Storage <span class="tag t-after">Verificar</span></h2>
+    <ul class="items">
+      <li class="item it-done">
+        <input type="checkbox" checked>
+        <div class="it-body">
+          <div class="it-title">Migración de imágenes a Storage — YA HECHA</div>
+          <div class="it-desc">Corrida contra la Supabase real (misma DB que prod). NO re-correr salvo que prod use otra DB. Script: <code>scripts/migrate-images-to-storage.js</code> (<code>--dry</code> para inspeccionar).</div>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ===================== DESPUES DEL DEPLOY ===================== -->
+  <section>
+    <h2>💳 Mercado Pago — Fase 2 <span class="tag t-after">Después del deploy</span></h2>
+    <ul class="items">
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Integración real de cobro online (bloqueada hasta tener URL pública)</div>
+          <div class="it-desc">Hoy <code>metodoPago</code> es solo una ETIQUETA: el club cobra por fuera (Point, transferencia) y marca con qué. El cobro integrado (Checkout Pro / QR + webhook que marca <code>pagado</code> solo) necesita el backend deployado para el webhook.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Casos de uso: "Cobrar por WhatsApp" (deuda → link MP) y seña de reserva online</div>
+          <div class="it-desc">Arrancar con 1 club de prueba; después OAuth multi-tenant para credenciales MP por club.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Fase 1 (se puede hacer ANTES del deploy): comisión configurable por método</div>
+          <div class="it-desc">Para que la Caja muestre el NETO real (transferencia 0%, MP/tarjeta ~3-6%). Hoy la caja suma bruto.</div>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>🧩 Mejoras opcionales post-deploy <span class="tag t-after">Después del deploy</span></h2>
+    <ul class="items">
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Captcha en el signup público</div>
+          <div class="it-desc">Anti-abuso adicional al rate-limit. Recomendado una vez que el alta self-service sea pública.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title"><code>tokenVersion</code> en Admin</div>
+          <div class="it-desc">Para que resetear contraseña / suspender invalide las sesiones de admin al instante. Hoy suspender ya corta vía <code>requireClubActivo</code>; el jugador ya tiene tokenVersion.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">Notificaciones por WhatsApp al jugador</div>
+          <div class="it-desc">Avisar cuando el admin confirma reserva / cancela. Pendiente histórico para cuando haya backend con URL pública.</div>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ===================== MODULO FINANCIERO ===================== -->
+  <div style="margin-top:40px;border-top:2px dashed var(--line);padding-top:28px">
+    <h1 style="font-size:23px;margin:0 0 4px">💰 Módulo Financiero — Roadmap de features</h1>
+    <p style="color:var(--muted);margin:0 0 6px">Del <strong>Playbook de análisis financiero del club</strong>. Cada métrica de acá es una feature potencial del módulo. Fuente: <code>project/claude/context/playbook_financiero.md</code></p>
+    <div class="note" style="border:1px solid var(--line);border-radius:10px;background:rgba(175,202,11,.07);margin:14px 0">
+      🧠 <strong>Modelo mental (leer antes de medir):</strong> apalancamiento operativo alto (la ocupación manda) · la hora-cancha vacía no se recupera nunca · margen de <em>contribución</em>, no bruto · todo en términos <em>reales</em>, no nominales.
+    </div>
+  </div>
+
+  <section>
+    <h2>⭐ El MVP financiero: las 5 métricas con las que arrancar <span class="tag t-imp">Prioridad</span></h2>
+    <ul class="items">
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">1. RevPACH — ingreso por hora-cancha disponible</div>
+          <div class="it-desc">El número resumen: combina ocupación y precio. <code>ingreso total de canchas / horas-cancha disponibles</code>.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">2. Ocupación por franja horaria</div>
+          <div class="it-desc">Dónde está el valle a atacar. Desglose total / franja / día / cancha individual.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">3. Margen de contribución por sector (con costos asignados)</div>
+          <div class="it-desc">Qué gana y qué pierde de verdad. Asignar costos fijos por driver (m², horas de uso, % personal) antes de declarar nada "rentable".</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">4. Break-even del mes en tiempo real</div>
+          <div class="it-desc">¿Estoy arriba o abajo del equilibrio hoy? Tablero que cambia decisiones sobre la marcha.</div>
+        </div>
+      </li>
+      <li class="item">
+        <input type="checkbox">
+        <div class="it-body">
+          <div class="it-title">5. Flujo de caja proyectado a 90 días</div>
+          <div class="it-desc">El P&L dice si ganás; el flujo dice si llegás a fin de mes. En negocio chico, esto último es lo que te mata.</div>
+        </div>
+      </li>
+    </ul>
+    <div class="note">Todo lo demás del módulo se construye sobre estas cinco.</div>
+  </section>
+
+  <section>
+    <h2>🎾 Rendimiento de la hora-cancha (la métrica reina)</h2>
+    <ul class="items">
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Tasa de ocupación desglosada</div><div class="it-desc">Total, por franja, por día de semana y por cancha individual.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">RevPACH + Yield (rendimiento de tarifa)</div><div class="it-desc">Yield = ingreso real / ingreso teórico a tarifa de lista. Mide lo que perdés por huecos + descuentos.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Precio promedio realizado por hora vs tarifa de lista</div><div class="it-desc">¿Cuánto descontás de verdad?</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">No-shows / cancelaciones tardías + su costo</div><div class="it-desc">Son horas perecidas. Medir % y pesos perdidos.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Lead time de reserva</div><div class="it-desc">Con cuánta anticipación reservan; afecta cómo manejás los huecos de último momento.</div></div></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>📉 Estructura de costos y punto de equilibrio</h2>
+    <ul class="items">
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Split fijo vs variable (%)</div><div class="it-desc">El fijo domina; tenerlo claro define toda la estrategia.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Costo fijo por hora-cancha disponible</div><div class="it-desc">(alquiler + amortización + personal base + energía base) / horas-cancha disponibles. El "piso" que cada hora debe cubrir.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Punto de equilibrio en horas-cancha/mes → % ocupación de supervivencia</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Energía: costo/hora de iluminación, ratio energía/ingreso, modelado de tarifa</div><div class="it-desc">El costo a vigilar en Argentina. Semi-variable y volátil — merece seguimiento propio.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Costo laboral vs curva de demanda</div><div class="it-desc">¿Hay gente cobrando en horas muertas? El staffing debe seguir la demanda.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Mantenimiento y reposición</div><div class="it-desc">Amortización de césped, cristales, redes, iluminación. Costo real aunque no salga todos los meses.</div></div></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>🏷️ Análisis de turnos + pricing dinámico (la palanca más grande)</h2>
+    <ul class="items">
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Mapa de calor día × hora con zonas pico / hombro / valle</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Pricing por franja (dinámico)</div><div class="it-desc">Tarifa alta en pico, promo en valle. Ojo techo social en pueblo chico: subir el pico con tacto.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Estrategias de relleno de valle</div><div class="it-desc">Clases en horario muerto, ligas internas, happy-hour, abonos diurnos, convenios con empresas.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Costo de la hora vacía (en pesos)</div><div class="it-desc">La urgencia hecha número.</div></div></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>📊 Márgenes por sector (asignación real de costos)</h2>
+    <ul class="items">
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Canchas (alquiler libre) — el core</div><div class="it-desc">Margen de contribución por hora, ocupación, RevPACH. La base contra la que se mide todo.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Academia / clases vs costo de oportunidad de la cancha</div><div class="it-desc">¿La hora en clase rinde más o menos que alquilarla libre? Suele ser el "subsidio oculto".</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Bar / cantina por contribución (no bruto)</div><div class="it-desc">Cargar espacio, personal y merma. Rotación, merma/robo, margen por producto, ticket promedio.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Pro shop / venta</div><div class="it-desc">Rotación, margen por categoría, capital inmovilizado, stock muerto.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Alquiler de equipo</div><div class="it-desc">Ingreso vs costo de reposición. Marginal en volumen, alto margen.</div></div></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>🏆 Torneos (medirlos por su rol, no por ingreso bruto)</h2>
+    <ul class="items">
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Contribución incremental</div><div class="it-desc">Inscripciones − premios − costos directos (pelotas, arbitraje, extras de personal).</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Costo de oportunidad de las horas-cancha pico ocupadas</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Uplift de bar/cantina durante el torneo</div><div class="it-desc">Suele ser donde el torneo gana de verdad.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Adquisición de jugadores nuevos + LTV</div><div class="it-desc">Definir rol: ¿producto rentable o herramienta de marketing? Se miden distinto.</div></div></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>🇦🇷 Capa Argentina (el foso — ningún software extranjero la modela)</h2>
+    <ul class="items">
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Inflación: reexpresión a términos reales + regla de ajuste de tarifas</div><div class="it-desc">Frecuencia + índice (inflación pasada/esperada, dólar, CER). Comparar en nominal es engañarte solo.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Energía: modelado de escenarios (subsidios, horario pico)</div><div class="it-desc">Un salto de tarifa puede dar vuelta el resultado del mes.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Mix de cobro y su costo financiero</div><div class="it-desc">Efectivo / transferencia (gratis) / tarjeta (comisión + plazo + costo en cuotas) / MEP. El cómo te pagan afecta el margen real.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Impuestos: monotributo / IVA / IIBB / AFIP</div><div class="it-desc">El margen real es después de impuestos.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Costos dolarizados (cristales, paletas, repuestos)</div><div class="it-desc">Suben con el dólar aunque cobres en pesos. Seguilos aparte.</div></div></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>⏱️ Cadencia de medición</h2>
+    <ul class="items">
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Diario</div><div class="it-desc">Caja conciliada, ocupación del día, no-shows.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Semanal</div><div class="it-desc">Ocupación por franja, RevPACH, margen del bar, avance del relleno de valle.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Mensual</div><div class="it-desc">P&L por sector con contribución, break-even, flujo a 90 días, ajuste de tarifas.</div></div></li>
+      <li class="item"><input type="checkbox"><div class="it-body"><div class="it-title">Trimestral</div><div class="it-desc">Decisiones de inversión, revisión de pricing, preparación de estacionalidad.</div></div></li>
+    </ul>
+  </section>
+
+  <footer>
+    Las marcas se guardan en este navegador (localStorage). Editá este archivo cuando aparezcan pendientes nuevos.
+  </footer>
+</div>
+
+<script>
+  const KEY = 'deploy_checklist_padelwiark';
+  const boxes = [...document.querySelectorAll('input[type=checkbox]')];
+  const bar = document.getElementById('bar');
+  const count = document.getElementById('count');
+  const total = document.getElementById('total');
+  total.textContent = boxes.length;
+
+  function save(){
+    localStorage.setItem(KEY, JSON.stringify(boxes.map(b=>b.checked)));
+  }
+  function load(){
+    try{
+      const s = JSON.parse(localStorage.getItem(KEY));
+      if(Array.isArray(s)) boxes.forEach((b,i)=>{ if(typeof s[i]==='boolean') b.checked = s[i]; });
+    }catch(e){}
+  }
+  function render(){
+    const done = boxes.filter(b=>b.checked).length;
+    count.textContent = done;
+    bar.style.width = (boxes.length ? (done/boxes.length*100) : 0) + '%';
+    boxes.forEach(b=>{
+      const li = b.closest('.item');
+      if(li) li.classList.toggle('it-done', b.checked);
+    });
+  }
+  function resetAll(){
+    boxes.forEach(b=>b.checked=false);
+    save(); render();
+  }
+  boxes.forEach(b=>b.addEventListener('change', ()=>{ save(); render(); }));
+  load(); render();
+</script>
+</body>
+</html>

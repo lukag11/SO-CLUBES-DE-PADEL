@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIARK Padel — Plan visual: Módulo "Dirección del club"</title>
+<style>
+  :root{
+    --bg:#0d0f0c; --bg2:#14180f; --card:#181d13; --card2:#1f2618;
+    --line:#2c3522; --lime:#afca0b; --lime-dim:#7e9108; --ink:#e9efe0;
+    --mut:#9aa888; --mut2:#6f7d5e; --ok:#5fd86a; --warn:#f1c40f; --bad:#ff5c5c;
+    --accent:#c9ff2e;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.55;font-size:15px}
+  h1,h2,h3,h4{font-family:'Space Grotesk','Inter',sans-serif;font-weight:700;letter-spacing:-.01em}
+  code,.mono{font-family:'JetBrains Mono','Consolas',monospace;font-size:.85em}
+  a{color:var(--lime)}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+
+  /* ── Header ── */
+  header{background:linear-gradient(160deg,#11150d 0%,#0d0f0c 70%);border-bottom:1px solid var(--line);padding:38px 0 30px}
+  .badge{display:inline-block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--lime);border:1px solid var(--lime-dim);border-radius:30px;padding:4px 12px;margin-bottom:16px}
+  header h1{font-size:34px;line-height:1.1;margin-bottom:10px}
+  header h1 b{color:var(--lime)}
+  header p{color:var(--mut);max-width:760px;font-size:16px}
+  .legend{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-size:13px;color:var(--mut)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+  .d-ok{background:var(--ok)} .d-warn{background:var(--warn)} .d-bad{background:var(--bad)}
+
+  /* ── Nav ── */
+  nav{position:sticky;top:0;z-index:20;background:rgba(13,15,12,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;gap:6px;overflow-x:auto;padding-top:10px;padding-bottom:10px}
+  nav button{background:none;border:1px solid transparent;color:var(--mut);padding:7px 13px;border-radius:9px;font-size:13px;cursor:pointer;white-space:nowrap;font-family:inherit;transition:.15s}
+  nav button:hover{color:var(--ink);background:var(--card)}
+  nav button.active{color:var(--bg);background:var(--lime);font-weight:600}
+
+  section{padding:40px 0;border-bottom:1px solid var(--line);display:none}
+  section.active{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime-dim);margin-bottom:8px}
+  h2.title{font-size:26px;margin-bottom:6px}
+  .sub{color:var(--mut);margin-bottom:26px;max-width:820px}
+
+  /* ── Cards / grid ── */
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .card.hl{border-color:var(--lime-dim);background:linear-gradient(165deg,#1c2313,var(--card))}
+
+  /* métrica card */
+  .metric{position:relative}
+  .metric .top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:4px}
+  .metric h3{font-size:17px}
+  .st{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:20px;white-space:nowrap;font-weight:600}
+  .st-ok{color:var(--ok);background:rgba(95,216,106,.12);border:1px solid rgba(95,216,106,.3)}
+  .st-warn{color:var(--warn);background:rgba(241,196,15,.1);border:1px solid rgba(241,196,15,.3)}
+  .st-bad{color:var(--bad);background:rgba(255,92,92,.1);border:1px solid rgba(255,92,92,.3)}
+  .metric .q{color:var(--mut);font-size:14px;margin:6px 0 12px}
+  .metric .row{font-size:13px;margin:7px 0;display:flex;gap:8px}
+  .metric .row b{color:var(--accent);font-weight:600;min-width:74px;display:inline-block;flex-shrink:0}
+  .metric .ex{background:var(--bg2);border-left:2px solid var(--lime-dim);padding:8px 11px;border-radius:0 8px 8px 0;font-size:12.5px;color:var(--mut);margin-top:10px}
+  .metric .ex b{color:var(--ink)}
+  .pitch{margin-top:12px;font-size:12.5px;color:#d7e6b8;background:rgba(175,202,11,.07);border:1px dashed var(--lime-dim);border-radius:9px;padding:9px 11px}
+  .pitch::before{content:"💬 Cómo se lo vendés: ";color:var(--lime);font-weight:600}
+  .src{margin-top:10px;font-size:11.5px;color:var(--mut2)}
+  .src code{color:var(--lime);background:var(--bg);padding:1px 5px;border-radius:4px}
+
+  .lead{font-size:17px;color:var(--ink);max-width:840px;margin-bottom:22px}
+  .lead b{color:var(--lime)}
+  .note{background:var(--card2);border:1px solid var(--line);border-left:3px solid var(--lime);border-radius:0 12px 12px 0;padding:16px 20px;margin:20px 0}
+  .note.warn{border-left-color:var(--warn)} .note.warn h4{color:var(--warn)}
+  .note h4{font-size:15px;margin-bottom:6px;color:var(--lime)}
+  .note p{color:var(--mut);font-size:14px}
+
+  ul.clean{list-style:none;margin:10px 0}
+  ul.clean li{padding:6px 0 6px 24px;position:relative;color:var(--mut);font-size:14px}
+  ul.clean li::before{content:"›";position:absolute;left:6px;color:var(--lime);font-weight:700}
+  ul.clean li b{color:var(--ink)}
+
+  /* mockup tablero */
+  .mock{background:#0a0c08;border:1px solid var(--line);border-radius:16px;overflow:hidden;margin:8px 0 4px}
+  .mock-bar{background:var(--bg2);padding:11px 16px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line);font-size:12px;color:var(--mut)}
+  .mock-bar .dots{display:flex;gap:5px} .mock-bar .dots i{width:9px;height:9px;border-radius:50%;background:#333;display:block}
+  .mock-body{padding:18px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:13px 15px}
+  .kpi .lbl{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+  .kpi .val{font-size:23px;font-weight:700;font-family:'Space Grotesk';margin-top:3px}
+  .kpi .val.lime{color:var(--lime)}
+  .kpi .meta{font-size:11px;color:var(--mut2);margin-top:2px}
+  .heat{display:grid;grid-template-columns:repeat(14,1fr);gap:3px;margin-top:6px}
+  .heat i{aspect-ratio:1;border-radius:3px;display:block}
+
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+  th{color:var(--lime);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  td{color:var(--mut)} td b{color:var(--ink)}
+  tr:hover td{background:var(--card)}
+
+  /* fases */
+  .phase{display:flex;gap:16px;margin-bottom:14px}
+  .phase .tag{flex-shrink:0;width:74px;height:74px;border-radius:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Space Grotesk';border:1px solid var(--line);background:var(--card)}
+  .phase .tag b{font-size:22px;color:var(--lime)} .phase .tag span{font-size:10px;color:var(--mut)}
+  .phase .body{flex:1;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px 18px}
+  .phase .body h4{font-size:16px;margin-bottom:4px} .phase .body p{color:var(--mut);font-size:13.5px}
+  .phase.now .tag{border-color:var(--lime);background:linear-gradient(160deg,#1c2313,var(--card))}
+  .chip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;margin:3px 4px 0 0;background:var(--bg2);border:1px solid var(--line);color:var(--mut)}
+  .chip.red{color:var(--bad);border-color:rgba(255,92,92,.3)}
+  .chip.grn{color:var(--ok);border-color:rgba(95,216,106,.3)}
+
+  footer{padding:30px 0;color:var(--mut2);font-size:12.5px;text-align:center}
+  .pill{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:3px 9px;font-size:12px;color:var(--lime);margin:0 3px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <span class="badge">WIARK Padel · Plan visual · v0.1 — documento de trabajo</span>
+    <h1>Módulo <b>"Dirección del club"</b><br>de la plata operativa a la asesoría que se vende</h1>
+    <p>Dónde van a vivir todas las métricas financieras, enlazadas con lo que ya construimos. Cada tarjeta dice <b>qué es en criollo</b>, <b>de qué dato sale en el código</b>, <b>en qué estado está</b> y <b>cómo se lo explicás/vendés al dueño</b>. Es mapa, checklist y manual de ventas a la vez.</p>
+    <div class="legend">
+      <span><i class="dot d-ok"></i> <b style="color:var(--ok)">Listo</b> — ya existe y se calcula</span>
+      <span><i class="dot d-warn"></i> <b style="color:var(--warn)">Parcial</b> — el dato existe, falta cálculo/vista</span>
+      <span><i class="dot d-bad"></i> <b style="color:var(--bad)">Falta dato</b> — bloqueado hasta crear algo</span>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="wrap">
+    <button class="active" data-s="intro">① Cómo leerlo</button>
+    <button data-s="mental">② Modelo mental</button>
+    <button data-s="tablero">③ El tablero</button>
+    <button data-s="metricas">④ Métricas (1 x 1)</button>
+    <button data-s="capas">⑤ Pedagogía · Chat · Agente</button>
+    <button data-s="estado">⑥ Qué ya tenemos</button>
+    <button data-s="fases">⑦ Roadmap</button>
+    <button data-s="glosario">⑧ Glosario</button>
+  </div>
+</nav>
+
+<!-- ① INTRO -->
+<section id="intro" class="active"><div class="wrap">
+  <div class="eyebrow">Empezá por acá</div>
+  <h2 class="title">Qué es este documento y para qué sirve</h2>
+  <p class="sub">No es el producto. Es el plano del producto, pensado para que <b>vos primero entiendas la plata</b> y después la sepas vender.</p>
+
+  <div class="lead">La idea central: separamos dos mundos que hoy están mezclados. <b>Lo operativo</b> (cobrar, caja, gastos — lo que ya tenés en "Pagos") y <b>la dirección</b> (¿gano o pierdo?, ¿dónde está la plata que dejo en la mesa?). Este plan arma el segundo mundo: una sección nueva llamada <b>"Dirección"</b> que no reemplaza nada — <b>se alimenta</b> de lo que ya generan Reservas y Pagos.</p>
+
+  <div class="grid g3">
+    <div class="card"><h3 style="font-size:16px;color:var(--lime)">🎯 Para qué te sirve a vos</h3><p style="color:var(--mut);font-size:14px;margin-top:8px">Entender cada número del negocio del club como para explicárselo a un dueño en 30 segundos. Si vos no lo entendés, no lo vendés.</p></div>
+    <div class="card"><h3 style="font-size:16px;color:var(--lime)">🗺️ Para qué sirve al proyecto</h3><p style="color:var(--mut);font-size:14px;margin-top:8px">Ver el resultado final completo, qué falta, en qué orden, y qué NO podemos olvidarnos de prender antes de la prueba real.</p></div>
+    <div class="card"><h3 style="font-size:16px;color:var(--lime)">💸 Para qué sirve al negocio</h3><p style="color:var(--mut);font-size:14px;margin-top:8px">Cada métrica es a la vez una feature y un insight. El insight es lo que convierte al dueño de "usuario del software" en "cliente de asesoría".</p></div>
+  </div>
+
+  <div class="note warn">
+    <h4>⚠ La única regla que no se negocia</h4>
+    <p>Los dashboards se construyen en una tarde. <b>Los datos perdidos no vuelven nunca.</b> Hay dos cosas que tienen que estar capturándose desde el día 1 de la prueba real, aunque la pantalla que las muestra venga meses después: <b>(1)</b> el precio cobrado + estado de cada reserva (ya casi listo) y <b>(2)</b> la telemetría de uso para el agente de onboarding (no existe todavía). Todo lo demás puede esperar.</p>
+  </div>
+</div></section>
+
+<!-- ② MODELO MENTAL -->
+<section id="mental"><div class="wrap">
+  <div class="eyebrow">Antes de cualquier número</div>
+  <h2 class="title">Las 4 ideas que ordenan todo el negocio de un club</h2>
+  <p class="sub">Si entendés estas cuatro, entendés el 80% del playbook. Son la base del pitch.</p>
+
+  <div class="grid g2">
+    <div class="card hl">
+      <h3>1. La ocupación manda sobre todo</h3>
+      <p style="color:var(--mut);font-size:14px;margin-top:8px">Casi todos los costos del club son <b style="color:var(--ink)">fijos</b> (alquiler, sueldos): los pagás vendas o no vendas. Por debajo del punto de equilibrio perdés; por encima, casi <b style="color:var(--ink)">cada peso extra es ganancia pura</b>. Por eso llenar una hora vacía vale más que recortar costos.</p>
+    </div>
+    <div class="card hl">
+      <h3>2. La hora-cancha es inventario perecedero</h3>
+      <p style="color:var(--mut);font-size:14px;margin-top:8px">Una cancha vacía a las 15hs <b style="color:var(--ink)">no se recupera jamás</b>. Es como un asiento de avión que despega vacío. La urgencia no es "vender más barato", es <b style="color:var(--ink)">"no dejar morir la hora"</b>.</p>
+    </div>
+    <div class="card hl">
+      <h3>3. Margen de contribución, no margen bruto</h3>
+      <p style="color:var(--mut);font-size:14px;margin-top:8px">El bar puede "ganar" $720.000 de margen bruto y estar <b style="color:var(--ink)">perdiendo plata</b> una vez que le cargás el espacio, el personal y la merma. Sin asignar los costos fijos a cada sector, los márgenes mienten. Siempre.</p>
+    </div>
+    <div class="card hl">
+      <h3>4. En Argentina: términos reales, no nominales</h3>
+      <p style="color:var(--mut);font-size:14px;margin-top:8px">Comparar "facturé más que el mes pasado" sin ajustar por inflación <b style="color:var(--ink)">te miente todos los meses</b>. Este es el "foso": ningún software español o brasilero modela esto. Es diferenciador puro.</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <h4>El club de juguete (lo usamos en todos los ejemplos)</h4>
+    <p><b>Club X:</b> 3 canchas · abiertas 14h/día · 30 días = <b style="color:var(--lime)">1.260 horas-cancha disponibles/mes</b> (el denominador de todo). Ocupación 45% → 567 horas vendidas. Tarifa lista $9.000/h, precio real $8.000/h. Ingreso canchas = $4.536.000. Costos fijos = $3.000.000/mes. Costo variable = $1.500/h. Bar: vende $1.200.000, le costó $480.000.</p>
+  </div>
+</div></section>
+
+<!-- ③ TABLERO -->
+<section id="tablero"><div class="wrap">
+  <div class="eyebrow">El resultado final</div>
+  <h2 class="title">Así se vería la sección "Dirección"</h2>
+  <p class="sub">Boceto de la pantalla principal. El dueño entra acá para "ver cómo va el club" — no para cobrar. WIarky le señala el número que más le conviene mirar hoy.</p>
+
+  <div class="mock">
+    <div class="mock-bar"><span class="dots"><i></i><i></i><i></i></span> &nbsp; PadelwIArk · Dirección del club · <b style="color:var(--lime)">Junio 2026</b> &nbsp;·&nbsp; <span style="color:var(--mut2)">toggle: $ nominal / real</span></div>
+    <div class="mock-body">
+      <div class="kpis">
+        <div class="kpi"><div class="lbl">RevPACH</div><div class="val lime">$3.600</div><div class="meta">x hora disponible</div></div>
+        <div class="kpi"><div class="lbl">Ocupación</div><div class="val">45%</div><div class="meta">+55% por llenar</div></div>
+        <div class="kpi"><div class="lbl">Break-even</div><div class="val" style="color:var(--ok)">▲ 105 hs</div><div class="meta">arriba del equilibrio</div></div>
+        <div class="kpi"><div class="lbl">Resultado canchas</div><div class="val">+$685k</div><div class="meta">antes de bar/imp.</div></div>
+      </div>
+      <div class="card" style="margin-bottom:14px;background:rgba(175,202,11,.06);border-color:var(--lime-dim)">
+        <div style="display:flex;gap:12px;align-items:flex-start"><span style="font-size:26px">🎾</span><div><b style="color:var(--lime)">WIarky te avisa:</b> <span style="color:var(--ink)">Tenés 200 horas de valle vacías por mes (martes y miércoles 14–18hs). Eso son <b style="color:var(--bad)">$476.000</b> de costo fijo que se va sin recuperar. Si llenás aunque sea la mitad con una promo diurna, recuperás ~$238.000.</span> <a href="#">Ver cómo →</a></div></div>
+      </div>
+      <div style="font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">Mapa de calor · día × hora (ocupación)</div>
+      <div class="heat" id="heat"></div>
+      <div style="font-size:11px;color:var(--mut2);margin-top:6px">🟩 pico (&gt;80%) · 🟨 hombro · ⬛ valle (&lt;40%, perdés fijo)</div>
+    </div>
+  </div>
+
+  <h3 style="margin:28px 0 12px;font-size:18px">Las secciones de adentro</h3>
+  <table>
+    <tr><th>Sección</th><th>Qué responde</th><th>Estado</th></tr>
+    <tr><td><b>Resumen</b></td><td>"¿Cómo va el club este mes, en 5 números?"</td><td><span class="st st-warn">Parcial</span></td></tr>
+    <tr><td><b>Rendimiento de canchas</b></td><td>"¿En qué horarios estoy lleno y en cuáles vacío?"</td><td><span class="st st-warn">Parcial</span></td></tr>
+    <tr><td><b>Rentabilidad por sector</b></td><td>"¿El bar y las clases me dan o me sacan plata?"</td><td><span class="st st-warn">Parcial</span></td></tr>
+    <tr><td><b>Costos &amp; break-even</b></td><td>"¿Cuánto tengo que vender para no perder?"</td><td><span class="st st-bad">Falta dato</span></td></tr>
+    <tr><td><b>Flujo de caja 90 días</b></td><td>"¿Llego a fin de mes? ¿Y a los próximos tres?"</td><td><span class="st st-bad">Falta dato</span></td></tr>
+    <tr><td><b>Capa Argentina</b></td><td>"¿Cuánto de esto es real y no inflación? ¿Cuánto me come cobrar en cuotas?"</td><td><span class="st st-bad">Fase final</span></td></tr>
+    <tr><td><b>💬 WIarky financiero</b></td><td>"Preguntame lo que quieras de tu plata."</td><td><span class="st st-warn">Semilla lista</span></td></tr>
+  </table>
+</div></section>
+
+<!-- ④ MÉTRICAS -->
+<section id="metricas"><div class="wrap">
+  <div class="eyebrow">El corazón pedagógico</div>
+  <h2 class="title">Cada métrica, explicada y ubicada</h2>
+  <p class="sub">Acá está la plata. Leé estas tarjetas hasta poder explicarle cada una a un dueño sin mirar. Orden: de la más importante a la más fina.</p>
+
+  <div class="grid g2">
+
+    <div class="card metric hl">
+      <div class="top"><h3>RevPACH — la métrica reina</h3><span class="st st-warn">Parcial</span></div>
+      <p class="q">"¿Cuánta plata genera cada hora que tu cancha estuvo abierta — esté llena o vacía?"</p>
+      <div class="row"><b>Fórmula</b><span>ingreso total de canchas ÷ horas-cancha disponibles</span></div>
+      <div class="row"><b>Por qué manda</b><span>Combina ocupación Y precio en un solo número. Subilo y todo mejora.</span></div>
+      <div class="ex"><b>Club X:</b> 4.536.000 ÷ 1.260 = <b>$3.600 por hora disponible</b>. Dos clubes con el mismo ingreso total pueden tener rentabilidad opuesta: este número los separa.</div>
+      <div class="pitch">"No te mido cuánto facturás, te mido cuánto le sacás a cada hora de cancha que tenés. Es el único número que tenés que mirar si solo podés mirar uno."</div>
+      <div class="src">Sale de: <code>Reserva.precio</code> (sumado) ÷ horas disponibles (de <code>club.config.horarios</code> × canchas × días). <b>Falta:</b> el cálculo del denominador mensual y la vista.</div>
+    </div>
+
+    <div class="card metric hl">
+      <div class="top"><h3>Ocupación por franja</h3><span class="st st-warn">Parcial</span></div>
+      <p class="q">"¿En qué días y horarios estás lleno y en cuáles vacío?"</p>
+      <div class="row"><b>Fórmula</b><span>horas vendidas ÷ horas disponibles, abierto por día × hora</span></div>
+      <div class="row"><b>Zonas</b><span>pico (&gt;80%) · hombro (40–80%) · valle (&lt;40%)</span></div>
+      <div class="ex"><b>Club X:</b> 45% general. Pero el promedio engaña: el viernes 20hs estás al 95% y el martes 15hs al 10%. <b>El valle es donde está la plata escondida.</b></div>
+      <div class="pitch">"El promedio te miente. Te muestro un mapa de calor: dónde podrías cobrar más caro, y dónde estás regalando el local."</div>
+      <div class="src">Sale de: <code>Reserva</code> agrupada por día/hora. Ya calculás ocupación del DÍA en <code>clubs.js /me/dashboard</code>. <b>Falta:</b> el desglose por franja y el heatmap.</div>
+    </div>
+
+    <div class="card metric">
+      <div class="top"><h3>Break-even (punto de equilibrio)</h3><span class="st st-bad">Falta dato</span></div>
+      <p class="q">"¿Cuántas horas tenés que vender para no perder plata?"</p>
+      <div class="row"><b>Fórmula</b><span>costos fijos ÷ (precio realizado − costo variable/hora)</span></div>
+      <div class="ex"><b>Club X:</b> 3.000.000 ÷ (8.000−1.500) = <b>462 horas (36,7%)</b>. Vende 567 → está <b style="color:var(--ok)">105 horas arriba</b> del equilibrio. Cada hora extra deja $6.500 casi puro.</div>
+      <div class="pitch">"Te digo tu número de supervivencia: abajo de esto perdés, arriba ganás. Y en tiempo real: '¿voy arriba o abajo del equilibrio hoy?'"</div>
+      <div class="src">Sale de: ingresos (ya están) <b style="color:var(--bad)">+ tabla <code>costos</code> que NO existe todavía</b>. Esta métrica desbloquea media sección. Es la pieza #1 a construir.</div>
+    </div>
+
+    <div class="card metric">
+      <div class="top"><h3>Contribución por sector</h3><span class="st st-warn">Parcial</span></div>
+      <p class="q">"¿El bar, las clases y la tienda te dan o te sacan plata de verdad?"</p>
+      <div class="row"><b>Fórmula</b><span>ingreso del sector − costos directos − fijos asignados (por driver)</span></div>
+      <div class="ex"><b>Club X bar:</b> vende 1.200.000, le costó 480.000 → "gana" 720.000 de margen bruto. Pero restale espacio + personal + merma... <b>recién ahí sabés si gana.</b> El clásico: parece rentable y pierde.</div>
+      <div class="pitch">"El margen bruto del bar te miente. Te muestro el margen que no miente: el que ya tiene adentro el costo del espacio que ocupa."</div>
+      <div class="src">Sale de: <code>Cargo</code> tipo producto (con <code>costo</code>, <code>categoria</code>) — ya calculás margen bruto en <code>caja.js /reporte</code>. <b>Asignación:</b> costo directo por sector + prorrateo del resto por ingreso (SIN drivers configurables — decisión: simple &gt; exacto).</div>
+    </div>
+
+    <div class="card metric hl">
+      <div class="top"><h3>🎰 Simulador "¿y si...?"</h3><span class="st st-bad">A construir · killer</span></div>
+      <p class="q">"Si subo la tarifa 10% y pierdo 5% de ocupación, ¿gano o pierdo?"</p>
+      <div class="row"><b>Qué hace</b><span>sliders sobre tu break-even real: tarifa, ocupación, un empleado más, llenar el valle</span></div>
+      <div class="ex"><b>Es la misma matemática del break-even</b>, presentada como decisión en vez de informe. "¿Cuántas horas de valle tenés que llenar para pagar un empleado nuevo?" → respuesta en vivo.</div>
+      <div class="pitch">"No te muestro cómo estás — te dejo probar decisiones antes de tomarlas. Movés un número y ves si ganás o perdés. Esto es un asesor, no una planilla."</div>
+      <div class="src">Sale de: el motor de costos + break-even (una vez que existe). Máximo ratio wow/esfuerzo del proyecto — ~1 sesión. Ningún competidor lo tiene.</div>
+    </div>
+
+    <div class="card metric hl">
+      <div class="top"><h3>📊 Benchmark entre clubes</h3><span class="st st-bad">Foso · multi-tenant</span></div>
+      <p class="q">"Mi 45% de ocupación, ¿es bueno o malo? ¿Cómo estoy vs clubes parecidos?"</p>
+      <div class="row"><b>Qué hace</b><span>compara tu RevPACH/ocupación/yield contra el promedio anónimo de clubes similares</span></div>
+      <div class="ex"><b>Ningún software local puede ofrecer esto</b> — nadie más tiene la data cruzada de muchos clubes. "Tu RevPACH está en el percentil 30." Es más foso que la capa Argentina.</div>
+      <div class="pitch">"Un club solo nunca sabe si va bien o mal. Yo te comparo, anónimo, contra clubes como el tuyo. Sos el único que tiene ese espejo."</div>
+      <div class="src">Requiere volumen (varios clubes), pero el modelo <b>ya nace listo</b>: todo tiene <code>clubId</code>, la agregación anónima es gratis si se piensa ahora.</div>
+    </div>
+
+    <div class="card metric">
+      <div class="top"><h3>🔁 LTV &amp; churn del turno fijo</h3><span class="st st-warn">Dato ya existe</span></div>
+      <p class="q">"¿Cuánto vale de verdad un turno fijo, y cuándo estoy por perder uno?"</p>
+      <div class="row"><b>Qué hace</b><span>valor anual del TF + alerta cuando acumula ausencias (señal de baja)</span></div>
+      <div class="ex"><b>Perder un turno fijo no es perder $9.000, es perder $X al año.</b> Retener recurrente vale más que adquirir. Si un TF empieza a faltar, avisás antes de que se dé de baja.</div>
+      <div class="pitch">"Tu ingreso más valioso es el que se repite. Te aviso cuando uno de tus turnos fijos da señales de que se va, para que lo retengas a tiempo."</div>
+      <div class="src">Sale de: <code>TurnoFijo</code> (precio, estado, diasAusentes) — el dato ya está, falta el cálculo y la alerta.</div>
+    </div>
+
+    <div class="card metric">
+      <div class="top"><h3>Yield (rendimiento de tarifa)</h3><span class="st st-warn">Parcial</span></div>
+      <p class="q">"De toda la plata que PODRÍAS hacer, ¿cuánta hacés de verdad?"</p>
+      <div class="row"><b>Fórmula</b><span>ingreso real ÷ (horas disponibles × tarifa de lista)</span></div>
+      <div class="ex"><b>Club X:</b> 40%. Y lo separa en dos fugas: <b>55 puntos</b> se pierden por horas vacías y <b>11 puntos</b> por hacer descuentos. Te dice contra cuál pelear primero.</div>
+      <div class="pitch">"Te muestro tus dos agujeros por separado: lo que perdés por estar vacío, y lo que perdés por descontar. No es lo mismo y se atacan distinto."</div>
+      <div class="src">Sale de: <code>Reserva.precio</code> vs <code>Cancha.precioTurno</code> (tarifa lista). <b>Recomendación:</b> guardar la tarifa de lista como snapshot en la reserva (cambia con inflación).</div>
+    </div>
+
+    <div class="card metric">
+      <div class="top"><h3>Costo de la hora vacía</h3><span class="st st-warn">Parcial</span></div>
+      <p class="q">"¿Cuánta plata te cuesta cada hora que la cancha está abierta y nadie la usa?"</p>
+      <div class="row"><b>Fórmula</b><span>horas vacías en valle × costo fijo por hora</span></div>
+      <div class="ex"><b>Club X:</b> 200 hs de valle vacías × $2.381 = <b style="color:var(--bad)">$476.200/mes</b> que se sangra sin recuperar. <b>Es la urgencia hecha número.</b></div>
+      <div class="pitch">"Esto no es teoría: son $476.000 que se te van este mes por las canchas vacías de la siesta. Con eso pagás medio sueldo."</div>
+      <div class="src">Sale de: ocupación por franja + costo fijo/hora. <b>Falta:</b> tabla <code>costos</code> para el costo fijo por hora.</div>
+    </div>
+
+    <div class="card metric">
+      <div class="top"><h3>Flujo de caja a 90 días</h3><span class="st st-bad">Falta dato</span></div>
+      <p class="q">"¿Vas a llegar a fin de mes? ¿Y a los próximos tres?"</p>
+      <div class="row"><b>Fórmula</b><span>saldo + cobros esperados − pagos esperados, por timing real</span></div>
+      <div class="ex"><b>Lo que importa es el timing, no el monto:</b> los abonos entran a fin de mes, la luz es bimestral, el aguinaldo cae en dos meses puntuales. El P&L dice si ganás; el flujo dice si <b>llegás</b>.</div>
+      <div class="pitch">"El balance te dice si ganaste. Esto te dice si vas a tener la plata el día 10 para pagar los sueldos. En un negocio chico, esto último es lo que te mata."</div>
+      <div class="src">Sale de: cobros futuros (turnos fijos, abonos) + <code>costos</code> con su periodicidad. <b>Falta:</b> modelar el timing de costos.</div>
+    </div>
+
+    <div class="card metric">
+      <div class="top"><h3>🌦️ Clima × ocupación</h3><span class="st st-bad">Fase final</span></div>
+      <p class="q">"¿Qué días según el clima se juega más? ¿Fue tu gestión o fue que llovió?"</p>
+      <div class="row"><b>Fórmula</b><span>correlación: clima del día (temp/lluvia/viento) × ocupación, segmentado indoor/outdoor</span></div>
+      <div class="row"><b>Para qué</b><span>predecir demanda · promos reactivas al pronóstico · explicar los baches del mes</span></div>
+      <div class="ex"><b>Ejemplo:</b> "los días de lluvia tu ocupación indoor sube 20%" · "arriba de 35° la siesta cae a la mitad". <b>Ojo:</b> hay que medir por tipo de cancha (indoor casi no le afecta) y controlar por día de semana (el finde llueve igual y se juega más por ser finde).</div>
+      <div class="pitch">"Tu software te dice cuándo vas a estar lleno según el clima — y cuando un mes viene flojo, te dice si fue tu gestión o fueron 12 días de lluvia."</div>
+      <div class="src">Sale de: <code>Open-Meteo</code> (API pública, gratis, sin key, con histórico) + lat/long del club (ya lo tenés de Georef) + flag <code>Cancha.indoor</code>. Tabla nueva <code>ClimaDia</code>. <b>Ventaja:</b> el histórico SÍ se recupera hacia atrás → no es urgente capturarlo antes de la prueba. Necesita volumen (multi-tenant) para señal confiable.</div>
+    </div>
+
+    <div class="card metric">
+      <div class="top"><h3>Capa Argentina</h3><span class="st st-bad">Fase final</span></div>
+      <p class="q">"¿Cuánto de mi 'mejora' es real y cuánto es inflación? ¿Cuánto me come cobrar en cuotas?"</p>
+      <div class="row"><b>Real vs nominal</b><span>valor real = nominal × (IPC base ÷ IPC del mes)</span></div>
+      <div class="row"><b>Mix de cobro</b><span>margen neto = bruto − comisión tarjeta − costo financiero del plazo</span></div>
+      <div class="ex">Cobrar en 3 cuotas con inflación alta <b>puede comerse todo el margen</b>. El cómo te pagan afecta el resultado tanto como el cuánto.</div>
+      <div class="pitch">"Ningún software español o brasilero entiende esto. Es tu foso. Te muestro tu plata en pesos de verdad, no en pesos que se derriten."</div>
+      <div class="src">Sale de: <code>metodoPago</code> (ya está) + índice IPC externo. Es la última fase, pero es el mayor diferenciador de marca.</div>
+    </div>
+
+  </div>
+</div></section>
+
+<!-- ⑤ CAPAS -->
+<section id="capas"><div class="wrap">
+  <div class="eyebrow">Las tres capas de inteligencia</div>
+  <h2 class="title">Pedagogía · Chatbot · Agente de mejora continua</h2>
+  <p class="sub">No son tres features sueltas: es una capa que se monta ENCIMA de las métricas. Tienen un orden de dependencia que conviene respetar.</p>
+
+  <div class="grid g3">
+    <div class="card hl">
+      <h3>🎓 1 · Capa pedagógica</h3>
+      <p style="color:var(--mut);font-size:13.5px;margin-top:8px"><b style="color:var(--ink)">Transversal y barata.</b> No es una pantalla: va pegada a cada número. Cada métrica con su "¿qué es?", "¿por qué importa?" y "¿cómo lo mejoro?". El glosario ya está escrito (los PDFs). Estados vacíos que enseñan en lugar de mostrar cero.</p>
+      <div style="margin-top:10px"><span class="chip grn">Se hace junto a cada métrica</span><span class="chip">Reusa tu patrón de tooltips</span></div>
+    </div>
+    <div class="card">
+      <h3>💬 2 · Chatbot financiero</h3>
+      <p style="color:var(--mut);font-size:13.5px;margin-top:8px"><b style="color:var(--ink)">La cara conversacional. Va último.</b> El dueño pregunta "¿por qué bajó mi RevPACH?" y WIarky responde con SUS datos. El bot <b>no calcula</b> — consulta las métricas ya hechas y las explica. Por eso depende de que las métricas existan.</p>
+      <div style="margin-top:10px"><span class="chip grn">Semilla: insight.js + WIarky</span><span class="chip">Necesita métricas primero</span></div>
+    </div>
+    <div class="card">
+      <h3>🤖 3 · Agente de onboarding</h3>
+      <p style="color:var(--mut);font-size:13.5px;margin-top:8px"><b style="color:var(--ink)">El que tiene urgencia REAL.</b> Lee la telemetría de uso y detecta dónde se traba el dueño, qué no usa, qué relee, dónde abandona. Output para ustedes (mejorar producto) + proactivo al dueño ("vi que no cargaste los costos, ¿te ayudo?").</p>
+      <div style="margin-top:10px"><span class="chip red">Telemetría NO existe aún</span><span class="chip red">Prender día 1</span></div>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <h4>⚠ Por qué el agente de onboarding es lo más urgente de las tres</h4>
+    <p>El chatbot y la pedagogía operan sobre datos que vas a tener igual — se pueden construir cuando quieras. Pero <b>los eventos del onboarding del PRIMER club real, si no los capturás desde el día 1, los perdés para siempre.</b> Y ese primer onboarding es oro puro: es tu primer usuario real trabándose en cosas reales. Mismo principio que la captura financiera. Necesitamos una tabla de <code>EventoUso</code> registrando clics/pantallas/abandonos antes de la prueba, aunque el agente que los analiza venga después.</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--lime);font-size:15px">Orden de dependencia</h4>
+    <p style="color:var(--mut);font-size:14px;margin-top:8px"><b style="color:var(--ink)">Métricas</b> → (la pedagogía va pegada) → <b style="color:var(--ink)">Chatbot</b> encima. &nbsp;|&nbsp; <b style="color:var(--ink)">Telemetría</b> arranca YA, en paralelo, y el <b style="color:var(--ink)">agente</b> la lee cuando esté listo.</p>
+  </div>
+</div></section>
+
+<!-- ⑥ ESTADO -->
+<section id="estado"><div class="wrap">
+  <div class="eyebrow">Buenas noticias</div>
+  <h2 class="title">Lo que ya está construido</h2>
+  <p class="sub">Estás más avanzado de lo que el playbook asume. La "Fase 0 — captura", que es la única realmente urgente, está casi completa.</p>
+
+  <table>
+    <tr><th>Pieza del plan</th><th>En tu código</th><th>Estado</th></tr>
+    <tr><td>Reservas con precio cobrado + estado + método de pago</td><td><code>Reserva</code> (precio, estado, metodoPago, pagadoAt, createdAt)</td><td><span class="st st-ok">Listo</span></td></tr>
+    <tr><td>Tarifa de lista por cancha</td><td><code>Cancha.precioTurno</code></td><td><span class="st st-ok">Listo</span></td></tr>
+    <tr><td>Ventas de bar/tienda con costo → margen</td><td><code>Cargo</code> tipo producto + <code>Comanda</code> + <code>Producto</code></td><td><span class="st st-ok">Listo</span></td></tr>
+    <tr><td>Control de stock + rotación</td><td><code>MovimientoStock</code> · <code>StockTab</code></td><td><span class="st st-ok">Listo</span></td></tr>
+    <tr><td>Egresos / gastos (OCR-ready)</td><td><code>Gasto</code> · <code>GastosTab</code></td><td><span class="st st-ok">Listo</span></td></tr>
+    <tr><td>Caja diaria: ingresos − egresos por método</td><td><code>caja.js</code> (GET /caja, /reporte)</td><td><span class="st st-ok">Listo</span></td></tr>
+    <tr><td>Cobranzas: pendientes/vencidos/pagados</td><td><code>PagosPage</code> · <code>CheckoutTurno</code></td><td><span class="st st-ok">Listo</span></td></tr>
+    <tr><td>Ocupación del día + ingresos + tendencia 7d</td><td><code>clubs.js /me/dashboard</code> (con gating por permiso)</td><td><span class="st st-ok">Listo</span></td></tr>
+    <tr><td>Motor de IA (insight del día, sin PII)</td><td><code>insight.js</code> (Anthropic + Haiku 4.5)</td><td><span class="st st-ok">Listo</span></td></tr>
+    <tr><td><b>Costos fijos mensuales</b> (alquiler/sueldos/energía/amort.)</td><td>— no existe —</td><td><span class="st st-bad">Falta</span></td></tr>
+    <tr><td>Ocupación por franja / heatmap / RevPACH / break-even</td><td>datos sí, cálculo+vista no</td><td><span class="st st-warn">Parcial</span></td></tr>
+    <tr><td><b>Telemetría de uso</b> (para el agente de onboarding)</td><td>— no existe —</td><td><span class="st st-bad">Falta</span></td></tr>
+  </table>
+</div></section>
+
+<!-- ⑦ FASES -->
+<section id="fases"><div class="wrap">
+  <div class="eyebrow">El camino</div>
+  <h2 class="title">Roadmap por fases</h2>
+  <p class="sub">De lo urgente a lo diferenciador. Estimaciones en sesiones de trabajo (no días calendario).</p>
+
+  <div class="phase now">
+    <div class="tag"><b>A</b><span>~1 sesión</span></div>
+    <div class="body">
+      <h4>Captura irreversible <span class="chip red">no vuelve</span></h4>
+      <p>Snapshot <code>tarifaLista</code> en cada reserva, confirmar registro de no-show, y tabla <code>EventoUso</code> logueando. Lo único que corre contra el reloj: estos datos no se recuperan hacia atrás.</p>
+    </div>
+  </div>
+  <div class="phase now">
+    <div class="tag"><b>B1</b><span>~1 sesión</span></div>
+    <div class="body">
+      <h4>El "ajá" del break-even <span class="chip grn">50% del valor · 20% del esfuerzo</span></h4>
+      <p><code>Costo</code> simplificado (sin drivers) + <b>onboarding de 4 preguntas</b> con break-even en vivo + costo de la hora vacía + RevPACH. Un dueño que carga UN número y ve "necesitás llenar 37%" y "la siesta vacía te cuesta $476.000/mes" ya está vendido. <b>Esto primero, antes del tablero completo.</b></p>
+    </div>
+  </div>
+  <div class="phase">
+    <div class="tag"><b>B2</b><span>~2 ses.</span></div>
+    <div class="body">
+      <h4>Tablero completo</h4>
+      <p>Heatmap ocupación por franja, contribución por sector (prorrateo por ingreso), yield, flujo 90 días, real vs nominal por IPC (barato + foso de marca, se adelanta acá). Capa pedagógica pegada a cada número.</p>
+    </div>
+  </div>
+  <div class="phase">
+    <div class="tag"><b>B3</b><span>~1 sesión</span></div>
+    <div class="body">
+      <h4>Simulador "¿y si...?" <span class="chip grn">máximo wow/esfuerzo</span></h4>
+      <p>Encima del motor de costos que ya existe. Sliders de decisión: tarifa, ocupación, un empleado más. Es lo que convierte "informe" en "asesor". No lo dejamos para "algún día".</p>
+    </div>
+  </div>
+  <div class="phase">
+    <div class="tag"><b>C</b><span>diferido</span></div>
+    <div class="body">
+      <h4>Inteligencia (cuando haya volumen)</h4>
+      <p>Chatbot financiero (sobre métricas ya hechas), agente de onboarding (con meses de telemetría), <b>benchmark anónimo cross-tenant</b>, clima × ocupación, mix de cobro en cuotas. Ninguno bloquea la venta — diferimiento sano.</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <h4>La bala de plata (resumen del analista)</h4>
+    <p>El <b>break-even + la hora vacía</b>, vendidos con un onboarding de un solo número y feedback instantáneo, son el "cómo no lo tuve antes". Todo lo demás —drivers, clima, chatbot— es refinamiento o adorno. <b>El mayor riesgo no es técnico: es que el dueño no cargue los costos. Por eso el onboarding financiero se diseña como si fuera el producto entero.</b></p>
+  </div>
+</div></section>
+
+<!-- ⑧ GLOSARIO -->
+<section id="glosario"><div class="wrap">
+  <div class="eyebrow">Para no perderte</div>
+  <h2 class="title">Glosario en criollo</h2>
+  <p class="sub">Los términos que vas a usar para vender. Memorizá estos.</p>
+  <table>
+    <tr><th>Término</th><th>En criollo</th></tr>
+    <tr><td><b>RevPACH</b></td><td>Plata que genera cada hora-cancha disponible (esté llena o vacía). El número resumen del negocio.</td></tr>
+    <tr><td><b>COGS</b></td><td>Lo que te costó la mercadería que vendiste. La Coca que vendés a $1.500 te costó $600 → ese $600 es el COGS.</td></tr>
+    <tr><td><b>Yield</b></td><td>Cuánto cobrás de verdad vs el máximo posible. Junta dos pérdidas: horas vacías + descuentos.</td></tr>
+    <tr><td><b>Margen bruto</b></td><td>Venta − COGS. Engaña: parece rentable y puede no serlo.</td></tr>
+    <tr><td><b>Margen de contribución</b></td><td>Lo que queda tras restar TODOS los costos del sector (espacio, personal, merma). El margen que no miente.</td></tr>
+    <tr><td><b>Costo fijo</b></td><td>El que pagás aunque no vendas nada (alquiler, sueldos base).</td></tr>
+    <tr><td><b>Costo variable</b></td><td>El que aparece solo cuando vendés (luz de la cancha, limpieza del turno).</td></tr>
+    <tr><td><b>Break-even</b></td><td>El nivel de ventas donde no ganás ni perdés. Tu número de supervivencia.</td></tr>
+    <tr><td><b>Costo de oportunidad</b></td><td>Lo que dejás de ganar por usar la hora en A en vez de B (dar clase en hora pico que podrías alquilar más caro).</td></tr>
+    <tr><td><b>Amortización</b></td><td>Repartir mes a mes el costo de algo que dura años (el césped, los cristales). Costo real aunque no salga plata ese mes.</td></tr>
+    <tr><td><b>LTV</b></td><td>Cuánta plata deja un cliente en toda su vida como cliente, no en una visita.</td></tr>
+    <tr><td><b>Real vs nominal</b></td><td>Nominal = pesos tal cual. Real = ajustado por inflación. En Argentina, comparar en nominal te miente.</td></tr>
+    <tr><td><b>Driver de asignación</b></td><td>La regla para repartir un costo compartido entre sectores (por m², por horas de uso, por % de personal).</td></tr>
+  </table>
+</div></section>
+
+<footer>
+  <div class="wrap">
+    WIARK Padel · Plan visual del módulo financiero · documento de trabajo, iteramos sobre esto.<br>
+    Fuentes: <span class="pill">WIARK_Padel_Playbook_Financiero</span> <span class="pill">WIARK_Padel_Modulo_Financiero_Spec</span> + auditoría del código actual.
+  </div>
+</footer>
+
+<script>
+  // navegación por secciones
+  const btns=document.querySelectorAll('nav button'), secs=document.querySelectorAll('section');
+  btns.forEach(b=>b.addEventListener('click',()=>{
+    btns.forEach(x=>x.classList.remove('active')); b.classList.add('active');
+    secs.forEach(s=>s.classList.remove('active'));
+    document.getElementById(b.dataset.s).classList.add('active');
+    window.scrollTo({top:0,behavior:'smooth'});
+  }));
+  // heatmap demo (7 días x 14 franjas) — patrón pico tarde-noche, valle siesta
+  const heat=document.getElementById('heat');
+  if(heat){
+    const cols=['#1a1f12','#1a1f12','#3a4a1a','#6f8a1e','#afca0b']; // valle→pico
+    for(let d=0;d<7;d++){for(let h=0;h<14;h++){
+      let lvl=0; const hora=8+h;
+      if(hora>=19&&hora<=22) lvl=4; else if(hora>=17&&hora<19) lvl=3;
+      else if(hora>=9&&hora<=11) lvl=2; else if(hora>=12&&hora<=16) lvl= (d>=5?2:0);
+      else lvl=1;
+      if(d>=5&&hora>=10&&hora<=13) lvl=4; // findes mañana llenos
+      const i=document.createElement('i'); i.style.background=cols[lvl]; heat.appendChild(i);
+    }}
+  }
+</script>
+</body>
+</html>

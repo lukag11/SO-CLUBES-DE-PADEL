@@ -5,6 +5,7 @@ import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
+import { trackEvento } from '../lib/telemetria'
 
 // Decoración SVG: cancha de pádel real, vista cenital (proporción 20×10)
 const CourtDecoration = () => (
@@ -54,6 +55,7 @@ const LoginPage = () => {
     try {
       const data = await api.post('/auth/admin/login', { email: form.email, password: form.password })
       login(data.user, data.token)
+      trackEvento('login', 'admin.login')
       navigate('/dashboardAdmin')
     } catch (err) {
       setError(err.message || 'Email o contraseña incorrectos')

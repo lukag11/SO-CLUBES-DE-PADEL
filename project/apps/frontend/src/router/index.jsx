@@ -14,6 +14,7 @@ import ReservasPage from '../pages/ReservasPage'
 import TorneosPage from '../pages/TorneosPage'
 import TorneoDetallePage from '../pages/TorneoDetallePage'
 import PagosPage from '../pages/PagosPage'
+import DireccionPage from '../pages/DireccionPage'
 import PlayerDashboardPage from '../pages/PlayerDashboardPage'
 import PlayerRegisterPage from '../pages/PlayerRegisterPage'
 import PlayerStatsPage from '../pages/PlayerStatsPage'
@@ -108,6 +109,7 @@ const router = createBrowserRouter([
       { path: 'torneos', element: <TorneosPage /> },
       { path: 'torneos/:id', element: <TorneoDetallePage /> },
       { path: 'pagos', element: <PagosPage /> },
+      { path: 'direccion', element: <DireccionPage /> },
       { path: 'jugadores', element: <JugadoresAdminPage /> },
       { path: 'clases', element: <ClasesProfesorAdminPage /> },
       { path: 'sponsors', element: <AdminSponsorsPage /> },

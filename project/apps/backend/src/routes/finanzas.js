@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { requireAuth, requireRole } from '../middleware/auth.js'
-import { calcularSaludFinanciera, calcularHeatmap, calcularContribucionSectores, calcularFlujoCaja } from '../lib/finanzas.js'
+import { calcularSaludFinanciera, calcularHeatmap, calcularContribucionSectores, calcularFlujoCaja, calcularRetencionTF } from '../lib/finanzas.js'
 
 const router = Router()
 
@@ -47,6 +47,17 @@ router.get('/flujo', requireAuth, requireRole('admin'), async (req, res) => {
   } catch (err) {
     console.error('[finanzas/flujo]', err)
     res.status(500).json({ error: 'Error al calcular el flujo de caja' })
+  }
+})
+
+// GET /api/finanzas/turnos-fijos — retención: valor recurrente anual + TF en riesgo de baja.
+router.get('/turnos-fijos', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const data = await calcularRetencionTF(req.user.clubId)
+    res.json(data)
+  } catch (err) {
+    console.error('[finanzas/turnos-fijos]', err)
+    res.status(500).json({ error: 'Error al calcular la retención de turnos fijos' })
   }
 })
 

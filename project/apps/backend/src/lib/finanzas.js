@@ -415,6 +415,63 @@ export async function calcularHeatmap(clubId, semanas = 8) {
   return { periodo: { desde, hasta: hoy, semanas }, dias: diasConHorario, franjas, celdas, umbrales: { pico: 80, medio: 40 } }
 }
 
+// Cuántas veces por año se juega un turno fijo semanal. 52 semanas; se usa para el valor anual (LTV).
+const SEMANAS_ANIO = 52
+// Un turno fijo está "en riesgo de baja" si faltó este umbral de veces en la ventana reciente.
+const UMBRAL_RIESGO_AUSENCIAS = 3
+const SEMANAS_VENTANA_RIESGO = 8
+
+/**
+ * RETENCIÓN DE TURNOS FIJOS (LTV + churn). El turno fijo es el ingreso más valioso porque se
+ * REPITE: perder uno no es perder un turno, es perder su valor anual. Devuelve el valor recurrente
+ * total (para dimensionar lo que está en juego) y la lista de TF "en riesgo" — los que acumularon
+ * varias ausencias recientes (señal temprana de baja) para que el dueño los retenga a tiempo.
+ * @param {string} clubId
+ */
+export async function calcularRetencionTF(clubId) {
+  const hoy = hoyArgStr()
+  const fechas = ultimasNFechas(hoy, SEMANAS_VENTANA_RIESGO * 7) // ventana de 8 semanas
+  const desde = fechas[0]
+
+  const tfs = await prisma.turnoFijo.findMany({
+    where: { clubId, estado: 'confirmado' },
+    select: {
+      id: true, precio: true, dia: true, horaInicio: true, diasAusentes: true,
+      jugador: { select: { nombre: true, apellido: true } },
+    },
+  })
+
+  let valorRecurrenteAnual = 0
+  const enRiesgo = []
+  for (const tf of tfs) {
+    const valorAnual = (tf.precio ?? 0) * SEMANAS_ANIO
+    valorRecurrenteAnual += valorAnual
+    // Ausencias dentro de la ventana reciente (las fechas viejas no cuentan como señal de baja HOY).
+    const ausenciasRecientes = (tf.diasAusentes || []).filter((f) => f >= desde && f <= hoy).length
+    if (ausenciasRecientes >= UMBRAL_RIESGO_AUSENCIAS) {
+      enRiesgo.push({
+        id: tf.id,
+        jugador: tf.jugador ? `${tf.jugador.nombre} ${tf.jugador.apellido || ''}`.trim() : 'Sin asignar',
+        dia: tf.dia,
+        horaInicio: tf.horaInicio,
+        ausenciasRecientes,
+        valorAnual,
+      })
+    }
+  }
+  // Primero los que más faltaron; a igualdad, el de mayor valor anual (más plata en juego).
+  enRiesgo.sort((a, b) => b.ausenciasRecientes - a.ausenciasRecientes || b.valorAnual - a.valorAnual)
+
+  return {
+    periodo: { desde, hasta: hoy, semanas: SEMANAS_VENTANA_RIESGO },
+    totalTF: tfs.length,
+    valorRecurrenteAnual,
+    valorRecurrenteMensual: Math.round(valorRecurrenteAnual / 12),
+    enRiesgo,
+    umbral: UMBRAL_RIESGO_AUSENCIAS,
+  }
+}
+
 
 /**
  * Devuelve la tarifa de lista vigente de una cancha (su precioTurno) para congelarla

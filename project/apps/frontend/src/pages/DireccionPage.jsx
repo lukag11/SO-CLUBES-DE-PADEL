@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Compass, TrendingUp, Target, AlertTriangle, Info, Loader2, ArrowRight, Pencil, PartyPopper, Sparkles, UserX } from 'lucide-react'
+import { Compass, TrendingUp, Target, AlertTriangle, Info, Loader2, ArrowRight, Pencil, PartyPopper, Sparkles, UserX, Repeat } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
 import { useToast } from '../components/ui/ToastProvider'
@@ -221,6 +221,7 @@ export default function DireccionPage() {
   const [heatmap, setHeatmap] = useState(null)
   const [sectores, setSectores] = useState(null)
   const [flujo, setFlujo] = useState(null)
+  const [retencion, setRetencion] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editando, setEditando] = useState(false)
   const [guardando, setGuardando] = useState(false)
@@ -232,18 +233,20 @@ export default function DireccionPage() {
 
   const cargar = useCallback(async () => {
     try {
-      const [s, cs, hm, sec, fl] = await Promise.all([
+      const [s, cs, hm, sec, fl, rt] = await Promise.all([
         api.get('/finanzas/salud', auth),
         api.get('/costos', auth),
         api.get('/finanzas/heatmap', auth).catch(() => null),
         api.get('/finanzas/sectores', auth).catch(() => null),
         api.get('/finanzas/flujo', auth).catch(() => null),
+        api.get('/finanzas/turnos-fijos', auth).catch(() => null),
       ])
       setSalud(s)
       setCostos(Array.isArray(cs) ? cs : [])
       setHeatmap(hm)
       setSectores(sec)
       setFlujo(fl)
+      setRetencion(rt)
     } catch {
       toast?.error?.('No se pudo cargar la salud financiera')
     } finally {
@@ -596,6 +599,50 @@ export default function DireccionPage() {
               </div>
             )
           })()}
+
+          {/* Retención de turnos fijos (LTV + churn) */}
+          {retencion?.totalTF > 0 && (
+            <div className="mt-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <Repeat size={18} className="text-lime-600" /> Tus turnos fijos <span className="text-[10px] uppercase tracking-wider text-slate-300 border border-slate-200 rounded px-1.5 py-0.5 align-middle">retención</span>
+              </h3>
+              <p className="text-sm text-slate-500 mb-4">Tu ingreso más valioso es el que se repite. Perder un turno fijo no es perder un turno: es perder su valor de todo el año.</p>
+
+              <div className="rounded-2xl bg-gradient-to-br from-lime-50 to-white border border-lime-200 p-5">
+                <p className="text-sm text-slate-500">Tus {retencion.totalTF} turnos fijos valen, si se sostienen un año</p>
+                <p className="text-4xl font-bold text-lime-700 mt-1" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{money(retencion.valorRecurrenteAnual)}<span className="text-xl text-slate-400 font-semibold"> /año</span></p>
+                <p className="text-sm text-slate-500 mt-1">≈ {money(retencion.valorRecurrenteMensual)} por mes de ingreso recurrente.</p>
+              </div>
+
+              {retencion.enRiesgo.length > 0 ? (
+                <div className="mt-4">
+                  <p className="text-sm font-semibold text-amber-700 flex items-center gap-1.5 mb-2">
+                    <AlertTriangle size={15} /> {retencion.enRiesgo.length} en riesgo de baja — faltaron {retencion.umbral}+ veces en las últimas {retencion.periodo.semanas} semanas
+                  </p>
+                  <div className="space-y-2">
+                    {retencion.enRiesgo.map((tf) => (
+                      <div key={tf.id} className="flex items-center gap-3 p-3 rounded-xl border border-amber-200 bg-amber-50/60">
+                        <UserX size={18} className="text-amber-600 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-800 truncate">{tf.jugador}</p>
+                          <p className="text-xs text-slate-500 capitalize">{tf.dia} {tf.horaInicio} · faltó {tf.ausenciasRecientes} veces</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-slate-700">{money(tf.valorAnual)}<span className="text-xs text-slate-400">/año</span></p>
+                          <p className="text-[11px] text-amber-600">en juego</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-3">Un llamado a tiempo retiene lo que ya tenés. Conseguir un fijo nuevo cuesta mucho más que cuidar este.</p>
+                </div>
+              ) : (
+                <p className="text-sm text-lime-700 mt-4 flex items-center gap-1.5">
+                  <span className="text-base">💪</span> Ninguno viene faltando seguido: tus turnos fijos están firmes.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Mapa de calor */}
           <div className="mt-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">

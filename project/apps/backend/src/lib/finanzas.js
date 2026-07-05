@@ -13,7 +13,7 @@ const toMin = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); retur
 // Cantidad de turnos de 1.5h que entran en un horario {activo, apertura, cierre}.
 // "00:00" = medianoche siguiente (1440); cierres 00:30/01:00 cruzan (ci += 1440).
 // DEUDA: esta función está triplicada (clubs.js, insight.js, acá) — unificar en tiempo.js.
-const franjasDia = (h) => {
+export const franjasDia = (h) => {
   if (!h?.activo) return 0
   const ap = toMin(h.apertura)
   let ci = h.cierre === '00:00' ? 1440 : toMin(h.cierre)
@@ -23,7 +23,7 @@ const franjasDia = (h) => {
 
 // Horas de inicio de las franjas de 1.5h de un horario {activo, apertura, cierre}.
 // Ej: {08:00 → 23:30} → ['08:00','09:30',...,'22:30']. Cruce de medianoche aware.
-const franjaTimes = (h) => {
+export const franjaTimes = (h) => {
   if (!h?.activo) return []
   const ap = toMin(h.apertura)
   let ci = h.cierre === '00:00' ? 1440 : toMin(h.cierre)
@@ -53,7 +53,7 @@ const ultimasNFechas = (hoyStr, n) => {
 
 // Turnos-cancha disponibles en un conjunto de fechas = Σ (por cada fecha, por cada cancha
 // activa) franjas de 1.5h de ese día. Respeta horario propio de la cancha si lo tiene.
-const turnosDisponiblesEnFechas = (horariosClub, canchas, fechas) => {
+export const turnosDisponiblesEnFechas = (horariosClub, canchas, fechas) => {
   let total = 0
   for (const f of fechas) {
     const [y, m, d] = f.split('-').map(Number)
@@ -69,7 +69,7 @@ const turnosDisponiblesEnFechas = (horariosClub, canchas, fechas) => {
 
 // Normaliza un costo a su equivalente MENSUAL (la "mochila" es mensual).
 // unico no es recurrente → no suma a la mochila mensual.
-const montoMensual = (costo) => {
+export const montoMensual = (costo) => {
   switch (costo.periodicidad) {
     case 'mensual': return costo.monto
     case 'bimestral': return Math.round(costo.monto / 2)
@@ -262,7 +262,10 @@ export async function calcularContribucionSectores(clubId) {
     const fijoAsignado = ingresoTotal > 0 ? Math.round(fijoGeneral * (s.ingreso / ingresoTotal)) : 0
     const contribucion = s.ingreso - s.directos - fijoAsignado
     const margenPct = s.ingreso > 0 ? Math.round((contribucion / s.ingreso) * 100) : null
-    return { ...s, cogs: s.key === 'bar' ? cogsBar : 0, fijoAsignado, contribucion, margenPct }
+    // El bar vendió pero no tiene COGS cargado → su margen está inflado (parece 100% ganancia).
+    // Señal honesta para avisar: "cargá cuánto te cuesta cada producto" (el COGS sale de Cargo.costo).
+    const cogsFaltante = s.key === 'bar' && s.ingreso > 0 && cogsBar === 0
+    return { ...s, cogs: s.key === 'bar' ? cogsBar : 0, fijoAsignado, contribucion, margenPct, cogsFaltante }
   })
 
   return {
@@ -277,7 +280,7 @@ export async function calcularContribucionSectores(clubId) {
 // TF guardan el día en minúscula sin acento; mapeo a índice getUTCDay (0=domingo).
 const DIA_TF_IDX = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 }
 // Cuántas veces cae un día de semana (índice 0-6) en un mes (year, month 1-12).
-const ocurrenciasDia = (idx, year, month) => {
+export const ocurrenciasDia = (idx, year, month) => {
   const dias = new Date(Date.UTC(year, month, 0)).getUTCDate()
   let n = 0
   for (let d = 1; d <= dias; d++) if (new Date(Date.UTC(year, month - 1, d)).getUTCDay() === idx) n++

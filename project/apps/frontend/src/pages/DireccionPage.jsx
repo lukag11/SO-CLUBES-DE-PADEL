@@ -503,20 +503,30 @@ export default function DireccionPage() {
                 {sectores.sectores.map((sec) => {
                   const positivo = sec.contribucion >= 0
                   return (
-                    <div key={sec.key} className="flex items-center gap-4 p-3 rounded-xl border border-slate-100 bg-slate-50/50">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-slate-800">{sec.nombre}</p>
-                        <p className="text-xs text-slate-400">
-                          Facturó {money(sec.ingreso)} · costos {money(sec.directos + sec.fijoAsignado)}
-                          {sec.cogs > 0 && ` (mercadería ${money(sec.cogs)})`}
-                        </p>
+                    <div key={sec.key} className={`rounded-xl border bg-slate-50/50 ${sec.cogsFaltante ? 'border-amber-200' : 'border-slate-100'}`}>
+                      <div className="flex items-center gap-4 p-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-800">{sec.nombre}</p>
+                          <p className="text-xs text-slate-400">
+                            Facturó {money(sec.ingreso)} · costos {money(sec.directos + sec.fijoAsignado)}
+                            {sec.cogs > 0 && ` (mercadería ${money(sec.cogs)})`}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-xl font-bold ${positivo ? 'text-lime-700' : 'text-rose-600'}`} style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                            {positivo ? '+' : ''}{money(sec.contribucion)}
+                          </p>
+                          {sec.cogsFaltante
+                            ? <p className="text-xs text-amber-600 font-medium">margen sin verificar</p>
+                            : sec.margenPct != null && <p className={`text-xs ${positivo ? 'text-lime-600' : 'text-rose-500'}`}>{sec.margenPct}% de margen</p>}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className={`text-xl font-bold ${positivo ? 'text-lime-700' : 'text-rose-600'}`} style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                          {positivo ? '+' : ''}{money(sec.contribucion)}
+                      {sec.cogsFaltante && (
+                        <p className="text-xs text-amber-700 bg-amber-50 border-t border-amber-100 px-3 py-2 rounded-b-xl flex items-start gap-1.5">
+                          <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                          Este margen no es real: no cargaste cuánto te cuesta cada producto. Cargá el costo en los productos del bar para ver lo que de verdad te deja.
                         </p>
-                        {sec.margenPct != null && <p className={`text-xs ${positivo ? 'text-lime-600' : 'text-rose-500'}`}>{sec.margenPct}% de margen</p>}
-                      </div>
+                      )}
                     </div>
                   )
                 })}

@@ -2,7 +2,7 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireOwner } from '../middleware/auth.js'
 import { tienePermiso } from '../lib/permisos.js'
-import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg, finEnMin } from '../lib/tiempo.js'
+import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg, finEnMin, franjasDia } from '../lib/tiempo.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
 import { gatherInsightData, generarInsightIA, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado, responderChatAgente } from '../lib/insight.js'
 import { organizarConvocatoria, crearConvocatoriaCompleta } from '../lib/convocatorias.js'
@@ -14,14 +14,7 @@ const DIAS_CFG = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes
 const DIAS_TF  = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
 const DIAS_LBL = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 const toMinT = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m }
-// Cantidad de franjas de 1.5h en un horario {activo, apertura, cierre} ("00:00" = medianoche siguiente).
-const franjasDia = (h) => {
-  if (!h?.activo) return 0
-  const ap = toMinT(h.apertura)
-  let ci = h.cierre === '00:00' ? 1440 : toMinT(h.cierre)
-  if (ci <= ap) ci += 1440
-  return Math.max(0, Math.floor((ci - ap) / 90))
-}
+// franjasDia vive en tiempo.js (fuente única, cross-midnight aware).
 // 'YYYY-MM-DD' de hace N días (en ARG) a partir del string de hoy.
 const fechaArgMenos = (hoyStr, n) => {
   const [y, m, d] = hoyStr.split('-').map(Number)

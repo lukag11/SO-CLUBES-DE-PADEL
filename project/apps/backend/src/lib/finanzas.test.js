@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { franjasDia, franjaTimes, montoMensual, ocurrenciasDia, turnosDisponiblesEnFechas } from './finanzas.js'
+import { franjasDia, franjaTimes } from './tiempo.js' // fuente única (antes triplicadas)
+import { montoMensual, ocurrenciasDia, turnosDisponiblesEnFechas } from './finanzas.js'
 
 // Red de seguridad del MOTOR FINANCIERO. Estas piezas puras alimentan el denominador del
 // break-even (turnos disponibles), el RevPACH y el flujo de caja. Si franjasDia se rompe al

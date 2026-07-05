@@ -2,7 +2,7 @@
 // UNA recomendación accionable. Modelo Haiku 4.5 (barato; sin effort/thinking).
 import Anthropic from '@anthropic-ai/sdk'
 import prisma from './prisma.js'
-import { hoyArgStr, inicioDiaArg, inicioMesArg, ahoraArgHHMM } from './tiempo.js'
+import { hoyArgStr, inicioDiaArg, inicioMesArg, ahoraArgHHMM, franjasDia, franjaTimes } from './tiempo.js'
 import { calcularSaludFinanciera } from './finanzas.js'
 
 // Si la fecha es HOY, deja solo las franjas cuyo horario todavía no pasó (compara con la hora
@@ -27,26 +27,7 @@ const DIAS_CFG = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes
 const DIAS_TF  = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
 const DIAS_NOM = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
 const toMin = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m }
-const franjasDia = (h) => {
-  if (!h?.activo) return 0
-  const ap = toMin(h.apertura)
-  let ci = h.cierre === '00:00' ? 1440 : toMin(h.cierre)
-  if (ci <= ap) ci += 1440
-  return Math.max(0, Math.floor((ci - ap) / 90))
-}
-// Lista de horarios de inicio de las franjas de 1.5h de un día {activo, apertura, cierre}
-const franjaTimes = (h) => {
-  if (!h?.activo) return []
-  const ap = toMin(h.apertura)
-  let ci = h.cierre === '00:00' ? 1440 : toMin(h.cierre)
-  if (ci <= ap) ci += 1440
-  const out = []
-  for (let t = ap; t + 90 <= ci; t += 90) {
-    const m = t % 1440
-    out.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`)
-  }
-  return out
-}
+// franjasDia / franjaTimes viven en tiempo.js (fuente única, cross-midnight aware).
 const fechaMenos = (hoyStr, n) => {
   const [y, m, d] = hoyStr.split('-').map(Number)
   const dt = new Date(Date.UTC(y, m - 1, d - n))

@@ -62,3 +62,33 @@ export const finEnMin = (horaInicio, horaFin) => {
 
 // Duración del turno en minutos (siempre positiva, cross-midnight aware).
 export const duracionMin = (horaInicio, horaFin) => finEnMin(horaInicio, horaFin) - toMinHHMM(horaInicio)
+
+// ───────────────────── FRANJAS DE 1.5h de un día {activo, apertura, cierre} ─────────────────────
+// Fuente ÚNICA (antes estaba triplicada en clubs.js, insight.js y finanzas.js).
+// Un turno dura SIEMPRE 90 min. Excepción válida: en el CIERRE del club, "00:00" = medianoche
+// siguiente (1440). El `if (ci <= ap) ci += 1440` cubre cierres 00:30/01:00/02:00 (clubes que
+// cierran después de medianoche) sin invertir el rango.
+
+// Cantidad de turnos de 1.5h que entran en el horario de un día.
+export const franjasDia = (h) => {
+  if (!h?.activo) return 0
+  const ap = toMinHHMM(h.apertura)
+  let ci = h.cierre === '00:00' ? 1440 : toMinHHMM(h.cierre)
+  if (ci <= ap) ci += 1440
+  return Math.max(0, Math.floor((ci - ap) / 90))
+}
+
+// Horas de inicio de las franjas de 1.5h de un día. Ej: {08:00→11:30} → ['08:00','09:30','11:00'].
+// Cruce de medianoche: envuelve con mm % 1440 (ej. {23:00→02:00} → ['23:00','00:30']).
+export const franjaTimes = (h) => {
+  if (!h?.activo) return []
+  const ap = toMinHHMM(h.apertura)
+  let ci = h.cierre === '00:00' ? 1440 : toMinHHMM(h.cierre)
+  if (ci <= ap) ci += 1440
+  const out = []
+  for (let t = ap; t + 90 <= ci; t += 90) {
+    const mm = t % 1440
+    out.push(`${String(Math.floor(mm / 60)).padStart(2, '0')}:${String(mm % 60).padStart(2, '0')}`)
+  }
+  return out
+}

@@ -4,37 +4,13 @@
 // que es la unidad natural del sistema (el precio se cobra por turno, la ocupación se
 // cuenta en slots) → cero conversiones, coherente con el dashboard.
 import prisma from './prisma.js'
-import { hoyArgStr } from './tiempo.js'
+import { hoyArgStr, franjasDia, franjaTimes } from './tiempo.js'
 
 // Días capitalizados con acento, como los guarda club.config.horarios.
 const DIAS_CFG = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 const toMin = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m }
 
-// Cantidad de turnos de 1.5h que entran en un horario {activo, apertura, cierre}.
-// "00:00" = medianoche siguiente (1440); cierres 00:30/01:00 cruzan (ci += 1440).
-// DEUDA: esta función está triplicada (clubs.js, insight.js, acá) — unificar en tiempo.js.
-export const franjasDia = (h) => {
-  if (!h?.activo) return 0
-  const ap = toMin(h.apertura)
-  let ci = h.cierre === '00:00' ? 1440 : toMin(h.cierre)
-  if (ci <= ap) ci += 1440
-  return Math.max(0, Math.floor((ci - ap) / 90))
-}
-
-// Horas de inicio de las franjas de 1.5h de un horario {activo, apertura, cierre}.
-// Ej: {08:00 → 23:30} → ['08:00','09:30',...,'22:30']. Cruce de medianoche aware.
-export const franjaTimes = (h) => {
-  if (!h?.activo) return []
-  const ap = toMin(h.apertura)
-  let ci = h.cierre === '00:00' ? 1440 : toMin(h.cierre)
-  if (ci <= ap) ci += 1440
-  const out = []
-  for (let t = ap; t + 90 <= ci; t += 90) {
-    const mm = t % 1440
-    out.push(`${String(Math.floor(mm / 60)).padStart(2, '0')}:${String(mm % 60).padStart(2, '0')}`)
-  }
-  return out
-}
+// franjasDia / franjaTimes viven en tiempo.js (fuente única, cross-midnight aware).
 
 // Para ordenar franjas: las de madrugada (antes de las 06:00) son cruce de medianoche →
 // van al FINAL del día, no al principio. Les sumamos 1440 al ordenar.

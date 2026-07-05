@@ -549,7 +549,7 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
       `Salud financiera (últimos 30 días, todo en turnos de 1.5h):`,
       s.breakEvenTurnos != null ? `- Punto de equilibrio: ${s.breakEvenTurnos} turnos/mes (${s.breakEvenPct}% de ocupación). Vendió ${s.turnosVendidos} → está ${s.porEncimaDelEquilibrio >= 0 ? s.porEncimaDelEquilibrio + ' turnos POR ENCIMA (ganando)' : Math.abs(s.porEncimaDelEquilibrio) + ' turnos POR DEBAJO (perdiendo)'}.` : '- Punto de equilibrio: no calculable (falta precio o costo variable).',
       `- Rinde por turno (RevPACH): ${money(s.rindePorTurno)}. Ocupación: ${s.ocupacionPct}%.`,
-      `- Costo del turno vacío: ${money(s.costoTurnoVacio)}. Hay ${s.turnosVacios} turnos vacíos = ${money(s.costoTurnosVacios)} que se pierden sin recuperar.`,
+      `- Costo del turno vacío: ${money(s.costoTurnoVacio)} (lo que cuesta tener la cancha abierta un turno). Hay ${s.turnosVacios} turnos libres este mes; llenar los de horarios flojos es la mayor oportunidad (no todos se llenan, ej. la madrugada).`,
       s.yieldPct != null ? `- Rendimiento de tarifa (yield): ${s.yieldPct}%. Se fuga ${s.fugaVacioPct}% por canchas vacías y ${s.fugaDescuentoPct}% por descuentos.` : '',
       s.ausenciasPct != null ? `- Ausencias: ${s.ausencias} turnos vencidos sin cobrar = ${money(s.ausenciasMonto)} (${s.ausenciasPct}% de los vencidos).` : '',
       `- Costos fijos del mes: ${money(s.fijoMensual)}. Precio ${s.precioRealizado > 0 ? 'realizado' : 'de lista'}: ${money(s.precioRef)}.`,

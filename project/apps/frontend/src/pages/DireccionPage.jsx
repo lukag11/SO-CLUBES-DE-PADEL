@@ -228,6 +228,7 @@ export default function DireccionPage() {
 
   const [fijoInput, setFijoInput] = useState('')
   const [varInput, setVarInput] = useState('')
+  const [precioInput, setPrecioInput] = useState('') // rescate: solo si el club aún no tiene precio de referencia
 
   const cargar = useCallback(async () => {
     try {
@@ -268,7 +269,8 @@ export default function DireccionPage() {
   const previewBreakEven = () => {
     const fijo = Number(fijoInput)
     const varr = Number(varInput) || 0
-    const precio = salud?.precioRef || 0
+    // Precio de referencia: el real del club, o el que el dueño tipea en la pregunta de rescate.
+    const precio = salud?.precioRef || Number(precioInput) || 0
     const contrib = precio - varr
     if (!fijo || fijo <= 0 || contrib <= 0 || !salud?.turnosDisponibles) return null
     const beTurnos = Math.ceil(fijo / contrib)
@@ -375,6 +377,28 @@ export default function DireccionPage() {
               </div>
             </div>
 
+            {/* Pregunta de RESCATE — solo si el club todavía no tiene precio de referencia
+                (sin cancha con precio ni turnos cobrados). Sin esto el break-even no se puede
+                calcular y el "ajá" nunca aparecería. */}
+            {s?.falta?.precio && (
+              <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/60 p-5 ml-9">
+                <label className="flex items-center gap-2 text-lg font-semibold text-slate-800 mb-1">
+                  <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 text-sm font-bold flex items-center justify-center">3</span>
+                  ¿A cuánto cobrás el turno?
+                </label>
+                <p className="text-sm text-slate-500 mb-3 ml-9">Todavía no tenemos el precio de tus canchas ni turnos cobrados. Decinos el precio del turno para calcular tu equilibrio. (Cuando cargues el precio en tus canchas, se toma solo.)</p>
+                <div className="relative ml-9">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">$</span>
+                  <input
+                    type="number" inputMode="numeric" value={precioInput}
+                    onChange={(e) => setPrecioInput(e.target.value)}
+                    placeholder="24.000"
+                    className="w-full pl-9 pr-4 py-3.5 rounded-2xl border-2 border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-2xl font-bold text-slate-800 transition-colors bg-white"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* PREVIEW EN VIVO — el "ajá" */}
             {preview ? (
               <div className="bg-gradient-to-br from-lime-50 to-white border-2 border-lime-200 rounded-2xl p-6 ml-9">
@@ -444,9 +468,11 @@ export default function DireccionPage() {
             </div>
             <Termometro vendidos={s.turnosVendidos} breakEven={s.breakEvenTurnos} disponibles={s.turnosDisponibles} />
             <p className="text-sm text-slate-500 mt-3 leading-relaxed">
-              {s.porEncimaDelEquilibrio >= 0
-                ? <>Ya cubriste tus costos: de acá en más, casi cada turno que vendas es <b className="text-lime-700">ganancia</b>. 🎾</>
-                : <>Te faltan <b className="text-amber-700">{Math.abs(s.porEncimaDelEquilibrio)} turnos</b> para dejar de perder. La forma más rápida: llenar los horarios flojos.</>}
+              {s.porEncimaDelEquilibrio == null
+                ? <>Cargá tus costos fijos y el precio del turno para ver cuántos turnos necesitás para no perder.</>
+                : s.porEncimaDelEquilibrio >= 0
+                  ? <>Ya cubriste tus costos: de acá en más, casi cada turno que vendas es <b className="text-lime-700">ganancia</b>. 🎾</>
+                  : <>Te faltan <b className="text-amber-700">{Math.abs(s.porEncimaDelEquilibrio)} turnos</b> para dejar de perder. La forma más rápida: llenar los horarios flojos.</>}
             </p>
           </div>
 
@@ -462,9 +488,9 @@ export default function DireccionPage() {
             <MetricCard
               titulo="Costo del turno vacío" icon={AlertTriangle} tono="red"
               valor={money(s.costoTurnoVacio)}
-              sub={`${s.turnosVacios} turnos vacíos = ${money(s.costoTurnosVacios)} sin recuperar`}
-              explico="Cada turno que la cancha está libre y nadie juega igual paga su parte de los costos fijos. Esa plata se pierde y no vuelve."
-              ayuda="Se calcula: costos fijos del mes ÷ turnos disponibles. Es la urgencia hecha número: llenar el valle es donde más plata recuperás."
+              sub={`tenés ${s.turnosVacios} turnos libres este mes`}
+              explico="Cada turno abierto igual paga su parte de los costos fijos, esté lleno o vacío. Llenar los horarios flojos es donde más ganás."
+              ayuda="Se calcula: costos fijos del mes ÷ turnos disponibles. Es cuánto te cuesta tener la cancha abierta un turno. No todos los turnos libres se llenan (las 3am no), pero cada uno que llenes en un horario flojo es plata que hoy no hacés."
             />
           </div>
 
@@ -563,6 +589,10 @@ export default function DireccionPage() {
                   <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: '#a3e635' }} /> Cobrás</span>
                   <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: '#fda4af' }} /> Pagás (costos fijos)</span>
                 </div>
+                <p className="text-xs text-slate-400 mt-4 flex items-start gap-1.5">
+                  <Info size={13} className="mt-0.5 shrink-0" />
+                  Cuenta lo que ya está agendado (turnos fijos + reservas cargadas). <b className="text-slate-500 font-medium">No incluye las reservas sueltas que todavía nadie sacó</b>, así que los meses 2 y 3 se ven más flojos de lo que van a ser: esos turnos se llenan sobre la fecha.
+                </p>
               </div>
             )
           })()}

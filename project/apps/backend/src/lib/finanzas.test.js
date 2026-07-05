@@ -86,6 +86,14 @@ test('ocurrenciasDia: la suma de los 7 días = total de días del mes', () => {
   assert.equal(suma, 31) // julio
 })
 
+test('ocurrenciasDia: desdeDia excluye los días ya pasados del mes en curso (flujo de caja)', () => {
+  // Miércoles de julio 2026: 1, 8, 15, 22, 29. Desde el día 8 quedan 4 (se descarta el 1).
+  assert.equal(ocurrenciasDia(3, 2026, 7, 8), 4)
+  assert.equal(ocurrenciasDia(3, 2026, 7, 1), 5)  // desde el 1 = todos
+  assert.equal(ocurrenciasDia(3, 2026, 7, 23), 1) // solo el 29
+  assert.equal(ocurrenciasDia(3, 2026, 7, 30), 0) // ningún miércoles después del 29
+})
+
 // ── turnosDisponiblesEnFechas: el DENOMINADOR del break-even y del RevPACH ────────────
 
 test('turnosDisponiblesEnFechas: 2 canchas usan el horario del club', () => {

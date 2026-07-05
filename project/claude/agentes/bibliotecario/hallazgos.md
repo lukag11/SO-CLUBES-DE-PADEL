@@ -7,6 +7,44 @@
 
 ---
 
+## 2026-07-05 · UX de la vista "fase de grupos / mi zona" en desktop ancho — cómo la muestran los referentes
+
+**Contexto:** vista del jugador "mi zona" (round-robin, zonas de 3-4 parejas). Hoy = 3 bloques apilados a ANCHO COMPLETO: (1) tabla posiciones, (2) grilla cruzada de enfrentamientos (matriz pareja×pareja), (3) lista de partidos (cards). Problema en monitores 1600px+: todo se estira, mucho espacio vacío, y en las cards de partido las dos parejas quedan pegadas a los extremos izq/der con un hueco enorme al medio → hay que "barrer la pantalla" para ver contra quién jugás. Luca ya RECHAZÓ: (a) max-width + centrar la llave (dejó blanco feo); (b) posiciones+matriz en 2 columnas y partidos en grilla de 2.
+
+> NOTA DE MÉTODO: los sitios deportivos live (ATP Tour, sofascore, 365scores, Toornament widgets) son SPAs y devolvieron **403 / HTML vacío** al WebFetch — no pude capturar el pixel-layout exacto. Lo marcado [Verificado] viene de fuentes de diseño de tablas (múltiples) y de docs oficiales (Playtomic help). Los layouts concretos de ATP/sofascore van como [Probable] apoyados en snippets de búsqueda + conocimiento de dominio, NO como captura directa. Lo aclaro para no vender como visto lo que inferí.
+
+### HALLAZGO COMPETITIVO JUGOSO — Playtomic PUNTEA la vista de grupos en la app [Verificado]
+- El propio Playtomic **NO muestra bien la fase de grupos/leaderboard dentro de la app**: *"they don't yet see live matchups or leaderboards directly in the Playtomic app — that's coming in a future update"*. Reparten matchups y standings finales **por el chat del torneo** (mensajes). Fuente: helpmanager.playtomic.com (New Tournament Tools: Americano/Mexicano/KotC).
+- **Lectura:** el líder tiene un HUECO acá. Una vista de zona pulida, legible y "premium" en PadelwIArk es un diferenciador real, no una paridad. No estás copiando algo mejor hecho: estás cubriendo algo que el grande todavía no resolvió in-app.
+
+### Cómo lo resuelven los sitios que SÍ lo hacen bien [Probable — dominio + snippets]
+- **Contenedor ACOTADO, no full-bleed edge-to-edge.** sofascore/flashscore/ESPN/ATP en desktop viven en un contenedor central (~1100-1300px) — NO estiran las tablas de borde a borde de un 1600px+. Pero **NO dejan blanco**: usan el ancho sobrante para poner PANELES EN COLUMNAS (standings + fixtures lado a lado), no para centrar una sola columna angosta con vacío a los lados. Ese es el matiz que Luca no vio: el fix a "se estira feo" no es cap+centrar-una-columna (eso deja el blanco que él rechazó), es **cap + LLENAR el ancho con 2 paneles**. Snippet: *"Sofascore has redesigned its standings to give more context... live scores, group standings and knockout brackets"* (sofascore.com); *"Flashscore layout works well when many events are live at once"* (igamingexpress).
+- **La fila de partido es una UNIDAD COMPACTA, nunca justify-between a todo el viewport.** El patrón flashscore/sofascore de fixture: pareja1 arriba / pareja2 abajo (stack vertical) con el score en una banda angosta a la derecha, ganador en negrita, perdedor atenuado. Todo el bloque mide ~360-480px. NO hay "Pareja1 .......... Pareja2" separadas por medio metro de pantalla. **El bug de Luca es exactamente `justify-between` sobre ancho completo** — ningún referente hace eso.
+- **ATP Finals (round-robin de 4, el análogo 1:1 del pádel):** standings por partidos ganados (W-L), luego sets, luego games; página de group-standings + página de results separadas. Columnas típicas de round-robin de tenis: Jugador/Pareja, PJ, PG-PP (record), Sets, Games. Es más magra que la nuestra (Pos, Pts, PG, PP, Dif.Sets, Dif.Games, Criterio) → **posible over-columna nuestra** (ver abajo). Fuente: atptour.com/.../group-standings (no fetcheable, 403), nittoatpfinals.com/rules-and-format.
+
+### Principios de tabla en desktop ancho [Verificado — varias fuentes de diseño]
+- **Fijar el ancho de columnas predecibles** (status, fechas, números, acciones) para que no "salten", y dejar que floten solo las columnas de texto. *"Fix the width of predictable columns... let text-heavy columns flex."* Fuente: setproduct.com/blog/data-table-ui-design.
+- **El whitespace excesivo entre columnas MATA la escaneabilidad** (la fuerza de la tabla es comparar de un vistazo). En pantalla ancha, más espacio ≠ mejor: columnas muy separadas obligan a recorrer con la vista. Fuente: setproduct, pencilandpaper.io.
+- **Alineación:** texto a la IZQUIERDA, números a la DERECHA (o centrados si son cortos tipo score). Center-align de texto rompe el escaneo. Fuente: pencilandpaper.io, eleken.co/blog-posts/table-design-ux.
+- **Tabla vs cards vs lista:** las TABLAS ganan en densidad y en "comparar registros cruzados" (ideal para posiciones); las CARDS ganan cuando cada ítem es una unidad visual escaneable (ideal para un partido con ganador/score); las LISTAS cuando la estructura es plana de una línea. → posiciones = tabla; partidos = cards compactas o filas tipo fixture. La matriz cruzada es tabla densa: potente para comparar, pero sparse y difícil de escanear en zonas chicas (muchas celdas vacías/diagonal). Fuente: uxpatterns.dev (table-vs-list-vs-cards), pencilandpaper.io.
+- **Filas:** condensada 40px / regular 48px / relajada 56px. Regular/relajada leen mejor; condensada mete más data. Fuente: dronahq.com, lollypop.design.
+
+### Redundancia detectada en la vista actual [Probable — análisis]
+- La **matriz cruzada (bloque 2)** y la **lista de partidos (bloque 3)** muestran LO MISMO (los resultados pareja×pareja) dos veces, en dos formatos. En una zona de 3-4 parejas la matriz es 3×3/4×4 = mayormente celdas vacías (diagonal) + redundante con la lista. Ocupa un ancho completo para poca info. Candidata #1 a demoter (toggle/secundaria) o a fusionar. Referentes de zona chica (tenis RR) rara vez muestran matriz Y lista full-width apiladas.
+
+### Fuentes
+- https://helpmanager.playtomic.com/hc/en-gb/articles/44129657203985-New-Tournament-Tools-King-of-the-Court-Americano-and-Mexicano
+- https://www.setproduct.com/blog/data-table-ui-design
+- https://www.pencilandpaper.io/articles/ux-pattern-analysis-enterprise-data-tables
+- https://uxpatterns.dev/pattern-guide/table-vs-list-vs-cards
+- https://www.eleken.co/blog-posts/table-design-ux
+- https://www.dronahq.com/table-ui-design/
+- https://www.nittoatpfinals.com/en/event/rules-and-format
+- https://www.sofascore.com/football/tournament/world/world-championship/16
+- https://igamingexpress.com/flashscore-vs-sofascore/
+
+---
+
 ## 2026-06-27 · Feed PÚBLICO de "partidos abiertos" (pre-login, cara de captación) — cómo lo exponen los referentes
 
 **Contexto:** Luca quiere replicar la cara pública de Convocatorias (sección en landing del club + ítem navbar "Americano y Super 8" → `/eventos` + login-con-retorno) para los PARTIDOS DE 4: navbar público "Partidos" + sección en landing + feed de partidos abiertos donde el visitante anónimo se une registrándose. Quiere "algo que venda". El matching INTERNO ya está (PlayerPartidosPage, PartidoPublicoPage en `/partido/:id`, "¡Voy!" + aprobación del organizador, rango de categorías). WebSearch SÍ habilitado este turno.

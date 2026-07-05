@@ -249,7 +249,8 @@ const DashboardPage = () => {
     const ini = toMin(a.horaInicio)
     let fin = toMin(a.horaFin)
     if (fin <= ini) fin += 1440 // cruza medianoche (ej. 23:30→01:00, o 22:30→00:00)
-    return { ...a, enCurso: ini <= ahoraMin && ahoraMin < fin, futuro: ini > ahoraMin }
+    // finalizado = ya pasó el fin (cross-midnight aware: fin ya trae el +1440 si cruza).
+    return { ...a, enCurso: ini <= ahoraMin && ahoraMin < fin, futuro: ini > ahoraMin, finalizado: ahoraMin >= fin }
   })
   const idxProximo = agenda.findIndex((a) => a.futuro)
 
@@ -692,12 +693,16 @@ const DashboardPage = () => {
                         {/* Estado de pago (solo reservas; los turnos fijos no tienen pago por día) */}
                         {a.pagado === true && <span className="text-[10px] font-medium text-emerald-600">Pagado</span>}
                         {a.pagado === false && <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-500"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" />Impago</span>}
-                        {/* Estado de tiempo */}
-                        {a.enCurso ? (
-                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">EN JUEGO</span>
-                        ) : i === idxProximo ? (
-                          <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">PRÓXIMO</span>
-                        ) : null}
+                        {/* Estado de tiempo — ancho fijo para que "Impago" quede alineado entre filas */}
+                        <div className="w-20 flex justify-end shrink-0">
+                          {a.enCurso ? (
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">EN JUEGO</span>
+                          ) : i === idxProximo ? (
+                            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">PRÓXIMO</span>
+                          ) : a.finalizado ? (
+                            <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">FINALIZADO</span>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   ))}

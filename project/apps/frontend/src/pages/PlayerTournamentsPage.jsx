@@ -191,67 +191,64 @@ const PartidoZonaReadOnly = ({ partido, miParejaId, parejas = [] }) => {
   const ganN = ganP1 ? n1 : ganP2 ? n2 : null
 
   const bubbleCls = (esGanador, esMiPar) =>
-    `w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+    `w-5 h-5 lg:w-6 lg:h-6 rounded-full flex items-center justify-center text-[10px] lg:text-[11px] font-bold shrink-0 ${
       esGanador ? 'bg-emerald-500 text-white' :
-      finalizado ? 'bg-white/5 text-white/20' :
+      finalizado ? 'bg-white/5 text-white/25' :
       esMiPar ? 'bg-club/20 text-club' :
       'bg-white/8 text-white/35'
     }`
 
   const nameCls = (esGanador, esMiPar) =>
-    `text-xs truncate ${
-      esGanador ? 'text-white font-semibold' :
-      finalizado ? 'text-white/20 line-through' :
-      esMiPar ? 'text-club font-medium' :
-      'text-white/45'
+    `text-[13px] lg:text-[15px] truncate ${
+      esGanador ? 'text-white font-bold' :
+      finalizado ? 'text-white/30' :
+      esMiPar ? 'text-club font-semibold' :
+      'text-white/55'
     }`
 
+  // Una fila por pareja (formato marcador): seed + nombre a la izquierda, games por set a la derecha.
+  const filaPareja = (pareja, seed, gano, esMiPar, lado) => (
+    <div className="flex items-center gap-2">
+      <span className={bubbleCls(gano, esMiPar)}>{seed ?? '?'}</span>
+      <span className={`flex-1 min-w-0 ${nameCls(gano, esMiPar)}`}>
+        {pareja ? `${pareja.jugador1.split(' ')[0]} / ${pareja.jugador2.split(' ')[0]}` : '—'}
+      </span>
+      {finalizado && resultado?.length > 0 && (
+        <div className="flex items-center gap-1 shrink-0">
+          {resultado.map((s, i) => {
+            const mine = lado === 1 ? s.p1 : s.p2
+            const otro = lado === 1 ? s.p2 : s.p1
+            return (
+              <span key={i} className={`w-6 text-center font-mono text-[15px] tabular-nums ${
+                mine > otro ? 'text-emerald-400 font-bold' : 'text-white/30'
+              }`}>{mine}</span>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+
   return (
-    <div className={`rounded-xl border overflow-hidden ${esMio ? 'border-club/20' : 'border-white/8'}`}>
-      {/* Fila principal: P1 | sets | P2 */}
-      <div className={`flex items-center gap-2 px-3 py-2.5 ${finalizado ? 'bg-emerald-500/4' : 'bg-white/3'}`}>
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <span className={bubbleCls(ganP1, pareja1?.id === miParejaId)}>{n1 ?? '?'}</span>
-          <span className={nameCls(ganP1, pareja1?.id === miParejaId)}>
-            {pareja1 ? `${pareja1.jugador1.split(' ')[0]} / ${pareja1.jugador2.split(' ')[0]}` : '—'}
-          </span>
-        </div>
-        <div className="flex items-center gap-0.5 shrink-0">
-          {finalizado && resultado?.length > 0 ? (
-            resultado.map((s, i) => {
-              const p1GanoSet = s.p1 > s.p2
-              return (
-                <span key={i} className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border ${
-                  p1GanoSet
-                    ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
-                    : 'text-white/25 bg-white/5 border-white/8'
-                }`}>{s.p1}-{s.p2}</span>
-              )
-            })
-          ) : (
-            <span className="text-[10px] text-white/15 px-1">vs</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
-          <span className={`${nameCls(ganP2, pareja2?.id === miParejaId)} text-right`}>
-            {pareja2 ? `${pareja2.jugador1.split(' ')[0]} / ${pareja2.jugador2.split(' ')[0]}` : '—'}
-          </span>
-          <span className={bubbleCls(ganP2, pareja2?.id === miParejaId)}>{n2 ?? '?'}</span>
-        </div>
+    <div className={`rounded-xl border overflow-hidden ${esMio ? 'border-club/25 bg-club/[0.03]' : 'border-white/8'}`}>
+      {/* Cuerpo: una pareja arriba de la otra (marcador vertical) */}
+      <div className={`px-3.5 py-3 flex flex-col gap-2 ${finalizado ? 'bg-emerald-500/[0.03]' : 'bg-white/[0.02]'}`}>
+        {filaPareja(pareja1, n1, ganP1, pareja1?.id === miParejaId, 1)}
+        {filaPareja(pareja2, n2, ganP2, pareja2?.id === miParejaId, 2)}
       </div>
-      {/* Fila secundaria: horario + ganador */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-t border-white/5 bg-white/[0.02]">
+      {/* Footer: horario + estado */}
+      <div className="flex items-center justify-between px-3.5 py-2 border-t border-white/5 bg-white/[0.02]">
         {slot ? (
-          <span className="text-[11px] font-medium text-sky-400/70">
+          <span className="text-[12px] lg:text-[13px] font-medium text-sky-400/70">
             {slot.dia} · {slot.hora ?? ''}
           </span>
         ) : (
-          <span className="text-[10px] text-white/20">Sin horario</span>
+          <span className="text-[12px] text-white/20">Sin horario</span>
         )}
         {finalizado && ganN !== null ? (
-          <span className="text-[10px] font-bold text-emerald-400">✓ P{ganN} ganó</span>
+          <span className="text-[12px] lg:text-[13px] font-bold text-emerald-400">✓ P{ganN} ganó</span>
         ) : (
-          <span className="text-[10px] text-white/20">pendiente</span>
+          <span className="text-[12px] text-white/20">pendiente</span>
         )}
       </div>
     </div>
@@ -339,24 +336,8 @@ const StandingsZona = ({ zona, miParejaId, puntosPorVictoria = 2 }) => {
     setOpenCrit({ i, rect })
   }
 
-  // ── Grilla cruzada ───────────────────────────────────────────────────────
-  const getCell = (rowId, colId) => {
-    if (rowId === colId) return 'self'
-    const m = zona.partidos.find((p) =>
-      (p.pareja1?.id === rowId && p.pareja2?.id === colId) ||
-      (p.pareja1?.id === colId && p.pareja2?.id === rowId)
-    )
-    if (!m || m.estado !== 'finalizado') return null
-    const rowIsP1 = m.pareja1?.id === rowId
-    const won     = m.ganador?.id === rowId
-    const sets    = (m.resultado ?? []).map((r) => rowIsP1 ? `${r.p1}-${r.p2}` : `${r.p2}-${r.p1}`)
-    return { won, sets }
-  }
-
-  const hayResultados = zona.partidos.some((m) => m.estado === 'finalizado')
-
   return (
-    <div className="flex flex-col gap-2 mb-3">
+    <div className="flex flex-col gap-2 lg:shrink-0">
 
       {/* ── Popover criterio ─────────────────────────────────────────────────── */}
       {openCrit !== null && (
@@ -379,18 +360,18 @@ const StandingsZona = ({ zona, miParejaId, puntosPorVictoria = 2 }) => {
       )}
 
       {/* ── Tabla de posiciones ─────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-white/8 overflow-hidden">
-        <table className="w-full text-[11px]">
+      <div className="rounded-xl border border-white/8 overflow-x-auto max-w-full w-full lg:w-fit">
+        <table className="w-full lg:w-auto text-[11px] lg:text-[15px]">
           <thead>
             <tr className="border-b border-white/8 bg-white/3">
-              <th className="px-2.5 py-1.5 text-left text-white/20 font-semibold w-10">Pos.</th>
-              <th className="px-2.5 py-1.5 text-left text-white/20 font-semibold">Pareja</th>
-              <th className="px-2 py-1.5 text-center text-club/40 font-bold w-9" title="Puntos">Pts</th>
-              <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-8">PG</th>
-              <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-8">PP</th>
-              <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-12" title="Diferencia de sets">Dif.S</th>
-              <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-12" title="Diferencia de games">Dif.G</th>
-              <th className="px-2 py-1.5 text-center text-white/20 font-semibold w-14" title="Criterio de clasificación">Crit.</th>
+              <th className="px-1.5 lg:px-2.5 py-1.5 text-left text-white/20 font-semibold w-10">Pos.</th>
+              <th className="px-1.5 lg:px-2.5 py-1.5 text-left text-white/20 font-semibold pr-2 lg:pr-8">Pareja</th>
+              <th className="px-1 lg:px-2 py-1.5 text-center text-club/40 font-bold w-9" title="Puntos">Pts</th>
+              <th className="px-1 lg:px-2 py-1.5 text-center text-white/20 font-semibold w-8">PG</th>
+              <th className="px-1 lg:px-2 py-1.5 text-center text-white/20 font-semibold w-8">PP</th>
+              <th className="px-1 lg:px-2 py-1.5 text-center text-white/20 font-semibold w-9 lg:w-12" title="Diferencia de sets">Dif.S</th>
+              <th className="px-1 lg:px-2 py-1.5 text-center text-white/20 font-semibold w-9 lg:w-12" title="Diferencia de games">Dif.G</th>
+              <th className="px-1 lg:px-2 py-1.5 text-center text-white/20 font-semibold w-11 lg:w-14" title="Criterio de clasificación">Crit.</th>
             </tr>
           </thead>
           <tbody>
@@ -408,9 +389,9 @@ const StandingsZona = ({ zona, miParejaId, puntosPorVictoria = 2 }) => {
                              : ''
               return (
                 <tr key={pareja.id} className={`border-b border-white/5 last:border-0 ${esMia ? 'bg-club/5' : ''}`}>
-                  <td className="px-2.5 py-2 font-bold text-white/20">{i + 1}°</td>
-                  <td className="px-2.5 py-2 max-w-0">
-                    <div className="flex items-center gap-1.5">
+                  <td className="px-1.5 lg:px-2.5 py-2 font-bold text-white/20">{i + 1}°</td>
+                  <td className="px-1.5 lg:px-2.5 py-2 pr-2 lg:pr-8 max-w-[38vw] lg:max-w-none">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       {esClasif && zona.clasificados && (
                         <span className="w-1 h-3.5 rounded-full bg-emerald-400/50 shrink-0" />
                       )}
@@ -419,19 +400,19 @@ const StandingsZona = ({ zona, miParejaId, puntosPorVictoria = 2 }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-2 py-2 text-center font-bold text-club">{st.pts}</td>
-                  <td className="px-2 py-2 text-center font-semibold text-emerald-400">{st.wins}</td>
-                  <td className="px-2 py-2 text-center text-white/25">{st.losses}</td>
-                  <td className={`px-2 py-2 text-center font-semibold tabular-nums ${
+                  <td className="px-1 lg:px-2 py-2 text-center font-bold text-club">{st.pts}</td>
+                  <td className="px-1 lg:px-2 py-2 text-center font-semibold text-emerald-400">{st.wins}</td>
+                  <td className="px-1 lg:px-2 py-2 text-center text-white/25">{st.losses}</td>
+                  <td className={`px-1 lg:px-2 py-2 text-center font-semibold tabular-nums ${
                     difSets  > 0 ? 'text-emerald-400'   : difSets  < 0 ? 'text-red-400/65' : 'text-white/20'
                   }`}>{difSets  > 0 ? `+${difSets}`  : difSets}</td>
-                  <td className={`px-2 py-2 text-center font-semibold tabular-nums ${
+                  <td className={`px-1 lg:px-2 py-2 text-center font-semibold tabular-nums ${
                     difGames > 0 ? 'text-sky-400/80'    : difGames < 0 ? 'text-red-400/55' : 'text-white/20'
                   }`}>{difGames > 0 ? `+${difGames}` : difGames}</td>
-                  <td className="px-2 py-2 text-center">
+                  <td className="px-1 lg:px-2 py-2 text-center">
                     <button
                       onClick={(e) => handleCritClick(e, i)}
-                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border transition-opacity hover:opacity-75 ${
+                      className={`text-[10px] lg:text-[11px] font-bold px-1 lg:px-1.5 py-0.5 rounded-md border transition-opacity hover:opacity-75 ${
                         criterio ? critCls : 'text-white/15 border-transparent bg-transparent cursor-default'
                       }`}
                     >
@@ -444,77 +425,6 @@ const StandingsZona = ({ zona, miParejaId, puntosPorVictoria = 2 }) => {
           </tbody>
         </table>
       </div>
-
-      {/* ── Grilla de enfrentamientos (solo si hay al menos un resultado) ────── */}
-      {hayResultados && (
-        <div className="rounded-xl border border-white/8 overflow-hidden">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-white/6 bg-white/3">
-            <LayoutGrid size={10} className="text-white/20" />
-            <span className="text-[10px] text-white/20 font-semibold uppercase tracking-widest">Enfrentamientos</span>
-          </div>
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className="border-b border-white/5 bg-white/[0.02]">
-                <th className="px-3 py-1.5 text-left text-white/15 font-semibold" style={{ width: '38%' }}>Pareja</th>
-                {sorted.map((p, i) => (
-                  <th key={p.id} className="py-1.5 text-center font-bold text-white/20">
-                    P{i + 1}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((rowPar, rowIdx) => {
-                const esMia = rowPar.id === miParejaId
-                return (
-                  <tr key={rowPar.id} className={`border-b border-white/4 last:border-0 ${esMia ? 'bg-club/4' : ''}`}>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
-                          esMia ? 'bg-club/20 text-club' : 'bg-white/8 text-white/25'
-                        }`}>{rowIdx + 1}</span>
-                        <span className={`truncate font-medium text-[10px] ${esMia ? 'text-club' : 'text-white/30'}`}>
-                          {rowPar.jugador1.split(' ')[0]}
-                        </span>
-                      </div>
-                    </td>
-                    {sorted.map((colPar) => {
-                      const cell = getCell(rowPar.id, colPar.id)
-                      if (cell === 'self') return (
-                        <td key={colPar.id} className="py-2 text-center">
-                          <span className="text-white/10 font-bold text-[11px]">×</span>
-                        </td>
-                      )
-                      if (!cell) return (
-                        <td key={colPar.id} className="py-2 text-center">
-                          <span className="text-white/15 text-[12px]">·</span>
-                        </td>
-                      )
-                      return (
-                        <td key={colPar.id} className="py-1.5 text-center">
-                          {cell.sets.length > 0 ? (
-                            <div className="flex flex-col items-center gap-0.5">
-                              {cell.sets.map((set, si) => (
-                                <span key={si} className={`font-mono font-semibold leading-none text-[9px] ${
-                                  cell.won ? 'text-emerald-400' : 'text-red-400/55'
-                                }`}>{set}</span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className={`font-bold text-[11px] ${cell.won ? 'text-emerald-400' : 'text-red-400/55'}`}>
-                              {cell.won ? 'G' : 'P'}
-                            </span>
-                          )}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   )
 }
@@ -551,9 +461,9 @@ const GrupoReadOnly = ({ grupos, playerName, puntosPorVictoria = 2 }) => {
         </div>
       )
     }
-    // Round-robin — tarjeta estilo tabla admin (dark theme)
+    // Round-robin — tarjetas que teselan: varias por fila en pantalla ancha, apiladas en mobile.
     return (
-      <div className="flex flex-col gap-2">
+      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))' }}>
         {miZona.partidos.map((m) => {
           const n1         = pairNum(m.pareja1)
           const n2         = pairNum(m.pareja2)
@@ -564,79 +474,69 @@ const GrupoReadOnly = ({ grupos, playerName, puntosPorVictoria = 2 }) => {
           const ganN       = ganP1 ? n1 : ganP2 ? n2 : null
 
           const bubbleCls = (esGanador, esMiPar) =>
-            `w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+            `w-5 h-5 lg:w-6 lg:h-6 rounded-full flex items-center justify-center text-[10px] lg:text-[11px] font-bold shrink-0 ${
               esGanador ? 'bg-emerald-500 text-white' :
-              finalizado ? 'bg-white/5 text-white/20' :
+              finalizado ? 'bg-white/5 text-white/25' :
               esMiPar ? 'bg-club/20 text-club' :
               'bg-white/8 text-white/35'
             }`
 
           const nameCls = (esGanador, esMiPar) =>
-            `text-xs truncate ${
-              esGanador ? 'text-white font-semibold' :
-              finalizado ? 'text-white/20 line-through' :
-              esMiPar ? 'text-club font-medium' :
-              'text-white/45'
+            `text-[13px] lg:text-[15px] truncate ${
+              esGanador ? 'text-white font-bold' :
+              finalizado ? 'text-white/30' :
+              esMiPar ? 'text-club font-semibold' :
+              'text-white/55'
             }`
+
+          // Una fila por pareja (formato marcador): seed + nombre a la izquierda, games por set
+          // a la derecha en una banda fija. Ganador resaltado en lima; perdedor atenuado.
+          const filaPareja = (pareja, seed, gano, esMiPar, lado) => (
+            <div className="flex items-center gap-2">
+              <span className={bubbleCls(gano, esMiPar)}>{seed ?? '?'}</span>
+              <span className={`flex-1 min-w-0 ${nameCls(gano, esMiPar)}`}>
+                {pareja ? `${pareja.jugador1.split(' ')[0]} / ${pareja.jugador2.split(' ')[0]}` : '—'}
+              </span>
+              {finalizado && m.resultado?.length > 0 && (
+                <div className="flex items-center gap-1 shrink-0">
+                  {m.resultado.map((s, i) => {
+                    const mine = lado === 1 ? s.p1 : s.p2
+                    const otro = lado === 1 ? s.p2 : s.p1
+                    return (
+                      <span key={i} className={`w-5 lg:w-6 text-center font-mono text-[13px] lg:text-[15px] tabular-nums shrink-0 ${
+                        mine > otro ? 'text-emerald-400 font-bold' : 'text-white/30'
+                      }`}>{mine}</span>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
 
           return (
             <div key={m.id} className={`rounded-xl border overflow-hidden ${
-              esMio ? 'border-club/20' : 'border-white/8'
+              esMio ? 'border-club/25 bg-club/[0.03]' : 'border-white/8'
             }`}>
 
-              {/* Fila principal: P1 | sets | P2 */}
-              <div className={`flex items-center gap-2 px-3 py-2.5 ${finalizado ? 'bg-emerald-500/4' : 'bg-white/3'}`}>
-
-                {/* Pareja 1 */}
-                <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                  <span className={bubbleCls(ganP1, m.pareja1?.id === miPareja?.id)}>{n1 ?? '?'}</span>
-                  <span className={nameCls(ganP1, m.pareja1?.id === miPareja?.id)}>
-                    {m.pareja1 ? `${m.pareja1.jugador1.split(' ')[0]} / ${m.pareja1.jugador2.split(' ')[0]}` : '—'}
-                  </span>
-                </div>
-
-                {/* Sets (centro) */}
-                <div className="flex items-center gap-0.5 shrink-0">
-                  {finalizado && m.resultado?.length > 0 ? (
-                    m.resultado.map((s, i) => {
-                      const p1GanoSet = s.p1 > s.p2
-                      return (
-                        <span key={i} className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border ${
-                          p1GanoSet
-                            ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
-                            : 'text-white/25 bg-white/5 border-white/8'
-                        }`}>
-                          {s.p1}-{s.p2}
-                        </span>
-                      )
-                    })
-                  ) : (
-                    <span className="text-[10px] text-white/15 px-1">vs</span>
-                  )}
-                </div>
-
-                {/* Pareja 2 */}
-                <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
-                  <span className={`${nameCls(ganP2, m.pareja2?.id === miPareja?.id)} text-right`}>
-                    {m.pareja2 ? `${m.pareja2.jugador1.split(' ')[0]} / ${m.pareja2.jugador2.split(' ')[0]}` : '—'}
-                  </span>
-                  <span className={bubbleCls(ganP2, m.pareja2?.id === miPareja?.id)}>{n2 ?? '?'}</span>
-                </div>
+              {/* Cuerpo: una pareja arriba de la otra (marcador vertical, se lee de un vistazo) */}
+              <div className={`px-3.5 py-3 flex flex-col gap-2 ${finalizado ? 'bg-emerald-500/[0.03]' : 'bg-white/[0.02]'}`}>
+                {filaPareja(m.pareja1, n1, ganP1, m.pareja1?.id === miPareja?.id, 1)}
+                {filaPareja(m.pareja2, n2, ganP2, m.pareja2?.id === miPareja?.id, 2)}
               </div>
 
-              {/* Fila secundaria: horario + resultado */}
-              <div className="flex items-center justify-between px-3 py-1.5 border-t border-white/5 bg-white/[0.02]">
+              {/* Footer: horario + estado */}
+              <div className="flex items-center justify-between px-3.5 py-2 border-t border-white/5 bg-white/[0.02]">
                 {m.slot ? (
-                  <span className="text-[11px] font-medium text-sky-400/70">
+                  <span className="text-[12px] lg:text-[13px] font-medium text-sky-400/70">
                     {m.slot.dia} · {m.slot.hora ?? m.slot.franja.split('(')[0].trim()}
                   </span>
                 ) : (
-                  <span className="text-[10px] text-white/20">Sin horario</span>
+                  <span className="text-[12px] text-white/20">Sin horario</span>
                 )}
                 {finalizado && ganN !== null ? (
-                  <span className="text-[10px] font-bold text-emerald-400">✓ P{ganN} ganó</span>
+                  <span className="text-[12px] lg:text-[13px] font-bold text-emerald-400">✓ P{ganN} ganó</span>
                 ) : (
-                  <span className="text-[10px] text-white/20">pendiente</span>
+                  <span className="text-[12px] text-white/20">pendiente</span>
                 )}
               </div>
 
@@ -665,12 +565,15 @@ const GrupoReadOnly = ({ grupos, playerName, puntosPorVictoria = 2 }) => {
         )}
       </div>
 
-      {/* Tabla de posiciones + grilla cruzada */}
-      <StandingsZona zona={miZona} miParejaId={miPareja?.id} puntosPorVictoria={puntosPorVictoria} />
+      {/* Posiciones a la izquierda (compacta) + partidos llenando la derecha */}
+      <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+        <StandingsZona zona={miZona} miParejaId={miPareja?.id} puntosPorVictoria={puntosPorVictoria} />
 
-      {/* Partidos */}
-      <p className="text-[10px] text-white/25 uppercase tracking-widest font-semibold mb-2">Partidos</p>
-      {renderPartidos()}
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] text-white/25 uppercase tracking-widest font-semibold mb-2">Partidos</p>
+          {renderPartidos()}
+        </div>
+      </div>
     </div>
   )
 }
@@ -988,13 +891,13 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
           {(tieneGrupos || miBracket) && (
             <>
               {/* Tab bar unificado */}
-              <div className={`flex items-center gap-1 px-4 py-2.5 ${editable || editableDisp ? 'border-t border-white/5' : ''}`}>
+              <div className={`flex items-center gap-1 px-2 lg:px-4 py-2.5 overflow-x-auto ${editable || editableDisp ? 'border-t border-white/5' : ''}`}>
 
                 {/* Tab Mi zona */}
                 {tieneGrupos && (
                   <button
                     onClick={() => setActiveTab((v) => v === 'miZona' ? null : 'miZona')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-all ${
                       activeTab === 'miZona'
                         ? 'bg-club/15 text-club border border-club/25'
                         : 'text-white/35 hover:text-white/60 hover:bg-white/5 border border-transparent'
@@ -1018,14 +921,15 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
                 {tieneGrupos && (torneo.grupos?.length ?? 0) > 1 && (
                   <button
                     onClick={() => setActiveTab((v) => v === 'todasZonas' ? null : 'todasZonas')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-all ${
                       activeTab === 'todasZonas'
                         ? 'bg-white/10 text-white/80 border border-white/15'
                         : 'text-white/35 hover:text-white/60 hover:bg-white/5 border border-transparent'
                     }`}
                   >
                     <LayoutGrid size={11} />
-                    <span>Todas las zonas</span>
+                    <span className="lg:hidden">Todas</span>
+                    <span className="hidden lg:inline">Todas las zonas</span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-md border ${
                       activeTab === 'todasZonas'
                         ? 'bg-white/8 border-white/12 text-white/40'
@@ -1038,7 +942,7 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
                 {miBracket && (
                   <button
                     onClick={() => setActiveTab((v) => v === 'cuadros' ? null : 'cuadros')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-all ${
                       activeTab === 'cuadros'
                         ? 'bg-white/10 text-white/80 border border-white/15'
                         : 'text-white/35 hover:text-white/60 hover:bg-white/5 border border-transparent'
@@ -1165,7 +1069,7 @@ const ZonaPanel = ({ zona, playerName, defaultOpen, puntosPorVictoria = 2 }) => 
       )
     }
     return (
-      <div className="flex flex-col gap-2">
+      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))' }}>
         {zona.partidos.map((p) => (
           <PartidoZonaReadOnly key={p.id} partido={p} miParejaId={miPareja?.id} parejas={zona.parejas} />
         ))}
@@ -1223,13 +1127,13 @@ const ZonaPanel = ({ zona, playerName, defaultOpen, puntosPorVictoria = 2 }) => 
 
       {/* Contenido expandible */}
       {expanded && (
-        <div className="px-4 pb-4 border-t border-white/6 pt-3 flex flex-col gap-3">
+        <div className="px-2 lg:px-4 pb-4 border-t border-white/6 pt-3 flex flex-col lg:flex-row lg:items-start gap-4">
 
-          {/* Tabla de posiciones + grilla cruzada */}
+          {/* Posiciones a la izquierda (compacta) */}
           <StandingsZona zona={zona} miParejaId={miPareja?.id} puntosPorVictoria={puntosPorVictoria} />
 
-          {/* Partidos */}
-          <div>
+          {/* Partidos llenando la derecha */}
+          <div className="flex-1 min-w-0">
             <p className="text-[10px] text-white/20 uppercase tracking-widest font-semibold mb-2">Partidos</p>
             {renderPartidos()}
           </div>

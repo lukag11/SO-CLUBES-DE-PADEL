@@ -56,6 +56,7 @@ export const BRACKET_THEMES = {
     cardGlow: null,
     watermark: 'MAIN DRAW',
     watermarkColor: 'rgba(255,255,255,0.025)',
+    watermarkTile: true, // mosaico de marcas chicas repetidas (solo este theme)
     sponsorsBg: '#0d0d14',
     sponsorsTopBorder: null,
   },

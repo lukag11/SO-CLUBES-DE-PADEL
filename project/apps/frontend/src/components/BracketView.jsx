@@ -951,6 +951,7 @@ const BracketView = ({
   const connGlow    = (torneo.bracketConnGlow ?? true) && (theme.connGlow ?? false)
   const watermarkText   = torneo.bracketWatermarkOculto ? null : (torneo.bracketWatermark ?? theme.watermark)
   const watermarkColor  = theme.watermarkColor ?? 'rgba(255,255,255,0.025)'
+  const watermarkTile   = theme.watermarkTile ?? false // true → mosaico de marcas chicas (solo world-tour-dark)
   const wrapperBg       = torneo.bracketFondoColor ?? theme.wrapperBg
   const drawMostrarGenero = torneo.drawMostrarGenero ?? true
 
@@ -1528,8 +1529,44 @@ const BracketView = ({
             className="relative min-w-max mx-auto w-fit"
             style={{ display: 'flex', alignItems: 'flex-start', gap: COL_GAP }}
           >
-            {/* Watermark */}
-            {watermarkText && (
+            {/* Watermark — mosaico de marcas chicas (watermarkTile) o una sola grande (default) */}
+            {watermarkText && watermarkTile && (
+              <div
+                className="absolute inset-0 pointer-events-none select-none overflow-hidden"
+                style={{ zIndex: 0 }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: '-25%',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignContent: 'center',
+                    justifyContent: 'center',
+                    gap: 'clamp(30px, 4.5vw, 70px)',
+                    transform: 'rotate(-12deg)',
+                  }}
+                >
+                  {Array.from({ length: 160 }).map((_, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        color: watermarkColor,
+                        fontSize: 'clamp(22px, 3.2vw, 46px)',
+                        fontWeight: 900,
+                        textTransform: 'uppercase',
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {watermarkText}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {watermarkText && !watermarkTile && (
               <div
                 className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden"
                 style={{ zIndex: 0 }}

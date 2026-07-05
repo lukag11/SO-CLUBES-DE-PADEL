@@ -2137,8 +2137,8 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
                           {m.pareja1 ? `${m.pareja1.jugador1.split(' ')[0]} / ${m.pareja1.jugador2.split(' ')[0]}` : '—'}
                         </span>
                       </div>
-                      {/* Sets */}
-                      <div className="flex items-center gap-0.5 shrink-0">
+                      {/* Sets — apilados en vertical */}
+                      <div className="flex flex-col items-center gap-0.5 shrink-0">
                         {finalizado && m.resultado?.length > 0 ? (
                           m.resultado.map((s, i) => (
                             <span key={i} className="text-[14px] font-mono font-semibold px-1.5 py-0.5 rounded border"

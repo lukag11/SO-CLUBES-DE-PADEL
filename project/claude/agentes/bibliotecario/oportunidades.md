@@ -7,6 +7,44 @@
 
 ---
 
+## 2026-07-05 · Rediseño vista "mi zona" (fase de grupos) en desktop ancho — 3 opciones priorizadas
+
+**Problema:** 3 bloques full-width apilados (posiciones / matriz cruzada / partidos). En 1600px+ se estira, blanco vacío, y las cards de partido tienen las parejas en los extremos con hueco al medio ("barrer la pantalla"). Rechazados: max-width+centrar (blanco feo), 2-col posiciones+matriz + partidos en grilla de 2.
+
+**Diagnóstico (por qué fallaron los intentos):** el problema NO es "hay que centrar y achicar" (eso deja el blanco que rechazaste), es **el ancho no se está USANDO, se está BLANQUEANDO**. Y el "barrer la pantalla" de las cards es un bug puntual de layout (`justify-between` sobre ancho completo), no del concepto de card. Los referentes acotan el contenedor PERO lo llenan con paneles en columnas, y sus filas de partido son unidades compactas (~360-480px), nunca estiradas al viewport. Playtomic ni siquiera resuelve esto in-app (lo tira al chat) → hay hueco competitivo, vale hacerlo bien. Fuente: hallazgos 2026-07-05.
+
+### FIX TRANSVERSAL (aplica a las 3 opciones, es lo que de verdad duele) — la card de partido
+- **Nunca `justify-between` de la card a todo el ancho.** La card de partido es una unidad de ancho ACOTADO (~380-460px), centrada dentro de su celda de grilla.
+- Estructura recomendada (patrón flashscore/sofascore): **stack vertical** — Pareja1 (fila) / Pareja2 (fila), cada una con su nombre a la IZQUIERDA y su score a la DERECHA en una banda fija angosta; **ganador en negrita + color (lima), perdedor atenuado**; hora/cancha en un pie chico. Alternativa horizontal: `[Pareja1 der-align | chip SCORE centro | Pareja2 izq-align]` todo dentro de ~460px. El score va en un chip, no suelto.
+- El whitespace vive como PADDING adentro de la card, no como hueco muerto entre elementos. Fuente: pencilandpaper.io, setproduct.
+
+### OPCIÓN 1 (recomendada) — "Dashboard de zona": contenedor acotado + 2 paneles + matriz demota
+- Contenedor central acotado (~1200-1360px, NO full-bleed). Adentro, 2 columnas que LLENAN el ancho (así no hay blanco):
+  - **Izquierda (~40%, sticky): tabla de POSICIONES.** Es el ancla, lo primero que mira el jugador. Compactá columnas: Pos, Pareja, Pts, PG, PP, Dif (unificar Dif.Sets/Dif.Games en una col con tooltip, o dejar 2 pero angostas). La col "Criterio" pasá a tooltip/ícono, no columna propia (ATP muestra menos columnas — probable over-columna nuestra).
+  - **Derecha (~60%): lista de PARTIDOS** como cards compactas apiladas (fix transversal). Los partidos de la zona son 3-6 → entran sin scroll.
+  - **Matriz cruzada → toggle secundario** ("ver tabla cruzada") o tab, NO tercer bloque full-width. Es redundante con la lista y en zonas de 3-4 es casi toda celdas vacías.
+- Por qué: usa el ancho (sin blanco), posiciones y partidos se leen juntos sin barrer, mata la redundancia matriz+lista. Es el patrón sofascore/ESPN/ATP. **Difiere del intento (b) rechazado:** ahí pusiste matriz (densa) al lado de posiciones y partidos en grilla; acá el panel derecho son los PARTIDOS (no la matriz), y la matriz se esconde.
+- Esfuerzo: medio (reordenar layout + rediseñar card). Impacto: alto.
+
+### OPCIÓN 2 — "Una columna, cards que teselan": mínima, si querés tocar poco
+- Mantené el flujo vertical (posiciones arriba full-width acotado a ~1100px, partidos abajo) PERO los partidos en **grilla responsive `auto-fill minmax(360px, 1fr)`**: en 1600px caen 3 cards por fila llenando el ancho, en 1200px caen 2-3, en mobile 1. Cada card = fix transversal (compacta, no estirada).
+- Por qué: es tu instinto de apilado vertical pero sin el "barrer pantalla" (las cards tienen ancho fijo y se acomodan solas). El blanco desaparece porque las cards llenan la fila. La matriz igual conviene demoterla a toggle.
+- Difiere del intento (a) rechazado: no centrás una columna angosta con blanco a los lados; las cards ocupan el ancho teselando. Difiere de (b): la grilla es fluida (auto-fill), no "de 2" fija.
+- Esfuerzo: bajo-medio. Impacto: medio-alto. Buena si querés el mínimo cambio que resuelve el dolor.
+
+### OPCIÓN 3 — "Tabla inteligente" (más ambiciosa, premium): fusionar posiciones + head-to-head
+- La tabla de posiciones es el centro; al hacer hover/expandir una pareja, se despliega su head-to-head (contra quién jugó, resultado) inline. Elimina la matriz como bloque. Partidos como lista compacta debajo o en panel derecho.
+- Por qué: máxima densidad sin redundancia, sensación "premium/analítica" (sofascore rediseñó standings justo para dar "more context at a glance"). Diferencia fuerte vs Playtomic (que ni muestra la tabla in-app).
+- Esfuerzo: alto (interacción custom). Impacto: alto pero con riesgo de over-engineering para zonas de 3-4. Dejar para una 2da iteración.
+
+### Errores a evitar (de las fuentes)
+- `justify-between` card→viewport (el bug actual). Whitespace excesivo entre columnas mata el escaneo (setproduct/pencilandpaper). Cap+centrar UNA columna angosta = el blanco que ya rechazaste. Matriz cruzada como bloque full-width primario en zona chica (sparse, redundante). Center-align de nombres (van a la izquierda). Demasiadas columnas en posiciones (Criterio → tooltip).
+- Premium = ganador destacado (peso/color), score en chip, columnas fijas alineadas (texto izq / números der), filas 48-56px, contenedor acotado que LLENA con paneles.
+
+**Recomendación para Luca:** arrancar por **Opción 1** (mejor relación impacto/coherencia con referentes), y si querés el cambio más chico primero, **Opción 2** como paso intermedio — ambas comparten el fix transversal de la card, que es lo que de verdad elimina el "barrer la pantalla". Guardar Opción 3 para pulido posterior. Fuente: hallazgos.md 2026-07-05.
+
+---
+
 ## 2026-06-27 · Feed público "Partidos" en la landing del club — SÍ, pero con el motor en el LINK, no en el feed
 
 **Impacto:** alto (captación + reúso de infra existente) · **Esfuerzo:** medio (el embudo ya existe; falta feed + sección + navbar) · **Estado:** nueva, recomendada.

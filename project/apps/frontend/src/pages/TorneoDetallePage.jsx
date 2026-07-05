@@ -974,7 +974,7 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName, punto
   const renderSets = (resultado, ganadorEsP1) => {
     if (!resultado?.length) return <span className="text-slate-300 text-xs">—</span>
     return (
-      <div className="flex items-center gap-1">
+      <div className="flex flex-col items-start gap-1">
         {resultado.map((s, i) => {
           const p1Gano = s.p1 > s.p2
           const esWin  = ganadorEsP1 ? p1Gano : !p1Gano

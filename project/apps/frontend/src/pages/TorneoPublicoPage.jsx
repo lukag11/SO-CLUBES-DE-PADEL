@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Trophy, Calendar, ArrowLeft, Users, GitMerge, Clock, CheckCircle, Flag, Tag,
-  LayoutGrid, MapPin, Award, ChevronRight, Crown, Medal,
+  LayoutGrid, MapPin, Award, ChevronRight, ChevronDown, Crown, Medal,
 } from 'lucide-react'
 import useTorneosStore from '../store/torneosStore'
 import useClubStore from '../store/clubStore'
@@ -1887,6 +1887,16 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
   const [catTabG, setCatTabG] = useState(() => zonaCats[0] ?? null)
   const zonasFiltradas = multiCatG ? (torneo.grupos ?? []).filter((z) => z.categoria === catTabG) : (torneo.grupos ?? [])
 
+  // Partidos colapsables por zona: TODAS arrancan colapsadas (posiciones siempre visibles);
+  // el visitante toca "Ver partidos" en la zona que le interesa.
+  const zonaKey = (z) => z.nombre + (z.categoria ?? '')
+  const [zonasAbiertas, setZonasAbiertas] = useState(() => new Set())
+  const toggleZona = (key) => setZonasAbiertas((prev) => {
+    const n = new Set(prev)
+    n.has(key) ? n.delete(key) : n.add(key)
+    return n
+  })
+
   if (!torneo.grupos?.length) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -2022,6 +2032,8 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
           return idx >= 0 ? idx + 1 : null
         }
 
+        const zAbierta = zonasAbiertas.has(zonaKey(zona))
+
         return (
           <div key={zona.nombre + (zona.categoria ?? '')} className="relative">
           <div className={st.zona} style={cardBg}>
@@ -2043,8 +2055,17 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
               )}
               <div className={`relative z-10 ${imagenFondo ? 'flex items-center justify-between px-5 py-4 border-b border-white/10' : st.zonaHdr}`}>
                 <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: imagenFondo ? 'rgba(255,255,255,0.12)' : accentColor + '22' }}>
-                    <span className="text-sm font-black" style={{ color: imagenFondo ? (colorTexto ?? '#fff') : accentColor }}>{zona.nombre.replace('Zona ','')}</span>
+                  <div
+                    className="relative w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden"
+                    style={imagenFondo
+                      ? { background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.25)' }
+                      : { background: `linear-gradient(145deg, ${accentColor}, ${accentColor}c0)`, boxShadow: `0 6px 18px -6px ${accentColor}99` }}
+                  >
+                    {/* brillo superior tipo botón */}
+                    {!imagenFondo && <div className="absolute inset-x-0 top-0 h-1/2 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(255,255,255,0.28), transparent)' }} />}
+                    <span className="relative text-[26px] font-black leading-none tracking-tight" style={{ color: imagenFondo ? (colorTexto ?? '#fff') : (isColorDark(accentColor) ? '#fff' : '#0d1117') }}>
+                      {zona.nombre.replace('Zona ','')}
+                    </span>
                   </div>
                   <span className={imagenFondo ? 'font-semibold text-base' : st.zonaNombre} style={imagenFondo ? { color: colorTexto ?? '#fff' } : {}}>{zona.nombre}</span>
                   {zona.categoria && <span className={imagenFondo ? 'text-sm bg-white/10 px-2 py-0.5 rounded-md' : st.catBadge} style={imagenFondo ? { color: colorTexto ? colorTexto + 'aa' : 'rgba(255,255,255,0.5)' } : {}}>{zona.categoria}</span>}
@@ -2057,7 +2078,7 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
               </div>
             </div>
 
-            {/* Posiciones */}
+            {/* Posiciones (siempre visible) */}
             <div className={`px-5 pt-4 pb-3 ${st.secBorder}`}>
               <p className={st.secLabel}>Posiciones</p>
               <table className="w-full text-[13px]">
@@ -2115,9 +2136,25 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
               </table>
             </div>
 
-            {/* Partidos */}
-            <div className="px-5 py-4 flex flex-col gap-2">
-              <p className={`${st.secLabel} mb-1`}>Partidos</p>
+            {/* Partidos (colapsables — Posiciones queda siempre visible) */}
+            <div className="px-5 py-4">
+              <button
+                onClick={() => toggleZona(zonaKey(zona))}
+                className="group flex items-center justify-between w-full mb-1"
+              >
+                <span className={st.secLabel}>
+                  Partidos <span style={{ opacity: 0.45 }}>· {zona.partidos.length}</span>
+                </span>
+                <span
+                  className="flex items-center gap-1.5 text-[12px] font-bold px-3 py-1.5 rounded-full transition-all group-hover:brightness-125 group-active:scale-95"
+                  style={{ color: accentColor, background: `${accentColor}1f`, border: `1px solid ${accentColor}3d` }}
+                >
+                  {zAbierta ? 'Ocultar' : 'Ver partidos'}
+                  <ChevronDown size={14} className={`transition-transform duration-200 ${zAbierta ? 'rotate-180' : ''}`} />
+                </span>
+              </button>
+              {zAbierta && (
+              <div className="flex flex-col gap-2">
               {zona.partidos.map((m) => {
                 const n1         = eqNum(m.pareja1)
                 const n2         = eqNum(m.pareja2)
@@ -2128,35 +2165,38 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
 
                 return (
                   <div key={m.id} className={finalizado ? st.matchCardFin : st.matchCard}>
-                    <div className={finalizado ? st.matchBodyFin : st.matchBody}>
-                      {/* P1 */}
-                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    <div className={`${finalizado ? st.matchBodyFin : st.matchBody} !flex !flex-col !items-stretch gap-1.5`}>
+                      {/* Fila P1 — seed + nombre (izq) · games por set (der) */}
+                      <div className="flex items-center gap-2">
                         <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${ganP1 ? 'bg-emerald-500 text-white' : `${st.seedBg}${finalizado ? ' opacity-60' : ''}`}`}>{n1 ?? '?'}</span>
-                        <span className="text-sm font-semibold leading-tight"
-                          style={{ color: ganP1 ? tNameW : finalizado ? tNameL : tNameW, textDecoration: ganP2 && finalizado ? 'line-through' : 'none', opacity: ganP2 && finalizado ? 0.5 : 1 }}>
+                        <span className="flex-1 min-w-0 truncate text-sm font-semibold leading-tight"
+                          style={{ color: ganP1 ? tNameW : finalizado ? tNameL : tNameW, opacity: ganP2 && finalizado ? 0.5 : 1 }}>
                           {m.pareja1 ? `${m.pareja1.jugador1.split(' ')[0]} / ${m.pareja1.jugador2.split(' ')[0]}` : '—'}
                         </span>
-                      </div>
-                      {/* Sets — apilados en vertical */}
-                      <div className="flex flex-col items-center gap-0.5 shrink-0">
-                        {finalizado && m.resultado?.length > 0 ? (
-                          m.resultado.map((s, i) => (
-                            <span key={i} className="text-[14px] font-mono font-semibold px-1.5 py-0.5 rounded border"
-                              style={{ color: s.p1 > s.p2 ? tClrScoreW : tClrScoreL, background: s.p1 > s.p2 ? `${tClrScoreW}18` : 'transparent', borderColor: s.p1 > s.p2 ? `${tClrScoreW}30` : 'transparent' }}>
-                              {s.p1}-{s.p2}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-[12px] px-1" style={{ color: tClrScoreL }}>vs</span>
+                        {finalizado && m.resultado?.length > 0 && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            {m.resultado.map((s, i) => (
+                              <span key={i} className="w-5 text-center text-[15px] font-mono font-bold tabular-nums"
+                                style={{ color: s.p1 > s.p2 ? tClrScoreW : tClrScoreL }}>{s.p1}</span>
+                            ))}
+                          </div>
                         )}
                       </div>
-                      {/* P2 */}
-                      <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
-                        <span className="text-sm text-right font-semibold leading-tight"
-                          style={{ color: ganP2 ? tNameW : finalizado ? tNameL : tNameW, textDecoration: ganP1 && finalizado ? 'line-through' : 'none', opacity: ganP1 && finalizado ? 0.5 : 1 }}>
+                      {/* Fila P2 */}
+                      <div className="flex items-center gap-2">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${ganP2 ? 'bg-emerald-500 text-white' : `${st.seedBg}${finalizado ? ' opacity-60' : ''}`}`}>{n2 ?? '?'}</span>
+                        <span className="flex-1 min-w-0 truncate text-sm font-semibold leading-tight"
+                          style={{ color: ganP2 ? tNameW : finalizado ? tNameL : tNameW, opacity: ganP1 && finalizado ? 0.5 : 1 }}>
                           {m.pareja2 ? `${m.pareja2.jugador1.split(' ')[0]} / ${m.pareja2.jugador2.split(' ')[0]}` : '—'}
                         </span>
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${ganP2 ? 'bg-emerald-500 text-white' : `${st.seedBg}${finalizado ? ' opacity-60' : ''}`}`}>{n2 ?? '?'}</span>
+                        {finalizado && m.resultado?.length > 0 && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            {m.resultado.map((s, i) => (
+                              <span key={i} className="w-5 text-center text-[15px] font-mono font-bold tabular-nums"
+                                style={{ color: s.p2 > s.p1 ? tClrScoreW : tClrScoreL }}>{s.p2}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     {/* Footer horario */}
@@ -2173,6 +2213,8 @@ const TabGrupos = ({ torneo, accentColor, imagenFondo = null, imagenHeader = nul
                   </div>
                 )
               })}
+              </div>
+              )}
             </div>
           </div>
           </div>

@@ -89,7 +89,8 @@ const esDePareja = (pareja, playerName) =>
 const getResultado = (torneo, playerName) => {
   if (esDePareja(torneo.ganador, playerName))    return { label: 'Campeón',   icon: '🏆', color: 'text-club' }
   if (esDePareja(torneo.subcampeon, playerName)) return { label: 'Finalista', icon: '🥈', color: 'text-blue-400' }
-  if (torneo.estado === 'finished')              return { label: 'Eliminado', icon: '⚡', color: 'text-white/40' }
+  // Si el torneo terminó y no ganaste ni fuiste finalista, no mostramos nada: con el estado
+  // "Finalizado" del torneo alcanza (antes cantaba "Eliminado", redundante y negativo).
   return null
 }
 
@@ -987,6 +988,7 @@ const MiTorneoCard = ({ torneo, playerName, playerId, onEditar, onCancelar }) =>
                     seedingMap={seedingMap}
                     hideHeader={true}
                     bracketTemplate="default"
+                    cardLayoutOverride="stat"
                   />
                 </div>
               )}

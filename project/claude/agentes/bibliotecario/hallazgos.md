@@ -7,6 +7,50 @@
 
 ---
 
+## 2026-07-05 (bis) · Convertir al ESPECTADOR ANÓNIMO de la página pública de un torneo — cómo enganchan los referentes
+
+**Contexto:** cada torneo de PadelwIArk tiene página pública sin login (grupos + bracket + campeón + sponsors + branding del club). El visitante típico llega por LINK compartido por WhatsApp ("mirá cómo va el torneo") o buscando resultados = **lead TIBIO** (conoce a alguien jugando o le interesa el club). Hoy la página es INFORMATIVA, sin embudo de conversión. Objetivo: convertirlo en (a) socio/jugador registrado, (b) inscripto al próximo torneo, (c) reserva de cancha, o al menos (d) capturar contacto para remarketing. Y que eso le dé valor de venta al DUEÑO (el SaaS se vende mejor si la página pública trae gente). WebSearch SÍ habilitado.
+
+### Cómo lo resuelven los referentes [Verificado]
+- **FenixPlay (apps de torneo de pádel):** su ventaja competitiva declarada es *"Anyone can follow the tournament from the browser, without installing anything or creating an account"* + *"Players and spectators see the scores as they update, no refresh needed"*. **El no-login es el argumento de venta, no un detalle.** Excel+WhatsApp *"leaves spectators in the dark"*. → PadelwIArk ya tiene esto (página pública sin login): es paridad con el líder de nicho, hay que NO romperlo (nunca meter un muro de login para ver resultados). Fuente: fenixplay.app/en/blog/best-padel-tournament-apps.
+- **Challonge:** convierte espectadores con dos mecánicas de engagement: **(1) bracket predictions** — *"Have people submit their brackets prior to your tournament starting, and we'll keep track of the leaderboard"* (quiniela con tabla); **(2) voting on open matches** — cualquiera con cuenta vota. Ambas EXIGEN cuenta → convierten espectador→registrado jugando. También separan **spectator tickets vs participant tickets**. Fuente: kb.challonge.com (Registration; Hosting a Sign-Up Page), challonge.com/features.
+- **Toornament:** widget que **auto-evoluciona según el estado del torneo**: antes = botón de registro; durante = últimos/próximos partidos; al terminar = ganador. Un solo `<script>` embebido, se actualiza solo, white-label en plan alto. → El CTA que cambia con el estado del torneo es un patrón validado, no un invento. Fuente: help.toornament.com/share/the-widgets, blog.toornament.com (Meet the Widgets).
+- **Playtomic:** su torneo es BÁSICO; el share es un botón "Share" arriba del detalle + reparte standings **por el CHAT del torneo** (no hay página pública live pulida). Hueco reconocido por terceros. Fuente: fenixplay.app, playerhelp.playtomic.com (Tournaments).
+- **Apps de Americano (live leaderboard):** el patrón viral clave verbatim: *"Sharing the leaderboard by sending final standings to the group chat gives people something to talk about **and a reason to come back next week**"* + link/QR que **transmite en la TV del club** + *"Live leaderboard links make tournaments feel like a pro tour"*. **El compartir el resultado al grupo NO es un extra: es el motor de retorno semanal.** Fuente: americano-padel.app, spark.mwm.ai (Americano Padel Manager), livecup.app.
+
+### Cómo enganchan los sitios de RESULTADOS deportivos al espectador casual [Verificado]
+- **Push notifications = +50% engagement**; el gancho central es el botón **"Follow" (ícono campana)** para seguir un equipo/jugador y recibir updates. Contenido personalizado = **+40% de probabilidad de engagement**. Fuente: arena.im (Push Notifications for Sports Coverage), moldstud.com (Top 10 Features Live Score Apps), statsperform.com.
+- **Lectura para PadelwIArk:** el equivalente del "Follow" para el espectador tibio es **"Seguí este torneo"** (o "Seguí a [jugador]") — la acción de MENOR fricción y MÁS natural para quien llegó por el link de un conocido. No le pidas "registrate" de una: pedile "seguí" (bajo compromiso) y capturás el contacto ahí.
+
+### Best practices de captura de lead / página de conversión [Verificado]
+- **Email/dato único por default: cada campo extra del form corta la conversión 5-15%.** Waitlist promedio convierte ~15%, buenas 20-30%, top 40-85%. Fuente: waitlister.me, unbounce.com.
+- **Un solo outcome en el titular** ("nombrá UN resultado"), no un lema genérico. Fuente: flowjam, magicui.
+- **UNA sola tarea por página; esconder/quitar el nav sube conversión 10-15%.** Múltiples CTAs compitiendo = paradoja de elección. Fuente: waitlister.me, getlaunchlist.
+- **Referral mechanic:** Dropbox creció con referidos (+60% signups permanente). El loop de compartir es parte del embudo, no un adorno. Fuente: viral-loops.com, waitlister.me.
+- **Post-signup = secuencia de engagement**: quien "sigue" debe recibir updates (score, próximo torneo) — es el puente al remarketing. Fuente: waitlister.me.
+
+### Cruce contra PadelwIArk — qué YA tiene y qué le falta
+- **YA tiene:** página pública sin login (paridad con FenixPlay), branding del club + sponsors, share por WhatsApp, registro de jugador, inscripción a torneos, reservas, notif in-app, **DNI matching retroactivo** (al registrarse, vincula historial de torneos por DNI — memoria project_dni_matching_registro). Esto último es ORO para el gancho "reclamá tu perfil".
+- **Le falta (el hueco):** (1) CTA CONTEXTUAL por estado del torneo (hoy la página es informativa, sin llamado a la acción claro); (2) acción de bajo compromiso "Seguí el torneo" que capture contacto; (3) perfiles de jugador clicables como puerta de entrada ("¿sos vos? reclamá tu perfil"); (4) sensación "en vivo" explícita (badge EN VIVO + auto-refresh) cuando el torneo está en curso; (5) texto de WhatsApp pre-armado con GANCHO (hoy comparte link pelado); (6) captura de lead del anónimo (email/WhatsApp) para remarketing del dueño.
+
+### Fuentes
+- https://fenixplay.app/en/blog/best-padel-tournament-apps/
+- https://kb.challonge.com/en/category/registration-c1s5r6/
+- https://challonge.com/features/tournaments
+- https://help.toornament.com/share/the-widgets
+- https://blog.toornament.com/2017/11/meet-the-widgets/
+- https://americano-padel.app/en/
+- https://spark.mwm.ai/en/apps/americano-padel-manager/6747935961
+- https://livecup.app/padel-tournament
+- https://arena.im/customer-experience/push-notifications-for-sports-coverage/
+- https://moldstud.com/articles/p-top-10-features-for-live-sports-score-apps
+- https://www.statsperform.com/resource/how-the-best-live-score-apps-drive-fan-engagement-revenues-and-49-star-ratings/
+- https://waitlister.me/growth-hub/guides/waitlist-landing-page-optimization-guide
+- https://unbounce.com/landing-pages/how-to-create-the-ultimate-lead-capture-page/
+- https://viral-loops.com/blog/how-to-build-a-waitlist/
+
+---
+
 ## 2026-07-05 · UX de la vista "fase de grupos / mi zona" en desktop ancho — cómo la muestran los referentes
 
 **Contexto:** vista del jugador "mi zona" (round-robin, zonas de 3-4 parejas). Hoy = 3 bloques apilados a ANCHO COMPLETO: (1) tabla posiciones, (2) grilla cruzada de enfrentamientos (matriz pareja×pareja), (3) lista de partidos (cards). Problema en monitores 1600px+: todo se estira, mucho espacio vacío, y en las cards de partido las dos parejas quedan pegadas a los extremos izq/der con un hueco enorme al medio → hay que "barrer la pantalla" para ver contra quién jugás. Luca ya RECHAZÓ: (a) max-width + centrar la llave (dejó blanco feo); (b) posiciones+matriz en 2 columnas y partidos en grilla de 2.

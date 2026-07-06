@@ -7,6 +7,49 @@
 
 ---
 
+## 2026-07-05 (bis) · Embudo de conversión de la página pública de torneo — convertir al espectador anónimo (lead tibio)
+
+**Problema:** la página pública de torneo hoy es INFORMATIVA (grupos/bracket/campeón/sponsors/branding) pero es un CALLEJÓN SIN SALIDA: el visitante mira y se va. Llega por link de WhatsApp de un conocido = lead TIBIO desperdiciado. Objetivo: convertirlo en registro / inscripción al próximo / reserva / captura de contacto — y que eso sea argumento de venta al DUEÑO. Fuente: hallazgos 2026-07-05 (bis).
+
+**Principio rector (de las fuentes):** NO romper el no-login para ver resultados (FenixPlay lo vende como su ventaja). La página informa gratis; la conversión se ofrece ENCIMA, sin poner muro. Y **una sola acción primaria por estado del torneo** (Toornament: el CTA cambia con el estado; waitlister: una tarea por página sube conversión 10-15%).
+
+### El EMBUDO ideal — CTA CONTEXTUAL por estado del torneo (arriba→abajo)
+El error es un CTA fijo. El acierto (patrón Toornament) es que el llamado cambie según el torneo:
+- **EN CURSO** → primario **"Seguí el torneo en vivo"** (badge EN VIVO + auto-refresh de scores). Es la acción de MENOR fricción para el tibio que llegó a "ver cómo va" — el equivalente al "Follow/campana" de los sitios deportivos (+50% engagement). Al seguir, capturás contacto (WhatsApp/email) → remarketing.
+- **FINALIZADO** → primario **"Anotate al próximo torneo de [Club]"** (+ si no hay próximo, "Avisame del próximo" = captura de lead / waitlist). Secundario **"Sumate al club"** (registro).
+- **ABIERTO/POR EMPEZAR** → primario **"Inscribite"** (ya existe el flujo) + **"Compartí con tu compañero"**.
+- **Transversal (siempre):** secundario suave **"Reservá una cancha en [Club]"** (espectador→booker) y **"Compartir por WhatsApp"** prominente.
+
+### Orden de prioridad de elementos en la página (jerarquía visual)
+1. **Sensación EN VIVO** (badge + scores que se actualizan solos, sin refresh) cuando corresponde — es lo que hace VOLVER (americano apps: "reason to come back next week"). PadelwIArk ya es no-login; falta el "vivo".
+2. **CTA contextual sticky** (arriba y/o barra fija) según estado — la única acción primaria.
+3. **Resultados/bracket** (el contenido que vino a ver — intacto, sin gate).
+4. **Perfiles de jugador CLICABLES** → mini-perfil → "¿Sos vos? Reclamá tu perfil" (gancho de registro, ver quick win 3).
+5. **Branding + sponsors del club** (ya está) — refuerza marca del club = venta al dueño.
+6. **Compartir por WhatsApp con gancho** (loop viral) al pie y flotante.
+
+### QUICK WINS (alto valor / bajo esfuerzo) — con lo que YA hay
+1. **CTA contextual por estado del torneo.** Reusa branding del club + router. Cero backend nuevo: mostrar el botón correcto según `estado` del torneo (finished/in_progress/open). Es LO de mayor ratio valor/esfuerzo: convierte el callejón sin salida en embudo. Impacto: alto · Esfuerzo: bajo. Fuente: Toornament (widget que evoluciona con el estado).
+2. **Texto de WhatsApp pre-armado CON GANCHO** (hoy comparte link pelado). Ej. EN CURSO: *"🔥 Mirá cómo va el torneo de [Club] EN VIVO 👉 [link]"*; FINAL: *"🏆 [Campeón] ganó el torneo de [Club]. Mirá los resultados 👉 [link]"*. El link lleva a la página con el CTA. Esto activa el loop viral que las apps de Americano identifican como el motor de retorno semanal. Impacto: alto (viral) · Esfuerzo: muy bajo. Fuente: americano-padel.app ("send standings to group chat = reason to come back"), viral-loops (referral +60%).
+3. **Perfiles de jugador clicables → "reclamá tu perfil".** El espectador CONOCE a alguien jugando (por eso está ahí). Hacer el nombre clicable → mini-perfil público → "¿Sos vos? Registrate y quedate con tu historial". Engancha con el **DNI matching retroactivo que YA existe** (al registrarse por DNI, hereda su historial de torneos). Es un gancho de registro personalísimo, casi gratis de contenido. Impacto: alto · Esfuerzo: medio (mini-perfil público sin PII sensible + CTA). Fuente: sports apps "Follow player", DNI matching (memoria project_dni_matching_registro).
+
+### APUESTAS MÁS GRANDES
+4. **"Seguí este torneo" = suscripción real de notificaciones** (captura contacto del anónimo → updates de score/próximo torneo → remarketing del dueño). Es el motor de captura de lead. Bajo compromiso (no es "registrate"), alto valor de datos. Depende del canal interruptivo: hoy notif in-app (pasivo); el desbloqueo real es **WhatsApp/push (post-deploy)**. Mínimo hoy: capturar email/WhatsApp con un form de UN campo (cada campo extra −5-15% conversión) y avisar por ese canal cuando haya. Impacto: alto · Esfuerzo: medio-alto (form + canal). Fuente: waitlister.me (email-only), arena.im (push +50%), memoria project_whatsapp_notif / push_celular_postdeploy.
+5. **Bracket predictions / "armá tu quiniela".** El espectador predice el ganador antes/durante → tabla de aciertos → para jugar hay que registrarse → convierte espectador→registrado JUGANDO + da razón viral para compartir ("competí conmigo en la quiniela del torneo"). Es la mecánica probada de Challonge. Diferenciador fuerte vs Playtomic (que ni muestra bien el torneo). Impacto: alto (engagement + adquisición) · Esfuerzo: alto (feature nueva). Fuente: challonge.com/features (bracket predictions).
+
+### ERRORES A EVITAR (de las fuentes)
+- **Muro de login para ver resultados** — mata el activo #1 (FenixPlay vende justo el no-login). Nunca gatear el contenido.
+- **CTA fijo no contextual** — "Inscribite" en un torneo finalizado, o "Ver resultados" sin próximo paso = lead quemado. El CTA debe seguir el estado (Toornament).
+- **Callejón sin salida** — mostrar datos sin NINGÚN llamado a la acción = lo de hoy = desperdicia el lead tibio.
+- **Form de captura largo** — cada campo extra corta 5-15%. Pedí UN dato (WhatsApp o email).
+- **Muchos CTAs compitiendo** — una acción primaria por estado; el resto, secundarios suaves (esconder ruido sube conversión 10-15%).
+- **Página "muerta" cuando el torneo está EN VIVO** — sin badge/auto-refresh se pierde el motivo de volver y el loop de compartir.
+- **Nombres no clicables** — se pierde el gancho más personal (el visitante conoce a alguien jugando).
+
+**Recomendación de secuencia:** quick wins 1+2 primero (mismo día casi, transforman el callejón en embudo y prenden el viral). Luego 3 (perfil clicable, apalanca el DNI matching que ya tenés). Apuesta 4 ("seguí el torneo" con captura) cuando esté el canal WhatsApp/push post-deploy. La quiniela (5) como diferenciador de una 2da ola. Fuente: hallazgos.md 2026-07-05 (bis).
+
+---
+
 ## 2026-07-05 · Rediseño vista "mi zona" (fase de grupos) en desktop ancho — 3 opciones priorizadas
 
 **Problema:** 3 bloques full-width apilados (posiciones / matriz cruzada / partidos). En 1600px+ se estira, blanco vacío, y las cards de partido tienen las parejas en los extremos con hueco al medio ("barrer la pantalla"). Rechazados: max-width+centrar (blanco feo), 2-col posiciones+matriz + partidos en grilla de 2.

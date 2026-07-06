@@ -103,39 +103,36 @@ const makePartidoCard = (p, {
           style={{ backgroundColor: accentColor, opacity: fin ? 1 : 0.4 }} />
         <div className="relative flex items-center justify-between px-4 py-2 border-b border-white/5">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em]"
+            <span className="text-[13px] font-black uppercase tracking-[0.2em]"
               style={{ color: clrZona }}>{p._zona}</span>
             {p._cat && (
               colorTextoCategoria
-                ? <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: colorTextoCategoria }}>· {p._cat}</span>
-                : <span className="text-[9px] text-white/20 uppercase tracking-widest">· {p._cat}</span>
+                ? <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: colorTextoCategoria }}>· {p._cat}</span>
+                : <span className="text-[11px] text-white/25 uppercase tracking-widest">· {p._cat}</span>
             )}
           </div>
           <div className="flex items-center gap-3">
-            {p.slot?.hora && <span className="text-[11px] font-bold font-mono" style={{ color: clrHora }}>{p.slot.hora}</span>}
-            {p.cancha     && <span className="text-[10px]" style={{ color: clrInfo }}>{canchaName(p.cancha)}</span>}
-            {fin && <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400"><CheckCircle size={9}/>FIN</span>}
+            {p.slot?.hora && <span className="text-[13px] font-bold font-mono" style={{ color: clrHora }}>{p.slot.hora}</span>}
+            {p.cancha     && <span className="text-[12px]" style={{ color: clrInfo }}>{canchaName(p.cancha)}</span>}
+            {fin && <span className="flex items-center gap-1 text-[12px] font-bold text-emerald-400"><CheckCircle size={11}/>FIN</span>}
           </div>
         </div>
         <div className="relative grid grid-cols-[1fr_auto_1fr] items-center px-4 md:px-6 py-4 gap-3">
           <div className={`flex flex-col gap-1.5 transition-opacity ${sideOp(ganP1)}`}>
-            <div className="flex items-center gap-1.5">
-              <span className={`text-[9px] font-black rounded px-1.5 py-0.5 ${t2Seed}`}>{p._n1 ?? '?'}</span>
-              {ganP1 && <span className="text-[9px] font-black text-emerald-500">✓ Ganó</span>}
+            <div className="flex items-center gap-1.5 min-h-[18px]">
+              {ganP1 && <span className="text-[13px] font-black text-emerald-500">✓ Ganó</span>}
             </div>
             <div>
-              <p className="font-black uppercase leading-none"
+              <p className="font-black uppercase leading-tight"
                 style={{ fontSize: 'clamp(12px,2.2vw,20px)', letterSpacing: '-0.01em', color: t2NombreW }}>
-                {p1j1.ap || '—'}
+                {p1j1.nm ? `${p1j1.nm} ${p1j1.ap}` : (p1j1.ap || '—')}
               </p>
-              {p1j1.nm && <p className="text-[10px] mt-0.5" style={{ color: t2NombreS }}>{p1j1.nm}</p>}
             </div>
             <div>
-              <p className="font-bold uppercase leading-none"
-                style={{ fontSize: 'clamp(10px,1.8vw,16px)', color: t2NombreM, letterSpacing: '-0.01em' }}>
-                {p1j2.ap || '—'}
+              <p className="font-black uppercase leading-tight"
+                style={{ fontSize: 'clamp(12px,2.2vw,20px)', color: t2NombreW, letterSpacing: '-0.01em' }}>
+                {p1j2.nm ? `${p1j2.nm} ${p1j2.ap}` : (p1j2.ap || '—')}
               </p>
-              {p1j2.nm && <p className="text-[9px]" style={{ color: t2NombreXS }}>{p1j2.nm}</p>}
             </div>
           </div>
           <div className="flex flex-col items-center min-w-[68px] md:min-w-[88px]">
@@ -155,23 +152,20 @@ const makePartidoCard = (p, {
             )}
           </div>
           <div className={`flex flex-col gap-1.5 items-end text-right transition-opacity ${sideOp(ganP2)}`}>
-            <div className="flex items-center gap-1.5 justify-end">
-              {ganP2 && <span className="text-[9px] font-black text-emerald-500">✓ Ganó</span>}
-              <span className={`text-[9px] font-black rounded px-1.5 py-0.5 ${t2Seed}`}>{p._n2 ?? '?'}</span>
+            <div className="flex items-center gap-1.5 justify-end min-h-[18px]">
+              {ganP2 && <span className="text-[13px] font-black text-emerald-500">✓ Ganó</span>}
             </div>
             <div>
-              <p className="font-black uppercase leading-none"
+              <p className="font-black uppercase leading-tight"
                 style={{ fontSize: 'clamp(12px,2.2vw,20px)', letterSpacing: '-0.01em', color: t2NombreW }}>
-                {p2j1.ap || '—'}
+                {p2j1.nm ? `${p2j1.nm} ${p2j1.ap}` : (p2j1.ap || '—')}
               </p>
-              {p2j1.nm && <p className="text-[10px] mt-0.5 text-right" style={{ color: t2NombreS }}>{p2j1.nm}</p>}
             </div>
             <div>
-              <p className="font-bold uppercase leading-none"
-                style={{ fontSize: 'clamp(10px,1.8vw,16px)', color: t2NombreM, letterSpacing: '-0.01em' }}>
-                {p2j2.ap || '—'}
+              <p className="font-black uppercase leading-tight"
+                style={{ fontSize: 'clamp(12px,2.2vw,20px)', color: t2NombreW, letterSpacing: '-0.01em' }}>
+                {p2j2.nm ? `${p2j2.nm} ${p2j2.ap}` : (p2j2.ap || '—')}
               </p>
-              {p2j2.nm && <p className="text-[9px] text-right" style={{ color: t2NombreXS }}>{p2j2.nm}</p>}
             </div>
           </div>
         </div>
@@ -875,18 +869,18 @@ const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, water
           {/* Header */}
           <div className="relative flex items-center justify-between px-4 py-2 border-b border-white/5">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em]"
+              <span className="text-[13px] font-black uppercase tracking-[0.2em]"
                 style={{ color: clrZona }}>{p._zona}</span>
               {p._cat && (
                 colorTextoCategoria
-                  ? <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: colorTextoCategoria }}>· {p._cat}</span>
-                  : <span className="text-[9px] text-white/20 uppercase tracking-widest">· {p._cat}</span>
+                  ? <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: colorTextoCategoria }}>· {p._cat}</span>
+                  : <span className="text-[11px] text-white/25 uppercase tracking-widest">· {p._cat}</span>
               )}
             </div>
             <div className="flex items-center gap-3">
-              {p.slot?.hora && <span className="text-[11px] font-bold font-mono" style={{ color: clrHora }}>{p.slot.hora}</span>}
-              {p.cancha     && <span className="text-[10px]" style={{ color: clrInfo }}>{canchaName(p.cancha)}</span>}
-              {fin && <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400"><CheckCircle size={9}/>FIN</span>}
+              {p.slot?.hora && <span className="text-[13px] font-bold font-mono" style={{ color: clrHora }}>{p.slot.hora}</span>}
+              {p.cancha     && <span className="text-[12px]" style={{ color: clrInfo }}>{canchaName(p.cancha)}</span>}
+              {fin && <span className="flex items-center gap-1 text-[12px] font-bold text-emerald-400"><CheckCircle size={11}/>FIN</span>}
             </div>
           </div>
 
@@ -896,22 +890,19 @@ const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, water
             {/* P1 — izquierda */}
             <div className={`flex flex-col gap-1.5 transition-opacity ${sideOp(ganP1)}`}>
               <div className="flex items-center gap-1.5">
-                <span className={`text-[9px] font-black rounded px-1.5 py-0.5 ${t2Seed}`}>{p._n1 ?? '?'}</span>
-                {ganP1 && <span className="text-[9px] font-black text-emerald-500">✓ Ganó</span>}
+                {ganP1 && <span className="text-[13px] font-black text-emerald-500">✓ Ganó</span>}
               </div>
               <div>
-                <p className="font-black uppercase leading-none"
+                <p className="font-black uppercase leading-tight"
                   style={{ fontSize: 'clamp(12px,2.2vw,20px)', letterSpacing: '-0.01em', color: t2NombreW }}>
-                  {p1j1.ap || '—'}
+                  {p1j1.nm ? `${p1j1.nm} ${p1j1.ap}` : (p1j1.ap || '—')}
                 </p>
-                {p1j1.nm && <p className="text-[10px] mt-0.5" style={{ color: t2NombreS }}>{p1j1.nm}</p>}
               </div>
               <div>
-                <p className="font-bold uppercase leading-none"
-                  style={{ fontSize: 'clamp(10px,1.8vw,16px)', color: t2NombreM, letterSpacing: '-0.01em' }}>
-                  {p1j2.ap || '—'}
+                <p className="font-black uppercase leading-tight"
+                  style={{ fontSize: 'clamp(12px,2.2vw,20px)', color: t2NombreW, letterSpacing: '-0.01em' }}>
+                  {p1j2.nm ? `${p1j2.nm} ${p1j2.ap}` : (p1j2.ap || '—')}
                 </p>
-                {p1j2.nm && <p className="text-[9px]" style={{ color: t2NombreXS }}>{p1j2.nm}</p>}
               </div>
             </div>
 
@@ -936,22 +927,19 @@ const TabFixture = ({ torneo, canchaName, accentColor, imagenFondo = null, water
             {/* P2 — derecha */}
             <div className={`flex flex-col gap-1.5 items-end text-right transition-opacity ${sideOp(ganP2)}`}>
               <div className="flex items-center gap-1.5 justify-end">
-                {ganP2 && <span className="text-[9px] font-black text-emerald-500">✓ Ganó</span>}
-                <span className={`text-[9px] font-black rounded px-1.5 py-0.5 ${t2Seed}`}>{p._n2 ?? '?'}</span>
+                {ganP2 && <span className="text-[13px] font-black text-emerald-500">✓ Ganó</span>}
               </div>
               <div>
-                <p className="font-black uppercase leading-none"
+                <p className="font-black uppercase leading-tight"
                   style={{ fontSize: 'clamp(12px,2.2vw,20px)', letterSpacing: '-0.01em', color: t2NombreW }}>
-                  {p2j1.ap || '—'}
+                  {p2j1.nm ? `${p2j1.nm} ${p2j1.ap}` : (p2j1.ap || '—')}
                 </p>
-                {p2j1.nm && <p className="text-[10px] mt-0.5 text-right" style={{ color: t2NombreS }}>{p2j1.nm}</p>}
               </div>
               <div>
-                <p className="font-bold uppercase leading-none"
-                  style={{ fontSize: 'clamp(10px,1.8vw,16px)', color: t2NombreM, letterSpacing: '-0.01em' }}>
-                  {p2j2.ap || '—'}
+                <p className="font-black uppercase leading-tight"
+                  style={{ fontSize: 'clamp(12px,2.2vw,20px)', color: t2NombreW, letterSpacing: '-0.01em' }}>
+                  {p2j2.nm ? `${p2j2.nm} ${p2j2.ap}` : (p2j2.ap || '—')}
                 </p>
-                {p2j2.nm && <p className="text-[9px] text-right" style={{ color: t2NombreXS }}>{p2j2.nm}</p>}
               </div>
             </div>
           </div>

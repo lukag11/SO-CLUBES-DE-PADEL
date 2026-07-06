@@ -6,6 +6,7 @@ import { requireAuth, requireRole, requireActive, requirePermiso } from '../midd
 import { lookupLimiter } from '../middleware/rateLimit.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
 import { normalizarCategoria } from '../lib/categorias.js'
+import { calcularSenalesAscenso } from '../lib/ascenso.js'
 
 const router = Router()
 
@@ -813,82 +814,16 @@ router.get('/me/oponentes', requireAuth, requireRole('jugador'), requireActive, 
   }
 })
 
-// GET /api/jugadores/ascenso-sugeridos — admin: jugadores candidatos a subir categoría
+// GET /api/jugadores/ascenso-sugeridos — admin: jugadores "pasados" (candidatos a subir categoría).
+// El cálculo vive en lib/ascenso.js (reutilizable por WIarky). Devuelve, por cada jugador pasado:
+// jugadorId, nombre, categoria, categoriaSugerida, titulos, parejasDistintasConTitulo,
+// maxTitulosMismaPareja, winRate y un `motivo` en criollo (para mostrar/decir por qué está pasado).
 router.get('/ascenso-sugeridos', requireAuth, requireRole('admin'), requirePermiso('jugadores'), async (req, res) => {
-  const clubId = req.user.clubId
   try {
-    const jugadores = await prisma.jugador.findMany({
-      where: { clubId, cuentaActiva: true, activo: true, categoria: { not: null } },
-      select: { id: true, dni: true, categoria: true },
-    })
-
-    const torneos = await prisma.torneo.findMany({
-      where: { clubId },
-      select: {
-        grupos: true,
-        brackets: true,
-        parejas: { select: { id: true, jugador1Dni: true, jugador2Dni: true, categoria: true } },
-      },
-    })
-
-    const sugeridos = []
-
-    for (const jugador of jugadores) {
-      if (!jugador.dni || !jugador.categoria) continue
-      const cat = jugador.categoria
-      const dni = jugador.dni
-      let titulos = 0, ganados = 0, perdidos = 0, torneoCount = 0
-
-      for (const torneo of torneos) {
-        const misParejasIds = new Set(
-          torneo.parejas
-            .filter((p) => (p.jugador1Dni === dni || p.jugador2Dni === dni) && p.categoria === cat)
-            .map((p) => p.id)
-        )
-        if (misParejasIds.size === 0) continue
-        torneoCount++
-
-        if (Array.isArray(torneo.grupos)) {
-          for (const zona of torneo.grupos) {
-            if (zona.categoria !== cat) continue
-            for (const partido of (zona.partidos ?? [])) {
-              if (!partido.ganador) continue
-              const esP1 = misParejasIds.has(partido.pareja1?.id)
-              const esP2 = misParejasIds.has(partido.pareja2?.id)
-              if (!esP1 && !esP2) continue
-              const gane = partido.ganador.id === (esP1 ? partido.pareja1?.id : partido.pareja2?.id)
-              if (gane) ganados++; else perdidos++
-            }
-          }
-        }
-
-        if (torneo.brackets && typeof torneo.brackets === 'object') {
-          const bracket = torneo.brackets[cat]
-          if (!bracket) continue
-          const rondas = bracket?.rondas ?? []
-          for (let ri = 0; ri < rondas.length; ri++) {
-            for (const partido of (rondas[ri].partidos ?? [])) {
-              if (partido.estado !== 'finalizado' || !partido.ganador) continue
-              const esP1 = misParejasIds.has(partido.pareja1?.id)
-              const esP2 = misParejasIds.has(partido.pareja2?.id)
-              if (!esP1 && !esP2) continue
-              const gane = partido.ganador.id === (esP1 ? partido.pareja1?.id : partido.pareja2?.id)
-              if (gane) ganados++; else perdidos++
-              if (ri === rondas.length - 1 && gane) titulos++
-            }
-          }
-        }
-      }
-
-      const winRate = (ganados + perdidos) > 0 ? Math.round((ganados / (ganados + perdidos)) * 100) : 0
-      if (titulos >= 2 || (winRate >= 75 && torneoCount >= 3)) {
-        sugeridos.push({ jugadorId: jugador.id, categoria: cat, titulos, torneoCount, winRate })
-      }
-    }
-
-    res.json(sugeridos)
+    const senales = await calcularSenalesAscenso(req.user.clubId)
+    res.json(senales)
   } catch (err) {
-    console.error(err)
+    console.error('[ascenso-sugeridos]', err)
     res.status(500).json({ error: 'Error al calcular sugerencias de ascenso' })
   }
 })

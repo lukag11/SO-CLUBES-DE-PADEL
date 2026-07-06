@@ -7,6 +7,54 @@
 
 ---
 
+## 2026-07-06 · Ascenso de categoría + "cut" del jugador pasado — modelo recomendado: REGLA DE TÍTULOS + override del admin (NO ELO)
+
+**Problema del dueño:** un jugador "está pasado" (gana demasiado fácil su categoría) → arruina la competencia. Hay que ascenderlo Y/O impedir que se siga anotando en esa categoría. Hoy PadelwIArk tiene una "sugerencia de ascenso" en stats que el admin evalúa a OJO, sin números. Fuente: hallazgos 2026-07-06.
+
+**Impacto:** alto (dolor operativo real y recurrente del dueño; toca la integridad de sus torneos = su producto estrella) · **Esfuerzo:** bajo-medio (usa data que el módulo Torneos YA persiste: campeón/finalista/`Pareja`) · **Estado:** nueva, recomendada.
+
+### VEREDICTO: regla de títulos objetiva + override manual. NO ELO tipo Playtomic.
+Descartá el ranking dinámico 0-7 tipo Playtomic para ESTO. Razones (hallazgos 2026-07-06):
+- El ELO necesita **15-20 partidos competitivos CARGADOS por jugador** para asentarse. Un club chico AR no tiene ese volumen ni carga todos los partidos → arrancaría sin asentar y poco creíble.
+- La `categoria` de PadelwIArk es una **etiqueta gruesa administrativa**, no un rating fino. Meter un ELO es cambiar el producto, no mejorarlo.
+- **Un dueño de club entiende "ganó 2 torneos, subilo" al instante; un ELO 0-7 no lo entiende ni lo usa.** Simplicidad = adopción.
+- El pádel federado AR mismo NO usa puntos automáticos: usa criterio humano (fiscal). El override del admin es fiel a cómo funciona el deporte de verdad. Fuente: ellitoral (fiscal Barbieri).
+
+### El modelo, en 3 piezas (de menor a mayor esfuerzo)
+
+**(1) CONTADOR objetivo por jugador × categoría (el corazón, bajo esfuerzo).**
+El backend cuenta, en una ventana temporal configurable (default: **temporada / últimos 12 meses**), por cada jugador en su categoría actual:
+- torneos GANADOS (campeón),
+- FINALES jugadas,
+- con cuántas PAREJAS DISTINTAS ganó (dato ya disponible: el modelo `Pareja` guarda jugador1/jugador2).
+Esto convierte la "sugerencia de ascenso" que ya existe de intuición → a números.
+
+**(2) UMBRAL configurable + SUGERENCIA al admin (no ascenso automático).**
+Default sano, alineado al rubro (Maximum Padel Tour, Reglamento Ranking Anual): **ganó 2 torneos O llegó a 3 finales en la categoría → el sistema SUGIERE ascenso.** Refuerzo de confianza con la sutileza de dominio de Luca: si ganó con **N parejas distintas**, la señal es más fuerte (mérito individual, no del compañero). Copy de la sugerencia al admin:
+> *"Juan Pérez está pasado en 5ta: ganó 2 torneos y 1 final en los últimos 6 meses, con 2 compañeros distintos. ¿Ascender a 4ta?"* [Ascender] [Ignorar por ahora]
+El sistema **NUNCA asciende solo** → respeta el modelo del deporte (decisión humana) y evita el drama de un ascenso injusto automático. El umbral lo edita el club (algunos son más duros: "finalista sube sí o sí").
+
+**(3) El "CUT" — advertir/bloquear la inscripción del pasado (el dolor #1 del dueño, EL diferenciador).**
+Cuando un jugador ya fue marcado "pasado" o ascendido, al intentar inscribirse a un torneo de esa categoría (o inferior): **advertencia o bloqueo** ("No podés anotarte en 5ta: estás pasado para esa categoría"). Esto es el mecanismo "cut" que las federaciones YA usan (umbral de ranking que impide entrar a categorías inferiores). Es lo que resuelve textualmente el "no dejarlo anotarse más ahí". Fuente: americano-padel.app, worldpadelrating. **Nadie en el SaaS de club chico lo tiene bien resuelto → diferenciador real, no paridad.**
+
+### Descenso: mínimo/manual, NO automatizar ahora.
+El descenso vive casi siempre en formato LIGA con temporada cerrada (VPT, Fexpadel). En un club de torneos sueltos es menos usado y más resentido (bajar a alguien automáticamente genera malestar). Recomendación: dejarlo como acción MANUAL del admin (ya puede cambiar la categoría del jugador), sin regla automática. Fuente: hallazgos 2026-07-06 (sección 3).
+
+### Tensión a anticipar (por qué a los jugadores NO les gusta subir).
+El jugador pasado quiere seguir ganando fácil (sandbagging). El sistema serio lo combate quitándole el premio: **jugar una categoría inferior a la tuya NO suma puntos/ranking** (Padel Manager). Traslado a PadelwIArk: el "cut" + no acreditar logros jugados "abajo" desincentiva quedarse. Pero OJO con la UX: el ascenso mal comunicado se siente como castigo. Enmarcarlo como LOGRO ("subiste a 4ta, tu nivel creció"), no como sanción. Es el mismo cuidado que Playtomic con su nivel.
+
+### Errores a evitar
+- **Ascenso automático sin override** = injusticias y enojo (una racha no es "estar pasado"). El deporte usa criterio humano; imitalo.
+- **Meter un ELO 0-7** en un club sin volumen de datos = rating sin asentar, poco creíble, over-engineering. Otro producto.
+- **Contaminar con eventos sociales:** el contador de ascenso se alimenta SOLO de torneos (competitivo), nunca de Americano/Super 8 (ya decidido: separar social de serio, hallazgos 2026-06-24 bis).
+- **Descenso automático** en club de torneos sueltos = malestar sin necesidad.
+- **Umbral rígido hardcodeado:** cada club tiene su cultura ("finalista sube" vs "2 títulos"). Hacerlo configurable.
+
+### Secuencia recomendada
+(1) contador + (2) sugerencia con umbral configurable primero — es lo de mayor ratio valor/esfuerzo y potencia una feature que YA existe a medias. Luego (3) el cut en la inscripción (el diferenciador que vende). Descenso: manual, no priorizar. Fuente: hallazgos.md 2026-07-06.
+
+---
+
 ## 2026-07-05 (bis) · Embudo de conversión de la página pública de torneo — convertir al espectador anónimo (lead tibio)
 
 **Problema:** la página pública de torneo hoy es INFORMATIVA (grupos/bracket/campeón/sponsors/branding) pero es un CALLEJÓN SIN SALIDA: el visitante mira y se va. Llega por link de WhatsApp de un conocido = lead TIBIO desperdiciado. Objetivo: convertirlo en registro / inscripción al próximo / reserva / captura de contacto — y que eso sea argumento de venta al DUEÑO. Fuente: hallazgos 2026-07-05 (bis).

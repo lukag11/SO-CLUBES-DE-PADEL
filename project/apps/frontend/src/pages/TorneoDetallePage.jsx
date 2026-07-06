@@ -1185,13 +1185,26 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName, punto
 
 // ── Pareja card compacta ──────────────────────────────────────────────────────
 
-const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja }) => {
+const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja, alertas }) => {
   const [confirmando, setConfirmando] = useState(false)
   const slots = ins.disponibilidad ?? []
   const diaAbrev = (dia) => dia ?? '?'
+  const tieneAlerta = alertas?.length > 0
 
   return (
-    <div className={`bg-white border rounded-xl transition-all ${confirmando ? 'border-red-200 bg-red-50/40' : 'border-slate-100 hover:border-slate-200 hover:shadow-sm'}`}>
+    <div className={`bg-white border rounded-xl transition-all ${confirmando ? 'border-red-200 bg-red-50/40' : tieneAlerta ? 'border-amber-300 hover:border-amber-400 hover:shadow-sm' : 'border-slate-100 hover:border-slate-200 hover:shadow-sm'}`}>
+
+      {/* ── "Cut": alerta de categoría (jugador pasado para esta categoría) ── */}
+      {tieneAlerta && (
+        <div className="flex items-start gap-1.5 px-2.5 py-1.5 bg-amber-50 border-b border-amber-200 rounded-t-xl">
+          <span className="text-amber-500 text-[11px] leading-none mt-0.5 shrink-0">⚠</span>
+          <div className="min-w-0">
+            {alertas.map((a, i) => (
+              <p key={i} className="text-[10px] font-medium text-amber-700 leading-tight">{a.mensaje}</p>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Mobile: fila horizontal ── */}
       <div className="flex items-center gap-3 p-3 md:hidden">
@@ -3531,6 +3544,7 @@ const TorneoDetallePage = () => {
   const [elimIntervaloMin, setElimIntervaloMin] = useState(75)
   const [elimAutoState, setElimAutoState] = useState(null) // null | {status:'procesando'} | {status:'done',asignados}
   const [modalAsignarManual, setModalAsignarManual] = useState(null) // null | { matchId, zonaIdx, partido }
+  const [alertasCategoria, setAlertasCategoria] = useState({}) // "cut": parejaId → [{tipo, mensaje}]
   const [reprogramarOpen, setReprogramarOpen] = useState(false)
   const [reprogramarFecha, setReprogramarFecha] = useState('')
   const [reprogramarSaving, setReprogramarSaving] = useState(false)
@@ -3701,6 +3715,21 @@ const TorneoDetallePage = () => {
   }
   const multiCat = (torneo?.categorias?.length ?? 0) > 1
   const activeBracket = torneo?.brackets?.[selectedBracketCat] ?? null
+
+  // "Cut": alertas de categoría (jugadores pasados para su categoría de inscripción). Se recalcula
+  // al cambiar las parejas inscriptas. Es aviso al admin — no bloquea nada.
+  const inscriptosCount = torneo?.inscriptos?.length ?? 0
+  useEffect(() => {
+    if (!isBackend || !token || !torneo?.id) { setAlertasCategoria({}); return }
+    api.get(`/torneos/${torneo.id}/alertas-categoria`, { Authorization: `Bearer ${token}` })
+      .then((lista) => {
+        const map = {}
+        for (const a of (Array.isArray(lista) ? lista : [])) map[a.parejaId] = a.alertas
+        setAlertasCategoria(map)
+      })
+      .catch(() => setAlertasCategoria({}))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [torneo?.id, isBackend, token, inscriptosCount])
 
   const seedingMap = useMemo(() => {
     const map = {}
@@ -4513,6 +4542,7 @@ const TorneoDetallePage = () => {
                           estadoTorneo={torneo.estado}
                           onEditar={setEditando}
                           onBaja={handleBajaInscripto}
+                          alertas={alertasCategoria[ins.id]}
                         />
                       ))}
                     </div>

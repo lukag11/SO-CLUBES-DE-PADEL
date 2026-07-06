@@ -7,6 +7,66 @@
 
 ---
 
+## 2026-07-06 · Ascenso/descenso de categoría y el concepto de "estar pasado" en pádel amateur (AR + referentes)
+
+**Contexto:** PadelwIArk tiene `Jugador.categoria` (1ra=mejor … 8va=iniciación, formato canónico "4ta Categoría"). El módulo de stats ya tiene una "sugerencia de ascenso" que el admin evalúa a mano (memoria project_stats_jugador). Dolor real del dueño: cuando un jugador "está pasado" (gana demasiado fácil su categoría) hay que ascenderlo o impedir que se siga anotando ahí, porque arruina la competencia. Luca menciona reglas caseras de jerga: "ganó el torneo con 5 parejas distintas", "ganó 3 veces con la misma pareja". Objetivo: diseñar un modelo coherente. WebSearch OK; **WebFetch quedó bloqueado casi entero este turno** (ellitoral, tucancha, maximumpadeltour, padelonada, padelmanager, laligapadelargentina, americano-padel.app todos rebotaron por "unable to verify domain"). Lo [Verificado] sale de snippets de WebSearch sobre esas fuentes, no de captura directa del texto completo — lo aclaro para no vender como leído lo que vino resumido por el buscador.
+
+### 1) Sistema de categorías AR (APA) y cómo se asciende — es CRITERIO HUMANO, no puntos [Verificado por snippet]
+- AR se organiza en ~7 categorías (algunas fuentes/provincias dicen 8va→1ra), reguladas por APA + federaciones provinciales. 7ma/8va = iniciación, 1ra = casi pro. Fuente: WebSearch APA, tucancha.com.ar, ellitoral.com (fiscal nacional Osvaldo Barbieri).
+- **DATO CENTRAL:** en el pádel FEDERADO AR el ascenso NO es automático por puntos ni por ganar un torneo. Lo definen **fiscales categorizadores** que evalúan la "evolución objetiva de habilidades observables": salida de pared, volea, remate, consistencia (repetir golpes sin errores no forzados), posicionamiento antes/después del impacto, velocidad y variación de juego, altura de bola respecto a la red. *"El ascenso no responde a resultados aislados sino a la evolución objetiva de habilidades observables por los fiscales."* Fuente: ellitoral.com / miradorprovincial.com (fiscal Barbieri, feb-2026). → Ganar un torneo NO te sube solo en el sistema federado; es evaluación técnica humana.
+- Afiliación a APA obligatoria; desde 2022 no se puede jugar Torneos Argentinos sin fiscalización del colegio de fiscales. Fuente: padel.org.ar (reglamento amateur APA).
+
+### 2) Los CIRCUITOS/CLUBES amateur SÍ usan reglas objetivas duras (acá están los números de Luca) [Verificado por snippet]
+Donde aparecen los umbrales concretos es en los reglamentos de circuitos/ligas de club, NO en la federación:
+- **Regla más común y clara del rubro: el/los FINALISTAS están OBLIGADOS a subir de categoría en el próximo torneo** que jueguen (excepción: acuerdo con la organización por nivel, cambio de compañero, etc.). Fuente: WebSearch reglamentos (padelonada, sumapadelclub, laligapadelargentina).
+- **Ganar 2 torneos en la misma categoría → ascenso automático/obligatorio.** Fuente: Maximum Padel Tour (normativa).
+- Variante combinada: **ganar 2 torneos O llegar a 3 finales en la categoría → ascenso obligatorio.** Fuente: Reglamento Ranking Anual (toppadelfitcenter.com PDF).
+- Sistema de puntos por resultado (campeón > finalista > semi > …). Al acumular puntos suficientes para la categoría superior, **el ascenso es automático al inicio de la temporada siguiente** (modelo FEP/autonómicos ES). Fuente: padelmanager.com/ranking/criterios, padelfip.
+- **Anti-sandbagging incorporado:** si un jugador juega una categoría INFERIOR a la suya, **no suma puntos** en el ranking. Fuente: padelmanager.com/ranking/criterios. → El sistema desincentiva "bajar a ganar fácil" quitándole el premio (puntos).
+- Penalización por inactividad: cada mes sin jugar desde el último torneo, resta ranking. Fuente: padelmanager.com.
+
+### 3) Descenso — existe, pero es más blando y variado [Verificado por snippet]
+- **Venezuela Padel Tour:** bajás una categoría si perdés dos veces en primera ronda en dos torneos distintos de la misma temporada. Fuente: venezuelapadeltour.com.
+- **Ligas por divisiones (Pádel o Nada):** la posición final de la liga define ascenso/descenso/permanencia + playoffs para los casos de borde. Fuente: padelonada.com.
+- **Fexpadel (ES):** los últimos del ranking de 1ra y 2da descienden automático a la categoría inferior. Fuente: fexpadel.com PDF.
+- Lectura: el descenso casi siempre está atado a un formato de LIGA con temporada cerrada. En un club que corre torneos sueltos, el descenso es mucho menos usado que el ascenso — y menos doloroso de no tener.
+
+### 4) Playtomic Level — el referente de "ranking dinámico por resultado" [Verificado]
+- Escala **0.0 a 7.0 en pasos de 0.25**. Tras cada partido COMPETITIVO (los "friendly" NO mueven nada) un algoritmo ajusta el nivel, ponderado por nivel del rival y margen del resultado: **ganarle a mejores sube más; perder ajustado contra fuertes casi no cuesta.**
+- **Reliability:** cuán seguro está el sistema de tu nivel; sube jugando más. Hacen falta ~**15-20 partidos** contra rivales variados para que el nivel se asiente. Fuente: playtomic.com/blog/padel-levels, playerhelp.playtomic.com (The Playtomic Levels: ups & downs), padeli.com, playskan.com.
+- **Implicancia para PadelwIArk:** el ELO dinámico es preciso pero **CARO en datos**: exige 15-20 partidos competitivos CARGADOS por jugador. Un club chico AR que recién arranca no tiene ese volumen ni carga todos los partidos → un ELO arrancaría "sin asentar" y poco creíble. Además la `categoria` de PadelwIArk es una etiqueta gruesa administrativa, no un rating fino. El ELO es OTRO producto, no una mejora incremental.
+
+### 5) "Estar pasado" / sandbagging — cómo lo previenen los que lo resolvieron [Verificado por snippet]
+- Es un problema RECONOCIDO de integridad competitiva a nivel torneo de club: anotarse demasiado abajo = acusaciones de "sandbagging". Fuente: WebSearch (redlinesportsclub, americano-padel.app, worldpadelrating).
+- **Mecanismo estándar de defensa = los "CUTS": umbrales de ranking que IMPIDEN a un jugador demasiado bien rankeado inscribirse en categorías inferiores.** *"To prevent top players from dominating lower categories, federations apply cuts (ranking thresholds) — if you are ranked too high, you can no longer enter entry-level tournaments."* → esto es EXACTAMENTE el "no dejarlo anotarse más en esa categoría" que pide el dueño, ya inventado y validado por el rubro. Fuente: americano-padel.app (guía torneos), worldpadelrating.com.
+- **World Padel Rating (WPR)** — referente nuevo a fichar: plataforma global de rating donde un rating alto debe GANARSE por juego validado, revisión de coach o ranking FIP verificado (anti-inflado). Fuente: worldpadelrating.com/faq.
+
+### 6) La sutileza de "parejas distintas" (jerga de Luca) — insight de dominio [Probable, análisis]
+Las reglas de Luca ("ganó con 5 parejas distintas" vs "ganó 3 veces con la misma pareja") son house-rules de la misma familia que "2 torneos ganados / 3 finales". Pero tienen un matiz REAL de mérito: ganar con **compañeros DISTINTOS** prueba que el mérito es del jugador, no de un compañero fuerte que lo "arrastra". Ganar 3 veces con la MISMA pareja puede ser mérito compartido/del compañero. → "ganó con N parejas distintas" es una señal MÁS confiable de "está pasado individualmente" que "ganó N veces con la misma pareja". Es un buen criterio para diferenciar ascenso individual vs. "esa pareja es fuerte". No lo vi escrito en un reglamento federado (es criterio de club), pero es coherente con por qué los rankings serios ponderan rivales/validación y no solo títulos.
+
+### Cruce contra PadelwIArk
+- YA tiene: `categoria` por jugador (1ra-8va), módulo Torneos que persiste `Pareja` (jugador1/jugador2), campeón/finalista por torneo, y una "sugerencia de ascenso" en stats que el admin evalúa a mano.
+- Le FALTA: (1) el CONTADOR objetivo por jugador×categoría (torneos ganados / finales / parejas distintas / ventana temporal) que alimente esa sugerencia con números en vez de intuición; (2) el "CUT" — advertir/bloquear la inscripción de un jugador pasado a su categoría vieja (el dolor #1 del dueño); (3) umbral configurable por el club.
+
+### Fuentes
+- https://padel.org.ar/wp-content/uploads/2025/02/REGLAMENTO-DEPORTIVO-AMATEUR-APA.pdf
+- https://www.ellitoral.com/deportes/padel-especialista-santafesino-explica-definen-categorias-ascender-fiscal-nacional-osvaldo-barbieri_0_fUddSCPfgH.html
+- https://www.miradorprovincial.com/2026/02/25/padel-en-plena-expansion-como-se-definen-las-categorias-y-que-se-evalua-para-ascender/
+- https://tucancha.com.ar/blog/guia-de-categorias-de-padel-en-argentina-de-octava-a-primera
+- https://padelmanager.com/ranking/criterios
+- https://www.maximumpadeltour.com/normativa-maximum
+- https://toppadelfitcenter.com/wp-content/uploads/2025/09/Reglamento-Ranking-Anual-corregido.pdf
+- https://padelonada.com/reglamento/
+- https://www.venezuelapadeltour.com/pages/4471662-reglamentos-y-politicas
+- https://fexpadel.com/wp-content/uploads/2024/02/NORMATIVA_TECNICA_COMPETICION_EQUIPOS_2024.pdf
+- https://playtomic.com/blog/padel-levels
+- https://playerhelp.playtomic.com/hc/en-gb/articles/19831827459345-The-Playtomic-Levels-ups-downs
+- https://www.playskan.com/blog/padel-levels-explained-uk
+- https://americano-padel.app/en/blog/padel-tournament-ranking-categories-guide/
+- https://worldpadelrating.com/faq/
+
+---
+
 ## 2026-07-05 (bis) · Convertir al ESPECTADOR ANÓNIMO de la página pública de un torneo — cómo enganchan los referentes
 
 **Contexto:** cada torneo de PadelwIArk tiene página pública sin login (grupos + bracket + campeón + sponsors + branding del club). El visitante típico llega por LINK compartido por WhatsApp ("mirá cómo va el torneo") o buscando resultados = **lead TIBIO** (conoce a alguien jugando o le interesa el club). Hoy la página es INFORMATIVA, sin embudo de conversión. Objetivo: convertirlo en (a) socio/jugador registrado, (b) inscripto al próximo torneo, (c) reserva de cancha, o al menos (d) capturar contacto para remarketing. Y que eso le dé valor de venta al DUEÑO (el SaaS se vende mejor si la página pública trae gente). WebSearch SÍ habilitado.

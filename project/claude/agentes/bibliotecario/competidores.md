@@ -31,5 +31,16 @@
 - **Qué evitar:** su complejidad de reporting B2B no aplica a un club chico de LatAm. Tomar solo "top-line metrics + peak hours".
 - **Fuente:** [Verificado].
 
+## World Padel Rating (WPR) — https://worldpadelrating.com/ [ficha 2026-07-06]
+- **Qué hace:** plataforma GLOBAL de rating/ranking de jugadores + torneos. No es gestión de club: es la capa de "nivel del jugador" (competidor conceptual del sistema de categorías/ascenso, no del SaaS de canchas).
+- **Lo relevante para PadelwIArk:** su tesis anti-inflado — un rating alto debe GANARSE por juego validado, revisión de coach o ranking FIP verificado. Es la respuesta del mercado al sandbagging: el nivel no se autodeclara, se valida. Refuerza que el ascenso serio necesita respaldo objetivo (títulos/validación), no auto-reporte.
+- **Qué tomar:** el concepto de "cut" (umbral que impide a un jugador pasado entrar a categorías bajas) y "rating ganado, no declarado". **Qué NO copiar:** el rating global fino tipo ELO — inviable/innecesario para un club chico (ver oportunidad 2026-07-06).
+- **Fuente:** https://worldpadelrating.com/faq/ [Verificado por snippet WebSearch]
+
+## Playtomic Level (sistema de nivel, no el Manager) — [ficha 2026-07-06]
+- **Qué es:** rating dinámico 0.0-7.0 (pasos 0.25) que sube/baja tras cada partido COMPETITIVO ponderando rival y margen; ~15-20 partidos para asentar; "reliability" crece con volumen. Friendly no mueve el nivel.
+- **Por qué NO es el modelo para el ascenso de PadelwIArk:** exige volumen de partidos cargados que un club chico no tiene, y la categoría 1ra-8va es etiqueta gruesa, no rating. Referente para ENTENDER ranking dinámico; no para copiar en el ascenso de categoría. Detalle: hallazgos/oportunidades 2026-07-06.
+- **Fuente:** playtomic.com/blog/padel-levels, playerhelp.playtomic.com [Verificado].
+
 ## Otros a fichar más adelante
 - **TPC Matchpoint** (occupancy + income con filtros). **PadelOS** (padelos.co — homónimo del nombre viejo del proyecto, tiene Reports & Analytics). **PlayByPoint / Playbypoint**, **360Player**, **Playpass**, **Padel iQ** (stats). [Verificado existencia, sin ficha].

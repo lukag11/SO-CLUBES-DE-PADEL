@@ -450,6 +450,24 @@ router.delete('/:id', requireAuth, requireRole('admin'), requireFeature('torneos
   }
 })
 
+// GET /api/torneos/:id/alertas-categoria — admin: "el cut". Marca las parejas anotadas cuyos
+// jugadores están PASADOS para la categoría de inscripción (categoría declarada superior, o
+// pasado por resultados). Es aviso al admin — NO bloquea la inscripción (decisión de él).
+router.get('/:id/alertas-categoria', requireAuth, requireRole('admin'), requireFeature('torneos'), requirePermiso('torneos'), async (req, res) => {
+  try {
+    const { detectarAlertasInscripcion } = await import('../lib/ascenso.js')
+    const parejas = await prisma.pareja.findMany({
+      where: { torneoId: req.params.id, clubId: req.user.clubId },
+      select: { id: true, jugador1: true, jugador2: true, jugador1Dni: true, jugador2Dni: true, categoria: true },
+    })
+    const alertas = await detectarAlertasInscripcion(req.user.clubId, parejas)
+    res.json(alertas)
+  } catch (err) {
+    console.error('[torneos/alertas-categoria]', err)
+    res.status(500).json({ error: 'Error al calcular alertas de categoría' })
+  }
+})
+
 // POST /api/torneos/:id/parejas   — admin inscribe una pareja
 router.post('/:id/parejas', requireAuth, requireRole('admin'), requireFeature('torneos'), requirePermiso('torneos'), async (req, res) => {
   const { id: torneoId } = req.params

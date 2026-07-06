@@ -560,6 +560,7 @@ router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), requireFeat
   const {
     jugador1, jugador2, jugador1Dni, jugador2Dni,
     categoria, disponibilidad, prefiereMismoDia, sinCompanero, estado,
+    observacionCategoria,
   } = req.body
 
   try {
@@ -608,6 +609,8 @@ router.patch('/:id/parejas/:pid', requireAuth, requireRole('admin'), requireFeat
         ...(categoria        !== undefined && { categoria }),
         ...(disponibilidad   !== undefined && { disponibilidad }),
         ...(prefiereMismoDia !== undefined && { prefiereMismoDia: !!prefiereMismoDia }),
+        // "Cut" manual: motivo de observación por categoría (string) o null para quitar la marca.
+        ...(observacionCategoria !== undefined && { observacionCategoria: observacionCategoria ? `${observacionCategoria}`.trim() : null }),
         // Si pasa a "sin compañero", desvincular al j2 (evita deuda colgada + datos inconsistentes)
         ...(sinCompanero === true && { jugador2Id: null, jugador2Dni: null }),
       },

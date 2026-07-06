@@ -109,7 +109,8 @@ Los flujos que las aplican están en `/memoria/flujos/`.
 ## Torneos
 
 **RN-35** Los torneos tienen 8 categorías: 8va, 7ma, 6ta, 5ta, 4ta, 3ra, 2da, 1ra.  
-**RN-36** El ranking de jugadores se actualiza automáticamente según los resultados de los torneos.
+**RN-36** El ranking de jugadores se actualiza automáticamente según los resultados de los torneos.  
+**RN-61** El "corte" de categoría en torneos (impedir que un jugador pasado juegue una categoría inferior) tiene DOS vías, ambas en la etapa de **inscripción** (torneo `open` o `closed`, nunca en finalizados): **(1) automática** para jugadores CON historial en el club (motor `lib/ascenso.js` `detectarAlertasInscripcion` → banner ⚠ ámbar; solo AVISA, no bloquea; WIarky puede notificar); **(2) manual** del admin para jugadores DESCONOCIDOS/sin data (de otro club) — botón 🚩 en la tarjeta de pareja con criterio propio: "Solo marcar" (guarda `Pareja.observacionCategoria`, banner que convive con el automático, reversible con "quitar") o "Marcar y no habilitar" (baja de la pareja del torneo, notifica al jugador). Las dos marcas conviven en el mismo lugar.
 
 ---
 

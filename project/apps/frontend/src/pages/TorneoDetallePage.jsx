@@ -1185,24 +1185,41 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName, punto
 
 // ── Pareja card compacta ──────────────────────────────────────────────────────
 
-const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja, alertas }) => {
+const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja, onObservar, alertas }) => {
   const [confirmando, setConfirmando] = useState(false)
+  const [marcando, setMarcando] = useState(false)
+  const [motivoMarca, setMotivoMarca] = useState('')
   const slots = ins.disponibilidad ?? []
   const diaAbrev = (dia) => dia ?? '?'
-  const tieneAlerta = alertas?.length > 0
+  const marcaManual = ins.observacionCategoria || null
+  const tieneAlerta = alertas?.length > 0 || !!marcaManual
 
   return (
     <div className={`bg-white border rounded-xl transition-all ${confirmando ? 'border-red-200 bg-red-50/40' : tieneAlerta ? 'border-amber-300 hover:border-amber-400 hover:shadow-sm' : 'border-slate-100 hover:border-slate-200 hover:shadow-sm'}`}>
 
-      {/* ── "Cut": alerta de categoría (jugador pasado para esta categoría) ── */}
+      {/* ── "Cut": alerta de categoría (automática) + marca manual del admin ── */}
       {tieneAlerta && (
         <div className="flex items-start gap-1.5 px-2.5 py-1.5 bg-amber-50 border-b border-amber-200 rounded-t-xl">
           <span className="text-amber-500 text-[11px] leading-none mt-0.5 shrink-0">⚠</span>
-          <div className="min-w-0">
-            {alertas.map((a, i) => (
+          <div className="min-w-0 flex-1">
+            {(alertas ?? []).map((a, i) => (
               <p key={i} className="text-[10px] font-medium text-amber-700 leading-tight">{a.mensaje}</p>
             ))}
+            {marcaManual && (
+              <p className="text-[10px] font-medium text-amber-700 leading-tight">
+                <span className="font-bold">Marcado por el admin:</span> pasado de categoría{marcaManual !== 'true' && marcaManual !== '1' ? ` — ${marcaManual}` : ''}
+              </p>
+            )}
           </div>
+          {marcaManual && onObservar && (
+            <button
+              onClick={() => onObservar(ins, null)}
+              className="text-[9px] font-semibold text-amber-600 hover:text-amber-800 underline shrink-0 mt-0.5"
+              title="Quitar la marca"
+            >
+              quitar
+            </button>
+          )}
         </div>
       )}
 
@@ -1244,11 +1261,16 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja, alertas }) => {
             </span>
           )}
         </div>
-        {!confirmando && (
+        {!confirmando && !marcando && (
           <div className="flex items-center gap-0.5 shrink-0">
             {estadoTorneo === 'open' && (
               <button onClick={() => onEditar(ins)} className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-brand-500 rounded-lg hover:bg-brand-50 transition-colors">
                 <Pencil size={15} />
+              </button>
+            )}
+            {(estadoTorneo === 'open' || estadoTorneo === 'closed') && onObservar && !marcaManual && (
+              <button onClick={() => { setMotivoMarca(''); setMarcando(true) }} title="Marcar pasado de categoría" className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-amber-500 rounded-lg hover:bg-amber-50 transition-colors">
+                <Flag size={15} />
               </button>
             )}
             {(estadoTorneo === 'open' || estadoTorneo === 'closed') && (
@@ -1269,12 +1291,17 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja, alertas }) => {
           <span className="flex-1 text-[9px] font-semibold text-slate-400 uppercase tracking-wide truncate">
             {ins.categoria}
           </span>
-          {estadoTorneo === 'open' && !confirmando && (
+          {estadoTorneo === 'open' && !confirmando && !marcando && (
             <button onClick={() => onEditar(ins)} className="text-slate-300 hover:text-brand-500 p-0.5 rounded transition-colors">
               <Pencil size={11} />
             </button>
           )}
-          {(estadoTorneo === 'open' || estadoTorneo === 'closed') && !confirmando && (
+          {(estadoTorneo === 'open' || estadoTorneo === 'closed') && !confirmando && !marcando && onObservar && !marcaManual && (
+            <button onClick={() => { setMotivoMarca(''); setMarcando(true) }} title="Marcar pasado de categoría" className="text-slate-300 hover:text-amber-500 p-0.5 rounded transition-colors">
+              <Flag size={11} />
+            </button>
+          )}
+          {(estadoTorneo === 'open' || estadoTorneo === 'closed') && !confirmando && !marcando && (
             <button onClick={() => setConfirmando(true)} className="text-red-300 hover:text-red-500 p-0.5 rounded transition-colors">
               <Trash2 size={11} />
             </button>
@@ -1309,6 +1336,43 @@ const ParejaCard = ({ ins, idx, estadoTorneo, onEditar, onBaja, alertas }) => {
           </span>
         )}
       </div>
+
+      {/* ── "Cut" manual: marcar pasado de categoría (motivo + solo marcar / no habilitar) ── */}
+      {marcando && (
+        <div className="flex flex-col gap-2 px-3 py-2.5 border-t border-amber-100 bg-amber-50/40">
+          <p className="text-[11px] font-semibold text-amber-700 flex items-center gap-1.5">
+            <Flag size={11} /> Marcar a {ins.jugador1}{ins.jugador2 ? ` / ${ins.jugador2}` : ''} como pasados de {ins.categoria}
+          </p>
+          <input
+            type="text"
+            value={motivoMarca}
+            onChange={(e) => setMotivoMarca(e.target.value)}
+            placeholder="Motivo (opcional): ej. ganó 3ra en otro club"
+            className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-amber-200 bg-white text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-amber-400"
+            autoFocus
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { onObservar(ins, motivoMarca || 'true'); setMarcando(false) }}
+              className="flex-1 text-xs font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Solo marcar
+            </button>
+            <button
+              onClick={() => { onBaja(ins.id, ins); setMarcando(false) }}
+              className="flex-1 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Marcar y no habilitar
+            </button>
+            <button
+              onClick={() => setMarcando(false)}
+              className="text-xs font-semibold text-slate-400 hover:text-slate-600 px-2 py-1.5 transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Confirmación de baja (compartida) ── */}
       {confirmando && (
@@ -4090,6 +4154,20 @@ const TorneoDetallePage = () => {
     }
   }
 
+  // "Cut" manual: marcar/desmarcar una pareja como observada por categoría (motivo string o null).
+  const handleObservarCategoria = async (ins, motivo) => {
+    const valor = (motivo || '').trim() || null
+    if (isBackend && typeof ins.id === 'string') {
+      try {
+        await api.patch(`/torneos/${torneo.id}/parejas/${ins.id}`, { observacionCategoria: valor }, authH)
+      } catch {
+        showToast('No se pudo guardar la marca. Intentá de nuevo.')
+        return
+      }
+    }
+    updatePareja(torneo.id, ins.id, { observacionCategoria: valor })
+  }
+
   const handlePromoverEspera = async (ins) => {
     if (isBackend && typeof ins.id === 'string') {
       try {
@@ -4542,6 +4620,7 @@ const TorneoDetallePage = () => {
                           estadoTorneo={torneo.estado}
                           onEditar={setEditando}
                           onBaja={handleBajaInscripto}
+                          onObservar={handleObservarCategoria}
                           alertas={alertasCategoria[ins.id]}
                         />
                       ))}

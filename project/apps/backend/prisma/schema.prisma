@@ -527,6 +527,7 @@ model Pareja {
   fecha            String?
   disponibilidad   Json?
   prefiereMismoDia Boolean  @default(false)
+  observacionCategoria String? // "cut" manual del admin: motivo por el que está observada (pasada de categoría)
   createdAt        DateTime @default(now())
 
   torneo    Torneo   @relation(fields: [torneoId], references: [id], onDelete: Cascade)

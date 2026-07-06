@@ -148,9 +148,31 @@ model Jugador {
   solicitudesHechas    SolicitudJugador[] @relation("SolicitudSolicitante")
   solicitudesCubiertas SolicitudJugador[] @relation("SolicitudCubierto")
   participacionesPartido SolicitudParticipante[]
+  cambiosCategoria       CambioCategoria[]
 
   @@unique([clubId, dni])
   @@map("jugadores")
+}
+
+// Auditoría de ascensos/descensos de categoría. Se graba en CADA cambio (WIarky o admin
+// manual) para tener trazabilidad: de qué categoría a cuál, por qué y quién lo hizo.
+// Ascenso = logro (regla del dominio); descenso = manual, correctivo.
+model CambioCategoria {
+  id        String   @id @default(cuid())
+  clubId    String
+  jugadorId String
+  de        String?  // categoría anterior (null si no tenía)
+  a         String   // categoría nueva
+  tipo      String   // 'ascenso' | 'descenso'
+  origen    String   // 'wiark' | 'admin_manual'
+  motivo    String?  // por qué (criollo, para auditoría)
+  adminId   String?  // admin que lo hizo (null = automático/WIarky)
+  createdAt DateTime @default(now())
+
+  jugador Jugador @relation(fields: [jugadorId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, jugadorId])
+  @@map("cambios_categoria")
 }
 
 // Token de un solo uso para recuperar contraseña del jugador (por DNI + email).

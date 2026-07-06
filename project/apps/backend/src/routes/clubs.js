@@ -7,7 +7,7 @@ import { turnosImpagosDeuda } from '../lib/deudas.js'
 import { gatherInsightData, generarInsightIA, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado, responderChatAgente } from '../lib/insight.js'
 import { organizarConvocatoria, crearConvocatoriaCompleta } from '../lib/convocatorias.js'
 import { normalizarCategoria } from '../lib/categorias.js'
-import { nivelDeCategoria, catCorta } from '../lib/ascenso.js'
+import { nivelDeCategoria, catCorta, registrarCambioCategoria } from '../lib/ascenso.js'
 
 const router = Router()
 
@@ -395,6 +395,11 @@ router.post('/me/insight/accion', requireAuth, requireRole('admin'), requireOwne
       const nA = nivelDeCategoria(aCategoria), nD = nivelDeCategoria(deCategoria)
       if (nA != null && nD != null && nA >= nD) return res.status(400).json({ error: 'La categoría destino no es un ascenso' })
       await prisma.jugador.update({ where: { id: jugador.id }, data: { categoria: aCategoria } })
+      // Auditoría: queda registrado el ascenso (origen WIarky).
+      registrarCambioCategoria({
+        clubId, jugadorId: jugador.id, de: deCategoria, a: aCategoria, origen: 'wiark',
+        motivo: (datos?.motivo || '').toString().trim() || null,
+      }).catch(() => {})
       // Notificación de FELICITACIÓN al jugador (logro, no castigo — regla del dominio).
       prisma.notificacion.create({
         data: { clubId, jugadorId: jugador.id, tipo: 'ascenso_categoria', data: { de: deCategoria, a: aCategoria, mensaje: `¡Felicitaciones! Ascendiste a ${catCorta(aCategoria)}. Le quedó chica la categoría 🎾` } },

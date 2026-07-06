@@ -91,7 +91,10 @@ Los flujos que las aplican están en `/memoria/flujos/`.
 
 **RN-29** Un jugador se registra en 3 pasos: datos básicos, perfil, preferencias.  
 **RN-30** Un jugador tiene una categoría entre 8va y 1ra.  
-**RN-31** Un jugador está autenticado si tiene token válido en `localStorage` (`player_token`).
+**RN-31** Un jugador está autenticado si tiene token válido en `localStorage` (`player_token`).  
+**RN-58** El **ascenso** de categoría se comunica siempre como **LOGRO** (felicitación 🎾, "le quedó chica la categoría"); el **descenso** se comunica como **acto administrativo neutro** (aviso "el club actualizó tu categoría"), NUNCA como castigo. Regla del dominio, aplica en toda la app (WIarky y admin).  
+**RN-59** **TODO** cambio de categoría de un jugador queda auditado en `CambioCategoria` (de/a, tipo ascenso/descenso derivado del par, origen `wiark`/`admin_manual`, motivo, adminId) **y** notifica al jugador con el tono correcto (ascenso → felicitación; descenso → `categoria_actualizada` neutra). Vale para los dos flujos: WIarky (`consultar_ascensos`/`ascender_jugador`) y edición manual del admin. La auditoría es best-effort: nunca rompe el cambio en sí.  
+**RN-60** El contador de señales de ascenso se computa **solo desde torneos** (no Americano/Super 8), ventana de **12 meses**, con reglas de **títulos** (no ELO). El sistema es **asistido**: sugiere/avisa, pero el ascenso lo confirma el admin o WIarky — nunca automático. El descenso es siempre manual.
 
 ---
 

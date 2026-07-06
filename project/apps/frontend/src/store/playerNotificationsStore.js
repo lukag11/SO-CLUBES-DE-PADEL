@@ -26,6 +26,8 @@ const TITULOS = {
   solicitud_rechazado:          'El partido ya se cubrió',
   partido_completo:             '¡Ya están todos! 🎾',
   partido_cancelado:            'Se canceló un partido',
+  ascenso_categoria:            '¡Ascendiste de categoría! 🎾',
+  categoria_actualizada:        'El club actualizó tu categoría',
 }
 
 const formatCuerpo = (tipo, data = {}) => {
@@ -77,6 +79,8 @@ const formatCuerpo = (tipo, data = {}) => {
   if (tipo === 'torneo_baja_admin')          return `${torneoNombre} · ${categoria}`
   if (tipo === 'torneo_alta_admin')          return `${torneoNombre} · ${categoria} · ${jugador1} / ${jugador2}`
   if (tipo === 'torneo_promovido_espera')    return `${torneoNombre} · ${categoria} · pasaste de lista de espera a inscripto`
+  if (tipo === 'ascenso_categoria')          return data.mensaje || `Pasaste de ${data.de || ''} a ${data.a || ''}. ¡Le quedó chica la categoría! 🎾`
+  if (tipo === 'categoria_actualizada')      return `Ahora jugás en ${data.a || ''}.`
   return ''
 }
 

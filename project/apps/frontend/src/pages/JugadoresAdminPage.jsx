@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Users, UserPlus, Search, CheckCircle, Clock, Phone, Mail,
   ChevronRight, ChevronDown, X, AlertCircle, Trophy, CalendarDays, Zap, Shield,
-  Pencil, Trash2, UserMinus, HelpCircle, Repeat, TrendingUp, Wallet,
+  Pencil, Trash2, UserMinus, HelpCircle, Repeat, TrendingUp, TrendingDown, Wallet,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
@@ -429,6 +429,15 @@ const DrawerJugador = ({ jugador, onClose, onEditar, onEliminar, onDarDeBaja, on
       .finally(() => setLoadingCuenta(false))
   }, [jugador.id, adminToken])
 
+  // ── Historial de categoría (auditoría de ascensos/descensos) ────────────────
+  const [historialCat, setHistorialCat] = useState([])
+  useEffect(() => {
+    if (!adminToken || !jugador.id) return
+    api.get(`/jugadores/${jugador.id}/historial-categoria`, { Authorization: `Bearer ${adminToken}` })
+      .then((d) => setHistorialCat(Array.isArray(d) ? d : []))
+      .catch(() => setHistorialCat([]))
+  }, [jugador.id, adminToken])
+
   const saldo = saldoData?.adeudado ?? 0
   const saldoVencido = (saldoData?.vencido ?? 0) > 0
 
@@ -612,6 +621,40 @@ const DrawerJugador = ({ jugador, onClose, onEditar, onEliminar, onDarDeBaja, on
               {saldo > 0
                 ? <span className={`text-sm font-black ${saldoVencido ? 'text-red-400' : 'text-amber-400'}`}>Debe ${saldo.toLocaleString('es-AR')}</span>
                 : <span className="text-sm font-semibold text-emerald-400">Al día</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Historial de categoría (auditoría de ascensos/descensos) */}
+        {historialCat.length > 0 && (
+          <div className="px-6 pb-4">
+            <p className="text-white/40 text-[10px] font-semibold uppercase tracking-wide mb-2">Historial de categoría</p>
+            <div className="space-y-1.5">
+              {historialCat.map((h) => {
+                const esAscenso = h.tipo === 'ascenso'
+                const fecha = new Date(h.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+                return (
+                  <div key={h.id} className={`flex items-start gap-2.5 rounded-xl border px-3 py-2 ${
+                    esAscenso ? 'border-club/20 bg-club/5' : 'border-white/6 bg-white/3'
+                  }`}>
+                    {esAscenso
+                      ? <TrendingUp size={14} className="text-club shrink-0 mt-0.5" />
+                      : <TrendingDown size={14} className="text-white/40 shrink-0 mt-0.5" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-white/80">
+                        {h.de || '—'} → {h.a}
+                        <span className={`ml-1.5 text-[9px] font-bold ${esAscenso ? 'text-club' : 'text-white/40'}`}>
+                          {esAscenso ? 'ascenso' : 'descenso'}
+                        </span>
+                      </p>
+                      {h.motivo && <p className="text-white/30 text-[10px] mt-0.5">{h.motivo}</p>}
+                      <p className="text-white/20 text-[9px] mt-0.5">
+                        {fecha} · {h.origen === 'wiark' ? 'WIarky' : 'Admin'}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
@@ -816,7 +859,7 @@ const JugadoresAdminPage = () => {
   const [jugadorEditar, setJugadorEditar] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
-  const [sugeridosAscenso, setSugeridosAscenso] = useState(new Set())
+  const [sugeridosAscenso, setSugeridosAscenso] = useState(new Map())
 
   const toast = useToast()
   const showToast = toast.success
@@ -827,7 +870,7 @@ const JugadoresAdminPage = () => {
     api.get('/jugadores', { Authorization: `Bearer ${token}` })
       .then(setJugadores).catch(() => {}).finally(() => setLoading(false))
     api.get('/jugadores/ascenso-sugeridos', { Authorization: `Bearer ${token}` })
-      .then((lista) => setSugeridosAscenso(new Set(lista.map((s) => s.jugadorId))))
+      .then((lista) => setSugeridosAscenso(new Map(lista.map((s) => [s.jugadorId, s]))))
       .catch(() => {})
   }, [token])
 
@@ -1097,8 +1140,13 @@ const JugadoresAdminPage = () => {
                       <span className="text-white font-semibold text-sm group-hover:text-brand-300 transition-colors">{j.apellido}, {j.nombre}</span>
                       {j.categoria && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0">{j.categoria}</span>}
                       {sugeridosAscenso.has(j.id) && (
-                        <span className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25 shrink-0">
+                        <span
+                          title={`${sugeridosAscenso.get(j.id).motivo || 'Le está quedando chica la categoría'}${sugeridosAscenso.get(j.id).categoriaSugerida ? ` → sugerido: ${sugeridosAscenso.get(j.id).categoriaSugerida}` : ''}`}
+                          className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25 shrink-0 cursor-help">
                           <TrendingUp size={9} />Subir
+                          {sugeridosAscenso.get(j.id).categoriaSugerida && (
+                            <span className="text-amber-300/70">→ {sugeridosAscenso.get(j.id).categoriaSugerida}</span>
+                          )}
                         </span>
                       )}
                     </div>

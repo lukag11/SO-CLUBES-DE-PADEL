@@ -6,7 +6,7 @@ import { requireAuth, requireRole, requireActive, requirePermiso } from '../midd
 import { lookupLimiter } from '../middleware/rateLimit.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
 import { normalizarCategoria } from '../lib/categorias.js'
-import { calcularSenalesAscenso } from '../lib/ascenso.js'
+import { calcularSenalesAscenso, registrarCambioCategoria, catCorta } from '../lib/ascenso.js'
 
 const router = Router()
 
@@ -1059,7 +1059,38 @@ router.patch('/:id', requireAuth, requireRole('admin'), requirePermiso('jugadore
         },
       },
     })
+    // Auditoría + notificación: si cambió la categoría (ascenso o descenso manual del admin).
+    if (categoria !== undefined && normalizarCategoria(categoria) !== normalizarCategoria(jugador.categoria)) {
+      const de = jugador.categoria, a = normalizarCategoria(categoria)
+      registrarCambioCategoria({
+        clubId: req.user.clubId, jugadorId: jugador.id,
+        de, a, origen: 'admin_manual', adminId: req.user.id,
+      }).then((cambio) => {
+        if (!cambio) return
+        // Ascenso = felicitación (logro); descenso = aviso neutro (acto administrativo, no castigo).
+        const data = cambio.tipo === 'ascenso'
+          ? { tipo: 'ascenso_categoria', data: { de, a, mensaje: `¡Felicitaciones! Ascendiste a ${catCorta(a)}. Le quedó chica la categoría 🎾` } }
+          : { tipo: 'categoria_actualizada', data: { de, a } }
+        return prisma.notificacion.create({ data: { clubId: req.user.clubId, jugadorId: jugador.id, ...data } })
+      }).catch(() => {})
+    }
     res.json(updated)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /:id/historial-categoria — admin: auditoría de ascensos/descensos del jugador.
+router.get('/:id/historial-categoria', requireAuth, requireRole('admin'), requirePermiso('jugadores'), async (req, res) => {
+  try {
+    const jugador = await prisma.jugador.findFirst({ where: { id: req.params.id, clubId: req.user.clubId }, select: { id: true } })
+    if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' })
+    const historial = await prisma.cambioCategoria.findMany({
+      where: { clubId: req.user.clubId, jugadorId: req.params.id },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, de: true, a: true, tipo: true, origen: true, motivo: true, createdAt: true },
+    })
+    res.json(historial)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, CheckCircle, Repeat, CalendarDays, BellOff, UserCheck, XCircle, Megaphone, Search } from 'lucide-react'
+import { Bell, CheckCircle, Repeat, CalendarDays, BellOff, UserCheck, XCircle, Megaphone, Search, TrendingUp } from 'lucide-react'
 import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
@@ -16,6 +16,18 @@ const TIPO_META = {
     color: 'text-club',
     bg: 'bg-club/10',
     border: 'border-club/20',
+  },
+  ascenso_categoria: {
+    icon: TrendingUp,
+    color: 'text-club',
+    bg: 'bg-club/10',
+    border: 'border-club/30',
+  },
+  categoria_actualizada: {
+    icon: UserCheck,
+    color: 'text-sky-400',
+    bg: 'bg-sky-400/10',
+    border: 'border-sky-400/20',
   },
   reserva_admin_manual: {
     icon: CalendarDays,

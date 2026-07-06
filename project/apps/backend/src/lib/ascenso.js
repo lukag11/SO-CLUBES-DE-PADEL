@@ -38,6 +38,25 @@ export const categoriaSuperior = (cat) => {
   return `${ORD[n - 2]} Categoría`
 }
 
+// Registra un cambio de categoría en la auditoría (`CambioCategoria`). Deriva el tipo
+// (ascenso = a mejor categoría = nivel menor; descenso = a peor) del par de/a. No lanza:
+// la auditoría nunca debe romper el cambio en sí (best-effort).
+export async function registrarCambioCategoria({ clubId, jugadorId, de, a, origen, motivo = null, adminId = null }) {
+  const deN = normalizarCategoria(de) || null
+  const aN = normalizarCategoria(a)
+  if (!aN || deN === aN) return null // sin cambio real, no se registra
+  const nD = nivelDeCategoria(deN), nA = nivelDeCategoria(aN)
+  const tipo = (nD != null && nA != null && nA < nD) ? 'ascenso' : 'descenso'
+  try {
+    return await prisma.cambioCategoria.create({
+      data: { clubId, jugadorId, de: deN, a: aN, tipo, origen, motivo, adminId },
+    })
+  } catch (err) {
+    console.error('[registrarCambioCategoria]', err.message)
+    return null
+  }
+}
+
 // Fecha 'YYYY-MM-DD' de un torneo para la ventana (fin > inicio > createdAt).
 const fechaTorneo = (t) =>
   t.fechaFin || t.fechaInicio || (t.createdAt ? t.createdAt.toISOString().slice(0, 10) : null)

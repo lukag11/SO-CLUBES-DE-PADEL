@@ -6,6 +6,8 @@ import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg, finEnMin, franjasDi
 import { turnosImpagosDeuda } from '../lib/deudas.js'
 import { gatherInsightData, generarInsightIA, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado, responderChatAgente } from '../lib/insight.js'
 import { organizarConvocatoria, crearConvocatoriaCompleta } from '../lib/convocatorias.js'
+import { normalizarCategoria } from '../lib/categorias.js'
+import { nivelDeCategoria, catCorta } from '../lib/ascenso.js'
 
 const router = Router()
 
@@ -381,6 +383,23 @@ router.post('/me/insight/accion', requireAuth, requireRole('admin'), requireOwne
       } catch (e) {
         return res.status(e.status === 409 ? 409 : 500).json({ error: e.message || 'No se pudo crear la convocatoria' })
       }
+    }
+    if (accion === 'ascender_jugador') {
+      const jugadorId = (datos?.jugadorId || '').toString().trim()
+      const aCategoria = normalizarCategoria(datos?.aCategoria)
+      if (!jugadorId || !aCategoria) return res.status(400).json({ error: 'Faltan datos del ascenso' })
+      const jugador = await prisma.jugador.findFirst({ where: { id: jugadorId, clubId }, select: { id: true, nombre: true, apellido: true, categoria: true } })
+      if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' })
+      const deCategoria = normalizarCategoria(jugador.categoria)
+      // Dirección: la categoría destino tiene que ser un ASCENSO (nivel menor = mejor).
+      const nA = nivelDeCategoria(aCategoria), nD = nivelDeCategoria(deCategoria)
+      if (nA != null && nD != null && nA >= nD) return res.status(400).json({ error: 'La categoría destino no es un ascenso' })
+      await prisma.jugador.update({ where: { id: jugador.id }, data: { categoria: aCategoria } })
+      // Notificación de FELICITACIÓN al jugador (logro, no castigo — regla del dominio).
+      prisma.notificacion.create({
+        data: { clubId, jugadorId: jugador.id, tipo: 'ascenso_categoria', data: { de: deCategoria, a: aCategoria, mensaje: `¡Felicitaciones! Ascendiste a ${catCorta(aCategoria)}. Le quedó chica la categoría 🎾` } },
+      }).catch(() => {})
+      return res.json({ ok: true, mensaje: `${jugador.nombre} ${jugador.apellido || ''}`.trim() + ` ascendido a ${catCorta(aCategoria)} ✅` })
     }
     return res.status(400).json({ error: 'Acción desconocida' })
   } catch (err) {

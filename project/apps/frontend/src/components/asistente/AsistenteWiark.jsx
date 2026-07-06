@@ -311,7 +311,7 @@ function ConfirmAccion({ artefacto, onConfirmado }) {
   const [copiable, setCopiable] = useState(null) // { titulo, texto } — ej. mensaje de WhatsApp
   const [copiado, setCopiado] = useState(false)
 
-  const labelConfirmar = { crear_reserva: 'Sí, reservar', crear_jugador: 'Sí, registrar', crear_convocatoria: 'Sí, convocar' }[artefacto.accion] || 'Sí, cargar'
+  const labelConfirmar = { crear_reserva: 'Sí, reservar', crear_jugador: 'Sí, registrar', crear_convocatoria: 'Sí, convocar', ascender_jugador: 'Sí, ascender' }[artefacto.accion] || 'Sí, cargar'
 
   const confirmar = () => {
     if (estado !== 'idle') return

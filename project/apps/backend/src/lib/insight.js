@@ -4,6 +4,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import prisma from './prisma.js'
 import { hoyArgStr, inicioDiaArg, inicioMesArg, ahoraArgHHMM, franjasDia, franjaTimes } from './tiempo.js'
 import { calcularSaludFinanciera } from './finanzas.js'
+import { calcularSenalesAscenso, catCorta } from './ascenso.js'
+import { normalizarCategoria } from './categorias.js'
 
 // Si la fecha es HOY, deja solo las franjas cuyo horario todavía no pasó (compara con la hora
 // actual argentina). Recalcula total. Para fechas futuras devuelve la disponibilidad tal cual.
@@ -405,6 +407,25 @@ const WIARK_TOOLS = [
       required: ['canchaNombre', 'fecha', 'horaInicio'],
     },
   },
+  {
+    name: 'consultar_ascensos',
+    description: 'Devuelve la lista de jugadores del club que están "pasados" de categoría: demasiado buenos para donde juegan hoy, según sus resultados en torneos. Por cada uno trae nombre, categoría actual, categoría sugerida (una arriba) y el motivo en criollo (por qué está pasado). Usá esta herramienta cuando el dueño pregunte quién está pasado, a quién le convendría ascender, si hay jugadores para subir de categoría, o cualquier variante sobre el nivel real de los jugadores vs. su categoría. NO ejecuta ningún ascenso: solo informa.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'ascender_jugador',
+    description: 'Prepara el ascenso de un jugador de su categoría actual a una superior. Usá esta herramienta cuando el dueño decida ascender a un jugador puntual (ej: "subí a Martín a 3ra", "ascendé a la Colo"). Requiere jugadorId, nombre, deCategoria y aCategoria. NO ejecuta el ascenso directo: genera un botón de confirmación que el dueño tiene que tocar. Necesitás saber a quién y a qué categoría antes de llamarla; si falta el dato, primero consultá con consultar_ascensos o preguntale.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        jugadorId: { type: 'string', description: 'ID del jugador a ascender (lo da consultar_ascensos)' },
+        nombre: { type: 'string', description: 'Nombre del jugador' },
+        deCategoria: { type: 'string', description: 'Categoría actual (ej: 4ta Categoría)' },
+        aCategoria: { type: 'string', description: 'Categoría a la que sube (una mejor, ej: 3ra Categoría)' },
+      },
+      required: ['jugadorId', 'aCategoria'],
+    },
+  },
 ]
 
 // Devuelve { paraModelo } (lo que ve la IA) y opcionalmente { artefacto } (texto que se
@@ -598,6 +619,26 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
     const resumen = `Registrar jugador: ${nombre} ${apellido} · DNI ${dni}${categoria ? ` · ${categoria}` : ''}`
     return { paraModelo: 'Le muestro al usuario un botón para confirmar el alta; el jugador NO está registrado todavía.', artefacto: { tipo: 'confirmacion', accion: 'crear_jugador', resumen, datos: { nombre, apellido, dni, categoria, telefono } } }
   }
+  if (name === 'consultar_ascensos') {
+    const senales = await calcularSenalesAscenso(clubId)
+    if (!senales.length) return { paraModelo: 'No hay jugadores pasados de categoría por ahora: están todos jugando en su nivel. Contáselo tranqui, no inventes nombres.' }
+    const lineas = senales.map((s) => `- ${s.nombre} (jugadorId: ${s.jugadorId}, ${catCorta(s.categoria)} → ${catCorta(s.categoriaSugerida)}): ${s.motivo}`)
+    return { paraModelo: `Hay ${senales.length} jugador(es) pasado(s) de categoría (es un LOGRO del jugador, NO un problema):\n${lineas.join('\n')}\nContale al dueño en criollo y corto, enmarcando cada uno como que "la rompió / le quedó chica la categoría". NO uses la palabra "motivo" ni jerga de sistema. Si el dueño quiere ascender a alguno, usá ascender_jugador con su jugadorId y aCategoria.` }
+  }
+  if (name === 'ascender_jugador') {
+    const jugadorId = (input.jugadorId || '').toString().trim()
+    const aCategoria = normalizarCategoria(input.aCategoria)
+    if (!jugadorId || !aCategoria) return { paraModelo: 'Para ascender necesito a QUIÉN (jugadorId) y a QUÉ categoría. Si no lo tenés, usá consultar_ascensos primero.' }
+    const jugador = await prisma.jugador.findFirst({ where: { id: jugadorId, clubId }, select: { id: true, nombre: true, apellido: true, categoria: true } })
+    if (!jugador) return { paraModelo: 'No encontré ese jugador en el club. Verificá con consultar_ascensos.' }
+    const deCategoria = normalizarCategoria(jugador.categoria)
+    const nombre = `${jugador.nombre} ${jugador.apellido || ''}`.trim()
+    const resumen = `Ascender a ${nombre}: ${catCorta(deCategoria)} → ${catCorta(aCategoria)}`
+    return {
+      paraModelo: 'Le muestro al dueño el botón para confirmar el ascenso; TODAVÍA no se ascendió. Decí UNA línea corta tipo "Te dejo el botón para confirmar el ascenso 👇", enmarcándolo como logro. No afirmes que ya lo subiste.',
+      artefacto: { tipo: 'confirmacion', accion: 'ascender_jugador', resumen, datos: { jugadorId: jugador.id, nombre, deCategoria, aCategoria } },
+    }
+  }
   return { paraModelo: 'Herramienta desconocida.' }
 }
 
@@ -626,6 +667,9 @@ Reglas:
 - Para preguntas sobre CÓMO VA EL NEGOCIO (¿gano o pierdo?, ¿cuántos turnos necesito para no perder?, mi punto de equilibrio, mi rinde/ocupación, por qué pierdo plata, cuánto pierdo por canchas vacías o por ausencias, mi yield) usá consultar_salud_financiera. Explicá el número en criollo, sin tecnicismos, y si sirve sugerí la palanca (ej: "llená los horarios fríos"). Si el dueño no cargó los costos, invitalo a hacerlo en la sección Dirección (son 2 preguntas).
 - Para reservar un turno usá crear_reserva (cancha + fecha + hora de inicio; el turno dura 1.5h, la hora de fin se calcula sola). NO se crea hasta que el dueño confirme con el botón. Si falta la cancha, la fecha o la hora, pediselas.
 - Para registrar/dar de alta un jugador usá crear_jugador (nombre + apellido + DNI; el DNI es OBLIGATORIO). NO se crea hasta que el dueño confirme. Si falta el DNI, pediselo. El nombre completo separalo en nombre y apellido.
+- Para saber quién está PASADO de categoría (jugadores demasiado buenos para donde juegan) usá consultar_ascensos. Al listar, enmarcá el ascenso SIEMPRE como un LOGRO del jugador (la rompió, le quedó chica la categoría), NUNCA como un problema o un castigo. Contá en criollo y corto qué hizo cada uno (ej: "ganó 2 torneos en 4ta con parejas distintas, ya no tiene rival ahí"). NUNCA digas "hay que sacarlo", "no puede seguir", "hace trampa" ni lo trates de vivo/sandbagger. NO uses jerga de sistema ("el motor detectó", "categoriaSugerida").
+- Para ascender a un jugador usá ascender_jugador (jugadorId + aCategoria). NO afirmes que ya lo subiste: se ejecuta recién cuando el dueño toca el botón. Decí UNA línea corta ("Te dejo el botón para confirmar el ascenso 👇") y nada más. El ascenso lo decide siempre el dueño; vos lo asistís y se lo dejás fácil. Si duda, dale el dato (por qué está pasado) y que decida él.
+- PROACTIVO: cuando el dueño abra el chat o haga una pregunta general ("¿cómo venimos?", "¿alguna novedad?"), si hay jugadores pasados mencionalo por iniciativa propia como una OPORTUNIDAD linda (no como alerta), en una línea al pasar, y ofrecé mostrarle la lista. Reglas: no lo repitas si ya lo mencionaste en el chat; no lo metas a la fuerza si el dueño está en otra cosa (un cobro, un gasto, una reserva); no lo pongas primero si hay algo más urgente (deuda alta, caja). Es un "che, de paso te tiro esto", no una interrupción.
 - En tus propios mensajes del chat escribí en texto plano, sin markdown.
 
 ${contexto}`

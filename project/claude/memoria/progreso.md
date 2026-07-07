@@ -1,6 +1,11 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-07-06 — **CORTE MANUAL DE CATEGORÍA EN TORNEOS** (botón 🚩 del admin para marcar/no habilitar desconocidos sin data — convive con la detección automática). Antes (mismo día): ASCENSO/DESCENSO cierre + Bloques 1/2/4. Ver abajo.
+**Última actualización:** 2026-07-06 — **RETOQUES UI JUGADOR (mobile).** Antes (mismo día): CORTE MANUAL DE CATEGORÍA EN TORNEOS + ASCENSO/DESCENSO cierre. Ver abajo.
+
+**RETOQUES UI JUGADOR — MOBILE (2026-07-06).** Tanda de pulido cosmético/responsive (solo mobile, desktop intacto):
+- **Sidebar jugador (`PlayerLayout.jsx`):** reordenado en 3 bloques mentales (🎾 mi cancha: Reservar/Mis reservas/Mis turnos fijos · 🏆 competir: Americano y Super 8/Partidos/Mis torneos · 👤 mi cuenta: Mis pagos/Estadísticas/Mi perfil), con separador fino (`border-white/5`) entre bloques vía flag `sepBefore` + `Fragment`. Antes estaba mezclado (turnos fijos y torneos escapados de su grupo). Se probó con leyendas de sección pero Luca las descartó — quedó solo la línea.
+- **Selector de fecha en Reservar (`PlayerReservasPage.jsx`):** la tira de 14 días mostraba barra de scroll gris + flechas redundantes en mobile. Bug real: usaba la clase `scrollbar-hide` que **no existe** en el proyecto (la buena es `.no-scrollbar`, index.css). Fix: `scrollbar-hide`→`no-scrollbar`, flechas ‹›`hidden md:flex` (mobile swipea, desktop mantiene flechas) + `snap-x snap-mandatory scroll-smooth` con `snap-start` (imán al soltar).
+- **Tabs de Estadísticas (`PlayerStatsPage.jsx`):** "Oponentes" se cortaba en mobile. Fix: `px-3 md:px-4` (menos padding en mobile) + `overflow-x-auto no-scrollbar` con `shrink-0 whitespace-nowrap` como red de seguridad (scrollea sin cortar si no entra).
 
 **CORTE MANUAL DE CATEGORÍA EN TORNEOS (2026-07-06).** Continuación del sistema de ascenso/descenso, la parte "el corte / no habilitar por categoría". La detección AUTOMÁTICA (motor `lib/ascenso.js` → `detectarAlertasInscripcion`, banner ⚠ ámbar en la pareja) solo llega a jugadores CONOCIDOS del club (categoría declarada superior o pasado por resultados). El hueco: el jugador DESCONOCIDO/sin data (viene de otro club, no tenemos historial) — ahí el sistema no puede detectar nada y el admin necesita marcarlo A MANO con su criterio. Este bloque agrega esa vía manual. Ver [[project_ascenso_descenso_categoria]] y RN-61.
 

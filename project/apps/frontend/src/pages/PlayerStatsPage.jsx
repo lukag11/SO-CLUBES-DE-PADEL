@@ -973,13 +973,13 @@ const PlayerStatsPage = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-white/8">
+      <div className="flex items-center gap-1 border-b border-white/8 overflow-x-auto no-scrollbar">
         {TABS.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => { setTab(id); if (id === 'oponentes') fetchOponentes() }}
             className={[
-              'px-4 py-2.5 text-sm font-medium transition-all relative',
+              'shrink-0 whitespace-nowrap px-3 md:px-4 py-2.5 text-sm font-medium transition-all relative',
               tab === id
                 ? 'text-club after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-club after:rounded-t'
                 : 'text-white/40 hover:text-white/70',

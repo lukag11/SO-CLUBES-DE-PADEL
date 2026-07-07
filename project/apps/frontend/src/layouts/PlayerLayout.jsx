@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate, Link } from 'react-router-dom'
 import { Zap, BarChart2, Trophy, Users, LogOut, LayoutDashboard, UserCircle, Repeat, CalendarDays, Bell, Menu, X, ClipboardList, Wallet, Megaphone, Swords } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
@@ -9,16 +9,21 @@ import useClubStore from '../store/clubStore'
 import { useToast } from '../components/ui/ToastProvider'
 import { api } from '../lib/api'
 
+// Ordenado en 3 bloques mentales del jugador: 🎾 mi cancha · 🏆 competir · 👤 mi cuenta.
+// `sepBefore` marca el primer ítem de cada bloque → separador fino antes.
 const navItems = [
   { to: '/dashboardJugadores/dashboard',    label: 'Mi resumen',       icon: LayoutDashboard },
-  { to: '/dashboardJugadores/reservas',     label: 'Reservar cancha',  icon: CalendarDays },
+  // 🎾 mi cancha
+  { to: '/dashboardJugadores/reservas',     label: 'Reservar cancha',  icon: CalendarDays, sepBefore: true },
   { to: '/dashboardJugadores/mis-reservas', label: 'Mis reservas',     icon: ClipboardList },
-  { to: '/dashboardJugadores/eventos',      label: 'Americano y Super 8', icon: Megaphone },
-  { to: '/dashboardJugadores/partidos',     label: 'Partidos',         icon: Swords },
   { to: '/dashboardJugadores/turnos-fijos', label: 'Mis turnos fijos', icon: Repeat },
-  { to: '/dashboardJugadores/mis-pagos',    label: 'Mis pagos',        icon: Wallet },
-  { to: '/dashboardJugadores/estadisticas', label: 'Estadísticas',     icon: BarChart2 },
+  // 🏆 competir
+  { to: '/dashboardJugadores/eventos',      label: 'Americano y Super 8', icon: Megaphone, sepBefore: true },
+  { to: '/dashboardJugadores/partidos',     label: 'Partidos',         icon: Swords },
   { to: '/dashboardJugadores/torneos',      label: 'Mis torneos',      icon: Trophy },
+  // 👤 mi cuenta
+  { to: '/dashboardJugadores/mis-pagos',    label: 'Mis pagos',        icon: Wallet, sepBefore: true },
+  { to: '/dashboardJugadores/estadisticas', label: 'Estadísticas',     icon: BarChart2 },
   { to: '/dashboardJugadores/perfil',       label: 'Mi perfil',        icon: UserCircle },
 ]
 
@@ -250,9 +255,10 @@ const PlayerLayout = () => {
 
         {/* Navegación */}
         <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {navItems.map(({ to, label, icon: Icon, sepBefore }) => (
+            <Fragment key={to}>
+              {sepBefore && <div className="mx-3 my-1.5 border-t border-white/5" />}
             <NavLink
-              key={to}
               to={to}
               end
               className={({ isActive }) =>
@@ -271,6 +277,7 @@ const PlayerLayout = () => {
                 </>
               )}
             </NavLink>
+            </Fragment>
           ))}
         </nav>
 

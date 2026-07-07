@@ -773,12 +773,12 @@ const PlayerReservasPage = () => {
           <button
             onClick={() => { setFechaOffset(Math.max(0, fechaOffset - 1)); setSlotSeleccionado(null) }}
             disabled={fechaOffset === 0}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all shrink-0"
+            className="w-8 h-8 rounded-lg hidden md:flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all shrink-0"
           >
             <ChevronLeft size={16} />
           </button>
 
-          <div className="flex gap-2 overflow-x-auto flex-1 min-w-0 pb-0.5 scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto flex-1 min-w-0 pb-0.5 no-scrollbar snap-x snap-mandatory scroll-smooth">
             {Array.from({ length: 14 }, (_, i) => {
               const d = addDays(hoy, i)
               const isSelected = i === fechaOffset
@@ -787,7 +787,7 @@ const PlayerReservasPage = () => {
                   key={i}
                   onClick={() => { setFechaOffset(i); setSlotSeleccionado(null) }}
                   className={[
-                    'flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-xl border transition-all shrink-0 min-w-[52px]',
+                    'flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-xl border transition-all shrink-0 min-w-[52px] snap-start',
                     isSelected
                       ? 'bg-club/12 border-club/40 text-club'
                       : 'border-white/6 text-white/50 hover:text-white hover:border-white/15 hover:bg-white/4',
@@ -808,7 +808,7 @@ const PlayerReservasPage = () => {
           <button
             onClick={() => { setFechaOffset(Math.min(13, fechaOffset + 1)); setSlotSeleccionado(null) }}
             disabled={fechaOffset === 13}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all shrink-0"
+            className="w-8 h-8 rounded-lg hidden md:flex items-center justify-center text-white/30 hover:text-white hover:bg-white/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all shrink-0"
           >
             <ChevronRight size={16} />
           </button>

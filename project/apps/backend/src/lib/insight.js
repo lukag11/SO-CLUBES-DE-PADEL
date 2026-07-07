@@ -219,12 +219,13 @@ async function armarContextoClub(clubId) {
   const mDate = new Date(Date.UTC(yy, mm - 1, dd + 1))
   const mananaStr = `${mDate.getUTCFullYear()}-${String(mDate.getUTCMonth() + 1).padStart(2, '0')}-${String(mDate.getUTCDate()).padStart(2, '0')}`
 
-  const [info, dispHoyRaw, dispManana, jugadores, torneos] = await Promise.all([
+  const [info, dispHoyRaw, dispManana, jugadores, torneos, cajaAbierta] = await Promise.all([
     gatherInsightData(clubId),
     gatherDisponibilidad(clubId, hoyStr),
     gatherDisponibilidad(clubId, mananaStr),
     prisma.jugador.count({ where: { clubId } }),
     prisma.torneo.findMany({ where: { clubId, estado: { in: ['open', 'in_progress'] } }, select: { nombre: true, estado: true } }),
+    prisma.arqueoCaja.findFirst({ where: { clubId, estado: 'abierta' }, select: { abiertoAt: true, empleadoNombre: true } }),
   ])
   const dispHoy = soloFuturas(dispHoyRaw, hoyStr) // no contar franjas de hoy que ya pasaron
 
@@ -262,7 +263,8 @@ Datos REALES del club "${info.club}":
 - Horas muertas (franjas flojas): ${flojasTxt}
 - Plata por cobrar (deuda pendiente): $${info.deudaPorCobrar.toLocaleString('es-AR')}
 - Jugadores registrados en el club: ${jugadores}
-- Torneos activos: ${torneosTxt}`
+- Torneos activos: ${torneosTxt}
+- Caja del día: ${cajaAbierta ? `ABIERTA desde las ${new Date(cajaAbierta.abiertoAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}${cajaAbierta.empleadoNombre ? ` por ${cajaAbierta.empleadoNombre}` : ''}` : 'NO abierta todavía (si el dueño arranca el día, recordale abrir la caja con abrir_caja)'}`
 
   return contexto
 }
@@ -424,6 +426,17 @@ const WIARK_TOOLS = [
         aCategoria: { type: 'string', description: 'Categoría a la que sube (una mejor, ej: 3ra Categoría)' },
       },
       required: ['jugadorId', 'aCategoria'],
+    },
+  },
+  {
+    name: 'abrir_caja',
+    description: 'Abre la caja del día (arqueo de efectivo) para empezar a controlar la plata del cajón. Usá esta herramienta cuando el dueño diga que quiere abrir la caja, arrancar/iniciar el día o la caja, o cuando vos le recordaste que todavía no la abrió y acepta. Podés recibir un fondoInicial (el "cambio"/vuelto con el que arranca, en pesos); si no lo dice, asumí 0. NO abre directo: genera un botón de confirmación que el dueño toca. Si ya hay una caja abierta, avisá que no hace falta.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fondoInicial: { type: 'number', description: 'Fondo/cambio inicial en pesos (opcional, default 0)' },
+      },
+      required: [],
     },
   },
 ]
@@ -639,6 +652,18 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
       artefacto: { tipo: 'confirmacion', accion: 'ascender_jugador', resumen, datos: { jugadorId: jugador.id, nombre, deCategoria, aCategoria } },
     }
   }
+  if (name === 'abrir_caja') {
+    const abierta = await prisma.arqueoCaja.findFirst({ where: { clubId, estado: 'abierta' }, select: { id: true } })
+    if (abierta) return { paraModelo: 'Ya hay una caja abierta hoy, no hace falta abrir otra. Si el turno terminó, lo que corresponde es CERRARLA (eso se hace desde la pestaña Caja de Pagos). Avisale eso al dueño.' }
+    const fondoInicial = Math.max(0, Math.round(Number(input.fondoInicial) || 0))
+    const resumen = fondoInicial > 0
+      ? `Abrir la caja del día con un fondo inicial de $${fondoInicial.toLocaleString('es-AR')} (el cambio de arranque).`
+      : 'Abrir la caja del día con fondo inicial $0.'
+    return {
+      paraModelo: 'Le muestro al dueño el botón para abrir la caja; TODAVÍA no está abierta. Decí UNA línea corta tipo "Te dejo el botón para abrir la caja del día 👇", sin afirmar que ya está abierta.',
+      artefacto: { tipo: 'confirmacion', accion: 'abrir_caja', resumen, datos: { fondoInicial } },
+    }
+  }
   return { paraModelo: 'Herramienta desconocida.' }
 }
 
@@ -669,6 +694,7 @@ Reglas:
 - Para registrar/dar de alta un jugador usá crear_jugador (nombre + apellido + DNI; el DNI es OBLIGATORIO). NO se crea hasta que el dueño confirme. Si falta el DNI, pediselo. El nombre completo separalo en nombre y apellido.
 - Para saber quién está PASADO de categoría (jugadores demasiado buenos para donde juegan) usá consultar_ascensos. Al listar, enmarcá el ascenso SIEMPRE como un LOGRO del jugador (la rompió, le quedó chica la categoría), NUNCA como un problema o un castigo. Contá en criollo y corto qué hizo cada uno (ej: "ganó 2 torneos en 4ta con parejas distintas, ya no tiene rival ahí"). NUNCA digas "hay que sacarlo", "no puede seguir", "hace trampa" ni lo trates de vivo/sandbagger. NO uses jerga de sistema ("el motor detectó", "categoriaSugerida").
 - Para ascender a un jugador usá ascender_jugador (jugadorId + aCategoria). NO afirmes que ya lo subiste: se ejecuta recién cuando el dueño toca el botón. Decí UNA línea corta ("Te dejo el botón para confirmar el ascenso 👇") y nada más. El ascenso lo decide siempre el dueño; vos lo asistís y se lo dejás fácil. Si duda, dale el dato (por qué está pasado) y que decida él.
+- CAJA DEL DÍA: para abrir la caja usá abrir_caja (opcionalmente con el fondo/cambio inicial). NO afirmes que la abriste: se abre recién cuando el dueño toca el botón. Si en los datos de abajo la caja figura como NO abierta y el dueño está arrancando el día o pregunta cómo empezar, recordáselo en criollo y corto ("Che, arrancá abriendo la caja del día 👇") y dejale el botón. Si ya está ABIERTA, no insistas; si el turno terminó, recordale que la CIERRE desde la pestaña Caja. El arqueo controla SOLO el efectivo del cajón (transferencias y MP no van ahí).
 - PROACTIVO: cuando el dueño abra el chat o haga una pregunta general ("¿cómo venimos?", "¿alguna novedad?"), si hay jugadores pasados mencionalo por iniciativa propia como una OPORTUNIDAD linda (no como alerta), en una línea al pasar, y ofrecé mostrarle la lista. Reglas: no lo repitas si ya lo mencionaste en el chat; no lo metas a la fuerza si el dueño está en otra cosa (un cobro, un gasto, una reserva); no lo pongas primero si hay algo más urgente (deuda alta, caja). Es un "che, de paso te tiro esto", no una interrupción.
 - En tus propios mensajes del chat escribí en texto plano, sin markdown.
 

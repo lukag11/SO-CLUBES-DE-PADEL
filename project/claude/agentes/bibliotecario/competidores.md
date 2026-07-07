@@ -42,5 +42,11 @@
 - **Por qué NO es el modelo para el ascenso de PadelwIArk:** exige volumen de partidos cargados que un club chico no tiene, y la categoría 1ra-8va es etiqueta gruesa, no rating. Referente para ENTENDER ranking dinámico; no para copiar en el ascenso de categoría. Detalle: hallazgos/oportunidades 2026-07-06.
 - **Fuente:** playtomic.com/blog/padel-levels, playerhelp.playtomic.com [Verificado].
 
+## ERP/POS argentinos usados por clubes para la CAJA (competencia indirecta) — [ficha 2026-07-06]
+- **Por qué figuran acá:** hoy muchos clubes de pádel manejan las canchas con un software y la CAJA del bar/kiosco con un POS aparte. Ese POS es competencia indirecta del módulo Pagos/Caja de PadelwIArk.
+- **Dux Software** (ERP PYME AR): Tesorería con apertura/cierre de caja diaria, fondo inicial por forma de pago, cálculo de diferencia declarado vs sistema, usuario que abrió, multi-caja por sucursal. Robusto pero genérico (no entiende de canchas ni turnos). Fuente: ayuda.duxsoftware.com.ar/articles/7866135, 7883706 [Verificado].
+- **Fudo / Bistrosoft** (POS gastronómico AR, corren sobre Android): arqueo de caja POR TURNO con monto inicial, efectivo esperado = inicial + ventas efectivo, "Según sistema" lista ventas/propinas/movimientos, opción "Usar en arqueo" para egresos con plata del cajón, terminal que automatiza el conteo. Es el estándar del BAR. Fuente: soporte.fu.do/articles/11730865, 11730868 [Verificado].
+- **Qué copiar:** el flujo apertura→fondo→cierre→conteo→diferencia (ver oportunidades OP-CAJA-1..3). **El argumento de venta:** si PadelwIArk suma arqueo físico, reemplaza al POS del bar y el club deja de pagar/operar dos sistemas. Playtomic/Matchpoint NO cubren arqueo físico [Probable] → hueco de vertical.
+
 ## Otros a fichar más adelante
 - **TPC Matchpoint** (occupancy + income con filtros). **PadelOS** (padelos.co — homónimo del nombre viejo del proyecto, tiene Reports & Analytics). **PlayByPoint / Playbypoint**, **360Player**, **Playpass**, **Padel iQ** (stats). [Verificado existencia, sin ficha].

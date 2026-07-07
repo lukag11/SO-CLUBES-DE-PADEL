@@ -41,6 +41,7 @@ model Club {
   solicitudesJugador SolicitudJugador[]
   eventosUso     EventoUso[]
   costos         Costo[]
+  arqueosCaja    ArqueoCaja[]
 
   @@map("clubs")
 }
@@ -461,6 +462,52 @@ model Costo {
 
   @@index([clubId, activo])
   @@map("costos")
+}
+
+// ARQUEO DE CAJA (control del efectivo físico). Una sesión = un turno de un empleado.
+// Al abrir declara el fondo (cambio). Al cerrar cuenta la plata y el sistema compara con
+// lo ESPERADO (fondo + cobros en efectivo del turno − egresos en efectivo). SOLO EFECTIVO:
+// transferencias/MP no van al cajón, se concilian aparte. Los totales se CONGELAN al cerrar
+// (documento histórico inmutable: si mañana se edita un cobro viejo, el arqueo no cambia).
+model ArqueoCaja {
+  id                String    @id @default(cuid())
+  clubId            String
+  empleadoId        String    // Admin que abrió la caja
+  empleadoNombre    String?   // snapshot (para el historial aunque cambie/borre el admin)
+  estado            String    @default("abierta") // abierta | cerrada
+  abiertoAt         DateTime  @default(now())
+  cerradoAt         DateTime?
+  fondoInicial      Int       @default(0)         // "cambio" de arranque (no es ganancia)
+  cobrosEfectivo    Int?      // snapshot al cerrar: cobrado en efectivo durante la sesión
+  egresosEfectivo   Int?      // snapshot al cerrar: retiros/egresos en efectivo (movimientos)
+  efectivoEsperado  Int?      // fondo + cobros − egresos (congelado al cerrar)
+  efectivoDeclarado Int?      // lo que el empleado contó del cajón
+  diferencia        Int?      // declarado − esperado (negativo = faltante)
+  notas             String?   // motivo si hay diferencia
+  cerradoPorNombre  String?   // quién cerró (puede diferir de quién abrió)
+  createdAt         DateTime  @default(now())
+
+  club        Club             @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  movimientos MovimientoCaja[]
+
+  @@index([clubId, estado])
+  @@map("arqueos_caja")
+}
+
+// Egresos/ingresos de EFECTIVO del cajón durante una sesión (no son cobros de ventas):
+// retiro del dueño, compra de hielo, vuelto extra. Ajustan el efectivo esperado del arqueo.
+model MovimientoCaja {
+  id        String   @id @default(cuid())
+  arqueoId  String
+  tipo      String   // egreso | ingreso
+  monto     Int
+  concepto  String
+  createdAt DateTime @default(now())
+
+  arqueo ArqueoCaja @relation(fields: [arqueoId], references: [id], onDelete: Cascade)
+
+  @@index([arqueoId])
+  @@map("movimientos_caja")
 }
 
 model Notificacion {

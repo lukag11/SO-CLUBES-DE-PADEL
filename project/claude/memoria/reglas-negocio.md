@@ -123,7 +123,8 @@ Los flujos que las aplican están en `/memoria/flujos/`.
 ## Pagos
 
 **RN-37** Los métodos de pago disponibles son: Efectivo, Transferencia, Débito, Crédito.  
-**RN-38** Los precios se expresan en pesos argentinos (ARS).
+**RN-38** Los precios se expresan en pesos argentinos (ARS).  
+**RN-63** El **arqueo de caja** (modelo `ArqueoCaja` + `MovimientoCaja`) controla el **efectivo FÍSICO del cajón**, no todo el movimiento del club. Reglas: **(1)** solo cuenta el **efectivo** — cobros con `metodoPago:'efectivo'` (reservas + cargos pagados) dentro de la ventana temporal `abiertoAt`→cierre; **transferencias y MP NO van al arqueo** (se concilian aparte). **(2)** El efectivo **esperado** = `fondoInicial` (el "cambio" de arranque) + cobros en efectivo del turno − egresos netos en efectivo (movimientos manuales: retiro del dueño, compra de hielo, vuelto extra; ingresos restan). La **diferencia** = `efectivoDeclarado` (lo que el empleado contó) − `efectivoEsperado`, y se atribuye al empleado (negativo = faltante). **(3)** Al **cerrar**, todos los totales (cobros/egresos/esperado/declarado/diferencia) se **CONGELAN** en el registro: es un documento histórico inmutable (editar un cobro viejo después NO altera el arqueo cerrado). **(4)** Solo puede haber **una caja abierta por club** a la vez (abrir con otra abierta → 409). **(5)** WIarky recuerda **proactivamente** abrir la caja al arrancar el día (tool `abrir_caja`, con botón de confirmación — nunca abre directo) y no insiste si ya está abierta. El "esperado" se calcula por ventana temporal → cero cambios en los flujos de cobro (capa aditiva).
 
 ---
 

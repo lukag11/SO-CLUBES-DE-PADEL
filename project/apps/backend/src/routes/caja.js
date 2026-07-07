@@ -112,4 +112,132 @@ router.get('/reporte', requireAuth, requireRole('admin'), async (req, res) => {
   }
 })
 
+// ──────────────────────────────────────────────────────────────────────────────
+// ARQUEO DE CAJA — control del efectivo físico (SOLO efectivo). Aditivo: no toca los
+// flujos de cobro. El "esperado" se calcula por VENTANA TEMPORAL (cobros en efectivo
+// entre apertura y cierre), así no hay que estampar nada en cada cobro.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Suma de cobros en EFECTIVO (reservas + cargos pagados) entre dos instantes.
+async function cobrosEfectivoEntre(clubId, desde, hasta) {
+  const rango = { gte: desde, lt: hasta }
+  const [reservas, cargos] = await Promise.all([
+    prisma.reserva.findMany({ where: { clubId, pagado: true, metodoPago: 'efectivo', pagadoAt: rango }, select: { precio: true } }),
+    prisma.cargo.findMany({ where: { clubId, estado: 'pagado', metodoPago: 'efectivo', pagadoAt: rango }, select: { monto: true } }),
+  ])
+  return reservas.reduce((s, r) => s + (r.precio ?? 0), 0) + cargos.reduce((s, c) => s + (c.monto ?? 0), 0)
+}
+
+// Neto de movimientos manuales de efectivo: egresos (−) suman al "salió", ingresos (+) restan.
+// Devuelve el EGRESO NETO (egreso − ingreso): positivo = salió plata del cajón.
+const egresoNetoMovimientos = (movs) =>
+  movs.reduce((s, m) => s + (m.tipo === 'egreso' ? (m.monto ?? 0) : -(m.monto ?? 0)), 0)
+
+// GET /api/caja/arqueo/actual — la sesión abierta del club (con esperado calculado EN VIVO).
+router.get('/arqueo/actual', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const arqueo = await prisma.arqueoCaja.findFirst({
+      where: { clubId: req.user.clubId, estado: 'abierta' },
+      include: { movimientos: { orderBy: { createdAt: 'desc' } } },
+      orderBy: { abiertoAt: 'desc' },
+    })
+    if (!arqueo) return res.json({ abierta: null })
+    const cobros = await cobrosEfectivoEntre(req.user.clubId, arqueo.abiertoAt, new Date())
+    const egresoNeto = egresoNetoMovimientos(arqueo.movimientos)
+    const esperado = arqueo.fondoInicial + cobros - egresoNeto
+    res.json({ abierta: { ...arqueo, cobrosEfectivo: cobros, egresoNeto, efectivoEsperado: esperado } })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener la caja actual' })
+  }
+})
+
+// POST /api/caja/arqueo/abrir — { fondoInicial }. Abre una sesión (rechaza si ya hay una abierta).
+router.post('/arqueo/abrir', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const yaAbierta = await prisma.arqueoCaja.findFirst({ where: { clubId: req.user.clubId, estado: 'abierta' }, select: { id: true } })
+    if (yaAbierta) return res.status(409).json({ error: 'Ya hay una caja abierta. Cerrá la actual antes de abrir otra.' })
+    const fondoInicial = Math.max(0, Math.round(Number(req.body?.fondoInicial) || 0))
+    const admin = await prisma.admin.findUnique({ where: { id: req.user.id }, select: { nombre: true } })
+    const arqueo = await prisma.arqueoCaja.create({
+      data: { clubId: req.user.clubId, empleadoId: req.user.id, empleadoNombre: admin?.nombre ?? null, fondoInicial },
+    })
+    res.status(201).json(arqueo)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'No se pudo abrir la caja' })
+  }
+})
+
+// POST /api/caja/arqueo/:id/movimiento — { tipo: 'egreso'|'ingreso', monto, concepto }.
+router.post('/arqueo/:id/movimiento', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const arqueo = await prisma.arqueoCaja.findFirst({ where: { id: req.params.id, clubId: req.user.clubId } })
+    if (!arqueo) return res.status(404).json({ error: 'Caja no encontrada' })
+    if (arqueo.estado !== 'abierta') return res.status(409).json({ error: 'La caja ya está cerrada' })
+    const tipo = req.body?.tipo === 'ingreso' ? 'ingreso' : 'egreso'
+    const monto = Math.round(Number(req.body?.monto) || 0)
+    const concepto = (req.body?.concepto || '').toString().trim()
+    if (monto <= 0) return res.status(400).json({ error: 'El monto tiene que ser mayor a 0' })
+    if (!concepto) return res.status(400).json({ error: 'Poné un concepto (ej: retiro dueño, compra hielo)' })
+    const mov = await prisma.movimientoCaja.create({ data: { arqueoId: arqueo.id, tipo, monto, concepto } })
+    res.status(201).json(mov)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'No se pudo registrar el movimiento' })
+  }
+})
+
+// POST /api/caja/arqueo/:id/cerrar — { efectivoDeclarado, notas }. Congela totales y calcula diferencia.
+router.post('/arqueo/:id/cerrar', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const arqueo = await prisma.arqueoCaja.findFirst({
+      where: { id: req.params.id, clubId: req.user.clubId },
+      include: { movimientos: true },
+    })
+    if (!arqueo) return res.status(404).json({ error: 'Caja no encontrada' })
+    if (arqueo.estado !== 'abierta') return res.status(409).json({ error: 'La caja ya está cerrada' })
+    const efectivoDeclarado = Math.max(0, Math.round(Number(req.body?.efectivoDeclarado) || 0))
+    const notas = (req.body?.notas || '').toString().trim() || null
+    const cerradoAt = new Date()
+    const cobros = await cobrosEfectivoEntre(req.user.clubId, arqueo.abiertoAt, cerradoAt)
+    const egresoNeto = egresoNetoMovimientos(arqueo.movimientos)
+    const esperado = arqueo.fondoInicial + cobros - egresoNeto
+    const admin = await prisma.admin.findUnique({ where: { id: req.user.id }, select: { nombre: true } })
+    const cerrado = await prisma.arqueoCaja.update({
+      where: { id: arqueo.id },
+      data: {
+        estado: 'cerrada', cerradoAt,
+        cobrosEfectivo: cobros, egresosEfectivo: egresoNeto,
+        efectivoEsperado: esperado, efectivoDeclarado, diferencia: efectivoDeclarado - esperado,
+        notas, cerradoPorNombre: admin?.nombre ?? null,
+      },
+    })
+    res.json(cerrado)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'No se pudo cerrar la caja' })
+  }
+})
+
+// GET /api/caja/arqueo/historial — arqueos cerrados (para el dueño), con su diferencia.
+router.get('/arqueo/historial', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const historial = await prisma.arqueoCaja.findMany({
+      where: { clubId: req.user.clubId, estado: 'cerrada' },
+      orderBy: { cerradoAt: 'desc' },
+      take: 60,
+      select: {
+        id: true, empleadoNombre: true, abiertoAt: true, cerradoAt: true,
+        fondoInicial: true, cobrosEfectivo: true, egresosEfectivo: true,
+        efectivoEsperado: true, efectivoDeclarado: true, diferencia: true, notas: true,
+      },
+    })
+    res.json(historial)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener el historial de arqueos' })
+  }
+})
+
 export default router

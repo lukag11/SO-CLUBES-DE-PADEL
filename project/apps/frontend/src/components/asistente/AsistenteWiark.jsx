@@ -111,6 +111,18 @@ export default function AsistenteWiark() {
         api.get('/clubs/me/insight', { Authorization: `Bearer ${token}` })
           .then((r) => { if (r?.texto) setMessages((m) => [...m, { from: 'wiark', text: `💡 Hoy te recomiendo: ${r.texto}` }]) })
           .catch(() => {})
+        // Aviso proactivo: si la caja del día NO está abierta, recordá abrirla (con botón).
+        api.get('/caja/arqueo/actual', { Authorization: `Bearer ${token}` })
+          .then((r) => {
+            if (r && r.abierta == null) {
+              setMessages((m) => [...m, {
+                from: 'wiark',
+                text: 'Che, arrancá el día abriendo la caja 👇 así controlás el efectivo del cajón.',
+                artefactos: [{ accion: 'abrir_caja', resumen: 'Abrir la caja del día con fondo inicial $0 (podés cambiar el fondo desde la pestaña Caja).', datos: { fondoInicial: 0 } }],
+              }])
+            }
+          })
+          .catch(() => {})
       }
     }
   }
@@ -311,7 +323,7 @@ function ConfirmAccion({ artefacto, onConfirmado }) {
   const [copiable, setCopiable] = useState(null) // { titulo, texto } — ej. mensaje de WhatsApp
   const [copiado, setCopiado] = useState(false)
 
-  const labelConfirmar = { crear_reserva: 'Sí, reservar', crear_jugador: 'Sí, registrar', crear_convocatoria: 'Sí, convocar', ascender_jugador: 'Sí, ascender' }[artefacto.accion] || 'Sí, cargar'
+  const labelConfirmar = { crear_reserva: 'Sí, reservar', crear_jugador: 'Sí, registrar', crear_convocatoria: 'Sí, convocar', ascender_jugador: 'Sí, ascender', abrir_caja: 'Abrir caja' }[artefacto.accion] || 'Sí, cargar'
 
   const confirmar = () => {
     if (estado !== 'idle') return

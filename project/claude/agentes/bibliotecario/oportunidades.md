@@ -7,6 +7,32 @@
 
 ---
 
+## 2026-07-06 · Arqueo de caja físico (fondo + conteo declarado + diferencia + empleado) — el hueco duro
+
+**Problema:** hoy `CajaTab` es un REPORTE teórico (ingresos−egresos por método, sección "Las deudas no son caja"). No hay apertura con fondo inicial, ni conteo físico al cierre, ni cálculo de faltante/sobrante, ni atribución a un empleado/turno. Es "cuánta plata debería haber entrado", NO "¿cuánta hay realmente en el cajón y quién responde por la diferencia?". Todo ERP/POS argentino serio (Dux, Fudo) sí lo tiene. Fuente: hallazgos 2026-07-06.
+
+**Por qué importa a un club chico argentino:** el efectivo del BAR/kiosco es donde se fuga plata (vuelto mal dado, venta no registrada, robo hormiga). Con recepción atendida por varios empleados/turnos, el dueño part-time necesita saber a fin del turno si la caja "cuadra" y quién la cerró. Es el control interno básico que hoy resuelven con un POS de comercio APARTE del software de canchas → dos sistemas. Playtomic/Matchpoint NO lo cubren [Probable] → hueco de vertical.
+
+**OP-CAJA-1 — Sesión de caja mínima (MVP recomendado).** Entidad `SesionCaja` { clubId, abiertaPor (adminId), fondoInicial, abiertaAt, cerradaAt, cerradaPor, efectivoDeclarado, notas }. Al cerrar: **efectivo esperado = fondoInicial + Σ cobros efectivo del período − Σ egresos efectivo**; **diferencia = declarado − esperado** (faltante/sobrante). Reusa TODA la lógica de `caja.js` (ya suma por método), solo agrega fondo, conteo declarado y el delta. Los medios digitales (débito/MP/transfer) se listan como "según sistema" sin conteo (no hay cajón que contar). **Impacto: alto · Esfuerzo: medio (1 tabla + 2 endpoints + UI de apertura/cierre) · Estado: nueva, recomendada como próximo bloque de Pagos.**
+
+**OP-CAJA-2 — Atribución a empleado/turno.** Guardar quién abrió y quién cerró (ya hay RBAC de empleados, memoria project_empleados_permisos). Reporte "diferencias por empleado" a lo largo del tiempo = detecta al que siempre descuadra. Estándar en Fudo/Dux (control por turno). **Impacto: alto (es el motivo real del arqueo) · Esfuerzo: bajo si va sobre OP-CAJA-1 · Estado: nueva.**
+
+**OP-CAJA-3 — "Usar en arqueo" en egresos de caja.** Detalle fino pero clave (lección de Fudo): un gasto pagado con plata del cajón (ej. le pagué al del delivery de gaseosas) debe descontar del efectivo esperado; uno pagado por transferencia NO. Hoy `Gasto` tiene `metodoPago` → ya se puede derivar. Solo hay que respetarlo en el cálculo del esperado. **Impacto: medio · Esfuerzo: bajo · Estado: nueva.**
+
+**OP-CAJA-4 — Qué NO hacer (sobre-ingeniería para club chico).** Multi-caja/multi-sucursal simultánea, transferencias entre cajas, retiros parciales con recibo, cuadre por denominación de billetes, integración con impresora fiscal. Todo eso es ERP grande. Un club chico necesita UNA caja, un fondo, un cierre por día/turno con diferencia. Mantener el MVP en eso. Fuente: Dux tiene multi-caja pero es para PYMES con varias bocas; club del interior no lo usa.
+
+**Nota de posicionamiento:** con el motor de `finanzas.js` (break-even, margen por sector con prorrateo) YA por encima del mercado, sumar arqueo físico deja a PadelwIArk como "software de canchas que ADEMÁS reemplaza al POS del bar" — argumento de venta fuerte vs Playtomic (que te obliga a tener POS aparte). Ver competidores.md.
+
+---
+
+## 2026-07-06 · Costos y margen — NO es hueco, es diferencial (protegerlo, no rehacerlo)
+
+**Hallazgo:** el manejo de costos/margen de PadelwIArk (break-even en turnos, costo del turno vacío, contribución por sector con prorrateo del fijo general por % de ingreso, COGS del bar, flags de "faltan datos") está **a la altura o por encima** de lo que exponen los ERP de comercio y muy por encima de los verticales de pádel (que casi no tocan rentabilidad). Fuente: hallazgos 2026-07-06 + lectura de `finanzas.js`.
+
+**Recomendación:** NO invertir en más métricas de margen. El cuello de botella es la **captura del dato**: que el dueño cargue el COGS de cada producto y asigne `sector` a sus costos. **Oportunidad chica y de alto ROI:** onboarding/nudge para completar costos (el código ya emite flags `cogsFaltante`, `sinCostosPorSector`, `sinCostoVariable` — falta exponerlos como tareas guiadas, tipo "cargá el costo de tus 5 productos más vendidos para ver tu margen real"). **Impacto: medio-alto (activa features ya construidas) · Esfuerzo: bajo · Estado: nueva.**
+
+---
+
 ## 2026-07-06 · Ascenso de categoría + "cut" del jugador pasado — modelo recomendado: REGLA DE TÍTULOS + override del admin (NO ELO)
 
 **Problema del dueño:** un jugador "está pasado" (gana demasiado fácil su categoría) → arruina la competencia. Hay que ascenderlo Y/O impedir que se siga anotando en esa categoría. Hoy PadelwIArk tiene una "sugerencia de ascenso" en stats que el admin evalúa a OJO, sin números. Fuente: hallazgos 2026-07-06.

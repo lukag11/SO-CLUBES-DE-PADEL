@@ -406,6 +406,14 @@ router.post('/me/insight/accion', requireAuth, requireRole('admin'), requireOwne
       }).catch(() => {})
       return res.json({ ok: true, mensaje: `${jugador.nombre} ${jugador.apellido || ''}`.trim() + ` ascendido a ${catCorta(aCategoria)} ✅` })
     }
+    if (accion === 'abrir_caja') {
+      const yaAbierta = await prisma.arqueoCaja.findFirst({ where: { clubId, estado: 'abierta' }, select: { id: true } })
+      if (yaAbierta) return res.status(409).json({ error: 'Ya hay una caja abierta.' })
+      const fondoInicial = Math.max(0, Math.round(Number(datos?.fondoInicial) || 0))
+      const admin = await prisma.admin.findUnique({ where: { id: req.user.id }, select: { nombre: true } })
+      await prisma.arqueoCaja.create({ data: { clubId, empleadoId: req.user.id, empleadoNombre: admin?.nombre ?? null, fondoInicial } })
+      return res.json({ ok: true, mensaje: fondoInicial > 0 ? `Caja abierta con fondo $${fondoInicial.toLocaleString('es-AR')} ✅` : 'Caja del día abierta ✅' })
+    }
     return res.status(400).json({ error: 'Acción desconocida' })
   } catch (err) {
     console.error('Error acción WIarky:', err.message)

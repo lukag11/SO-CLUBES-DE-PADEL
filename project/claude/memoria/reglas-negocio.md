@@ -114,6 +114,12 @@ Los flujos que las aplican están en `/memoria/flujos/`.
 
 ---
 
+## Vista del jugador (Cobranzas)
+
+**RN-62** El flag `club.config.mostrarConsumoJugador` (default `true`) controla qué ve el jugador en su sección de pagos. **Prendido:** "**Mi consumo**" completo — su gasto del período con desglose por **rubro** (canchas/torneos/kiosco/cancelaciones/otros, derivado del `tipo` del cargo) y por **medio de pago**, más el historial. **Apagado:** "**Mis pagos**" — solo su **deuda** (saldo pendiente + lista de pendientes), sin analítica ni historial de pagos. **La deuda pendiente se muestra SIEMPRE**, en los dos estados (no afecta la cobranza). El nombre de la sección (título de página + ítem del sidebar) es dinámico según el flag. Se configura en Cobranzas → ⚙ Configuración → **Vista del jugador**. Motivo del apagado: hacer visible el gasto acumulado puede enfriar el consumo de jugadores sensibles al precio (economía del comportamiento); default prendido = transparencia. Flag **latente** en `club.config` (frontend puro, sin columna ni backend nuevos).
+
+---
+
 ## Pagos
 
 **RN-37** Los métodos de pago disponibles son: Efectivo, Transferencia, Débito, Crédito.  

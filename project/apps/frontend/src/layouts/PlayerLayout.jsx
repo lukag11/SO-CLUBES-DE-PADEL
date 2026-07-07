@@ -22,7 +22,7 @@ const navItems = [
   { to: '/dashboardJugadores/partidos',     label: 'Partidos',         icon: Swords },
   { to: '/dashboardJugadores/torneos',      label: 'Mis torneos',      icon: Trophy },
   // 👤 mi cuenta
-  { to: '/dashboardJugadores/mis-pagos',    label: 'Mis pagos',        icon: Wallet, sepBefore: true },
+  { to: '/dashboardJugadores/mis-pagos',    label: 'Mi consumo',       icon: Wallet, sepBefore: true },
   { to: '/dashboardJugadores/estadisticas', label: 'Estadísticas',     icon: BarChart2 },
   { to: '/dashboardJugadores/perfil',       label: 'Mi perfil',        icon: UserCircle },
 ]
@@ -37,6 +37,8 @@ const PlayerLayout = () => {
   const loadFromBackend = useClubStore((s) => s.loadFromBackend)
   const clubNombre = useClubStore((s) => s.club?.nombre)
   const clubLogo = useClubStore((s) => s.club?.logo)
+  // Si el club oculta el resumen de consumo, el ítem se llama "Mis pagos" (no "Mi consumo").
+  const mostrarConsumo = useClubStore((s) => s.club?.mostrarConsumoJugador) !== false
   const setReservas = useReservasStore((s) => s.setReservas)
   const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
   const navigate = useNavigate()
@@ -273,7 +275,7 @@ const PlayerLayout = () => {
               {({ isActive }) => (
                 <>
                   <Icon size={17} className={isActive ? 'text-club' : 'text-white/30'} />
-                  {label}
+                  {to.endsWith('/mis-pagos') && !mostrarConsumo ? 'Mis pagos' : label}
                 </>
               )}
             </NavLink>

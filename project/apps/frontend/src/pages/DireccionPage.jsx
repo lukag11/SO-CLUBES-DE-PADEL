@@ -690,10 +690,12 @@ export default function DireccionPage() {
                 ['Costo por turno', money(s.variablePorTurno)],
                 [`Precio ${s.precioRealizado > 0 ? 'realizado' : 'de lista'}`, money(s.precioRef)],
                 ['Turnos vendidos (30d)', `${s.turnosVendidos} / ${s.turnosDisponibles}`],
-              ].map(([lbl, val]) => (
+                // Solo aparece si el club cargó comisiones (ej. Mercado Pago): la fuga que antes era invisible.
+                ...(s.comisionesMes > 0 ? [['Comisiones (30d)', `−${money(s.comisionesMes)}`, 'text-rose-600']] : []),
+              ].map(([lbl, val, color]) => (
                 <div key={lbl}>
                   <p className="text-sm text-slate-400">{lbl}</p>
-                  <p className="text-xl font-bold text-slate-800 mt-0.5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{val}</p>
+                  <p className={`text-xl font-bold mt-0.5 ${color || 'text-slate-800'}`} style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{val}</p>
                 </div>
               ))}
             </div>

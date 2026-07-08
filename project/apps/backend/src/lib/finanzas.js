@@ -54,6 +54,19 @@ export const montoMensual = (costo) => {
   }
 }
 
+// Comisión (%) de un método de pago según la config del club (ej. Mercado Pago cobra ~3.5%).
+// Vive en club.config.comisionPorMetodo = { mercadopago: 3.5, ... }. Default 0 → sin config,
+// los números quedan EXACTAMENTE como antes (opt-in, no rompe nada).
+export const comisionDeMetodo = (config, metodo) => {
+  const pct = Number(config?.comisionPorMetodo?.[metodo])
+  return Number.isFinite(pct) && pct > 0 ? Math.min(pct, 100) : 0
+}
+
+// Neto que REALMENTE le queda al club de un cobro, descontada la comisión de su método.
+// Se usa SOLO en el análisis de rentabilidad (Dirección), no en la deuda ni en el arqueo.
+export const netoRealizado = (monto, metodo, config) =>
+  Math.round((monto ?? 0) * (1 - comisionDeMetodo(config, metodo) / 100))
+
 /**
  * MOTOR DE SALUD FINANCIERA. Cruza costos + reservas + horarios y devuelve las métricas
  * base del break-even, todo en TURNOS de 1.5h, sobre una ventana móvil de 30 días (para que
@@ -75,7 +88,7 @@ export async function calcularSaludFinanciera(clubId) {
     // ingreso/precio realizado: pagadas.
     prisma.reserva.findMany({
       where: { clubId, fecha: { gte: desde, lte: hoy }, estado: { not: 'cancelada' } },
-      select: { precio: true, pagado: true, fecha: true, cobroOmitido: true, esTurnoFijo: true },
+      select: { precio: true, pagado: true, fecha: true, cobroOmitido: true, esTurnoFijo: true, metodoPago: true },
     }),
   ])
 
@@ -90,7 +103,10 @@ export async function calcularSaludFinanciera(clubId) {
   // Reservas: ocupación (no canceladas) e ingreso (pagadas).
   const turnosVendidos = reservas.length
   const pagadas = reservas.filter((r) => r.pagado)
-  const ingresoCanchas = pagadas.reduce((s, r) => s + (r.precio ?? 0), 0)
+  // Ingreso NETO (descontada la comisión del método de cobro). Con config vacía = bruto.
+  const ingresoBruto = pagadas.reduce((s, r) => s + (r.precio ?? 0), 0)
+  const ingresoCanchas = pagadas.reduce((s, r) => s + netoRealizado(r.precio, r.metodoPago, club?.config), 0)
+  const comisionesMes = ingresoBruto - ingresoCanchas // lo que se come Mercado Pago & co. (para el tablero)
   const turnosPagados = pagadas.length
   const precioRealizado = turnosPagados > 0 ? Math.round(ingresoCanchas / turnosPagados) : 0
   // Precio de lista promedio de las canchas activas (fallback para el break-even cuando el
@@ -145,7 +161,8 @@ export async function calcularSaludFinanciera(clubId) {
     turnosDisponibles,
     turnosVendidos,
     turnosVacios,
-    ingresoCanchas,
+    ingresoCanchas,        // NETO (descontadas comisiones de método)
+    comisionesMes,         // lo que se comen las comisiones (MP & co.) en canchas, 30d
     precioRealizado,
     precioLista,
     precioRef,      // el que usa el break-even (realizado si hay ventas, si no lista)
@@ -191,35 +208,39 @@ export async function calcularContribucionSectores(clubId) {
   const fechas = ultimasNFechas(hoy, 30)
   const desde = fechas[0]
 
-  const [reservas, cargos, costos] = await Promise.all([
+  const [club, reservas, cargos, costos] = await Promise.all([
+    prisma.club.findUnique({ where: { id: clubId }, select: { config: true } }),
     // Reservas cobradas: separamos clases (profesor) de canchas.
     prisma.reserva.findMany({
       where: { clubId, fecha: { gte: desde, lte: hoy }, pagado: true, estado: { not: 'cancelada' } },
-      select: { precio: true, profesorId: true, tipo: true },
+      select: { precio: true, profesorId: true, tipo: true, metodoPago: true },
     }),
     // Ventas de bar/tienda cobradas (Cargo tipo producto), con su COGS (costo).
     prisma.cargo.findMany({
       where: { clubId, tipo: 'producto', estado: 'pagado', pagadoAt: { not: null } },
-      select: { monto: true, costo: true, pagadoAt: true },
+      select: { monto: true, costo: true, pagadoAt: true, metodoPago: true },
     }),
     // TODOS los costos activos: los fijos van al sector (o al prorrateo) y los variables
     // se restan por turno a los sectores que usan la cancha (canchas + clases).
     prisma.costo.findMany({ where: { clubId, activo: true } }),
   ])
+  const cfg = club?.config
 
   // ── Ingresos y turnos por sector ──
   let ingCanchas = 0, ingClases = 0, ingBar = 0, cogsBar = 0
   let turnosCanchas = 0, turnosClases = 0
   for (const r of reservas) {
     const esClase = r.profesorId || r.tipo === 'clase'
-    if (esClase) { ingClases += r.precio ?? 0; turnosClases++ }
-    else { ingCanchas += r.precio ?? 0; turnosCanchas++ }
+    // Ingreso NETO (descontada la comisión del método). Con config vacía = bruto.
+    const neto = netoRealizado(r.precio, r.metodoPago, cfg)
+    if (esClase) { ingClases += neto; turnosClases++ }
+    else { ingCanchas += neto; turnosCanchas++ }
   }
   // Cargos de producto en la ventana de 30 días (filtramos por pagadoAt).
   const desdeDate = new Date(`${desde}T00:00:00`)
   for (const c of cargos) {
     if (c.pagadoAt && new Date(c.pagadoAt) >= desdeDate) {
-      ingBar += c.monto ?? 0
+      ingBar += netoRealizado(c.monto, c.metodoPago, cfg)
       cogsBar += c.costo ?? 0
     }
   }

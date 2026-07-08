@@ -1,6 +1,14 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-07-06 — **ARQUEO DE CAJA (control del efectivo físico del cajón) + WIarky recuerda abrir la caja.** Antes (mismo día): MI CONSUMO (pagos jugador + flag `mostrarConsumoJugador`) · RETOQUES UI JUGADOR (mobile) · CORTE MANUAL DE CATEGORÍA EN TORNEOS · ASCENSO/DESCENSO cierre. Ver abajo.
+**Última actualización:** 2026-07-08 — **COMISIÓN DE MERCADO PAGO (neto real en Dirección).** Antes: ARQUEO DE CAJA + WIarky · MI CONSUMO · RETOQUES UI · CORTE MANUAL CATEGORÍA · ASCENSO/DESCENSO. Ver abajo.
+
+**COMISIÓN DE MEDIO DE PAGO — NETO REAL (2026-07-08).** Primer arreglo de la tanda financiera post-análisis (asesor-financiero): el motor sumaba el BRUTO y no descontaba la comisión de Mercado Pago (~3,5%) → los números de Dirección mentían ~1,5% si el club cobra por MP. Fix **opt-in, quirúrgico** (no toca deuda ni arqueo ni el reporte de Caja):
+- **Config:** `club.config.comisionPorMetodo = { mercadopago: 3.5, ... }` (default vacío = 0% → números idénticos a hoy hasta cargarlo). Helpers `comisionDeMetodo` / `netoRealizado` en `lib/finanzas.js` (+ 4 tests → 45 total).
+- **Aplicado en:** `calcularSaludFinanciera` (break-even, precio realizado) y `calcularContribucionSectores` (margen por sector). Se agregó `metodoPago` a los selects y `club.config` a sectores. Nuevo campo `comisionesMes` en el retorno de salud.
+- **UI config:** modal "Métodos de cobro" (Cobranzas → ⚙) — campito "% comisión" por método habilitado. Guarda `comisionPorMetodo` junto a `metodosPago` (`guardarMetodos(ids, comisiones)`).
+- **UI Dirección:** en "Tus números", línea "Comisiones (30d) −$X" en rojo, SOLO si hay comisión cargada.
+- **Regla:** la comisión es la "mordida" que el medio de cobro le hace al CLUB (no un recargo al cliente). Se descuenta solo en el ANÁLISIS de rentabilidad (Dirección); la deuda es el bruto y el arqueo es efectivo físico. RN-64.
+- **PENDIENTES de la tanda financiera (próximos):** #2 unidad del costo variable ($/turno 1,5h); #3 resultado del mes real (P&L); #4 reconciliar Costo↔Gasto; #5 nudge de COGS.
 
 **ARQUEO DE CAJA + VINCULACIÓN CON WIARKY (2026-07-06).** Surgió de un análisis con el `asesor-financiero` + el `bibliotecario`: el manejo de costos/margen ya está bien plantado (arriba del mercado), pero la pestaña "Caja" era solo un REPORTE teórico (ingresos−egresos por método, lectura pura) — faltaba el **ARQUEO del efectivo FÍSICO**: abrir la caja con un fondo, contar la plata del cajón al cerrar y ver si cuadra. Se construyó una capa nueva y **100% aditiva** (no toca ningún flujo de cobro). Los informes de la investigación quedaron en la biblioteca del bibliotecario (`agentes/bibliotecario/`). Ver [[project_finanzas_pos_gastos_caja]] y RN-63.
 

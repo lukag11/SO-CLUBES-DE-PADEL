@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { franjasDia, franjaTimes } from './tiempo.js' // fuente única (antes triplicadas)
-import { montoMensual, ocurrenciasDia, turnosDisponiblesEnFechas } from './finanzas.js'
+import { montoMensual, ocurrenciasDia, turnosDisponiblesEnFechas, comisionDeMetodo, netoRealizado } from './finanzas.js'
 
 // Red de seguridad del MOTOR FINANCIERO. Estas piezas puras alimentan el denominador del
 // break-even (turnos disponibles), el RevPACH y el flujo de caja. Si franjasDia se rompe al
@@ -117,4 +117,29 @@ test('turnosDisponiblesEnFechas: un día cerrado no aporta turnos', () => {
   const club = { Lunes: { activo: false, apertura: '08:00', cierre: '23:30' } }
   const canchas = [{ horarios: null }]
   assert.equal(turnosDisponiblesEnFechas(club, canchas, ['2026-07-06']), 0)
+})
+
+// ── Comisión por método (opt-in): con config vacía = bruto; con % = neto real ────────
+
+test('comisionDeMetodo: sin config → 0%', () => {
+  assert.equal(comisionDeMetodo(undefined, 'mercadopago'), 0)
+  assert.equal(comisionDeMetodo({}, 'mercadopago'), 0)
+})
+
+test('comisionDeMetodo: lee el % del método y clampa a 100', () => {
+  const cfg = { comisionPorMetodo: { mercadopago: 3.5, otro: 250 } }
+  assert.equal(comisionDeMetodo(cfg, 'mercadopago'), 3.5)
+  assert.equal(comisionDeMetodo(cfg, 'efectivo'), 0) // no configurado
+  assert.equal(comisionDeMetodo(cfg, 'otro'), 100)   // clamp
+})
+
+test('netoRealizado: sin comisión devuelve el bruto (no rompe nada)', () => {
+  assert.equal(netoRealizado(8000, 'efectivo', undefined), 8000)
+  assert.equal(netoRealizado(8000, 'mercadopago', { comisionPorMetodo: {} }), 8000)
+})
+
+test('netoRealizado: descuenta la comisión de Mercado Pago (3.5% de 8000 = 7720)', () => {
+  const cfg = { comisionPorMetodo: { mercadopago: 3.5 } }
+  assert.equal(netoRealizado(8000, 'mercadopago', cfg), 7720)
+  assert.equal(netoRealizado(8000, 'efectivo', cfg), 8000) // efectivo sin comisión
 })

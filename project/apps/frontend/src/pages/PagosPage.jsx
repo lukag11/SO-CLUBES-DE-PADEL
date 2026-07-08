@@ -96,16 +96,29 @@ const ModalCobro = ({ cargo, metodos, onConfirm, onClose, saving, titulo = 'Regi
 )
 
 // ── Modal: configurar métodos de cobro que acepta el club ────────────────────
-const ModalMetodos = ({ seleccion, onSave, onClose, saving }) => {
+const ModalMetodos = ({ seleccion, comisionesIniciales = {}, onSave, onClose, saving }) => {
   const [sel, setSel] = useState(seleccion)
+  const [comisiones, setComisiones] = useState(comisionesIniciales)
   const [error, setError] = useState('')
   const toggle = (id) => {
     setError('')
     setSel((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
   }
+  const setComision = (id, val) => {
+    setComisiones((prev) => {
+      const next = { ...prev }
+      const n = parseFloat(val)
+      if (val === '' || !Number.isFinite(n) || n <= 0) delete next[id]
+      else next[id] = Math.min(100, n)
+      return next
+    })
+  }
   const guardar = () => {
     if (sel.length === 0) return setError('Elegí al menos un método')
-    onSave(sel)
+    // Solo guardamos comisiones de métodos habilitados (limpia basura de métodos apagados).
+    const limpio = {}
+    for (const id of sel) if (comisiones[id] > 0) limpio[id] = comisiones[id]
+    onSave(sel, limpio)
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -114,31 +127,48 @@ const ModalMetodos = ({ seleccion, onSave, onClose, saving }) => {
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <div>
             <p className="text-slate-800 font-bold">Métodos de cobro</p>
-            <p className="text-slate-400 text-xs mt-0.5">Elegí los que acepta tu club</p>
+            <p className="text-slate-400 text-xs mt-0.5">Elegí los que acepta tu club y su comisión</p>
           </div>
           <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
         </div>
-        <div className="p-6 flex flex-col gap-2">
+        <div className="p-6 flex flex-col gap-2 max-h-[70vh] overflow-y-auto">
           {METODOS_CATALOGO.map(({ id, label, icon: Icon, desc }) => {
             const activo = sel.includes(id)
             return (
-              <button
-                key={id} onClick={() => toggle(id)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${activo ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:bg-slate-50'}`}
-              >
-                <Icon size={18} className={activo ? 'text-brand-600' : 'text-slate-400'} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700">{label}</p>
-                  <p className="text-[11px] text-slate-400 truncate">{desc}</p>
+              <div key={id} className={`rounded-xl border transition-all ${activo ? 'border-brand-400 bg-brand-50' : 'border-slate-200'}`}>
+                <div onClick={() => toggle(id)} className="flex items-center gap-3 px-4 py-3 text-left cursor-pointer">
+                  <Icon size={18} className={activo ? 'text-brand-600' : 'text-slate-400'} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700">{label}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{desc}</p>
+                  </div>
+                  <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${activo ? 'bg-brand-500' : 'border border-slate-300'}`}>
+                    {activo && <Check size={13} className="text-white" />}
+                  </div>
                 </div>
-                <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${activo ? 'bg-brand-500' : 'border border-slate-300'}`}>
-                  {activo && <Check size={13} className="text-white" />}
-                </div>
-              </button>
+                {activo && (
+                  <div className="px-4 pb-3 -mt-1 flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500 font-medium">Comisión</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number" inputMode="decimal" min="0" max="100" step="0.1"
+                        value={comisiones[id] ?? ''} onChange={(e) => setComision(id, e.target.value)}
+                        placeholder="0" onClick={(e) => e.stopPropagation()}
+                        className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm text-slate-700 text-right outline-none focus:border-brand-400"
+                      />
+                      <span className="text-slate-400 text-sm">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 flex-1">lo que te descuenta ese medio (ej. MP ~3.5)</span>
+                  </div>
+                )}
+              </div>
             )
           })}
           {error && <p className="text-rose-500 text-xs">{error}</p>}
-          <button onClick={guardar} disabled={saving} className="mt-2 w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
+          <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
+            La comisión se descuenta solo en <b>Dirección</b> (para ver la ganancia real). La deuda y la caja no se tocan. Dejalo en blanco si el medio no cobra.
+          </p>
+          <button onClick={guardar} disabled={saving} className="mt-1 w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
             {saving ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
@@ -672,10 +702,10 @@ const PagosPage = () => {
     return Object.values(map).sort((a, b) => b.total - a.total)
   }, [deudas])
 
-  const guardarMetodos = async (ids) => {
+  const guardarMetodos = async (ids, comisiones = {}) => {
     setSaving(true)
     try {
-      updateClub({ metodosPago: ids })
+      updateClub({ metodosPago: ids, comisionPorMetodo: comisiones })
       await saveConfig(token)
       setConfigMetodos(false)
       showToast('exito', 'Métodos de cobro actualizados')
@@ -1001,7 +1031,7 @@ const PagosPage = () => {
       {anulando && <ModalAnular cargo={anulando} onConfirm={anular} onClose={() => setAnulando(null)} saving={saving} />}
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}
       {cuentaOpen && <ModalCuentaJugador modo={modalModo} jugadores={jugadores} deudores={deudores} productos={productos} metodos={metodosHabilitados} token={token} club={club} initialJugadorId={cobroPreset?.jugadorId} initialDeudaId={cobroPreset?.deudaId} onClose={() => { setModalModo(null); setCobroPreset(null) }} onRefresh={fetchData} showToast={showToast} />}
-      {configMetodos && <ModalMetodos seleccion={metodosHabilitados} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
+      {configMetodos && <ModalMetodos seleccion={metodosHabilitados} comisionesIniciales={club?.comisionPorMetodo ?? {}} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
       {configVista && <ModalVistaJugador value={mostrarConsumoJugador} onSave={guardarVistaJugador} onClose={() => setConfigVista(false)} saving={saving} />}
 
     </div>

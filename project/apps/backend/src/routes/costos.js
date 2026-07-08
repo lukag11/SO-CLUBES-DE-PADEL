@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
+import { inicioMesArg } from '../lib/tiempo.js'
 
 const router = Router()
 
@@ -46,7 +47,20 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
     if (SECTORES.has(sector)) where.sector = sector
     if (activo !== 'false') where.activo = true // por default solo activos
     const costos = await prisma.costo.findMany({ where, orderBy: [{ tipo: 'asc' }, { monto: 'desc' }] })
-    res.json(costos)
+    // Puente Costo↔Gasto AUTOMÁTICO: un costo se considera "pagado este mes" si hay un gasto
+    // pagado este mes que lo cubre — por vínculo explícito (costoId) o por MISMO concepto
+    // (ej. gasto "Alquiler" cubre el costo "Alquiler"). Sin botones ni doble carga.
+    const norm = (s) => (s || '').trim().toLowerCase()
+    const gastosMes = await prisma.gasto.findMany({
+      where: { clubId: req.user.clubId, pagado: true, pagadoAt: { gte: inicioMesArg() } },
+      select: { concepto: true, costoId: true },
+    })
+    const conceptosPagados = new Set(gastosMes.map((g) => norm(g.concepto)))
+    const costoIdsPagados = new Set(gastosMes.map((g) => g.costoId).filter(Boolean))
+    res.json(costos.map((c) => ({
+      ...c,
+      pagadoEsteMes: costoIdsPagados.has(c.id) || conceptosPagados.has(norm(c.concepto)),
+    })))
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al obtener costos' })

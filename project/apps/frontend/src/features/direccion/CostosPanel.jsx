@@ -197,6 +197,10 @@ export default function CostosPanel({ onClose, onChange }) {
                               </div>
                             </div>
                             <span className="font-bold text-slate-800">{money(c.monto)}</span>
+                            {/* El sistema detecta solo si este costo ya tiene su gasto pagado este mes */}
+                            {c.tipo === 'fijo' && c.pagadoEsteMes && (
+                              <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 px-1.5 shrink-0"><Check size={13} /> Pagado</span>
+                            )}
                             <button onClick={() => abrirEditar(c)} className="text-slate-400 hover:text-slate-700 p-1"><Pencil size={16} /></button>
                             <button onClick={() => borrar(c)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 size={16} /></button>
                           </div>

@@ -427,11 +427,14 @@ model Gasto {
   numeroFactura String?
   imagenUrl     String?
   fuente        String    @default("manual") // 'manual' | 'ocr'
+  costoId       String?   // vínculo: este gasto es el PAGO de un Costo estructural (puente Costo↔Gasto)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  club  Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  costo Costo? @relation(fields: [costoId], references: [id], onDelete: SetNull)
 
+  @@index([clubId, costoId])
   @@map("gastos")
 }
 
@@ -458,7 +461,8 @@ model Costo {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  club   Club    @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  gastos Gasto[] // pagos reales de este costo (puente Costo↔Gasto)
 
   @@index([clubId, activo])
   @@map("costos")

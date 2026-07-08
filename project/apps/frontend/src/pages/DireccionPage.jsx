@@ -464,6 +464,34 @@ export default function DireccionPage() {
             )
           })()}
 
+          {/* RECONCILIACIÓN Costo↔Gasto: de tu estructura del mes, ¿cuánto ya pagaste? */}
+          {(() => {
+            const mm = (c) => c.periodicidad === 'bimestral' ? Math.round(c.monto / 2) : c.periodicidad === 'anual' ? Math.round(c.monto / 12) : c.periodicidad === 'unico' ? 0 : c.monto
+            const fijos = costos.filter((c) => c.tipo === 'fijo')
+            const planificado = fijos.reduce((s, c) => s + mm(c), 0)
+            if (planificado <= 0) return null
+            const pagado = fijos.filter((c) => c.pagadoEsteMes).reduce((s, c) => s + mm(c), 0)
+            const falta = Math.max(0, planificado - pagado)
+            const pct = Math.min(100, Math.round((pagado / planificado) * 100))
+            return (
+              <div className="mt-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <p className="text-sm font-semibold text-slate-700">Tus costos de este mes</p>
+                  <span className="text-[11px] text-slate-400">Se detecta solo desde tus gastos</span>
+                </div>
+                <div className="flex items-end gap-4 mt-2 flex-wrap">
+                  <div><p className="text-xs text-slate-400">Estructura</p><p className="text-xl font-bold text-slate-800">{money(planificado)}</p></div>
+                  <div><p className="text-xs text-slate-400">Ya pagaste</p><p className="text-xl font-bold text-emerald-600">{money(pagado)}</p></div>
+                  <div><p className="text-xs text-slate-400">Falta</p><p className={`text-xl font-bold ${falta > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{money(falta)}</p></div>
+                </div>
+                <div className="h-2 rounded-full bg-slate-100 overflow-hidden mt-3"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} /></div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  {falta > 0 ? <>Cuando cargás un gasto en <b>Pagos → Gastos</b> con el mismo nombre que un costo (ej. "Alquiler"), el sistema lo detecta solo y lo marca pagado acá.</> : <>¡Al día! El sistema detectó el pago de toda tu estructura este mes. 🎾</>}
+                </p>
+              </div>
+            )
+          })()}
+
           {/* HÉROE: break-even + termómetro */}
           <div className="mt-8 bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

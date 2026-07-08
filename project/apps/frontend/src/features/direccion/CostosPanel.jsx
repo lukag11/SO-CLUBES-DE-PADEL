@@ -104,7 +104,7 @@ export default function CostosPanel({ onClose, onChange }) {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Monto</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">{form.tipo === 'variable' ? 'Monto por turno (1,5h)' : 'Monto'}</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
                     <input type="number" inputMode="numeric" value={form.monto} onChange={(e) => setForm({ ...form, monto: e.target.value })}
@@ -116,7 +116,7 @@ export default function CostosPanel({ onClose, onChange }) {
                   <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:border-lime-500 outline-none bg-white">
                     <option value="fijo">Fijo (lo pagás siempre)</option>
-                    <option value="variable">Por turno jugado</option>
+                    <option value="variable">Por turno jugado (1,5h)</option>
                   </select>
                 </div>
               </div>
@@ -154,7 +154,7 @@ export default function CostosPanel({ onClose, onChange }) {
                 </div>
               )}
               {form.tipo === 'variable' && (
-                <p className="text-xs text-slate-400">Un costo "por turno" es lo que gastás cada vez que alguien juega (luz de la cancha, limpieza). Se usa para el punto de equilibrio.</p>
+                <p className="text-xs text-slate-400">Es lo que gastás cada vez que alguien juega (luz de la cancha, limpieza), por turno. Se usa para el punto de equilibrio.</p>
               )}
 
               <div className="flex items-center gap-3 pt-2">

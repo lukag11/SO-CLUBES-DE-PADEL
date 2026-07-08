@@ -687,7 +687,7 @@ export default function DireccionPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
               {[
                 ['Costos fijos del mes', money(s.fijoMensual)],
-                ['Costo por turno', money(s.variablePorTurno)],
+                ['Costo por turno (1,5h)', money(s.variablePorTurno)],
                 [`Precio ${s.precioRealizado > 0 ? 'realizado' : 'de lista'}`, money(s.precioRef)],
                 ['Turnos vendidos (30d)', `${s.turnosVendidos} / ${s.turnosDisponibles}`],
                 // Solo aparece si el club cargó comisiones (ej. Mercado Pago): la fuga que antes era invisible.

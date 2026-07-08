@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Compass, TrendingUp, Target, AlertTriangle, Info, Loader2, ArrowRight, Pencil, PartyPopper, Sparkles, UserX, Repeat } from 'lucide-react'
+import { Compass, TrendingUp, Target, AlertTriangle, Info, Loader2, ArrowRight, Pencil, PartyPopper, Sparkles, UserX, Repeat, Wallet } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
 import { useToast } from '../components/ui/ToastProvider'
@@ -440,6 +440,30 @@ export default function DireccionPage() {
       {/* TABLERO (con costos y no editando) */}
       {tieneCostos && !editando && (
         <>
+          {/* RESULTADO DEL MES (ganancia operativa, últimos 30 días) — el número que el dueño más quiere */}
+          {sectores && (sectores.ingresoTotal > 0 || sectores.costosTotal > 0) && (() => {
+            const gano = sectores.resultado >= 0
+            return (
+              <div className={`mt-8 bg-white rounded-3xl border-2 shadow-sm p-8 ${gano ? 'border-lime-200' : 'border-rose-200'}`}>
+                <div className="flex items-center gap-2 text-slate-400 text-sm font-semibold uppercase tracking-wide">
+                  <Wallet size={16} /> Tu resultado · últimos 30 días
+                </div>
+                <p className="mt-2 flex items-center gap-2.5 flex-wrap">
+                  {gano ? <PartyPopper size={30} className="text-lime-600 shrink-0" /> : <AlertTriangle size={28} className="text-rose-500 shrink-0" />}
+                  <span className={`text-5xl font-bold ${gano ? 'text-lime-600' : 'text-rose-600'}`} style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                    {gano ? 'Ganaste' : 'Perdiste'} {money(Math.abs(sectores.resultado))}
+                  </span>
+                </p>
+                <p className="text-base text-slate-500 mt-3">
+                  Ingresos <b className="text-slate-700">{money(sectores.ingresoTotal)}</b> − Costos <b className="text-slate-700">{money(sectores.costosTotal)}</b>
+                </p>
+                <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                  Sobre lo cobrado (ya descontadas las comisiones) menos tus costos del mes. Es tu <b>ganancia operativa</b> — distinta del flujo de caja proyectado.
+                </p>
+              </div>
+            )
+          })()}
+
           {/* HÉROE: break-even + termómetro */}
           <div className="mt-8 bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

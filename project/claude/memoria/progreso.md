@@ -1,6 +1,13 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-07-08 — **COMISIÓN DE MERCADO PAGO (neto real en Dirección).** Antes: ARQUEO DE CAJA + WIarky · MI CONSUMO · RETOQUES UI · CORTE MANUAL CATEGORÍA · ASCENSO/DESCENSO. Ver abajo.
+**Última actualización:** 2026-07-08 — **RESULTADO DEL MES (ganancia operativa en Dirección)** + comisión MP + costo por turno. Antes: ARQUEO DE CAJA + WIarky · MI CONSUMO · etc. Ver abajo.
+
+**RESULTADO DEL MES — GANANCIA OPERATIVA (2026-07-08).** #3 de la tanda financiera: el número "gané/perdí $X" que el dueño más pide y no existía. Aditivo, reusa el motor de sectores.
+- **Backend (`calcularContribucionSectores`):** agrega al retorno `resultado` (= ingresoTotal neto − costosTotal) y `costosTotal`. Calculado explícito (no como suma de contribuciones) para ser correcto sin ingresos. Verificado: cuadra exacto con Σ contribuciones.
+- **Frontend (`DireccionPage`):** tarjeta primer héroe del tablero "Tu resultado · últimos 30 días" → "Ganaste/Perdiste $X" (verde/rojo) + "Ingresos $A − Costos $B". Solo aparece con costos cargados (nunca un número inflado). Usa el neto (comisiones del #1). Es ganancia OPERATIVA, no flujo de caja.
+- **Ventana:** últimos 30 días (como todo el tablero). Cero cambios en break-even/comisiones/flujo/caja.
+
+**COSTO VARIABLE "POR TURNO" (2026-07-08).** #2: en pádel la unidad es el turno de 1,5h (igual que el precio), no la hora. Se sacó el ruido de "×1,5 por hora" (metía confusión inexistente); rótulos consistentes "por turno (1,5h)". Solo texto, sin lógica. Commit 8692653.
 
 **COMISIÓN DE MEDIO DE PAGO — NETO REAL (2026-07-08).** Primer arreglo de la tanda financiera post-análisis (asesor-financiero): el motor sumaba el BRUTO y no descontaba la comisión de Mercado Pago (~3,5%) → los números de Dirección mentían ~1,5% si el club cobra por MP. Fix **opt-in, quirúrgico** (no toca deuda ni arqueo ni el reporte de Caja):
 - **Config:** `club.config.comisionPorMetodo = { mercadopago: 3.5, ... }` (default vacío = 0% → números idénticos a hoy hasta cargarlo). Helpers `comisionDeMetodo` / `netoRealizado` en `lib/finanzas.js` (+ 4 tests → 45 total).

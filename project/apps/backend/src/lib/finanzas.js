@@ -282,10 +282,20 @@ export async function calcularContribucionSectores(clubId) {
     return { ...s, cogs: s.key === 'bar' ? cogsBar : 0, fijoAsignado, contribucion, margenPct, cogsFaltante }
   })
 
+  // RESULTADO DEL MES (ganancia operativa): ingreso NETO − TODOS los costos.
+  // costos = directos de cada sector (fijos-sector + variables + COGS) + fijo general.
+  // Se calcula explícito (no como suma de contribuciones) para ser correcto aun sin ingresos:
+  // si el club pagó costos y no cobró nada, el resultado tiene que dar negativo.
+  const costosDirectos = base.reduce((s, x) => s + x.directos, 0)
+  const costosTotal = costosDirectos + fijoGeneral
+  const resultado = ingresoTotal - costosTotal
+
   return {
     periodo: { desde, hasta: hoy, dias: 30 },
     fijoGeneral,
     ingresoTotal,
+    costosTotal,
+    resultado,        // gané/perdí $X en los últimos 30 días (ingreso neto − todos los costos)
     sectores,
     sinCostosPorSector: Object.values(directo).every((v) => v === 0), // aviso: todo prorrateado
   }

@@ -4,6 +4,8 @@ import { requireAuth, requireRole, requireActive, requireFeature, requirePermiso
 import { inicioMesArg } from '../lib/tiempo.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
+import { pagosQueImputan, revertirPagoTx } from '../lib/pagos.js'
+import { runSerializable } from '../lib/serializable.js'
 import { reponerStock } from '../lib/stock.js'
 
 const router = Router()
@@ -16,15 +18,21 @@ const conVencido = (c) => ({
 
 const SEL_JUGADOR = { select: { id: true, nombre: true, apellido: true, dni: true } }
 
-// Normaliza un cargo a "deuda" (shape común con los turnos impagos)
-const cargoADeuda = (c) => ({
-  id: `cargo_${c.id}`, refId: c.id, origen: 'cargo',
-  jugador: c.jugador, concepto: c.concepto, monto: c.monto,
-  tipo: c.tipo, estado: c.estado,
-  vencimiento: c.vencimiento,
-  vencido: c.estado === 'pendiente' && c.vencimiento != null && new Date(c.vencimiento) < new Date(),
-  metodoPago: c.metodoPago, pagadoAt: c.pagadoAt, fecha: c.createdAt,
-})
+// Normaliza un cargo a "deuda" (shape común con los turnos impagos).
+// Si está pendiente y tiene saldoPagado (pago parcial), `monto` es el RESTANTE por cobrar.
+const cargoADeuda = (c) => {
+  const saldo = c.saldoPagado || 0
+  const restante = c.estado === 'pendiente' ? c.monto - saldo : c.monto
+  return {
+    id: `cargo_${c.id}`, refId: c.id, origen: 'cargo',
+    jugador: c.jugador, concepto: c.concepto, monto: restante,
+    montoOriginal: c.monto, saldoPagado: saldo,
+    tipo: c.tipo, estado: c.estado,
+    vencimiento: c.vencimiento,
+    vencido: c.estado === 'pendiente' && c.vencimiento != null && new Date(c.vencimiento) < new Date(),
+    metodoPago: c.metodoPago, pagadoAt: c.pagadoAt, fecha: c.createdAt,
+  }
+}
 
 // turnosImpagosDeuda ahora vive en ../lib/deudas.js (compartido con jugadores.js)
 
@@ -205,15 +213,19 @@ router.post('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), 
   }
 })
 
-// POST /api/cargos/cobrar-cuenta — cobra varias deudas de un jugador de una (checkout).
-// Body: { jugadorId, items: [{ origen:'cargo'|'reserva', refId }], metodoPago }
+// POST /api/cargos/cobrar-cuenta — cobra la cuenta de un jugador (checkout). Soporta:
+//   • entrega PARCIAL: `monto` < deuda total → se imputa FIFO (deuda más vieja primero).
+//   • SPLIT de métodos: `lineas` = [{ metodo, monto }] (ej. efectivo + transferencia).
+// Genera un Pago (libro de plata) con sus PagoLinea; los ítems suben su saldoPagado y
+// se marcan pagados sólo cuando saldoPagado alcanza el monto. La caja lee las líneas.
+// Body: { jugadorId, items: [{ origen:'cargo'|'reserva', refId }], monto?, lineas?, metodoPago? }
+// Compat: sin `monto` ni `lineas` → cobra todo lo seleccionado con `metodoPago` (comportamiento previo).
 router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
-  const { jugadorId, items, metodoPago } = req.body
+  const { jugadorId, items, monto, lineas, metodoPago } = req.body
   const clubId = req.user.clubId
   if (!jugadorId || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'datos_incompletos', message: 'Elegí un jugador y al menos una deuda' })
   }
-  const metodo = normalizarMetodo(metodoPago)
   const cargoIds = items.filter((i) => i.origen === 'cargo').map((i) => i.refId)
   const reservaIds = items.filter((i) => i.origen === 'reserva').map((i) => i.refId)
 
@@ -222,20 +234,74 @@ router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), requireFeature(
     if (!jugador || jugador.clubId !== clubId) {
       return res.status(404).json({ error: 'Jugador no encontrado en este club' })
     }
-    const now = new Date()
-    // updateMany scopeado por clubId+jugadorId+pendiente: no cobra nada que no corresponda
-    await prisma.$transaction([
-      ...(cargoIds.length ? [prisma.cargo.updateMany({
-        where: { id: { in: cargoIds }, clubId, jugadorId, estado: 'pendiente' },
-        data: { estado: 'pagado', pagadoAt: now, metodoPago: metodo },
-      })] : []),
-      ...(reservaIds.length ? [prisma.reserva.updateMany({
-        where: { id: { in: reservaIds }, clubId, jugadorId, pagado: false },
-        data: { pagado: true, pagadoAt: now, metodoPago: metodo },
-      })] : []),
-    ])
-    res.json({ ok: true })
+
+    // TOCTOU-safe: lectura de saldos + imputación + escritura del Pago van en una TX
+    // Serializable. Dos cobros concurrentes del mismo ítem: Postgres aborta uno (P2034),
+    // se reintenta y re-lee el saldoPagado ya actualizado → nunca se duplica el Pago.
+    const out = await runSerializable(async (tx) => {
+      const [cargos, reservas] = await Promise.all([
+        cargoIds.length ? tx.cargo.findMany({ where: { id: { in: cargoIds }, clubId, jugadorId, estado: 'pendiente', comandaId: null }, select: { id: true, monto: true, saldoPagado: true, createdAt: true } }) : [],
+        reservaIds.length ? tx.reserva.findMany({ where: { id: { in: reservaIds }, clubId, jugadorId, pagado: false }, select: { id: true, precio: true, saldoPagado: true, fecha: true, horaInicio: true, createdAt: true } }) : [],
+      ])
+
+      // Lista unificada de deudas con restante > 0, ordenada FIFO (la más vieja primero).
+      const deudas = [
+        ...cargos.map((c) => ({ origen: 'cargo', refId: c.id, total: c.monto ?? 0, saldo: c.saldoPagado ?? 0, orden: c.createdAt.getTime() })),
+        ...reservas.map((r) => ({ origen: 'reserva', refId: r.id, total: r.precio ?? 0, saldo: r.saldoPagado ?? 0, orden: new Date(`${r.fecha}T${r.horaInicio || '00:00'}`).getTime() || r.createdAt.getTime() })),
+      ]
+        .map((d) => ({ ...d, restante: d.total - d.saldo }))
+        .filter((d) => d.restante > 0)
+        .sort((a, b) => a.orden - b.orden)
+
+      if (deudas.length === 0) throw Object.assign(new Error('No hay deuda pendiente en lo seleccionado'), { status: 409, error: 'sin_deuda' })
+      const totalRestante = deudas.reduce((s, d) => s + d.restante, 0)
+
+      // Monto a cobrar: por defecto todo lo seleccionado; si viene menor → entrega parcial.
+      const montoACobrar = monto != null ? Math.round(Number(monto)) : totalRestante
+      if (!Number.isFinite(montoACobrar) || montoACobrar <= 0) throw Object.assign(new Error('El monto debe ser mayor a cero'), { status: 400, error: 'monto_invalido' })
+      if (montoACobrar > totalRestante) throw Object.assign(new Error('El monto supera lo que debe. Revisá el importe.'), { status: 400, error: 'monto_excede' })
+
+      // Líneas de método (split). Sin `lineas` → una sola con `metodoPago`.
+      const lineasIn = (Array.isArray(lineas) && lineas.length > 0)
+        ? lineas.map((l) => ({ metodo: normalizarMetodo(l.metodo), monto: Math.round(Number(l.monto) || 0) })).filter((l) => l.monto > 0)
+        : [{ metodo: normalizarMetodo(metodoPago), monto: montoACobrar }]
+      if (lineasIn.length === 0) throw Object.assign(new Error('Cargá al menos un método con monto'), { status: 400, error: 'metodos_invalidos' })
+      const sumaLineas = lineasIn.reduce((s, l) => s + l.monto, 0)
+      if (sumaLineas !== montoACobrar) throw Object.assign(new Error(`Los métodos suman ${sumaLineas} pero el cobro es ${montoACobrar}`), { status: 400, error: 'split_no_cuadra' })
+      const metodoStamp = lineasIn.length === 1 ? lineasIn[0].metodo : 'mixto'
+
+      // Imputación FIFO: reparto el monto a las deudas más viejas primero.
+      let resto = montoACobrar
+      const imputaciones = []
+      const applyUpdates = []
+      const now = new Date()
+      for (const d of deudas) {
+        if (resto <= 0) break
+        const aplicar = Math.min(d.restante, resto)
+        resto -= aplicar
+        const nuevoSaldo = d.saldo + aplicar
+        const completo = nuevoSaldo >= d.total
+        imputaciones.push({ origen: d.origen, refId: d.refId, monto: aplicar })
+        if (d.origen === 'cargo') {
+          applyUpdates.push(() => tx.cargo.update({ where: { id: d.refId }, data: { saldoPagado: nuevoSaldo, ...(completo ? { estado: 'pagado', pagadoAt: now, metodoPago: metodoStamp } : {}) } }))
+        } else {
+          applyUpdates.push(() => tx.reserva.update({ where: { id: d.refId }, data: { saldoPagado: nuevoSaldo, ...(completo ? { pagado: true, pagadoAt: now, metodoPago: metodoStamp } : {}) } }))
+        }
+      }
+
+      const pago = await tx.pago.create({
+        data: {
+          clubId, jugadorId, total: montoACobrar, imputaciones, pagadoAt: now,
+          lineas: { create: lineasIn.map((l) => ({ metodo: l.metodo, monto: l.monto })) },
+        },
+      })
+      for (const u of applyUpdates) await u()
+      return { pagoId: pago.id, montoACobrar, totalRestante }
+    })
+
+    res.json({ ok: true, pagoId: out.pagoId, cobrado: out.montoACobrar, parcial: out.montoACobrar < out.totalRestante, restante: out.totalRestante - out.montoACobrar })
   } catch (err) {
+    if (err?.status) return res.status(err.status).json({ error: err.error || 'error', message: err.message })
     console.error(err)
     res.status(500).json({ error: 'Error al cobrar la cuenta' })
   }
@@ -248,6 +314,7 @@ router.delete('/:id', requireAuth, requireRole('admin'), requireFeature('finanza
     const cargo = await prisma.cargo.findUnique({ where: { id } })
     if (!cargo) return res.status(404).json({ error: 'Cargo no encontrado' })
     if (cargo.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
+    if ((cargo.saldoPagado || 0) > 0) return res.status(409).json({ error: 'cobrado', message: 'Este cargo tiene un cobro registrado. Anulá el pago antes de eliminarlo.' })
     await prisma.$transaction(async (tx) => {
       await tx.cargo.delete({ where: { id } })
       // Si era una venta de producto del catálogo, repongo el stock
@@ -271,21 +338,36 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), requireFeature('f
     return res.status(400).json({ error: 'Estado inválido. Usar: pagado | condonado | pendiente' })
   }
 
+  const incl = { jugador: { select: { id: true, nombre: true, apellido: true, dni: true } } }
   try {
     const cargo = await prisma.cargo.findUnique({ where: { id } })
     if (!cargo) return res.status(404).json({ error: 'Cargo no encontrado' })
     if (cargo.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
+    const saldo = cargo.saldoPagado || 0
 
-    const data =
-      estado === 'pagado'
-        ? { estado, pagadoAt: new Date(), metodoPago: normalizarMetodo(metodoPago) }
-        : { estado, pagadoAt: null, metodoPago: null } // condonado o reabierto
+    if (estado === 'pagado') {
+      // Con cobro en el libro de plata: completar/anular va por "Cobrar cuenta" (caja exacta).
+      if (saldo > 0) return res.status(409).json({ error: 'en_libro_plata', message: 'Este cargo ya tiene un cobro registrado. Completá o anulá desde Cobrar cuenta.' })
+      const updated = await prisma.cargo.update({ where: { id }, data: { estado, pagadoAt: new Date(), metodoPago: normalizarMetodo(metodoPago) }, include: incl })
+      return res.json(conVencido(updated))
+    }
 
-    const updated = await prisma.cargo.update({
-      where: { id },
-      data,
-      include: { jugador: { select: { id: true, nombre: true, apellido: true, dni: true } } },
-    })
+    // condonado o reabierto → si había plata en el libro, la revierto.
+    if (saldo > 0) {
+      const pagos = await pagosQueImputan(cargo.clubId, 'cargo', id)
+      const combinados = pagos.filter((p) => (p.imputaciones || []).length > 1)
+      if (combinados.length) {
+        return res.status(409).json({ error: 'pago_combinado', pagoIds: combinados.map((p) => p.id), message: 'Este cargo se cobró junto con otras deudas.' })
+      }
+      await runSerializable(async (tx) => {
+        for (const p of pagos) await revertirPagoTx(tx, p)
+        await tx.cargo.update({ where: { id }, data: { estado, saldoPagado: 0, pagadoAt: null, metodoPago: null } })
+      })
+      const updated = await prisma.cargo.findUnique({ where: { id }, include: incl })
+      return res.json(conVencido(updated))
+    }
+
+    const updated = await prisma.cargo.update({ where: { id }, data: { estado, pagadoAt: null, metodoPago: null }, include: incl })
     res.json(conVencido(updated))
   } catch (err) {
     console.error(err)

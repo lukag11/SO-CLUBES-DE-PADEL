@@ -12,6 +12,9 @@ export const METODOS_CATALOGO = [
 ]
 
 export const METODO_MAP = Object.fromEntries(METODOS_CATALOGO.map((m) => [m.id, m]))
+// 'mixto' no es un método elegible (no está en el catálogo), pero un ítem cobrado con split
+// lo lleva como método → lo mapeamos sólo para el badge/label.
+METODO_MAP.mixto = { id: 'mixto', label: 'Mixto', icon: MoreHorizontal, desc: 'Cobro con más de un método' }
 
 export const DEFAULT_METODOS = ['efectivo', 'transferencia']
 
@@ -29,6 +32,7 @@ const BADGE_CLS = {
   debito:        { light: 'text-violet-700 bg-violet-50 border-violet-200',     dark: 'text-violet-300 bg-violet-500/10 border-violet-500/20' },
   credito:       { light: 'text-fuchsia-700 bg-fuchsia-50 border-fuchsia-200',  dark: 'text-fuchsia-300 bg-fuchsia-500/10 border-fuchsia-500/20' },
   otro:          { light: 'text-slate-600 bg-slate-100 border-slate-200',       dark: 'text-white/50 bg-white/5 border-white/10' },
+  mixto:         { light: 'text-indigo-700 bg-indigo-50 border-indigo-200',     dark: 'text-indigo-300 bg-indigo-500/10 border-indigo-500/20' },
 }
 
 // Badge visual de un método. theme: 'light' (admin) | 'dark' (jugador).

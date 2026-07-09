@@ -25,13 +25,18 @@ export const turnosImpagosDeuda = async (clubId, where = {}) => {
       const finMin = finEnMin(r.horaInicio, r.horaFin)
       return (r.fecha < hoyStr || (r.fecha === hoyStr && finMin + MIN_GRACIA_COBRO <= ahoraMin)) && (r.precio ?? 0) > 0
     })
-    .map((r) => ({
-      id: `reserva_${r.id}`, refId: r.id, origen: 'reserva',
-      jugador: r.jugador,
-      concepto: `Turno ${r.cancha?.nombre ?? ''} · ${r.fecha} ${r.horaInicio}`.trim(),
-      monto: r.precio ?? 0,
-      tipo: 'reserva', estado: 'pendiente',
-      vencimiento: null, vencido: true, // un turno que ya pasó está vencido por naturaleza
-      metodoPago: null, fecha: r.fecha,
-    }))
+    .map((r) => {
+      // Con pago parcial, `monto` es el RESTANTE (precio − lo ya imputado).
+      const saldo = r.saldoPagado || 0
+      return {
+        id: `reserva_${r.id}`, refId: r.id, origen: 'reserva',
+        jugador: r.jugador,
+        concepto: `Turno ${r.cancha?.nombre ?? ''} · ${r.fecha} ${r.horaInicio}`.trim(),
+        monto: (r.precio ?? 0) - saldo,
+        montoOriginal: r.precio ?? 0, saldoPagado: saldo,
+        tipo: 'reserva', estado: 'pendiente',
+        vencimiento: null, vencido: true, // un turno que ya pasó está vencido por naturaleza
+        metodoPago: null, fecha: r.fecha,
+      }
+    })
 }

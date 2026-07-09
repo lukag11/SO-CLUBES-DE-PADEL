@@ -31,7 +31,11 @@ const request = async (path, { headers, ...rest } = {}) => {
       alert(data.message || 'El acceso del club fue bloqueado.')
       window.location.href = destino
     }
-    throw new Error(data.message || data.error || 'Error del servidor')
+    const err = new Error(data.message || data.error || 'Error del servidor')
+    err.code = data.error       // código de error del backend (ej: 'pago_combinado')
+    err.data = data             // body completo (ej: { pagoIds: [...] })
+    err.status = res.status
+    throw err
   }
   return data
 }

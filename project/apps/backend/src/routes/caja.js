@@ -2,6 +2,7 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 import { rangoDiaArg, hoyArgStr } from '../lib/tiempo.js'
+import { cobrosEfectivoEntre, ingresosPorMetodoEntre } from '../lib/pagos.js'
 
 const router = Router()
 
@@ -14,20 +15,23 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
   const rango = { gte: desde, lt: hasta }
 
   try {
-    const [reservas, cargos, gastos] = await Promise.all([
-      prisma.reserva.findMany({ where: { clubId, pagado: true, pagadoAt: rango }, select: { precio: true, metodoPago: true } }),
-      prisma.cargo.findMany({ where: { clubId, estado: 'pagado', pagadoAt: rango }, select: { monto: true, metodoPago: true } }),
+    // Ingresos: libro de plata (PagoLinea) + cobros legacy sin ledger (saldoPagado=0) → híbrido.
+    // Egresos: gastos pagados. (El arqueo físico usa MovimientoCaja aparte.)
+    const [ingMetodo, gastos, cantPagos, cantLegacyR, cantLegacyC] = await Promise.all([
+      ingresosPorMetodoEntre(clubId, desde, hasta),
       prisma.gasto.findMany({ where: { clubId, pagado: true, pagadoAt: rango }, select: { monto: true, metodoPago: true } }),
+      prisma.pago.count({ where: { clubId, anuladoAt: null, pagadoAt: rango } }),
+      prisma.reserva.count({ where: { clubId, pagado: true, saldoPagado: 0, pagadoAt: rango } }),
+      prisma.cargo.count({ where: { clubId, estado: 'pagado', saldoPagado: 0, pagadoAt: rango } }),
     ])
 
     // Acumular por método: { [metodo]: { ingreso, egreso } }
     const metodos = {}
     const bucket = (m) => (metodos[m || 'otro'] ??= { ingreso: 0, egreso: 0 })
-    for (const r of reservas) bucket(r.metodoPago).ingreso += r.precio ?? 0
-    for (const c of cargos)   bucket(c.metodoPago).ingreso += c.monto ?? 0
-    for (const g of gastos)   bucket(g.metodoPago).egreso  += g.monto ?? 0
+    for (const [m, v] of Object.entries(ingMetodo)) bucket(m).ingreso += v
+    for (const g of gastos) bucket(g.metodoPago).egreso += g.monto ?? 0
 
-    const ingresos = reservas.reduce((s, r) => s + (r.precio ?? 0), 0) + cargos.reduce((s, c) => s + (c.monto ?? 0), 0)
+    const ingresos = Object.values(ingMetodo).reduce((s, v) => s + v, 0)
     const egresos = gastos.reduce((s, g) => s + (g.monto ?? 0), 0)
 
     res.json({
@@ -36,7 +40,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
       egresos,
       neto: ingresos - egresos,
       metodos, // { efectivo: { ingreso, egreso }, ... }
-      cantMovimientos: reservas.length + cargos.length + gastos.length,
+      cantMovimientos: cantPagos + cantLegacyR + cantLegacyC + gastos.length,
     })
   } catch (err) {
     console.error(err)
@@ -54,18 +58,18 @@ router.get('/reporte', requireAuth, requireRole('admin'), async (req, res) => {
   const rango = { gte: rangoDiaArg(desdeStr).desde, lt: rangoDiaArg(hastaStr).hasta }
 
   try {
-    const [reservas, cargos, gastos] = await Promise.all([
+    const [reservas, cargos, gastos, ingMetodo] = await Promise.all([
       prisma.reserva.findMany({ where: { clubId, pagado: true, pagadoAt: rango }, select: { precio: true, metodoPago: true } }),
       prisma.cargo.findMany({ where: { clubId, estado: 'pagado', pagadoAt: rango }, select: { monto: true, metodoPago: true, tipo: true, categoria: true, costo: true, concepto: true } }),
       prisma.gasto.findMany({ where: { clubId, pagado: true, pagadoAt: rango }, select: { monto: true, metodoPago: true, categoria: true } }),
+      ingresosPorMetodoEntre(clubId, rango.gte, rango.lt),
     ])
 
     const add = (obj, key, campo, val) => { (obj[key] ??= { ingreso: 0, egreso: 0, costo: 0, count: 0 })[campo] += val }
 
-    // Por método (ingresos = reservas + cargos; egresos = gastos)
+    // Por método: ingresos del libro de plata (PagoLinea, exacto con split); egresos = gastos.
     const porMetodo = {}
-    for (const r of reservas) add(porMetodo, r.metodoPago || 'otro', 'ingreso', r.precio ?? 0)
-    for (const c of cargos) add(porMetodo, c.metodoPago || 'otro', 'ingreso', c.monto ?? 0)
+    for (const [m, v] of Object.entries(ingMetodo)) add(porMetodo, m, 'ingreso', v)
     for (const g of gastos) add(porMetodo, g.metodoPago || 'otro', 'egreso', g.monto ?? 0)
 
     // Ingresos por tipo
@@ -95,7 +99,10 @@ router.get('/reporte', requireAuth, requireRole('admin'), async (req, res) => {
     }
     const topProductos = Object.values(productosMap).sort((a, b) => b.monto - a.monto).slice(0, 10)
 
-    const ingresos = reservas.reduce((s, r) => s + (r.precio ?? 0), 0) + cargos.reduce((s, c) => s + (c.monto ?? 0), 0)
+    // Ingresos = plata real que entró (libro de plata). Nota: porTipo/porCategoria salen de
+    // ítems 100% pagados, así que ante pagos parciales pueden quedar un poco por debajo de
+    // `ingresos` hasta que la deuda se complete (atribución exacta por sector = Fase 2).
+    const ingresos = Object.values(ingMetodo).reduce((s, v) => s + v, 0)
     const egresos = gastos.reduce((s, g) => s + (g.monto ?? 0), 0)
 
     res.json({
@@ -116,17 +123,8 @@ router.get('/reporte', requireAuth, requireRole('admin'), async (req, res) => {
 // ARQUEO DE CAJA — control del efectivo físico (SOLO efectivo). Aditivo: no toca los
 // flujos de cobro. El "esperado" se calcula por VENTANA TEMPORAL (cobros en efectivo
 // entre apertura y cierre), así no hay que estampar nada en cada cobro.
+// `cobrosEfectivoEntre` vive en lib/pagos.js (lee PagoLinea: efectivo exacto con split).
 // ──────────────────────────────────────────────────────────────────────────────
-
-// Suma de cobros en EFECTIVO (reservas + cargos pagados) entre dos instantes.
-async function cobrosEfectivoEntre(clubId, desde, hasta) {
-  const rango = { gte: desde, lt: hasta }
-  const [reservas, cargos] = await Promise.all([
-    prisma.reserva.findMany({ where: { clubId, pagado: true, metodoPago: 'efectivo', pagadoAt: rango }, select: { precio: true } }),
-    prisma.cargo.findMany({ where: { clubId, estado: 'pagado', metodoPago: 'efectivo', pagadoAt: rango }, select: { monto: true } }),
-  ])
-  return reservas.reduce((s, r) => s + (r.precio ?? 0), 0) + cargos.reduce((s, c) => s + (c.monto ?? 0), 0)
-}
 
 // Neto de movimientos manuales de efectivo: egresos (−) suman al "salió", ingresos (+) restan.
 // Devuelve el EGRESO NETO (egreso − ingreso): positivo = salió plata del cajón.

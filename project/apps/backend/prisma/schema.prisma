@@ -42,6 +42,7 @@ model Club {
   eventosUso     EventoUso[]
   costos         Costo[]
   arqueosCaja    ArqueoCaja[]
+  pagos          Pago[]
 
   @@map("clubs")
 }
@@ -150,6 +151,7 @@ model Jugador {
   solicitudesCubiertas SolicitudJugador[] @relation("SolicitudCubierto")
   participacionesPartido SolicitudParticipante[]
   cambiosCategoria       CambioCategoria[]
+  pagos                  Pago[]
 
   @@unique([clubId, dni])
   @@map("jugadores")
@@ -222,7 +224,8 @@ model Reserva {
   precio      Int?
   tarifaLista Int?     // snapshot del precio de lista de la cancha al crear la reserva (para yield real; la tarifa cambia con inflación)
   pagado      Boolean  @default(false)
-  metodoPago  String?  // efectivo | transferencia | mercadopago
+  saldoPagado Int      @default(0)  // plata ya imputada (pago parcial). pagado deriva: saldoPagado >= precio
+  metodoPago  String?  // efectivo | transferencia | mercadopago (legacy: método del pago completo simple)
   pagadoAt    DateTime?
   cobroOmitido Boolean @default(false) // turno impago que el club decide no cobrar (sale de cobranzas, no es ingreso)
   esTurnoFijo Boolean  @default(false)
@@ -318,6 +321,7 @@ model Cargo {
   parejaId    String?   // si el cargo viene de una inscripción a torneo (para limpiar al cancelar)
   concepto    String
   monto       Int
+  saldoPagado Int       @default(0)  // plata ya imputada (pago parcial). estado 'pagado' deriva: saldoPagado >= monto
   estado      String    @default("pendiente") // pendiente | pagado | condonado
   tipo        String    @default("manual")    // cancelacion | manual | reserva | torneo | producto
   // Para reportes de bar/tienda (solo tipo 'producto'): snapshot de categoría/producto/costo al vender
@@ -515,6 +519,45 @@ model MovimientoCaja {
 
   @@index([arqueoId])
   @@map("movimientos_caja")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PAGO — "libro de plata" separado de la deuda (ítems Reserva/Cargo). Un Pago es un
+// evento de cobro: puede ser PARCIAL (paga parte de la deuda del jugador, FIFO al más
+// viejo) y con SPLIT de métodos (varias líneas: ej. efectivo + transferencia). La caja
+// (arqueo + reporte por método) lee de PagoLinea, así el efectivo del cajón es EXACTO
+// aunque el cobro haya sido mixto (antes se elegía 1 método y la caja mentía).
+// `imputaciones` guarda a qué ítems y por cuánto se aplicó, para revertir al anular.
+// ──────────────────────────────────────────────────────────────────────────────
+model Pago {
+  id           String    @id @default(cuid())
+  clubId       String
+  jugadorId    String?   // null = mostrador (siempre total, no parcial)
+  total        Int       // suma de líneas = suma imputado a los ítems
+  imputaciones Json      // [{ origen:'reserva'|'cargo', refId, monto }] — para revertir saldoPagado al anular
+  anuladoAt    DateTime? // anulado = revertido (no cuenta en caja); no se borra (auditoría)
+  pagadoAt     DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+
+  club    Club        @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  jugador Jugador?    @relation(fields: [jugadorId], references: [id], onDelete: SetNull)
+  lineas  PagoLinea[]
+
+  @@index([clubId, pagadoAt])
+  @@map("pagos")
+}
+
+// Una línea de método dentro de un Pago (el split). La caja suma estas líneas por método.
+model PagoLinea {
+  id     String @id @default(cuid())
+  pagoId String
+  metodo String // efectivo | transferencia | mercadopago
+  monto  Int
+
+  pago Pago @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+
+  @@index([pagoId])
+  @@map("pago_lineas")
 }
 
 model Notificacion {

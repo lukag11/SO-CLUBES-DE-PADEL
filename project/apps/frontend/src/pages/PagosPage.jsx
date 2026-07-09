@@ -375,6 +375,10 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   const [otroConcepto, setOtroConcepto] = useState('')
   const [otroPrecio, setOtroPrecio] = useState('')
   const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
+  const [montoCobrar, setMontoCobrar] = useState('')   // cobro: monto a cobrar (editable → entrega parcial)
+  const [usarSplit, setUsarSplit] = useState(false)     // cobro: pagó con 2 métodos
+  const [metodo2, setMetodo2] = useState(metodos[1] ?? metodos[0] ?? 'transferencia')
+  const [monto1, setMonto1] = useState('')              // cobro: monto del método 1 cuando hay split
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -419,6 +423,15 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   const totalDeudaSel = deudaSel.reduce((s, d) => s + d.monto, 0)
   const totalCobrar = totalNuevo + totalDeudaSel
 
+  // Cobro parcial + split (solo modo cobro, sobre la deuda seleccionada). Al cambiar la
+  // selección, el monto a cobrar vuelve al total y se resetea el split.
+  useEffect(() => { if (esCobro) { setMontoCobrar(totalDeudaSel ? String(totalDeudaSel) : ''); setMonto1(''); setUsarSplit(false) } }, [totalDeudaSel, esCobro]) // eslint-disable-line react-hooks/exhaustive-deps
+  const montoCobrarNum = Math.round(Number(montoCobrar) || 0)
+  const monto1Num = Math.round(Number(monto1) || 0)
+  const monto2Num = Math.max(0, montoCobrarNum - monto1Num)
+  const esParcial = esCobro && montoCobrarNum > 0 && montoCobrarNum < totalDeudaSel
+  const puedeSplit = metodos.length >= 2
+
   // Crea las líneas nuevas (productos → venta; otros → cargo), pagadas o a cuenta
   const crearNuevas = async (cobrar) => {
     const jid = mostrador ? null : jugadorId   // mostrador = venta sin ficha
@@ -439,11 +452,23 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     } catch (e) { showToast('error', e?.message || 'No se pudo anotar') } finally { setSaving(false) }
   }
   const cobrarTodo = async () => {
+    if (saving) return
     if (lineas.length === 0 && deudaSel.length === 0) return setError('Agregá un consumo o seleccioná una deuda')
+    // Validación del cobro de deuda (parcial + split)
+    if (esCobro && deudaSel.length) {
+      if (montoCobrarNum <= 0) return setError('Poné cuánto vas a cobrar')
+      if (montoCobrarNum > totalDeudaSel) return setError('El monto supera lo que debe')
+      if (usarSplit && !(monto1Num > 0 && monto1Num < montoCobrarNum)) return setError('Repartí el monto entre los 2 métodos')
+    }
     setSaving(true); setError('')
     try {
       if (lineas.length) await crearNuevas(true)
-      if (deudaSel.length) await api.post('/cargos/cobrar-cuenta', { jugadorId, items: deudaSel.map((d) => ({ origen: d.origen, refId: d.refId })), metodoPago }, auth)
+      if (deudaSel.length) {
+        const body = { jugadorId, items: deudaSel.map((d) => ({ origen: d.origen, refId: d.refId })), monto: montoCobrarNum }
+        if (usarSplit) body.lineas = [{ metodo: metodoPago, monto: monto1Num }, { metodo: metodo2, monto: monto2Num }]
+        else body.metodoPago = metodoPago
+        await api.post('/cargos/cobrar-cuenta', body, auth)
+      }
       onRefresh()
       // Venta cobrada → ofrecer ticket / WhatsApp
       if (esVenta && lineas.length) {
@@ -455,7 +480,10 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
         })
         setLineas([])
       } else {
-        setLineas([]); showToast('exito', 'Cobro registrado'); await fetchDeudas(jugadorId)
+        setLineas([])
+        const resto = totalDeudaSel - montoCobrarNum
+        showToast('exito', esParcial ? `Cobrado ${money(montoCobrarNum)} · queda debiendo ${money(resto)}` : 'Cobro registrado')
+        await fetchDeudas(jugadorId)
       }
     } catch (e) { showToast('error', e?.message || 'No se pudo cobrar') } finally { setSaving(false) }
   }
@@ -514,6 +542,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
                       <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${selDeuda[d.id] ? 'bg-brand-500' : 'border border-slate-300'}`}>{selDeuda[d.id] && <Check size={13} className="text-white" />}</div>
                       <div className="flex-1 min-w-0">
                         <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{TIPO_LABEL[d.tipo] ?? d.tipo}</span>
+                        {d.saldoPagado > 0 && <span className="ml-1 text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">parcial · pagó {money(d.saldoPagado)}</span>}
                         <p className="text-xs text-slate-600 truncate mt-0.5">{d.concepto}</p>
                       </div>
                       <p className="text-sm font-semibold text-slate-700 shrink-0">{money(d.monto)}</p>
@@ -564,13 +593,59 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
             )}
 
             {/* Método + acciones */}
-            <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-slate-500 font-medium">Método (al cobrar)</label>
-                <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400">
-                  {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
-                </select>
-              </div>
+            <div className="flex flex-col gap-2.5 border-t border-slate-100 pt-4">
+              {esCobro && deudaSel.length > 0 ? (<>
+                {/* Monto a cobrar — editable hacia abajo = entrega parcial */}
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-xs text-slate-500 font-medium shrink-0">Monto a cobrar</label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 text-sm">$</span>
+                    <input type="number" value={montoCobrar} onChange={(e) => setMontoCobrar(e.target.value)} min={0} max={totalDeudaSel}
+                      className="w-28 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 text-right outline-none focus:border-brand-400" />
+                  </div>
+                </div>
+                {esParcial && <p className="text-[11px] text-amber-600 -mt-1">Entrega parcial · queda debiendo {money(totalDeudaSel - montoCobrarNum)} (se salda de lo más viejo primero)</p>}
+
+                {/* Método(s) — simple o split de 2 */}
+                {!usarSplit ? (
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-slate-500 font-medium">Método</label>
+                    <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400">
+                      {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400">
+                        {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
+                      </select>
+                      <div className="flex items-center gap-1 shrink-0"><span className="text-slate-400 text-sm">$</span>
+                        <input type="number" value={monto1} onChange={(e) => setMonto1(e.target.value)} placeholder="0" min={0} max={montoCobrarNum}
+                          className="w-24 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 text-right outline-none focus:border-brand-400" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select value={metodo2} onChange={(e) => setMetodo2(e.target.value)} className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400">
+                        {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
+                      </select>
+                      <span className="w-24 text-right text-sm font-medium text-slate-500 pr-1 shrink-0">{money(monto2Num)}</span>
+                    </div>
+                  </div>
+                )}
+                {puedeSplit && montoCobrarNum > 0 && (
+                  <button type="button" onClick={() => { setUsarSplit((v) => !v); setMonto1('') }} className="text-[11px] text-brand-600 hover:underline self-start">
+                    {usarSplit ? '← Un solo método' : '+ Pagó con 2 métodos'}
+                  </button>
+                )}
+              </>) : (
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-slate-500 font-medium">Método (al cobrar)</label>
+                  <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400">
+                    {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
+                  </select>
+                </div>
+              )}
               {error && <p className="text-rose-500 text-xs">{error}</p>}
               <div className="flex gap-2">
                 {esVenta && !mostrador && (
@@ -578,8 +653,8 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
                     Anotar a cuenta{totalNuevo > 0 ? ` ${money(totalNuevo)}` : ''}
                   </button>
                 )}
-                <button onClick={cobrarTodo} disabled={saving || totalCobrar === 0} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
-                  {saving ? 'Procesando…' : `Cobrar ${money(totalCobrar)}`}
+                <button onClick={cobrarTodo} disabled={saving || (esCobro && deudaSel.length ? montoCobrarNum === 0 : totalCobrar === 0)} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
+                  {saving ? 'Procesando…' : `Cobrar ${money(esCobro && deudaSel.length ? montoCobrarNum : totalCobrar)}`}
                 </button>
               </div>
             </div>
@@ -743,8 +818,10 @@ const PagosPage = () => {
     } finally { setSaving(false) }
   }
 
-  // Anula un cobro recién hecho por error → vuelve a pendiente (sale de la caja)
+  // Anula un cobro recién hecho por error → vuelve a pendiente (sale de la caja).
+  // Si el cobro fue combinado (saldó varias deudas juntas), ofrece anular el pago completo.
   const anular = async () => {
+    if (saving) return
     setSaving(true)
     try {
       if (anulando.origen === 'reserva') {
@@ -756,7 +833,18 @@ const PagosPage = () => {
       showToast('exito', 'Cobro anulado · volvió a pendiente')
       fetchData()
     } catch (err) {
-      showToast('error', err?.message || 'No se pudo anular el cobro')
+      if (err?.code === 'pago_combinado' && err?.data?.pagoIds?.length) {
+        if (window.confirm('Este cobro se hizo junto con otras deudas. Anular el pago completo va a reabrir todas esas deudas. ¿Seguir?')) {
+          try {
+            for (const pid of err.data.pagoIds) await api.post(`/pagos/${pid}/anular`, {}, { Authorization: `Bearer ${token}` })
+            setAnulando(null)
+            showToast('exito', 'Pago anulado · las deudas volvieron a pendiente')
+            fetchData()
+          } catch (e2) { showToast('error', e2?.message || 'No se pudo anular el pago') }
+        }
+      } else {
+        showToast('error', err?.message || 'No se pudo anular el cobro')
+      }
     } finally { setSaving(false) }
   }
 
@@ -959,9 +1047,9 @@ const PagosPage = () => {
             )}
           </div>
         ) : (
-          <div className="divide-y divide-slate-50">
-            {visibles.map((c) => (
-              <div key={c.id} className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors">
+          <div>
+            {visibles.map((c, idx) => (
+              <div key={c.id} className={`flex items-center gap-4 px-5 py-4 border-b border-slate-100 transition-colors ${idx % 2 === 1 ? 'bg-slate-100' : 'bg-white'} hover:bg-brand-50/60`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-slate-800 font-semibold text-sm truncate">

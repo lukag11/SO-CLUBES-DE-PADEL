@@ -10,6 +10,7 @@ import clubsRouter from './routes/clubs.js'
 import turnosFijosRouter from './routes/turnos-fijos.js'
 import notificacionesRouter from './routes/notificaciones.js'
 import cargosRouter from './routes/cargos.js'
+import pagosRouter from './routes/pagos.js'
 import productosRouter from './routes/productos.js'
 import gastosRouter from './routes/gastos.js'
 import comandasRouter from './routes/comandas.js'
@@ -78,6 +79,7 @@ app.use('/api/clubs', clubsRouter)
 app.use('/api/turnos-fijos', requireAuth, requireClubActivo, turnosFijosRouter)
 app.use('/api/notificaciones', requireAuth, requireClubActivo, notificacionesRouter)
 app.use('/api/cargos', cargosRouter)
+app.use('/api/pagos', pagosRouter)
 app.use('/api/productos', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), productosRouter)
 app.use('/api/categorias', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), categoriasRouter)
 app.use('/api/gastos', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('caja'), gastosRouter)

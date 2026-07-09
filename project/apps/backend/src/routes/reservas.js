@@ -5,6 +5,7 @@ import { cancelarBusquedasDeReserva } from '../lib/solicitudes.js'
 import { clubAutoConfirma } from '../lib/autoConfirma.js'
 import { requireAuth, requireRole, requireActive, requireFeature, requirePermiso } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
+import { pagosQueImputan, revertirPagoTx } from '../lib/pagos.js'
 import { snapshotProductos } from '../lib/productos.js'
 import { descontarStock } from '../lib/stock.js'
 import { tienePermiso } from '../lib/permisos.js'
@@ -947,18 +948,41 @@ router.patch('/:id/pago', requireAuth, requireRole('admin'), requirePermiso('ven
   const { id } = req.params
   const { pagado, metodoPago } = req.body
 
+  const incl = { cancha: { select: { nombre: true } }, jugador: { select: { id: true, nombre: true, apellido: true } } }
   try {
     const reserva = await prisma.reserva.findUnique({ where: { id } })
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada' })
     if (reserva.clubId !== req.user.clubId) return res.status(403).json({ error: 'Sin permisos' })
+    const saldo = reserva.saldoPagado ?? 0
 
-    const updated = await prisma.reserva.update({
-      where: { id },
-      data: pagado
-        ? { pagado: true, pagadoAt: new Date(), metodoPago: normalizarMetodo(metodoPago) }
-        : { pagado: false, pagadoAt: null, metodoPago: null },
-      include: { cancha: { select: { nombre: true } }, jugador: { select: { id: true, nombre: true, apellido: true } } },
-    })
+    if (pagado) {
+      // Si el turno tiene un pago en el libro de plata (parcial o total), no se toca con este
+      // toggle simple: hay que completarlo/anularlo desde "Cobrar cuenta" (mantiene la caja exacta).
+      if (saldo > 0) {
+        return res.status(409).json({ error: 'en_libro_plata', message: 'Este turno ya tiene un cobro registrado. Completá o anulá desde Cobrar cuenta.' })
+      }
+      const updated = await prisma.reserva.update({ where: { id }, data: { pagado: true, pagadoAt: new Date(), metodoPago: normalizarMetodo(metodoPago) }, include: incl })
+      return res.json(updated)
+    }
+
+    // Des-pagar: si estaba en el libro de plata, revierto los pagos que lo cubren.
+    if (saldo > 0) {
+      const pagos = await pagosQueImputan(reserva.clubId, 'reserva', id)
+      const combinados = pagos.filter((p) => (p.imputaciones || []).length > 1)
+      if (combinados.length) {
+        return res.status(409).json({ error: 'pago_combinado', pagoIds: combinados.map((p) => p.id), message: 'Este turno se cobró junto con otras deudas.' })
+      }
+      await runSerializable(async (tx) => {
+        for (const p of pagos) await revertirPagoTx(tx, p)
+        // Por si quedó algún saldo residual sin pago asociado, lo dejo en cero e impago.
+        await tx.reserva.update({ where: { id }, data: { pagado: false, saldoPagado: 0, pagadoAt: null, metodoPago: null } })
+      })
+      const updated = await prisma.reserva.findUnique({ where: { id }, include: incl })
+      return res.json(updated)
+    }
+
+    // Legacy (sin libro de plata): des-pago directo.
+    const updated = await prisma.reserva.update({ where: { id }, data: { pagado: false, pagadoAt: null, metodoPago: null }, include: incl })
     res.json(updated)
   } catch (err) {
     console.error(err)
@@ -984,6 +1008,11 @@ router.post('/:id/cobrar', requireAuth, requireRole('admin'), requirePermiso('ve
     // Un casual (sin jugador) no puede quedar a cuenta: tiene que pagar
     if (!jugadorId && esACuenta) {
       return res.status(400).json({ error: 'Un consumidor final debe pagar al contado (no puede quedar a cuenta)' })
+    }
+    // Si el turno ya tiene un cobro (parcial o total) en el libro de plata, no se cobra por la
+    // grilla: se completa/anula desde Cobranzas (evita doble-cobro cross-UI).
+    if (cobrarTurno && (reserva.saldoPagado ?? 0) > 0) {
+      return res.status(409).json({ error: 'en_libro_plata', message: 'Este turno ya tiene un cobro registrado en Cobranzas. Completalo o anulalo desde ahí.' })
     }
     // El jugador a cargar debe pertenecer al club
     if (jugadorId) {
@@ -1158,11 +1187,13 @@ router.post('/:id/cuenta', requireAuth, requireRole('admin'), requirePermiso('ve
       // Guard anti-sobrecobro DENTRO de la TX (Serializable): dos /cuenta concurrentes no pueden
       // superar JUNTOS el precio del turno — se re-lee lo ya cubierto dentro de la transacción.
       if (nuevoTurno > 0) {
-        const r = await tx.reserva.findUnique({ where: { id }, select: { precio: true, pagado: true } })
+        const r = await tx.reserva.findUnique({ where: { id }, select: { precio: true, pagado: true, saldoPagado: true } })
         const precioT = r?.precio ?? 0
         if (precioT <= 0) throw Object.assign(new Error('Este turno no tiene precio para cobrar'), { status: 400 })
         const cargosTurno = await tx.cargo.findMany({ where: { reservaId: id, tipo: 'reserva' }, select: { monto: true } })
-        const yaCubierto = (r.pagado ? precioT : 0) + cargosTurno.reduce((s, c) => s + c.monto, 0)
+        // Ya cubierto = pagado entero, o el parcial del libro de plata (saldoPagado), + cargos del turno.
+        const pagadoDelTurno = r.pagado ? precioT : (r.saldoPagado ?? 0)
+        const yaCubierto = pagadoDelTurno + cargosTurno.reduce((s, c) => s + c.monto, 0)
         if (yaCubierto + nuevoTurno > precioT) throw Object.assign(new Error('El monto del turno supera el precio del turno'), { status: 400 })
       }
       for (const it of items) {

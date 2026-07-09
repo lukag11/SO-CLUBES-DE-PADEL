@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { TrendingDown, AlertTriangle, Plus, X, Trash2, CheckCircle, Pencil, Camera, Loader2, FileText, Download } from 'lucide-react'
-import { api, uploadImage } from '../../lib/api'
+import { api } from '../../lib/api'
 import { useToast } from '../../components/ui/ToastProvider'
 import { METODO_MAP, MetodoBadge } from '../../lib/metodosPago'
 import { generarReporteGastos, exportarGastosCSV } from './comprobantes'
@@ -13,7 +13,7 @@ const fmtFecha = (s) => {
   const d = new Date(s + (s.length === 10 ? 'T00:00:00' : ''))
   return `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`
 }
-const CATEGORIAS_SUGERIDAS = ['Insumos', 'Alquiler', 'Sueldos', 'Mantenimiento', 'Servicios', 'Impuestos', 'Otros']
+const CATEGORIAS_SUGERIDAS = ['Servicios', 'Alquiler', 'Sueldos', 'Impuestos', 'Bebidas', 'Kiosco', 'Tienda deportiva', 'Insumos', 'Mantenimiento', 'Otros']
 // Estado del vencimiento de un gasto IMPAGO: rojo si venció / vence hoy, amarillo si vence pronto.
 const infoVenc = (venc, pagado) => {
   if (!venc || pagado) return null
@@ -28,11 +28,23 @@ const inputCls = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-
 const hoy = () => new Date().toISOString().slice(0, 10)
 
 // ── Modal: alta / edición de gasto ───────────────────────────────────────────
-const ModalGasto = ({ gasto, prefill, metodos, token, onSave, onClose, saving }) => {
+// Detecta si un gasto es probablemente la MISMA factura que otro ya cargado.
+// Fuerte: mismo proveedor + mismo N° de factura. Débil (si no hay N°): proveedor + monto + fecha.
+const norm = (s) => (s || '').trim().toLowerCase()
+const esMismaFactura = (a, b) => {
+  const provOk = norm(a.proveedor) && norm(a.proveedor) === norm(b.proveedor)
+  const nroA = norm(a.numeroFactura), nroB = norm(b.numeroFactura)
+  if (nroA && nroB) return provOk && nroA === nroB               // match fuerte
+  return provOk && Number(a.monto) === Number(b.monto) && a.fecha === b.fecha // match débil
+}
+
+const ModalGasto = ({ gasto, prefill, existentes = [], metodos, token, onSave, onClose, saving }) => {
   const editing = !!gasto
   const src = gasto ?? prefill ?? {} // prefill = valores de la IA (crear pre-llenado, NO es edición)
   const [form, setForm] = useState(() => ({
     proveedor: src.proveedor ?? '',
+    cuitProveedor: src.cuitProveedor ?? '',
+    tipoComprobante: src.tipoComprobante ?? '',
     concepto: src.concepto ?? '',
     monto: src.monto != null ? String(src.monto) : '',
     categoria: src.categoria ?? '',
@@ -41,23 +53,14 @@ const ModalGasto = ({ gasto, prefill, metodos, token, onSave, onClose, saving })
     pagado: src.pagado != null ? src.pagado : true,
     metodoPago: src.metodoPago ?? (metodos[0] ?? 'efectivo'),
     numeroFactura: src.numeroFactura ?? '',
-    imagenUrl: src.imagenUrl ?? '',
   }))
-  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
-
-  const subirFoto = async (file) => {
-    if (!file) return
-    setUploading(true)
-    try {
-      const url = await uploadImage(file, { folder: 'facturas', token })
-      set('imagenUrl', url)
-    } catch {
-      setError('No se pudo subir la foto')
-    } finally { setUploading(false) }
-  }
+  // Aviso (no bloqueo) de posible factura duplicada — solo al CREAR (no al editar).
+  const dup = (!editing && Number(form.monto) > 0)
+    ? existentes.find((g) => esMismaFactura({ proveedor: form.proveedor, numeroFactura: form.numeroFactura, monto: Number(form.monto), fecha: form.fecha }, g))
+    : null
 
   const submit = () => {
     if (!form.concepto.trim()) return setError('Ingresá un concepto')
@@ -65,6 +68,8 @@ const ModalGasto = ({ gasto, prefill, metodos, token, onSave, onClose, saving })
     setError('')
     onSave({
       proveedor: form.proveedor.trim() || null,
+      cuitProveedor: form.cuitProveedor.trim() || null,
+      tipoComprobante: form.tipoComprobante.trim() || null,
       concepto: form.concepto.trim(),
       monto: Number(form.monto),
       categoria: form.categoria.trim() || null,
@@ -73,7 +78,6 @@ const ModalGasto = ({ gasto, prefill, metodos, token, onSave, onClose, saving })
       pagado: form.pagado,
       metodoPago: form.pagado ? form.metodoPago : null,
       numeroFactura: form.numeroFactura.trim() || null,
-      imagenUrl: form.imagenUrl || null,
     })
   }
 
@@ -86,6 +90,14 @@ const ModalGasto = ({ gasto, prefill, metodos, token, onSave, onClose, saving })
           <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
         </div>
         <div className="overflow-y-auto p-6 flex flex-col gap-4">
+          {dup && (
+            <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5">
+              <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800 leading-relaxed">
+                <b>¿Ya la cargaste?</b> Parece la misma factura: <b>{dup.concepto}</b>{dup.proveedor ? ` · ${dup.proveedor}` : ''} · {money(dup.monto)}{dup.fecha ? ` · ${fmtFecha(dup.fecha)}` : ''}{dup.numeroFactura ? ` · Fac. ${dup.numeroFactura}` : ''}. Revisá antes de guardar para no duplicar el gasto.
+              </p>
+            </div>
+          )}
           <div>
             <label className="block text-slate-500 text-xs font-medium mb-1.5">Concepto</label>
             <input value={form.concepto} onChange={(e) => set('concepto', e.target.value)} placeholder="Ej: factura de luz, alquiler, sueldo…" className={inputCls} />
@@ -98,6 +110,17 @@ const ModalGasto = ({ gasto, prefill, metodos, token, onSave, onClose, saving })
             <div>
               <label className="block text-slate-500 text-xs font-medium mb-1.5">Monto</label>
               <input type="number" value={form.monto} onChange={(e) => set('monto', e.target.value)} placeholder="0" className={inputCls} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-500 text-xs font-medium mb-1.5">CUIT proveedor <span className="text-slate-300 font-normal">(opcional)</span></label>
+              <input value={form.cuitProveedor} onChange={(e) => set('cuitProveedor', e.target.value)} placeholder="30-12345678-9" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-slate-500 text-xs font-medium mb-1.5">Comprobante <span className="text-slate-300 font-normal">(opcional)</span></label>
+              <input list="tipo-comp" value={form.tipoComprobante} onChange={(e) => set('tipoComprobante', e.target.value)} placeholder="Factura A" className={inputCls} />
+              <datalist id="tipo-comp"><option value="Factura A" /><option value="Factura B" /><option value="Factura C" /><option value="Ticket" /><option value="Remito" /><option value="Recibo" /></datalist>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -137,29 +160,12 @@ const ModalGasto = ({ gasto, prefill, metodos, token, onSave, onClose, saving })
             )}
           </div>
 
-          {/* Foto de la factura (OCR-ready) */}
-          <div>
-            <label className="block text-slate-500 text-xs font-medium mb-1.5">Foto de la factura (opcional)</label>
-            {form.imagenUrl ? (
-              <div className="flex items-center gap-2">
-                <a href={form.imagenUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-brand-600 hover:underline"><FileText size={15} /> Ver factura</a>
-                <button onClick={() => set('imagenUrl', '')} className="text-slate-300 hover:text-rose-500"><X size={14} /></button>
-              </div>
-            ) : (
-              <label className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-slate-300 text-slate-500 text-sm cursor-pointer hover:bg-slate-50 w-fit">
-                {uploading ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
-                {uploading ? 'Subiendo…' : 'Adjuntar foto'}
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => subirFoto(e.target.files?.[0])} />
-              </label>
-            )}
-          </div>
-
           {!editing && (
             <p className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-3 py-2">¿Es una <b>compra de mercadería</b> (productos para el bar)? Cargala desde <b>Stock → Ingresar compra</b>: suma stock y queda como egreso acá.</p>
           )}
 
           {error && <p className="text-rose-500 text-xs">{error}</p>}
-          <button onClick={submit} disabled={saving || uploading} className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
+          <button onClick={submit} disabled={saving} className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
             {saving ? 'Guardando…' : editing ? 'Guardar cambios' : 'Registrar gasto'}
           </button>
         </div>
@@ -205,6 +211,7 @@ const GastosTab = ({ token, metodos }) => {
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('todos') // todos | pagado | pendiente
   const [catFiltro, setCatFiltro] = useState('todas')
+  const [provFiltro, setProvFiltro] = useState('todos')
   const [modal, setModal] = useState(null)       // { gasto } | { nuevo:true }
   const [pagando, setPagando] = useState(null)
   const [eliminando, setEliminando] = useState(null)
@@ -229,9 +236,13 @@ const GastosTab = ({ token, metodos }) => {
   useEffect(() => { fetchData() }, [fetchData])
 
   const categoriasGasto = [...new Set(gastos.map((g) => g.categoria).filter(Boolean))].sort()
+  const proveedoresGasto = [...new Set(gastos.map((g) => g.proveedor).filter(Boolean))].sort()
   const visibles = gastos.filter((g) =>
     (filtro === 'todos' ? true : filtro === 'pagado' ? g.pagado : !g.pagado) &&
-    (catFiltro === 'todas' || g.categoria === catFiltro))
+    (catFiltro === 'todas' || g.categoria === catFiltro) &&
+    (provFiltro === 'todos' || g.proveedor === provFiltro))
+  // Total de lo filtrado (para responder "¿cuánto le pagué a este proveedor?").
+  const totalVisible = visibles.reduce((s, g) => s + (g.monto ?? 0), 0)
 
   const guardar = async (data) => {
     setSaving(true)
@@ -248,7 +259,7 @@ const GastosTab = ({ token, metodos }) => {
   // ── IA: leer una factura (foto) y abrir el modal pre-llenado para confirmar ──
   const fileRef = useRef(null)
   const [leyendoIA, setLeyendoIA] = useState(false)
-  const CAT_IA = { energia: 'Servicios', agua: 'Servicios', internet: 'Servicios', alquiler: 'Alquiler', sueldos: 'Sueldos', mantenimiento: 'Mantenimiento', insumos: 'Insumos', otros: 'Otros' }
+  const CAT_IA = { servicios: 'Servicios', alquiler: 'Alquiler', sueldos: 'Sueldos', impuestos: 'Impuestos', bebidas: 'Bebidas', kiosco: 'Kiosco', deportivo: 'Tienda deportiva', insumos: 'Insumos', mantenimiento: 'Mantenimiento', otros: 'Otros' }
 
   const subirConIA = async (file) => {
     if (!file) return
@@ -260,22 +271,21 @@ const GastosTab = ({ token, metodos }) => {
         r.onerror = () => reject(new Error('No se pudo leer el archivo'))
         r.readAsDataURL(file)
       })
-      // La IA lee la factura y, en paralelo, subimos la imagen a storage para adjuntarla.
-      const [datos, imagenUrl] = await Promise.all([
-        api.post('/gastos/extraer', { image: dataUrl }, { Authorization: `Bearer ${token}` }),
-        uploadImage(file, { folder: 'facturas', token }).catch(() => ''),
-      ])
+      // La IA lee la factura (como un scanner): extrae los datos y descarta la imagen.
+      // No se guarda la foto — todo lo que importa queda en los campos estructurados.
+      const datos = await api.post('/gastos/extraer', { image: dataUrl }, { Authorization: `Bearer ${token}` })
       setModal({ nuevo: true, prefill: {
         proveedor: datos.proveedor || '',
+        cuitProveedor: datos.cuitProveedor || '',
+        tipoComprobante: datos.tipoComprobante || '',
         concepto: datos.concepto || '',
         monto: datos.monto || '',
         categoria: CAT_IA[datos.categoria] || 'Otros',
         fecha: datos.fecha || hoy(),
         vencimiento: datos.vencimiento || '',
-        // Si la IA leyó un vencimiento futuro, arranca como "A pagar" (aún no lo pagaste).
-        pagado: !datos.vencimiento,
+        // CONTADO → ya pagada. Si es a crédito con vencimiento futuro → "A pagar".
+        pagado: datos.contado ? true : !datos.vencimiento,
         numeroFactura: datos.numeroFactura || '',
-        imagenUrl: imagenUrl || '',
       } })
     } catch (err) {
       showToast('error', err?.message || 'No pude leer la factura. Probá con una foto más nítida.')
@@ -345,8 +355,14 @@ const GastosTab = ({ token, metodos }) => {
             {categoriasGasto.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
+        {proveedoresGasto.length > 0 && (
+          <select value={provFiltro} onChange={(e) => setProvFiltro(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-600 outline-none focus:border-brand-400 max-w-[180px]">
+            <option value="todos">Todos los proveedores</option>
+            {proveedoresGasto.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        )}
         <div className="flex items-center gap-2 ml-auto">
-          <button onClick={() => generarReporteGastos(visibles, club, `${filtro === 'todos' ? 'Todos' : filtro === 'pagado' ? 'Pagados' : 'A pagar'}${catFiltro !== 'todas' ? ` · ${catFiltro}` : ''}`)} disabled={visibles.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition-colors disabled:opacity-40">
+          <button onClick={() => generarReporteGastos(visibles, club, `${filtro === 'todos' ? 'Todos' : filtro === 'pagado' ? 'Pagados' : 'A pagar'}${catFiltro !== 'todas' ? ` · ${catFiltro}` : ''}${provFiltro !== 'todos' ? ` · ${provFiltro}` : ''}`)} disabled={visibles.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition-colors disabled:opacity-40">
             <FileText size={14} /> Reporte
           </button>
           <button onClick={() => exportarGastosCSV(visibles)} disabled={visibles.length === 0} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors disabled:opacity-40">
@@ -354,6 +370,14 @@ const GastosTab = ({ token, metodos }) => {
           </button>
         </div>
       </div>
+
+      {/* Total del proveedor filtrado — responde "¿cuánto le pagué a este proveedor?" */}
+      {provFiltro !== 'todos' && (
+        <div className="bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-sm text-slate-600">Le pagaste a <b className="text-slate-800">{provFiltro}</b> <span className="text-slate-400">({visibles.length} factura{visibles.length !== 1 ? 's' : ''})</span></span>
+          <span className="text-lg font-black text-brand-600">{money(totalVisible)}</span>
+        </div>
+      )}
 
       {/* Lista */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -370,7 +394,6 @@ const GastosTab = ({ token, metodos }) => {
                     <p className="text-slate-800 font-semibold text-sm truncate">{g.concepto}</p>
                     {g.categoria && <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{g.categoria}</span>}
                     {(() => { const v = infoVenc(g.vencimiento, g.pagado); return v && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${v.cls}`}>{v.txt}</span> })()}
-                    {g.imagenUrl && <FileText size={12} className="text-slate-300" />}
                   </div>
                   <p className="text-slate-400 text-xs mt-0.5 truncate">
                     {g.proveedor ? `${g.proveedor} · ` : ''}{fmtFecha(g.fecha)}{g.numeroFactura ? ` · Fac. ${g.numeroFactura}` : ''}
@@ -395,7 +418,7 @@ const GastosTab = ({ token, metodos }) => {
         )}
       </div>
 
-      {modal && <ModalGasto gasto={modal.gasto} prefill={modal.prefill} metodos={metodos} token={token} onSave={guardar} onClose={() => setModal(null)} saving={saving} />}
+      {modal && <ModalGasto gasto={modal.gasto} prefill={modal.prefill} existentes={gastos} metodos={metodos} token={token} onSave={guardar} onClose={() => setModal(null)} saving={saving} />}
       {pagando && <ModalPagarGasto gasto={pagando} metodos={metodos} onConfirm={marcarPagado} onClose={() => setPagando(null)} saving={saving} />}
       {eliminando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setEliminando(null)}>

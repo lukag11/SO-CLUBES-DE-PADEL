@@ -66,7 +66,7 @@ router.get('/resumen', requireAuth, requireRole('admin'), async (req, res) => {
 // Opcional: lineasStock [{ productoId?|nombre?, categoria?, cantidad, costoUnit, precio? }] →
 // ingresa stock (crea/matchea productos, suma stock, actualiza costo). Esto es el target del OCR (F5).
 router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
-  const { proveedor, concepto, monto, categoria, fecha, vencimiento, metodoPago, pagado, numeroFactura, imagenUrl, fuente, lineasStock } = req.body
+  const { proveedor, cuitProveedor, tipoComprobante, concepto, monto, categoria, fecha, vencimiento, metodoPago, pagado, numeroFactura, imagenUrl, fuente, lineasStock } = req.body
   const clubId = req.user.clubId
   if (!concepto?.trim()) return res.status(400).json({ error: 'El concepto es requerido' })
   const montoNum = Math.round(Number(monto))
@@ -79,6 +79,8 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         data: {
           clubId,
           proveedor: proveedor?.trim() || null,
+          cuitProveedor: cuitProveedor?.trim() || null,
+          tipoComprobante: tipoComprobante?.trim() || null,
           concepto: concepto.trim(),
           monto: montoNum,
           categoria: categoria?.trim() || null,
@@ -128,7 +130,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
 
 // PATCH /api/gastos/:id — editar gasto o marcarlo pagado/impago
 router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
-  const { proveedor, concepto, monto, categoria, fecha, vencimiento, metodoPago, pagado, numeroFactura, imagenUrl } = req.body
+  const { proveedor, cuitProveedor, tipoComprobante, concepto, monto, categoria, fecha, vencimiento, metodoPago, pagado, numeroFactura, imagenUrl } = req.body
   try {
     const gasto = await prisma.gasto.findUnique({ where: { id: req.params.id } })
     if (!gasto || gasto.clubId !== req.user.clubId) return res.status(404).json({ error: 'Gasto no encontrado' })
@@ -138,6 +140,8 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
 
     const data = {
       ...(proveedor !== undefined && { proveedor: proveedor?.trim() || null }),
+      ...(cuitProveedor !== undefined && { cuitProveedor: cuitProveedor?.trim() || null }),
+      ...(tipoComprobante !== undefined && { tipoComprobante: tipoComprobante?.trim() || null }),
       ...(concepto !== undefined && { concepto: String(concepto).trim() }),
       ...(monto !== undefined && { monto: Math.round(Number(monto)) }),
       ...(categoria !== undefined && { categoria: categoria?.trim() || null }),

@@ -417,11 +417,13 @@ model Gasto {
   id            String    @id @default(cuid())
   clubId        String
   proveedor     String?
+  cuitProveedor String?   // CUIT del proveedor (lo lee el OCR; útil para el contador)
+  tipoComprobante String? // Factura A|B|C, Ticket, Remito, etc. (lo lee el OCR)
   concepto      String
   monto         Int
   categoria     String?
   fecha         String    // YYYY-MM-DD — fecha de emisión de la factura/gasto
-  vencimiento   String?   // YYYY-MM-DD — fecha de vencimiento (para avisar antes de que venza)
+  vencimiento   String?   // YYYY-MM-DD — fecha de vencimiento DE PAGO (solo facturas a crédito)
   metodoPago    String?
   pagado        Boolean   @default(true)
   pagadoAt      DateTime?

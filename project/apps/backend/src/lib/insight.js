@@ -219,13 +219,15 @@ async function armarContextoClub(clubId) {
   const mDate = new Date(Date.UTC(yy, mm - 1, dd + 1))
   const mananaStr = `${mDate.getUTCFullYear()}-${String(mDate.getUTCMonth() + 1).padStart(2, '0')}-${String(mDate.getUTCDate()).padStart(2, '0')}`
 
-  const [info, dispHoyRaw, dispManana, jugadores, torneos, cajaAbierta] = await Promise.all([
+  const [info, dispHoyRaw, dispManana, jugadores, torneos, cajaAbierta, gastosImpagos] = await Promise.all([
     gatherInsightData(clubId),
     gatherDisponibilidad(clubId, hoyStr),
     gatherDisponibilidad(clubId, mananaStr),
     prisma.jugador.count({ where: { clubId } }),
     prisma.torneo.findMany({ where: { clubId, estado: { in: ['open', 'in_progress'] } }, select: { nombre: true, estado: true } }),
     prisma.arqueoCaja.findFirst({ where: { clubId, estado: 'abierta' }, select: { abiertoAt: true, empleadoNombre: true } }),
+    // Facturas/gastos impagos con vencimiento (para avisar antes de que venzan o si ya vencieron).
+    prisma.gasto.findMany({ where: { clubId, pagado: false, vencimiento: { not: null } }, select: { concepto: true, monto: true, vencimiento: true } }),
   ])
   const dispHoy = soloFuturas(dispHoyRaw, hoyStr) // no contar franjas de hoy que ya pasaron
 
@@ -264,7 +266,18 @@ Datos REALES del club "${info.club}":
 - Plata por cobrar (deuda pendiente): $${info.deudaPorCobrar.toLocaleString('es-AR')}
 - Jugadores registrados en el club: ${jugadores}
 - Torneos activos: ${torneosTxt}
-- Caja del día: ${cajaAbierta ? `ABIERTA desde las ${new Date(cajaAbierta.abiertoAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}${cajaAbierta.empleadoNombre ? ` por ${cajaAbierta.empleadoNombre}` : ''}` : 'NO abierta todavía (si el dueño arranca el día, recordale abrir la caja con abrir_caja)'}`
+- Caja del día: ${cajaAbierta ? `ABIERTA desde las ${new Date(cajaAbierta.abiertoAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}${cajaAbierta.empleadoNombre ? ` por ${cajaAbierta.empleadoNombre}` : ''}` : 'NO abierta todavía (si el dueño arranca el día, recordale abrir la caja con abrir_caja)'}
+- Facturas por pagar: ${(() => {
+    const venc = (gastosImpagos || []).filter((g) => g.vencimiento)
+    if (!venc.length) return 'ninguna con vencimiento cargado'
+    const dias = (v) => Math.round((Date.parse(`${v}T00:00:00`) - Date.parse(`${hoyStr}T00:00:00`)) / 86400000)
+    const vencidas = venc.filter((g) => dias(g.vencimiento) < 0)
+    const proximas = venc.filter((g) => { const d = dias(g.vencimiento); return d >= 0 && d <= 5 })
+    const partes = []
+    if (vencidas.length) partes.push(`${vencidas.length} VENCIDA(S) sin pagar (${vencidas.map((g) => g.concepto).join(', ')}) — urgente`)
+    if (proximas.length) partes.push(`${proximas.length} vence(n) en ≤5 días (${proximas.map((g) => `${g.concepto} el ${g.vencimiento}`).join(', ')})`)
+    return partes.length ? partes.join('; ') : 'ninguna próxima a vencer'
+  })()}`
 
   return contexto
 }
@@ -695,6 +708,7 @@ Reglas:
 - Para saber quién está PASADO de categoría (jugadores demasiado buenos para donde juegan) usá consultar_ascensos. Al listar, enmarcá el ascenso SIEMPRE como un LOGRO del jugador (la rompió, le quedó chica la categoría), NUNCA como un problema o un castigo. Contá en criollo y corto qué hizo cada uno (ej: "ganó 2 torneos en 4ta con parejas distintas, ya no tiene rival ahí"). NUNCA digas "hay que sacarlo", "no puede seguir", "hace trampa" ni lo trates de vivo/sandbagger. NO uses jerga de sistema ("el motor detectó", "categoriaSugerida").
 - Para ascender a un jugador usá ascender_jugador (jugadorId + aCategoria). NO afirmes que ya lo subiste: se ejecuta recién cuando el dueño toca el botón. Decí UNA línea corta ("Te dejo el botón para confirmar el ascenso 👇") y nada más. El ascenso lo decide siempre el dueño; vos lo asistís y se lo dejás fácil. Si duda, dale el dato (por qué está pasado) y que decida él.
 - CAJA DEL DÍA: para abrir la caja usá abrir_caja (opcionalmente con el fondo/cambio inicial). NO afirmes que la abriste: se abre recién cuando el dueño toca el botón. Si en los datos de abajo la caja figura como NO abierta y el dueño está arrancando el día o pregunta cómo empezar, recordáselo en criollo y corto ("Che, arrancá abriendo la caja del día 👇") y dejale el botón. Si ya está ABIERTA, no insistas; si el turno terminó, recordale que la CIERRE desde la pestaña Caja. El arqueo controla SOLO el efectivo del cajón (transferencias y MP no van ahí).
+- FACTURAS POR VENCER: en los datos de abajo tenés "Facturas por pagar". Si hay VENCIDAS o que vencen en ≤5 días, avisale al dueño en criollo y corto (ej: "Ojo: la luz vence el 05/08, no te la olvides" o "Tenés la factura de agua VENCIDA sin pagar"). Es un aviso útil, no una alarma dramática. Si no hay nada por vencer, no lo menciones. Mencionalo cuando el dueño abra el chat o pregunte cómo viene, priorizándolo si algo ya venció (es plata que se puede ir en recargos o cortes).
 - PROACTIVO: cuando el dueño abra el chat o haga una pregunta general ("¿cómo venimos?", "¿alguna novedad?"), si hay jugadores pasados mencionalo por iniciativa propia como una OPORTUNIDAD linda (no como alerta), en una línea al pasar, y ofrecé mostrarle la lista. Reglas: no lo repitas si ya lo mencionaste en el chat; no lo metas a la fuerza si el dueño está en otra cosa (un cobro, un gasto, una reserva); no lo pongas primero si hay algo más urgente (deuda alta, caja). Es un "che, de paso te tiro esto", no una interrupción.
 - En tus propios mensajes del chat escribí en texto plano, sin markdown.
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { TrendingDown, AlertTriangle, Plus, X, Trash2, CheckCircle, Pencil, Camera, Loader2, FileText, Download } from 'lucide-react'
 import { api, uploadImage } from '../../lib/api'
 import { useToast } from '../../components/ui/ToastProvider'
@@ -14,22 +14,34 @@ const fmtFecha = (s) => {
   return `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`
 }
 const CATEGORIAS_SUGERIDAS = ['Insumos', 'Alquiler', 'Sueldos', 'Mantenimiento', 'Servicios', 'Impuestos', 'Otros']
+// Estado del vencimiento de un gasto IMPAGO: rojo si venció / vence hoy, amarillo si vence pronto.
+const infoVenc = (venc, pagado) => {
+  if (!venc || pagado) return null
+  const hoyStr = new Date().toISOString().slice(0, 10)
+  const dias = Math.round((new Date(venc + 'T00:00:00') - new Date(hoyStr + 'T00:00:00')) / 86400000)
+  if (dias < 0) return { txt: `Venció ${fmtFecha(venc)}`, cls: 'text-rose-700 bg-rose-100' }
+  if (dias === 0) return { txt: 'Vence hoy', cls: 'text-rose-700 bg-rose-100' }
+  if (dias <= 5) return { txt: `Vence en ${dias} día${dias > 1 ? 's' : ''}`, cls: 'text-amber-700 bg-amber-100' }
+  return { txt: `Vence ${fmtFecha(venc)}`, cls: 'text-slate-500 bg-slate-100' }
+}
 const inputCls = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
 const hoy = () => new Date().toISOString().slice(0, 10)
 
 // ── Modal: alta / edición de gasto ───────────────────────────────────────────
-const ModalGasto = ({ gasto, metodos, token, onSave, onClose, saving }) => {
+const ModalGasto = ({ gasto, prefill, metodos, token, onSave, onClose, saving }) => {
   const editing = !!gasto
+  const src = gasto ?? prefill ?? {} // prefill = valores de la IA (crear pre-llenado, NO es edición)
   const [form, setForm] = useState(() => ({
-    proveedor: gasto?.proveedor ?? '',
-    concepto: gasto?.concepto ?? '',
-    monto: gasto?.monto != null ? String(gasto.monto) : '',
-    categoria: gasto?.categoria ?? '',
-    fecha: gasto?.fecha ?? hoy(),
-    pagado: gasto ? gasto.pagado : true,
-    metodoPago: gasto?.metodoPago ?? (metodos[0] ?? 'efectivo'),
-    numeroFactura: gasto?.numeroFactura ?? '',
-    imagenUrl: gasto?.imagenUrl ?? '',
+    proveedor: src.proveedor ?? '',
+    concepto: src.concepto ?? '',
+    monto: src.monto != null ? String(src.monto) : '',
+    categoria: src.categoria ?? '',
+    fecha: src.fecha ?? hoy(),
+    vencimiento: src.vencimiento ?? '',
+    pagado: src.pagado != null ? src.pagado : true,
+    metodoPago: src.metodoPago ?? (metodos[0] ?? 'efectivo'),
+    numeroFactura: src.numeroFactura ?? '',
+    imagenUrl: src.imagenUrl ?? '',
   }))
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -57,6 +69,7 @@ const ModalGasto = ({ gasto, metodos, token, onSave, onClose, saving }) => {
       monto: Number(form.monto),
       categoria: form.categoria.trim() || null,
       fecha: form.fecha,
+      vencimiento: form.vencimiento || null,
       pagado: form.pagado,
       metodoPago: form.pagado ? form.metodoPago : null,
       numeroFactura: form.numeroFactura.trim() || null,
@@ -97,6 +110,10 @@ const ModalGasto = ({ gasto, metodos, token, onSave, onClose, saving }) => {
               <label className="block text-slate-500 text-xs font-medium mb-1.5">Fecha</label>
               <input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} className={inputCls} />
             </div>
+          </div>
+          <div>
+            <label className="block text-slate-500 text-xs font-medium mb-1.5">Vencimiento <span className="text-slate-300 font-normal">— cuándo hay que pagarla (opcional)</span></label>
+            <input type="date" value={form.vencimiento} onChange={(e) => set('vencimiento', e.target.value)} className={inputCls} />
           </div>
           <div>
             <label className="block text-slate-500 text-xs font-medium mb-1.5">N° de factura (opcional)</label>
@@ -228,6 +245,43 @@ const GastosTab = ({ token, metodos }) => {
       showToast('error', err?.message || 'No se pudo guardar el gasto')
     } finally { setSaving(false) }
   }
+  // ── IA: leer una factura (foto) y abrir el modal pre-llenado para confirmar ──
+  const fileRef = useRef(null)
+  const [leyendoIA, setLeyendoIA] = useState(false)
+  const CAT_IA = { energia: 'Servicios', agua: 'Servicios', internet: 'Servicios', alquiler: 'Alquiler', sueldos: 'Sueldos', mantenimiento: 'Mantenimiento', insumos: 'Insumos', otros: 'Otros' }
+
+  const subirConIA = async (file) => {
+    if (!file) return
+    setLeyendoIA(true)
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const r = new FileReader()
+        r.onload = () => resolve(r.result)
+        r.onerror = () => reject(new Error('No se pudo leer el archivo'))
+        r.readAsDataURL(file)
+      })
+      // La IA lee la factura y, en paralelo, subimos la imagen a storage para adjuntarla.
+      const [datos, imagenUrl] = await Promise.all([
+        api.post('/gastos/extraer', { image: dataUrl }, { Authorization: `Bearer ${token}` }),
+        uploadImage(file, { folder: 'facturas', token }).catch(() => ''),
+      ])
+      setModal({ nuevo: true, prefill: {
+        proveedor: datos.proveedor || '',
+        concepto: datos.concepto || '',
+        monto: datos.monto || '',
+        categoria: CAT_IA[datos.categoria] || 'Otros',
+        fecha: datos.fecha || hoy(),
+        vencimiento: datos.vencimiento || '',
+        // Si la IA leyó un vencimiento futuro, arranca como "A pagar" (aún no lo pagaste).
+        pagado: !datos.vencimiento,
+        numeroFactura: datos.numeroFactura || '',
+        imagenUrl: imagenUrl || '',
+      } })
+    } catch (err) {
+      showToast('error', err?.message || 'No pude leer la factura. Probá con una foto más nítida.')
+    } finally { setLeyendoIA(false) }
+  }
+
   const marcarPagado = async (metodoPago) => {
     setSaving(true)
     try {
@@ -254,7 +308,13 @@ const GastosTab = ({ token, metodos }) => {
   return (
     <div className="flex flex-col gap-6">
       {/* Header acción */}
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2 flex-wrap">
+        <input ref={fileRef} type="file" accept="image/*" className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; subirConIA(f) }} />
+        <button onClick={() => fileRef.current?.click()} disabled={leyendoIA}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-brand-500 text-brand-600 hover:bg-brand-50 font-semibold text-sm transition-colors disabled:opacity-60">
+          {leyendoIA ? <><Loader2 size={16} className="animate-spin" /> Leyendo factura…</> : <><Camera size={16} /> Subir factura con IA</>}
+        </button>
         <button onClick={() => setModal({ nuevo: true })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors shadow-sm">
           <Plus size={16} /> Nuevo gasto
         </button>
@@ -309,6 +369,7 @@ const GastosTab = ({ token, metodos }) => {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-slate-800 font-semibold text-sm truncate">{g.concepto}</p>
                     {g.categoria && <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{g.categoria}</span>}
+                    {(() => { const v = infoVenc(g.vencimiento, g.pagado); return v && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${v.cls}`}>{v.txt}</span> })()}
                     {g.imagenUrl && <FileText size={12} className="text-slate-300" />}
                   </div>
                   <p className="text-slate-400 text-xs mt-0.5 truncate">
@@ -334,7 +395,7 @@ const GastosTab = ({ token, metodos }) => {
         )}
       </div>
 
-      {modal && <ModalGasto gasto={modal.gasto} metodos={metodos} token={token} onSave={guardar} onClose={() => setModal(null)} saving={saving} />}
+      {modal && <ModalGasto gasto={modal.gasto} prefill={modal.prefill} metodos={metodos} token={token} onSave={guardar} onClose={() => setModal(null)} saving={saving} />}
       {pagando && <ModalPagarGasto gasto={pagando} metodos={metodos} onConfirm={marcarPagado} onClose={() => setPagando(null)} saving={saving} />}
       {eliminando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setEliminando(null)}>

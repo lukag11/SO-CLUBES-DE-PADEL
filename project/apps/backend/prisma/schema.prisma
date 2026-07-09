@@ -420,7 +420,8 @@ model Gasto {
   concepto      String
   monto         Int
   categoria     String?
-  fecha         String    // YYYY-MM-DD — fecha de la factura/gasto
+  fecha         String    // YYYY-MM-DD — fecha de emisión de la factura/gasto
+  vencimiento   String?   // YYYY-MM-DD — fecha de vencimiento (para avisar antes de que venza)
   metodoPago    String?
   pagado        Boolean   @default(true)
   pagadoAt      DateTime?

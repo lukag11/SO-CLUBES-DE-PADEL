@@ -4,8 +4,28 @@ import { requireAuth, requireRole } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { inicioMesArg } from '../lib/tiempo.js'
 import { ingresarStock } from '../lib/stock.js'
+import { extraerGastoDeImagen } from '../lib/ocrGasto.js'
 
 const router = Router()
+
+// POST /api/gastos/extraer — IA: lee la foto de una factura/ticket y devuelve los datos del
+// gasto (proveedor, concepto, monto, fecha, N° factura, categoría) para que el dueño CONFIRME.
+// No crea nada: solo lee. La creación va por POST /api/gastos como siempre.
+router.post('/extraer', requireAuth, requireRole('admin'), async (req, res) => {
+  const { image } = req.body ?? {}
+  if (!image) return res.status(400).json({ error: 'Falta la imagen de la factura' })
+  try {
+    const datos = await extraerGastoDeImagen(image)
+    res.json(datos)
+  } catch (err) {
+    const map = {
+      formato_imagen_invalido: 'La imagen no es válida (subí una foto JPG o PNG).',
+      no_se_pudo_leer: 'No pude leer la factura. Probá con una foto más nítida o cargalo a mano.',
+    }
+    console.error('[gastos/extraer]', err.message)
+    res.status(422).json({ error: map[err.message] || 'No se pudo leer la factura.' })
+  }
+})
 
 // GET /api/gastos — lista de gastos del club (?categoria= &pagado=true|false)
 router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
@@ -46,7 +66,7 @@ router.get('/resumen', requireAuth, requireRole('admin'), async (req, res) => {
 // Opcional: lineasStock [{ productoId?|nombre?, categoria?, cantidad, costoUnit, precio? }] →
 // ingresa stock (crea/matchea productos, suma stock, actualiza costo). Esto es el target del OCR (F5).
 router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
-  const { proveedor, concepto, monto, categoria, fecha, metodoPago, pagado, numeroFactura, imagenUrl, fuente, lineasStock } = req.body
+  const { proveedor, concepto, monto, categoria, fecha, vencimiento, metodoPago, pagado, numeroFactura, imagenUrl, fuente, lineasStock } = req.body
   const clubId = req.user.clubId
   if (!concepto?.trim()) return res.status(400).json({ error: 'El concepto es requerido' })
   const montoNum = Math.round(Number(monto))
@@ -63,6 +83,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
           monto: montoNum,
           categoria: categoria?.trim() || null,
           fecha: fecha || new Date().toISOString().slice(0, 10),
+          vencimiento: vencimiento || null,
           pagado: estaPagado,
           ...(estaPagado && { pagadoAt: new Date(), metodoPago: normalizarMetodo(metodoPago) }),
           numeroFactura: numeroFactura?.trim() || null,
@@ -107,7 +128,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
 
 // PATCH /api/gastos/:id — editar gasto o marcarlo pagado/impago
 router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
-  const { proveedor, concepto, monto, categoria, fecha, metodoPago, pagado, numeroFactura, imagenUrl } = req.body
+  const { proveedor, concepto, monto, categoria, fecha, vencimiento, metodoPago, pagado, numeroFactura, imagenUrl } = req.body
   try {
     const gasto = await prisma.gasto.findUnique({ where: { id: req.params.id } })
     if (!gasto || gasto.clubId !== req.user.clubId) return res.status(404).json({ error: 'Gasto no encontrado' })
@@ -121,6 +142,7 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
       ...(monto !== undefined && { monto: Math.round(Number(monto)) }),
       ...(categoria !== undefined && { categoria: categoria?.trim() || null }),
       ...(fecha !== undefined && { fecha }),
+      ...(vencimiento !== undefined && { vencimiento: vencimiento || null }),
       ...(numeroFactura !== undefined && { numeroFactura: numeroFactura?.trim() || null }),
       ...(imagenUrl !== undefined && { imagenUrl: imagenUrl || null }),
     }

@@ -858,7 +858,7 @@ const PagosPage = () => {
       </div>
 
       {tab === 'ventas' && <VentasTab token={token} metodos={metodosHabilitados} showToast={showToast} />}
-      {tab === 'stock' && <StockTab token={token} metodos={metodosHabilitados} showToast={showToast} />}
+      {tab === 'stock' && <StockTab token={token} metodos={metodosHabilitados} showToast={showToast} onIrAGastos={() => setTab('gastos')} />}
       {tab === 'gastos' && puedeTab('gastos') && <GastosTab token={token} metodos={metodosHabilitados} />}
       {tab === 'caja' && puedeTab('caja') && <CajaTab token={token} />}
 

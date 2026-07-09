@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Package, AlertTriangle, Boxes, History, Camera, Loader2, FileText, Truck, Tags } from 'lucide-react'
-import { api, uploadImage } from '../../lib/api'
-import { METODO_MAP } from '../../lib/metodosPago'
+import { Plus, Pencil, Trash2, X, Package, AlertTriangle, Boxes, History, Truck, Tags } from 'lucide-react'
+import { api } from '../../lib/api'
 import { useConfirm } from '../../components/ui/ConfirmProvider'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
@@ -11,12 +10,11 @@ const precioDesdePct = (costo, pct) => (Number(costo) > 0 && pct !== '') ? Strin
 const MOVTIPO = { entrada: { t: 'Entrada', c: 'text-emerald-600' }, salida: { t: 'Salida', c: 'text-rose-600' }, ajuste: { t: 'Ajuste', c: 'text-amber-600' } }
 const fmtFecha = (s) => { const d = new Date(s); return `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
 
-const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
+const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => {
   const confirmar = useConfirm()
   const auth = { Authorization: `Bearer ${token}` }
   const [productos, setProductos] = useState([])
   const [categorias, setCategorias] = useState([]) // [{id, nombre}]
-  const [compraOpen, setCompraOpen] = useState(false)
   const [catsOpen, setCatsOpen] = useState(false)
   const [prodModal, setProdModal] = useState(null) // null | { producto } (producto null = nuevo)
   const [movsOpen, setMovsOpen] = useState(null) // productoId
@@ -93,7 +91,7 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
       <div className="flex items-center gap-2 flex-wrap">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto…" className={`flex-1 min-w-[180px] ${inputCls}`} />
         <button onClick={() => setCatsOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm"><Tags size={16} /> Categorías</button>
-        <button onClick={() => setCompraOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm"><Truck size={16} /> Ingresar compra</button>
+        <button onClick={() => onIrAGastos?.()} title="Las compras se cargan en Gastos (con IA) y suman el stock" className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm"><Truck size={16} /> Ingresar compra</button>
         <button onClick={() => setProdModal({ producto: null })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm shadow-sm"><Plus size={16} /> Nuevo producto</button>
       </div>
 
@@ -136,7 +134,6 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast }) => {
 
       {prodModal && <ModalProducto producto={prodModal.producto} categorias={catNames} token={token} onClose={() => setProdModal(null)} onDone={(msg) => { setProdModal(null); fetchData(); showToast?.('exito', msg) }} />}
       {catsOpen && <ModalCategorias categorias={categorias} productos={productos} token={token} onClose={() => setCatsOpen(false)} onChange={fetchData} showToast={showToast} />}
-      {compraOpen && <ModalCompra productos={productos} metodos={metodos} token={token} onClose={() => setCompraOpen(false)} onDone={() => { setCompraOpen(false); fetchData(); showToast?.('exito', 'Compra registrada · stock actualizado') }} />}
     </div>
   )
 }
@@ -318,118 +315,6 @@ const ModalCategorias = ({ categorias, productos, token, onClose, onChange, show
             )
           })}
           <p className="text-[10px] text-slate-400 mt-1">No se puede borrar una categoría con productos. Renombrar actualiza todos sus productos.</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Modal Compra: factura de proveedor con productos que reponen stock ─────────
-const ModalCompra = ({ productos, metodos, token, onClose, onDone }) => {
-  const auth = { Authorization: `Bearer ${token}` }
-  const [proveedor, setProveedor] = useState('')
-  const [numeroFactura, setNumeroFactura] = useState('')
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
-  const [pagado, setPagado] = useState(true)
-  const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
-  const [imagenUrl, setImagenUrl] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const [lineas, setLineas] = useState([{ id: 1, nombre: '', cantidad: '1', costoUnit: '' }])
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  const addLinea = () => setLineas((l) => [...l, { id: Date.now() + Math.random(), nombre: '', cantidad: '1', costoUnit: '' }])
-  const setLinea = (id, k, v) => setLineas((l) => l.map((x) => x.id === id ? { ...x, [k]: v } : x))
-  const delLinea = (id) => setLineas((l) => l.filter((x) => x.id !== id))
-  const total = lineas.reduce((s, l) => s + (Number(l.cantidad) || 0) * (Number(l.costoUnit) || 0), 0)
-
-  const subirFoto = async (file) => {
-    if (!file) return
-    setUploading(true)
-    try { setImagenUrl(await uploadImage(file, { folder: 'facturas', token })) } catch { setError('No se pudo subir la foto') } finally { setUploading(false) }
-  }
-
-  const submit = async () => {
-    const validas = lineas.filter((l) => l.nombre.trim() && Number(l.cantidad) > 0)
-    if (validas.length === 0) return setError('Agregá al menos un producto')
-    if (!(total > 0)) return setError('El total debe ser mayor a 0')
-    setError(''); setSaving(true)
-    const lineasStock = validas.map((l) => {
-      const ex = productos.find((p) => p.nombre.trim().toLowerCase() === l.nombre.trim().toLowerCase())
-      return { productoId: ex?.id || null, nombre: l.nombre.trim(), cantidad: Number(l.cantidad), costoUnit: l.costoUnit === '' ? null : Number(l.costoUnit) }
-    })
-    try {
-      await api.post('/gastos', {
-        concepto: `Compra mercadería${proveedor.trim() ? ` · ${proveedor.trim()}` : ''}`,
-        monto: total, categoria: 'Mercadería', proveedor: proveedor.trim() || null, fecha,
-        pagado, metodoPago: pagado ? metodoPago : null, numeroFactura: numeroFactura.trim() || null, imagenUrl: imagenUrl || null,
-        lineasStock,
-      }, auth)
-      onDone()
-    } catch (e) { setError(e?.message || 'No se pudo registrar la compra'); setSaving(false) }
-  }
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <div>
-            <p className="text-slate-800 font-bold">Ingresar compra</p>
-            <p className="text-slate-400 text-xs mt-0.5">Factura de proveedor · suma stock y queda como egreso</p>
-          </div>
-          <button onClick={onClose} className="text-slate-300 hover:text-slate-600"><X size={18} /></button>
-        </div>
-
-        <div className="overflow-y-auto p-6 flex flex-col gap-4">
-          {/* Foto / IA */}
-          <div className="rounded-xl border border-dashed border-slate-300 p-3 flex flex-col gap-1.5">
-            {imagenUrl ? (
-              <div className="flex items-center gap-2"><a href={imagenUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-brand-600 hover:underline"><FileText size={15} /> Ver factura</a><button onClick={() => setImagenUrl('')} className="text-slate-300 hover:text-rose-500"><X size={14} /></button></div>
-            ) : (
-              <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer hover:text-slate-700 w-fit">
-                {uploading ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />} {uploading ? 'Subiendo…' : 'Adjuntar foto de la factura'}
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => subirFoto(e.target.files?.[0])} />
-              </label>
-            )}
-            <p className="text-[10px] text-slate-300">Próximamente: leer la foto con IA y autocompletar productos, cantidades y costos (plan premium).</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-slate-500 text-xs font-medium mb-1.5">Proveedor</label><input value={proveedor} onChange={(e) => setProveedor(e.target.value)} placeholder="Opcional" className={`w-full ${inputCls}`} /></div>
-            <div><label className="block text-slate-500 text-xs font-medium mb-1.5">Fecha</label><input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={`w-full ${inputCls}`} /></div>
-          </div>
-          <div><label className="block text-slate-500 text-xs font-medium mb-1.5">N° de factura (opcional)</label><input value={numeroFactura} onChange={(e) => setNumeroFactura(e.target.value)} placeholder="0001-00012345" className={`w-full ${inputCls}`} /></div>
-
-          {/* Líneas de productos */}
-          <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Productos comprados</p>
-            <datalist id="prods-compra">{productos.map((p) => <option key={p.id} value={p.nombre} />)}</datalist>
-            {lineas.map((l) => (
-              <div key={l.id} className="flex gap-1.5">
-                <input list="prods-compra" value={l.nombre} onChange={(e) => setLinea(l.id, 'nombre', e.target.value)} placeholder="Producto" className={`flex-1 ${inputCls} py-2`} />
-                <input type="number" value={l.cantidad} onChange={(e) => setLinea(l.id, 'cantidad', e.target.value)} placeholder="cant." title="Cantidad" className={`w-16 ${inputCls} py-2`} />
-                <input type="number" value={l.costoUnit} onChange={(e) => setLinea(l.id, 'costoUnit', e.target.value)} placeholder="$ c/u" title="Costo unitario" className={`w-20 ${inputCls} py-2`} />
-                <button onClick={() => delLinea(l.id)} className="text-slate-300 hover:text-rose-500 px-1"><X size={14} /></button>
-              </div>
-            ))}
-            <button onClick={addLinea} className="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1 w-fit"><Plus size={13} /> Agregar producto</button>
-            <p className="text-[10px] text-slate-400">Suma stock, crea los que no existan y actualiza el costo. Los existentes se matchean por nombre.</p>
-          </div>
-
-          {/* Estado de pago */}
-          <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
-            <button onClick={() => setPagado(true)} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${pagado ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Ya pagado</button>
-            <button onClick={() => setPagado(false)} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${!pagado ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>A pagar</button>
-          </div>
-          {pagado && <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className={`w-full ${inputCls}`}>{metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}</select>}
-
-          {error && <p className="text-rose-500 text-xs">{error}</p>}
-        </div>
-
-        <div className="px-6 py-4 border-t border-slate-100 shrink-0 flex items-center gap-3">
-          <div className="flex-1"><p className="text-xs text-slate-400">Total</p><p className="text-lg font-bold text-slate-800">{money(total)}</p></div>
-          <button onClick={submit} disabled={saving || uploading || total <= 0} className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm disabled:opacity-50">{saving ? 'Guardando…' : 'Registrar compra'}</button>
         </div>
       </div>
     </div>

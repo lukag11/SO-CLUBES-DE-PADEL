@@ -10,7 +10,7 @@ const CATEGORIAS = new Set(['servicios', 'alquiler', 'sueldos', 'impuestos', 'be
 
 const PROMPT = `Sos un asistente que lee facturas, tickets y recibos argentinos y extrae sus datos.
 Mirá la imagen y devolvé SOLO un JSON válido (sin explicaciones, sin markdown, sin \`\`\`) con esta forma EXACTA:
-{"proveedor": string|null, "cuitProveedor": string|null, "tipoComprobante": string|null, "concepto": string, "monto": number, "fecha": "YYYY-MM-DD"|null, "vencimiento": "YYYY-MM-DD"|null, "contado": boolean, "numeroFactura": string|null, "categoria": string}
+{"proveedor": string|null, "cuitProveedor": string|null, "tipoComprobante": string|null, "concepto": string, "monto": number, "fecha": "YYYY-MM-DD"|null, "vencimiento": "YYYY-MM-DD"|null, "contado": boolean, "numeroFactura": string|null, "categoria": string, "items": [{"descripcion": string, "nombreLimpio": string, "bultos": number, "unidadesPorBulto": number, "importe": number}]}
 Reglas:
 - "monto": el TOTAL A PAGAR (buscá el texto "TOTAL A PAGAR", o "TOTAL FACTURADO", o "TOTAL"). Devolvelo como ENTERO en pesos.
   ATENCIÓN AL FORMATO ARGENTINO: el punto "." separa los MILES y la coma "," separa los DECIMALES (centavos).
@@ -41,7 +41,15 @@ Reglas:
 - "vencimiento": SOLO la fecha de VENCIMIENTO DE PAGO (cuándo hay que pagarla), típico de servicios (luz, agua, internet). Buscá "VENCIMIENTO", "1er vencimiento", "Fecha de pago".
     ¡ATENCIÓN! NO confundir con datos FISCALES: "Vto CAE", "CAE", "Vencimiento CAE" NO son vencimientos de pago (son de AFIP) → IGNORALOS, no los pongas acá.
     Si es CONTADO (ya pagada), poné "vencimiento": null.
-- Si un dato no está, poné null (salvo concepto, monto y contado).`
+- "items": el DETALLE de productos/renglones de la factura (si los hay), como lista. Por cada renglón:
+    • "descripcion": el nombre del producto tal cual figura en la factura (ej: "PEPSI 70KCAL 4X6 354CC").
+    • "nombreLimpio": un nombre CORTO y claro para el catálogo del club, como lo diría un cliente (ej: "Pepsi", "Seven-Up", "Gatorade Uva", "Coca 1.25L"). Sacá códigos, cantidades de bulto (4x6), "CAN"/"PET"/"LATA" y mayúsculas innecesarias. Capitalizá normal.
+    • "bultos": el número de la columna de cantidad/BULTOS/UNID de ese renglón (cuántos paquetes/cajas trae). Si no ves columna de cantidad, poné 1.
+    • "unidadesPorBulto": cuántas unidades individuales trae CADA bulto, leyéndolo de la descripción. Interpretá el formato "NxM": "4X6" significa 4 packs de 6 = 24 unidades; "X6" = 6; "X8" = 8; "X12" = 12; "1.25 X8" = 8. Si es un producto por unidad suelta o no dice nada, poné 1. NO multipliques por los bultos, solo las unidades de UN bulto.
+    • "importe": el importe/total de ESE renglón, entero en pesos (mismo formato argentino: punto=miles, coma=centavos).
+    Si la factura es de un SERVICIO (luz, agua, alquiler) o no tiene un detalle de productos, devolvé "items": [].
+    NO inventes renglones: solo los que ves. No incluyas subtotales, IVA ni el total como si fueran items.
+- Si un dato no está, poné null (salvo concepto, monto, contado e items).`
 
 // Extrae { proveedor, concepto, monto, fecha, numeroFactura, categoria } de una imagen dataURL.
 export async function extraerGastoDeImagen(dataUrl) {
@@ -82,5 +90,18 @@ export async function extraerGastoDeImagen(dataUrl) {
     contado,
     numeroFactura: raw.numeroFactura ? String(raw.numeroFactura).trim() : null,
     categoria: CATEGORIAS.has(cat) ? cat : 'otros',
+    // Ítems (renglones de producto) para el flujo "cargar al stock". El dueño los confirma.
+    items: Array.isArray(raw.items)
+      ? raw.items
+          .map((it) => ({
+            descripcion: it?.descripcion ? String(it.descripcion).trim() : '',
+            nombreLimpio: it?.nombreLimpio ? String(it.nombreLimpio).trim() : (it?.descripcion ? String(it.descripcion).trim() : ''),
+            bultos: Math.max(1, Math.round(Number(it?.bultos) || 1)),
+            unidadesPorBulto: Math.max(1, Math.round(Number(it?.unidadesPorBulto) || 1)),
+            importe: Math.max(0, Math.round(Number(it?.importe) || 0)),
+          }))
+          .filter((it) => it.descripcion)
+          .slice(0, 50)
+      : [],
   }
 }

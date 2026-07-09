@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { TrendingDown, AlertTriangle, Plus, X, Trash2, CheckCircle, Pencil, Camera, Loader2, FileText, Download } from 'lucide-react'
+import { TrendingDown, AlertTriangle, Plus, X, Trash2, CheckCircle, Check, Pencil, Camera, Loader2, FileText, Download } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useToast } from '../../components/ui/ToastProvider'
 import { METODO_MAP, MetodoBadge } from '../../lib/metodosPago'
@@ -38,9 +38,43 @@ const esMismaFactura = (a, b) => {
   return provOk && Number(a.monto) === Number(b.monto) && a.fecha === b.fecha // match débil
 }
 
-const ModalGasto = ({ gasto, prefill, existentes = [], metodos, token, onSave, onClose, saving }) => {
+const RUBROS_STOCK = ['bebidas', 'kiosco', 'deportivo']
+
+const ModalGasto = ({ gasto, prefill, existentes = [], productos = [], metodos, token, onSave, onClose, saving }) => {
   const editing = !!gasto
   const src = gasto ?? prefill ?? {} // prefill = valores de la IA (crear pre-llenado, NO es edición)
+
+  // Ítems de la factura (los lee la IA) para el flujo "cargar al stock". El dueño los confirma/mapea.
+  const itemsIA = Array.isArray(prefill?.items) ? prefill.items : []
+  const [cargarStock, setCargarStock] = useState(itemsIA.length > 0 && RUBROS_STOCK.includes(prefill?.categoriaKey))
+  // Matchea el nombre limpio de la IA contra un producto existente (para mapear, no duplicar).
+  const matchProducto = (limpio) => {
+    const n = (limpio || '').trim().toLowerCase()
+    if (!n) return null
+    const ex = productos.find((p) => { const pn = (p.nombre || '').toLowerCase(); return pn === n || n.includes(pn) || pn.includes(n) })
+    return ex?.nombre || null
+  }
+  const [lineas, setLineas] = useState(() => itemsIA.map((it) => {
+    const bultos = it.bultos || 1
+    const upb = it.unidadesPorBulto || 1
+    const unidades = bultos * upb // la multiplicación la hace el CÓDIGO, no la IA
+    return {
+      producto: matchProducto(it.nombreLimpio) || it.nombreLimpio || it.descripcion || '',
+      descripcion: it.descripcion || '', // el nombre crudo de la factura, como referencia
+      bultos, upb,
+      unidades,
+      importe: it.importe || 0,
+      costoUnit: unidades > 0 ? Math.round(it.importe / unidades) : it.importe,
+    }
+  }))
+  const setLinea = (i, k, v) => setLineas((ls) => ls.map((l, idx) => {
+    if (idx !== i) return l
+    const nl = { ...l, [k]: v }
+    // Al cambiar las unidades (ej. 1 bulto → 24 latas), recalculo el costo unitario desde el importe.
+    if (k === 'unidades') nl.costoUnit = Number(v) > 0 ? Math.round((l.importe || 0) / Number(v)) : (l.importe || 0)
+    return nl
+  }))
+  const quitarLinea = (i) => setLineas((ls) => ls.filter((_, idx) => idx !== i))
   const [form, setForm] = useState(() => ({
     proveedor: src.proveedor ?? '',
     cuitProveedor: src.cuitProveedor ?? '',
@@ -62,6 +96,11 @@ const ModalGasto = ({ gasto, prefill, existentes = [], metodos, token, onSave, o
     ? existentes.find((g) => esMismaFactura({ proveedor: form.proveedor, numeroFactura: form.numeroFactura, monto: Number(form.monto), fecha: form.fecha }, g))
     : null
 
+  // Líneas de stock a enviar (solo las válidas) si el dueño confirmó cargar al stock.
+  const lineasStock = lineas
+    .filter((l) => l.producto.trim() && Number(l.unidades) > 0)
+    .map((l) => ({ nombre: l.producto.trim(), cantidad: Number(l.unidades), costoUnit: Number(l.costoUnit) || null, categoria: form.categoria.trim() || null }))
+
   const submit = () => {
     if (!form.concepto.trim()) return setError('Ingresá un concepto')
     if (!(Number(form.monto) > 0)) return setError('El monto debe ser mayor a 0')
@@ -78,6 +117,8 @@ const ModalGasto = ({ gasto, prefill, existentes = [], metodos, token, onSave, o
       pagado: form.pagado,
       metodoPago: form.pagado ? form.metodoPago : null,
       numeroFactura: form.numeroFactura.trim() || null,
+      // Ítems confirmados → el backend suma stock + costo (matchea el producto por nombre o lo crea).
+      ...(cargarStock && lineasStock.length ? { lineasStock } : {}),
     })
   }
 
@@ -160,8 +201,54 @@ const ModalGasto = ({ gasto, prefill, existentes = [], metodos, token, onSave, o
             )}
           </div>
 
-          {!editing && (
-            <p className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-3 py-2">¿Es una <b>compra de mercadería</b> (productos para el bar)? Cargala desde <b>Stock → Ingresar compra</b>: suma stock y queda como egreso acá.</p>
+          {/* Ítems de la factura → cargar al stock (la IA los leyó; el dueño confirma/mapea) */}
+          {itemsIA.length > 0 && (
+            <div className="rounded-xl border border-brand-200 bg-brand-50/40 overflow-hidden">
+              <button onClick={() => setCargarStock((v) => !v)} className="w-full px-4 py-3 flex items-center gap-3 text-left">
+                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${cargarStock ? 'bg-brand-500 border-brand-500' : 'border-slate-300'}`}>{cargarStock && <Check size={11} className="text-white" />}</div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-700">Cargar estos productos al stock</p>
+                  <p className="text-[11px] text-slate-400">La IA leyó {itemsIA.length} producto{itemsIA.length !== 1 ? 's' : ''}. Suma stock y su costo (para el margen).</p>
+                </div>
+              </button>
+              {cargarStock && (
+                <div className="px-4 pb-4 flex flex-col gap-2">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">Revisá cada producto: elegí tu producto (o dejá el nombre para crearlo), y poné las <b>unidades reales</b> (ej: 1 bulto = 24 latas). El costo por unidad se calcula solo.</p>
+                  {lineas.map((l, i) => (
+                    <div key={i} className="bg-white rounded-lg border border-slate-200 p-2.5 flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <input list="prod-list" value={l.producto} onChange={(e) => setLinea(i, 'producto', e.target.value)} placeholder="Producto" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400" />
+                          {l.descripcion && l.descripcion.toLowerCase() !== l.producto.trim().toLowerCase() && (
+                            <p className="text-[10px] text-slate-400 mt-0.5 truncate pl-1">factura: {l.descripcion}</p>
+                          )}
+                        </div>
+                        <button onClick={() => quitarLinea(i)} className="text-slate-300 hover:text-rose-500 shrink-0"><X size={15} /></button>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="flex items-center gap-1">
+                          <input type="number" value={l.unidades} onChange={(e) => setLinea(i, 'unidades', e.target.value)} className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-700 outline-none focus:border-brand-400" />
+                          <span className="text-slate-400">unid.</span>
+                          {l.upb > 1 && <span className="text-[10px] text-brand-500" title="bultos × unidades por bulto">({l.bultos}×{l.upb})</span>}
+                        </div>
+                        <span className="text-slate-300">×</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-slate-400">$</span>
+                          <input type="number" value={l.costoUnit} onChange={(e) => setLinea(i, 'costoUnit', Number(e.target.value))} className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-700 outline-none focus:border-brand-400" />
+                          <span className="text-slate-400">c/u</span>
+                        </div>
+                        <span className="text-slate-400 ml-auto">= {money((Number(l.unidades) || 0) * (Number(l.costoUnit) || 0))}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <datalist id="prod-list">{productos.map((p) => <option key={p.id} value={p.nombre} />)}</datalist>
+                  {lineas.length === 0 && <p className="text-[11px] text-slate-400">Sacaste todos los ítems. Se guarda como gasto normal.</p>}
+                </div>
+              )}
+            </div>
+          )}
+          {!editing && itemsIA.length === 0 && (
+            <p className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-3 py-2">¿Es una <b>compra de mercadería</b> (productos para el bar)? Subila con <b>"Subir factura con IA"</b> y te ofrece cargar los productos al stock.</p>
           )}
 
           {error && <p className="text-rose-500 text-xs">{error}</p>}
@@ -203,6 +290,63 @@ const ModalPagarGasto = ({ gasto, metodos, onConfirm, onClose, saving }) => (
   </div>
 )
 
+// ── Modal: tips antes de subir la factura con IA (expectativa vs realidad) ──
+const TIPS_FOTO = [
+  { emoji: '☀️', titulo: 'Buena luz', sub: 'Sin sombras' },
+  { emoji: '📄', titulo: 'Bien derecha', sub: 'Toda la hoja' },
+  { emoji: '🔎', titulo: 'Datos nítidos', sub: 'Sin borrones' },
+]
+const ModalTipsIA = ({ onCancel, onContinuar }) => {
+  const [noMostrar, setNoMostrar] = useState(false)
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-[popIn_.22s_ease-out]" onClick={(e) => e.stopPropagation()}>
+        {/* Header con color */}
+        <div className="relative bg-gradient-to-br from-brand-500 to-brand-600 px-6 pt-7 pb-9 text-center">
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center mb-3 ring-1 ring-white/20">
+            <Camera size={26} className="text-white" />
+          </div>
+          <p className="text-white font-bold text-lg leading-tight">Sacá la mejor foto</p>
+          <p className="text-white/80 text-xs mt-1">La IA lee lo que ve — ayudala y carga todo sola 🎾</p>
+        </div>
+
+        <div className="p-5 -mt-5">
+          {/* Fichas visuales de "buena foto" */}
+          <div className="grid grid-cols-3 gap-2.5 bg-white rounded-2xl">
+            {TIPS_FOTO.map((t) => (
+              <div key={t.titulo} className="rounded-2xl border border-slate-100 bg-slate-50/70 px-2 py-3.5 flex flex-col items-center text-center gap-1 shadow-sm transition-transform hover:-translate-y-0.5">
+                <span className="text-2xl leading-none">{t.emoji}</span>
+                <span className="text-xs font-semibold text-slate-700 leading-tight">{t.titulo}</span>
+                <span className="text-[10px] text-slate-400 leading-tight">{t.sub}</span>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-[11px] text-slate-400 mt-3">Que se lean el <b className="text-slate-500">total</b>, el <b className="text-slate-500">proveedor</b> y el <b className="text-slate-500">detalle</b>.</p>
+
+          {/* Aviso honesto */}
+          <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 mt-3">
+            <AlertTriangle size={16} className="text-amber-500 shrink-0" />
+            <p className="text-[11px] text-amber-800 leading-snug"><b>Revisá los datos antes de guardar.</b> Si la foto sale mal, la IA puede errar — vos confirmás.</p>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 mt-4">
+            <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+              <input type="checkbox" checked={noMostrar} onChange={(e) => setNoMostrar(e.target.checked)} className="accent-brand-500 w-3.5 h-3.5" />
+              No mostrar más
+            </label>
+            <div className="flex gap-2">
+              <button onClick={onCancel} className="px-4 py-2.5 rounded-xl text-slate-500 font-medium text-sm hover:bg-slate-100 transition-colors">Cancelar</button>
+              <button onClick={() => onContinuar(noMostrar)} className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors flex items-center gap-2 shadow-sm shadow-brand-500/30"><Camera size={15} /> Elegir foto</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Tab de Gastos / Egresos ──────────────────────────────────────────────────
 const GastosTab = ({ token, metodos }) => {
   const club = useClubStore((s) => s.club)
@@ -219,6 +363,7 @@ const GastosTab = ({ token, metodos }) => {
   const toast = useToast()
   const showToast = (tipo, message) => (tipo === 'exito' ? toast.success(message) : toast.error(message))
 
+  const [productos, setProductos] = useState([])
   const fetchData = useCallback(async () => {
     if (!token) return
     try {
@@ -228,6 +373,8 @@ const GastosTab = ({ token, metodos }) => {
       ])
       setGastos(Array.isArray(g) ? g : [])
       setResumen(r ?? null)
+      // Productos del club (para mapear los ítems de una factura al stock). Puede fallar por permiso → degrada.
+      api.get('/productos', { Authorization: `Bearer ${token}` }).then((p) => setProductos(Array.isArray(p) ? p : [])).catch(() => {})
     } catch {
       showToast('error', 'No se pudieron cargar los gastos')
     } finally { setLoading(false) }
@@ -259,6 +406,12 @@ const GastosTab = ({ token, metodos }) => {
   // ── IA: leer una factura (foto) y abrir el modal pre-llenado para confirmar ──
   const fileRef = useRef(null)
   const [leyendoIA, setLeyendoIA] = useState(false)
+  const [tipsIA, setTipsIA] = useState(false)
+  // Antes de elegir la foto, mostramos los tips (una vez; el usuario puede pedir no verlos más).
+  const abrirSelectorIA = () => {
+    try { if (localStorage.getItem('gastos_ia_tips_ok') === '1') { fileRef.current?.click(); return } } catch { /* */ }
+    setTipsIA(true)
+  }
   const CAT_IA = { servicios: 'Servicios', alquiler: 'Alquiler', sueldos: 'Sueldos', impuestos: 'Impuestos', bebidas: 'Bebidas', kiosco: 'Kiosco', deportivo: 'Tienda deportiva', insumos: 'Insumos', mantenimiento: 'Mantenimiento', otros: 'Otros' }
 
   const subirConIA = async (file) => {
@@ -286,6 +439,8 @@ const GastosTab = ({ token, metodos }) => {
         // CONTADO → ya pagada. Si es a crédito con vencimiento futuro → "A pagar".
         pagado: datos.contado ? true : !datos.vencimiento,
         numeroFactura: datos.numeroFactura || '',
+        items: Array.isArray(datos.items) ? datos.items : [],
+        categoriaKey: datos.categoria, // rubro crudo (bebidas/kiosco/deportivo) para sugerir cargar al stock
       } })
     } catch (err) {
       showToast('error', err?.message || 'No pude leer la factura. Probá con una foto más nítida.')
@@ -321,7 +476,7 @@ const GastosTab = ({ token, metodos }) => {
       <div className="flex items-center justify-end gap-2 flex-wrap">
         <input ref={fileRef} type="file" accept="image/*" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; subirConIA(f) }} />
-        <button onClick={() => fileRef.current?.click()} disabled={leyendoIA}
+        <button onClick={abrirSelectorIA} disabled={leyendoIA}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-brand-500 text-brand-600 hover:bg-brand-50 font-semibold text-sm transition-colors disabled:opacity-60">
           {leyendoIA ? <><Loader2 size={16} className="animate-spin" /> Leyendo factura…</> : <><Camera size={16} /> Subir factura con IA</>}
         </button>
@@ -418,7 +573,11 @@ const GastosTab = ({ token, metodos }) => {
         )}
       </div>
 
-      {modal && <ModalGasto gasto={modal.gasto} prefill={modal.prefill} existentes={gastos} metodos={metodos} token={token} onSave={guardar} onClose={() => setModal(null)} saving={saving} />}
+      {tipsIA && <ModalTipsIA
+        onCancel={() => setTipsIA(false)}
+        onContinuar={(noMostrar) => { if (noMostrar) { try { localStorage.setItem('gastos_ia_tips_ok', '1') } catch { /* */ } } setTipsIA(false); setTimeout(() => fileRef.current?.click(), 0) }}
+      />}
+      {modal && <ModalGasto gasto={modal.gasto} prefill={modal.prefill} existentes={gastos} productos={productos} metodos={metodos} token={token} onSave={guardar} onClose={() => setModal(null)} saving={saving} />}
       {pagando && <ModalPagarGasto gasto={pagando} metodos={metodos} onConfirm={marcarPagado} onClose={() => setPagando(null)} saving={saving} />}
       {eliminando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setEliminando(null)}>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Package, AlertTriangle, Boxes, History, Truck, Tags } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Package, AlertTriangle, Boxes, History, Truck, Tags, Percent } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useConfirm } from '../../components/ui/ConfirmProvider'
 
@@ -8,6 +8,14 @@ const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 tex
 const calcPct = (costo, precio) => (Number(costo) > 0 && precio !== '' && precio != null) ? Math.round((Number(precio) - Number(costo)) / Number(costo) * 100) : ''
 const precioDesdePct = (costo, pct) => (Number(costo) > 0 && pct !== '') ? String(Math.round(Number(costo) * (1 + Number(pct) / 100))) : ''
 const MOVTIPO = { entrada: { t: 'Entrada', c: 'text-emerald-600' }, salida: { t: 'Salida', c: 'text-rose-600' }, ajuste: { t: 'Ajuste', c: 'text-amber-600' } }
+
+// Par etiquetado (ETIQUETA + valor) para la ficha del producto — legible y prolijo.
+const Stat = ({ label, value, tone = 'slate' }) => (
+  <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
+    <span className="text-[9px] uppercase tracking-wide text-slate-400 font-semibold">{label}</span>
+    <span className={`text-xs font-semibold ${tone === 'emerald' ? 'text-emerald-600' : tone === 'rose' ? 'text-rose-500' : 'text-slate-600'}`}>{value}</span>
+  </span>
+)
 const fmtFecha = (s) => { const d = new Date(s); return `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
 
 const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => {
@@ -17,6 +25,7 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => 
   const [categorias, setCategorias] = useState([]) // [{id, nombre}]
   const [catsOpen, setCatsOpen] = useState(false)
   const [prodModal, setProdModal] = useState(null) // null | { producto } (producto null = nuevo)
+  const [ajusteOpen, setAjusteOpen] = useState(false) // ajuste masivo de precios por categoría
   const [movsOpen, setMovsOpen] = useState(null) // productoId
   const [movs, setMovs] = useState([])
   const [q, setQ] = useState('')
@@ -67,7 +76,7 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-start gap-4">
           <div className="bg-brand-500/10 rounded-xl p-3 shrink-0"><Boxes size={20} className="text-brand-600" /></div>
-          <div><p className="text-sm text-slate-500 font-medium">Valor de inventario</p><p className="text-2xl font-bold text-slate-800 mt-0.5">{money(valorInventario)}</p><p className="text-xs text-slate-400 mt-0.5">{conStock.length} con control de stock</p></div>
+          <div><p className="text-sm text-slate-500 font-medium">Invertido en stock</p><p className="text-2xl font-bold text-slate-800 mt-0.5">{money(valorInventario)}</p><p className="text-xs text-slate-400 mt-0.5">plata en mercadería (al costo) · {conStock.length} productos</p></div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-start gap-4">
           <div className="bg-amber-500/10 rounded-xl p-3 shrink-0"><AlertTriangle size={20} className="text-amber-500" /></div>
@@ -91,6 +100,7 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => 
       <div className="flex items-center gap-2 flex-wrap">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto…" className={`flex-1 min-w-[180px] ${inputCls}`} />
         <button onClick={() => setCatsOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm"><Tags size={16} /> Categorías</button>
+        <button onClick={() => setAjusteOpen(true)} disabled={productos.length === 0} title="Subir/bajar un % a todos los productos de una categoría (inflación)" className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm disabled:opacity-40"><Percent size={16} /> Ajuste masivo</button>
         <button onClick={() => onIrAGastos?.()} title="Las compras se cargan en Gastos (con IA) y suman el stock" className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm"><Truck size={16} /> Ingresar compra</button>
         <button onClick={() => setProdModal({ producto: null })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm shadow-sm"><Plus size={16} /> Nuevo producto</button>
       </div>
@@ -99,15 +109,31 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => 
       <div className="flex flex-col gap-3">
         {productos.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-400 text-sm">Todavía no cargaste productos.</div>
-        ) : grupos.map(({ cat, items }) => (
-          <div key={cat} className="flex flex-col gap-1.5">
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{cat} <span className="font-normal">· {items.length}</span></p>
-            {items.map((p) => (
+        ) : grupos.map(({ cat, items }) => {
+          const invCat = items.reduce((s, p) => s + (p.controlaStock ? (p.costo || 0) * p.stock : 0), 0)
+          return (
+          <div key={cat} className="rounded-2xl border border-slate-100 bg-white overflow-hidden shadow-sm">
+            {/* Encabezado de categoría */}
+            <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-1 h-4 rounded-full bg-brand-400 shrink-0" />
+                <p className="text-xs font-bold text-slate-700 uppercase tracking-wide truncate">{cat}</p>
+                <span className="text-[11px] text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded-full font-semibold shrink-0">{items.length}</span>
+              </div>
+              {invCat > 0 && <span className="text-[11px] text-slate-400 shrink-0">invertido <b className="text-slate-600">{money(invCat)}</b></span>}
+            </div>
+            {/* Filas con efecto cebra */}
+            {items.map((p, idx) => (
               <div key={p.id}>
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-100 bg-white">
+                <div className={`flex items-center gap-2 px-4 py-2.5 transition-colors ${idx % 2 === 1 ? 'bg-slate-100' : 'bg-white'} hover:bg-brand-50/50`}>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-700 truncate">{p.nombre}{!p.activo && <span className="text-[10px] text-slate-400 ml-1">(inactivo)</span>}</p>
-                    <span className="text-[10px] text-slate-400">{money(p.precio)}{p.costo != null ? ` · costo ${money(p.costo)} · margen ${money(p.precio - p.costo)}${p.costo > 0 ? ` (${calcPct(p.costo, p.precio)}%)` : ''}` : ''}{p.controlaStock ? ` · valor ${money((p.costo || 0) * p.stock)}` : ''}</span>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                      <Stat label="Precio" value={money(p.precio)} />
+                      {p.costo != null && <Stat label="Costo" value={money(p.costo)} />}
+                      {p.costo != null && <Stat label="Margen" value={`${money(p.precio - p.costo)}${p.costo > 0 ? ` · ${calcPct(p.costo, p.precio)}%` : ''}`} tone={p.precio - p.costo > 0 ? 'emerald' : p.precio - p.costo < 0 ? 'rose' : 'slate'} />}
+                      {p.controlaStock && <Stat label="Invertido" value={money((p.costo || 0) * p.stock)} />}
+                    </div>
                   </div>
                   {estadoBadge(p)}
                   {p.controlaStock && <button onClick={() => verMovs(p)} title="Movimientos" className={`p-1 ${movsOpen === p.id ? 'text-brand-500' : 'text-slate-300 hover:text-brand-500'}`}><History size={14} /></button>}
@@ -115,7 +141,7 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => 
                   <button onClick={() => eliminar(p)} title="Eliminar" className="text-slate-300 hover:text-rose-500 p-1"><Trash2 size={14} /></button>
                 </div>
                 {movsOpen === p.id && (
-                  <div className="ml-3 mt-1 mb-1 rounded-xl border border-slate-100 bg-slate-50/50 divide-y divide-slate-100">
+                  <div className="mx-3 mb-2 rounded-xl border border-slate-100 bg-slate-50/80 divide-y divide-slate-100">
                     {movs.length === 0 ? <p className="px-3 py-2 text-xs text-slate-400">Sin movimientos.</p> : movs.map((m) => (
                       <div key={m.id} className="flex items-center gap-2 px-3 py-1.5 text-xs">
                         <span className={`font-semibold w-16 ${MOVTIPO[m.tipo]?.c ?? 'text-slate-500'}`}>{MOVTIPO[m.tipo]?.t ?? m.tipo}</span>
@@ -129,11 +155,12 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => 
               </div>
             ))}
           </div>
-        ))}
+        )})}
       </div>
 
       {prodModal && <ModalProducto producto={prodModal.producto} categorias={catNames} token={token} onClose={() => setProdModal(null)} onDone={(msg) => { setProdModal(null); fetchData(); showToast?.('exito', msg) }} />}
       {catsOpen && <ModalCategorias categorias={categorias} productos={productos} token={token} onClose={() => setCatsOpen(false)} onChange={fetchData} showToast={showToast} />}
+      {ajusteOpen && <ModalAjusteMasivo categorias={catNames} productos={productos} token={token} onClose={() => setAjusteOpen(false)} onDone={(msg) => { setAjusteOpen(false); fetchData(); showToast?.('exito', msg) }} showToast={showToast} />}
     </div>
   )
 }
@@ -315,6 +342,118 @@ const ModalCategorias = ({ categorias, productos, token, onClose, onChange, show
             )
           })}
           <p className="text-[10px] text-slate-400 mt-1">No se puede borrar una categoría con productos. Renombrar actualiza todos sus productos.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Modal Ajuste Masivo: sube/baja un % a todos los productos de una categoría ──
+const red10 = (n) => Math.round(n / 10) * 10 // redondeo a $10 (números prolijos de mostrador)
+const ModalAjusteMasivo = ({ categorias = [], productos = [], token, onClose, onDone, showToast }) => {
+  const auth = { Authorization: `Bearer ${token}` }
+  const [categoria, setCategoria] = useState(categorias[0] ?? '')
+  const [campo, setCampo] = useState('precio') // precio | costo | ambos
+  const [pct, setPct] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const pctNum = Number(pct)
+  const pctOk = Number.isFinite(pctNum) && pctNum !== 0
+  const campoPreview = campo === 'costo' ? 'costo' : 'precio' // qué columna mostramos en el preview
+  const items = productos.filter((p) => p.activo && (p.categoria || '') === categoria)
+  const nuevoValor = (base, esPrecio) => {
+    if (base == null) return null
+    const n = red10(base * (1 + pctNum / 100))
+    return Math.max(esPrecio ? 1 : 0, n)
+  }
+  const preview = items.map((p) => {
+    const base = campoPreview === 'costo' ? p.costo : p.precio
+    return { nombre: p.nombre, base, nuevo: nuevoValor(base, campoPreview === 'precio') }
+  }).filter((x) => x.base != null)
+
+  const puede = categoria && pctOk && items.length > 0
+  const signo = pctNum > 0 ? '+' : ''
+
+  const aplicar = async () => {
+    if (saving || !puede) return
+    setSaving(true)
+    try {
+      const r = await api.post('/productos/ajuste-masivo', { categoria, porcentaje: pctNum, campo, redondeo: 10 }, auth)
+      onDone(`${signo}${pctNum}% aplicado a ${r.actualizados} producto${r.actualizados === 1 ? '' : 's'} de ${categoria}`)
+    } catch (e) { showToast?.('error', e?.message || 'No se pudo aplicar el ajuste'); setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-slate-800 font-bold">Ajuste masivo de precios</p>
+            <p className="text-slate-400 text-xs mt-0.5">Subí o bajá un % a toda una categoría de una vez</p>
+          </div>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-600"><X size={18} /></button>
+        </div>
+
+        <div className="overflow-y-auto p-6 flex flex-col gap-4">
+          <div>
+            <label className="block text-slate-500 text-xs font-medium mb-1.5">Categoría</label>
+            <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className={`w-full ${inputCls}`}>
+              {categorias.length === 0 && <option value="">Sin categorías</option>}
+              {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-slate-500 text-xs font-medium mb-1.5">¿Qué ajusto?</label>
+            <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+              {[['precio', 'Precio venta'], ['costo', 'Costo'], ['ambos', 'Ambos']].map(([id, label]) => (
+                <button key={id} onClick={() => setCampo(id)} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${campo === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>{label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-slate-500 text-xs font-medium mb-1.5">Porcentaje (usá negativo para bajar)</label>
+            <div className="flex items-center gap-2">
+              <input type="number" value={pct} onChange={(e) => setPct(e.target.value)} placeholder="ej: 10" className={`flex-1 ${inputCls}`} />
+              <span className="text-slate-400 text-sm font-semibold">%</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">El precio nuevo se redondea a $10.</p>
+          </div>
+
+          {/* Preview */}
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+            {!categoria ? (
+              <p className="text-slate-400 text-sm">Elegí una categoría.</p>
+            ) : items.length === 0 ? (
+              <p className="text-slate-400 text-sm">No hay productos activos en {categoria}.</p>
+            ) : !pctOk ? (
+              <p className="text-slate-400 text-sm">{items.length} producto{items.length === 1 ? '' : 's'} en {categoria}. Poné un % para ver el impacto.</p>
+            ) : (
+              <>
+                <p className="text-xs font-semibold text-slate-600 mb-2">{preview.length} producto{preview.length === 1 ? '' : 's'} · {campoPreview === 'costo' ? 'costo' : 'precio'} {signo}{pctNum}%</p>
+                <div className="flex flex-col gap-1 max-h-44 overflow-y-auto">
+                  {preview.slice(0, 8).map((x, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className="flex-1 text-slate-600 truncate">{x.nombre}</span>
+                      <span className="text-slate-400 line-through">{money(x.base)}</span>
+                      <span className="text-slate-300">→</span>
+                      <span className="font-semibold text-slate-700">{money(x.nuevo)}</span>
+                    </div>
+                  ))}
+                  {preview.length > 8 && <p className="text-[11px] text-slate-400 mt-0.5">y {preview.length - 8} más…</p>}
+                </div>
+                {campo === 'costo' && <p className="text-[10px] text-slate-400 mt-2">Solo se tocan productos que tienen costo cargado.</p>}
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-100 shrink-0">
+          <button onClick={aplicar} disabled={!puede || saving} className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm disabled:opacity-40">
+            {saving ? 'Aplicando…' : puede ? `Aplicar ${signo}${pctNum}% a ${categoria}` : 'Aplicar ajuste'}
+          </button>
         </div>
       </div>
     </div>

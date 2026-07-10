@@ -50,6 +50,49 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
   }
 })
 
+// POST /api/productos/ajuste-masivo — sube/baja un % a TODOS los productos activos de una
+// categoría de una (inflación: "las bebidas subieron 10%"). Body:
+//   { categoria, porcentaje, campo?: 'precio'|'costo'|'ambos', redondeo?: paso (default 10; 0=sin) }
+// El precio nunca baja de 1; el costo nunca baja de 0. Scopeado por club.
+router.post('/ajuste-masivo', requireAuth, requireRole('admin'), async (req, res) => {
+  const clubId = req.user.clubId
+  const { categoria, porcentaje, campo = 'precio', redondeo = 10 } = req.body
+  const pct = Number(porcentaje)
+  if (!categoria || !String(categoria).trim()) return res.status(400).json({ error: 'Elegí una categoría' })
+  if (!Number.isFinite(pct) || pct === 0) return res.status(400).json({ error: 'Poné un porcentaje distinto de 0' })
+  if (pct < -95 || pct > 1000) return res.status(400).json({ error: 'El porcentaje está fuera de rango (-95% a 1000%)' })
+  if (!['precio', 'costo', 'ambos'].includes(campo)) return res.status(400).json({ error: 'Campo inválido' })
+
+  const paso = Math.max(0, Math.round(Number(redondeo) || 0))
+  const factor = 1 + pct / 100
+  const aplicar = (v) => {
+    if (v == null) return v
+    const bruto = v * factor
+    const red = paso > 0 ? Math.round(bruto / paso) * paso : Math.round(bruto)
+    return Math.max(0, red)
+  }
+
+  try {
+    const productos = await prisma.producto.findMany({
+      where: { clubId, activo: true, categoria: String(categoria).trim() },
+      select: { id: true, precio: true, costo: true },
+    })
+    if (productos.length === 0) return res.status(404).json({ error: 'sin_productos', message: 'No hay productos activos en esa categoría' })
+
+    const updates = productos.map((p) => {
+      const data = {}
+      if (campo === 'precio' || campo === 'ambos') data.precio = Math.max(1, aplicar(p.precio)) // precio siempre ≥ 1
+      if ((campo === 'costo' || campo === 'ambos') && p.costo != null) data.costo = aplicar(p.costo)
+      return prisma.producto.update({ where: { id: p.id }, data })
+    })
+    await prisma.$transaction(updates)
+    res.json({ ok: true, actualizados: productos.length })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al aplicar el ajuste masivo' })
+  }
+})
+
 // PATCH /api/productos/:id — editar producto (nombre, precio, categoría, activo)
 router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { nombre, precio, categoria, activo, costo, controlaStock, stockMin } = req.body

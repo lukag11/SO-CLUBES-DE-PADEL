@@ -541,9 +541,9 @@ const GastosTab = ({ token, metodos }) => {
         ) : visibles.length === 0 ? (
           <div className="p-12 flex flex-col items-center gap-3 text-center"><TrendingDown size={24} className="text-slate-200" /><p className="text-slate-400 text-sm">Sin gastos para este filtro</p></div>
         ) : (
-          <div className="divide-y divide-slate-50">
-            {visibles.map((g) => (
-              <div key={g.id} className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors">
+          <div>
+            {visibles.map((g, idx) => (
+              <div key={g.id} className={`flex items-center gap-4 px-5 py-4 border-b border-slate-100 transition-colors ${idx % 2 === 1 ? 'bg-slate-100' : 'bg-white'} hover:bg-brand-50/60`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-slate-800 font-semibold text-sm truncate">{g.concepto}</p>

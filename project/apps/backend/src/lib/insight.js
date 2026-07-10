@@ -3,7 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import prisma from './prisma.js'
 import { hoyArgStr, inicioDiaArg, inicioMesArg, ahoraArgHHMM, franjasDia, franjaTimes } from './tiempo.js'
-import { calcularSaludFinanciera } from './finanzas.js'
+import { calcularSaludFinanciera, calcularContribucionSectores } from './finanzas.js'
 import { calcularSenalesAscenso, catCorta } from './ascenso.js'
 import { normalizarCategoria } from './categorias.js'
 
@@ -386,12 +386,17 @@ const WIARK_TOOLS = [
   },
   {
     name: 'consultar_ingresos',
-    description: 'Devuelve cuánto se facturó (ingresos efectivamente cobrados) hoy, en los últimos 7 días y en el mes. Usala cuando el dueño pregunta cuánto facturó, recaudó o cobró.',
+    description: 'Devuelve cuánto se FACTURÓ (ventas cobradas, monto BRUTO — lo mismo que muestra la Caja, antes de descontar comisiones de MP/tarjeta) hoy, en los últimos 7 días y en el mes. Usala cuando el dueño pregunta cuánto facturó, recaudó o cobró. OJO: es distinto del RESULTADO (ganancia): eso es neto de comisiones y costos → para eso usá consultar_resultado_mes.',
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
     name: 'consultar_salud_financiera',
-    description: 'Devuelve la salud financiera del club (últimos 30 días): punto de equilibrio (break-even) en turnos y en %, rinde por turno (RevPACH), ocupación, costo del turno vacío y plata que se pierde por canchas vacías, rendimiento de tarifa (yield) con sus fugas, y turnos vencidos sin cobrar (ausencias). Usala cuando el dueño pregunta cómo va el club, si gana o pierde, cuántos turnos necesita para no perder, por qué pierde plata, cuál es su rinde/ocupación, o cuánto pierde por canchas vacías o ausencias.',
+    description: 'Devuelve la salud financiera del club (últimos 30 días): punto de equilibrio (break-even) en turnos y en %, rinde por turno (RevPACH), ocupación, costo del turno vacío y plata que se pierde por canchas vacías, rendimiento de tarifa (yield) con sus fugas, y turnos vencidos sin cobrar (ausencias). Usala cuando el dueño pregunta cuántos turnos necesita para no perder, por qué pierde plata, cuál es su rinde/ocupación, o cuánto pierde por canchas vacías o ausencias.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'consultar_resultado_mes',
+    description: 'Devuelve el RESULTADO del club en PESOS de los últimos 30 días: si ganó o perdió y cuánto, con el desglose por sector (canchas, clases, bar/tienda) y cuánto aporta cada uno. Usala cuando el dueño pregunta si ganó o perdió este mes, cuánto ganó/perdió, cuánto le dejó o aportó el bar/las clases/las canchas, o el resultado/rentabilidad/ganancia en plata.',
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -580,7 +585,7 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
   }
   if (name === 'consultar_ingresos') {
     const ing = await gatherIngresos(clubId)
-    return { paraModelo: `Ingresos cobrados — hoy: $${ing.hoy.toLocaleString('es-AR')}; últimos 7 días: $${ing.semana.toLocaleString('es-AR')}; este mes: $${ing.mes.toLocaleString('es-AR')}.` }
+    return { paraModelo: `Facturado (ventas cobradas, monto BRUTO — antes de comisiones de MP/tarjeta; es el mismo criterio que la Caja) — hoy: $${ing.hoy.toLocaleString('es-AR')}; últimos 7 días: $${ing.semana.toLocaleString('es-AR')}; este mes: $${ing.mes.toLocaleString('es-AR')}. Presentalo como lo FACTURADO. Si el dueño pregunta cuánto GANÓ o le QUEDÓ (neto), aclará que eso es otra cosa (neto de comisiones y costos) y ofrecé el resultado con consultar_resultado_mes. No mezcles ni sumes los dos conceptos.` }
   }
   if (name === 'consultar_salud_financiera') {
     const s = await calcularSaludFinanciera(clubId)
@@ -597,6 +602,25 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
       s.ausenciasPct != null ? `- Ausencias: ${s.ausencias} turnos vencidos sin cobrar = ${money(s.ausenciasMonto)} (${s.ausenciasPct}% de los vencidos).` : '',
       `- Costos fijos del mes: ${money(s.fijoMensual)}. Precio ${s.precioRealizado > 0 ? 'realizado' : 'de lista'}: ${money(s.precioRef)}.`,
       `Respondé la pregunta del dueño con estos números reales, en criollo y breve. No inventes datos que no estén acá.`,
+    ]
+    return { paraModelo: partes.filter(Boolean).join('\n') }
+  }
+  if (name === 'consultar_resultado_mes') {
+    const r = await calcularContribucionSectores(clubId)
+    const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
+    // Guarda anti-mentira: sin costos cargados, cualquier ingreso parece 100% ganancia.
+    if (r.costosTotal === 0) {
+      return { paraModelo: `El dueño TODAVÍA no cargó sus costos, así que NO puedo decir si ganó o perdió (sin costos, cualquier ingreso parece pura ganancia y sería mentira). Decile que cargue sus costos en la sección "Dirección". Lo único cierto: cobró ${money(r.ingresoTotal)} (neto) en los últimos 30 días. NO afirmes un resultado ni un número de ganancia.` }
+    }
+    const signo = r.resultado >= 0 ? 'GANÓ' : 'PERDIÓ'
+    const sectoresTxt = r.sectores.map((s) =>
+      `${s.nombre}: aporta ${money(s.contribucion)}${s.margenPct != null ? ` (${s.margenPct}% de margen)` : ''}${s.cogsFaltante ? ' ⚠ pero NO cargó el costo de los productos del bar, así que ese margen está INFLADO — avisáselo' : ''}`
+    ).join('; ')
+    const partes = [
+      `Resultado de los últimos 30 días: el club ${signo} ${money(Math.abs(r.resultado))} (cobró neto ${money(r.ingresoTotal)} − costos ${money(r.costosTotal)}).`,
+      r.sectores.length ? `Por sector — ${sectoresTxt}.` : '',
+      r.sinCostosPorSector ? `OJO: no asignó costos a sectores puntuales, todo se prorratea, así que el desglose por sector es aproximado.` : '',
+      `Respondé en criollo y breve, en PESOS (no en turnos). Si hay aviso de costo faltante, mencionalo. No inventes números que no estén acá.`,
     ]
     return { paraModelo: partes.filter(Boolean).join('\n') }
   }
@@ -732,7 +756,8 @@ Reglas:
 - Recién con día + horario (de 2+ canchas) + organizador armado, ofrecé el botón de confirmar. NO se crea hasta que el dueño confirme. Si el organizador no está registrado, avisá que primero hay que registrarlo (crear_jugador).
 - Para cargar un gasto usá la herramienta cargar_gasto con el monto y el concepto. El gasto NO se guarda hasta que el dueño confirme con un botón que aparece abajo de tu mensaje; vos solo decí una línea corta (ej. "Te dejo el gasto para confirmar 👇"). Si falta el monto o el concepto, pediselo.
 - Para "quién me debe" usá consultar_deudores y para "cuánto facturé" usá consultar_ingresos. La lista de deudores (con nombres) se le muestra al usuario abajo: NUNCA repitas nombres de jugadores en tu texto (privacidad); referite al total y la cantidad.
-- Para preguntas sobre CÓMO VA EL NEGOCIO (¿gano o pierdo?, ¿cuántos turnos necesito para no perder?, mi punto de equilibrio, mi rinde/ocupación, por qué pierdo plata, cuánto pierdo por canchas vacías o por ausencias, mi yield) usá consultar_salud_financiera. Explicá el número en criollo, sin tecnicismos, y si sirve sugerí la palanca (ej: "llená los horarios fríos"). Si el dueño no cargó los costos, invitalo a hacerlo en la sección Dirección (son 2 preguntas).
+- Para preguntas de RESULTADO EN PESOS (¿gané o perdí este mes?, ¿cuánto gané/perdí?, cuánto me dejó/aportó el bar/las clases/las canchas, mi ganancia/rentabilidad en plata) usá consultar_resultado_mes. Contestá en PESOS, en criollo y breve. Si la herramienta dice que faltan costos, NO inventes un resultado: mandalo a cargarlos en Dirección.
+- Para preguntas sobre CÓMO VA EL NEGOCIO en turnos/ocupación (¿cuántos turnos necesito para no perder?, mi punto de equilibrio, mi rinde/ocupación, por qué pierdo plata, cuánto pierdo por canchas vacías o por ausencias, mi yield) usá consultar_salud_financiera. Explicá el número en criollo, sin tecnicismos, y si sirve sugerí la palanca (ej: "llená los horarios fríos"). Si el dueño no cargó los costos, invitalo a hacerlo en la sección Dirección (son 2 preguntas).
 - Para reservar un turno usá crear_reserva (cancha + fecha + hora de inicio; el turno dura 1.5h, la hora de fin se calcula sola). NO se crea hasta que el dueño confirme con el botón. Si falta la cancha, la fecha o la hora, pediselas.
 - Para registrar/dar de alta un jugador usá crear_jugador (nombre + apellido + DNI; el DNI es OBLIGATORIO). NO se crea hasta que el dueño confirme. Si falta el DNI, pediselo. El nombre completo separalo en nombre y apellido.
 - Para saber quién está PASADO de categoría (jugadores demasiado buenos para donde juegan) usá consultar_ascensos. Al listar, enmarcá el ascenso SIEMPRE como un LOGRO del jugador (la rompió, le quedó chica la categoría), NUNCA como un problema o un castigo. Contá en criollo y corto qué hizo cada uno (ej: "ganó 2 torneos en 4ta con parejas distintas, ya no tiene rival ahí"). NUNCA digas "hay que sacarlo", "no puede seguir", "hace trampa" ni lo trates de vivo/sandbagger. NO uses jerga de sistema ("el motor detectó", "categoriaSugerida").

@@ -7,6 +7,29 @@
 
 ---
 
+## 2026-07-10 · OP-VOZ-1 · Entrada por voz (DICTADO) en WIarky, nivel pro
+
+**Hueco de mercado:** ningún software de gestión de pádel documenta dictado por voz owner-facing. Playtomic pone su IA de voz del lado del jugador, no del dueño. Un dueño parado en el club, celular en mano, con ruido, apurado, es EXACTAMENTE el caso donde tipear molesta y hablar gana. Fuente: hallazgos 2026-07-10.
+
+**Qué es (y qué NO es):** es **dictado** (voz→texto editable en el input), NO "voice mode" conversacional. El dueño dice "cargá un gasto de 30 lucas de pelotas", ve el texto, lo corrige si hace falta, lo manda. Encaja con la regla de oro de WIarky (nunca ejecuta solo, confirmación humana): la transcripción editable ES el primer paso de confirmación.
+
+**Patrón de interacción recomendado (A):**
+- **Gesto: hold-to-record estilo WhatsApp** (mantené apretado el micro, soltá para transcribir) + **slide/tap para cancelar**. Es el gesto que el usuario AR ya conoce. Alternativa aceptable: tap para arrancar / tap para parar (mejor si el dictado es largo). Ofrecer ambos es lo ideal; si hay que elegir uno, hold-to-record.
+- **Estados con feedback claro:** (1) idle = ícono de micro en el input. (2) grabando = waveform pulsante que reacciona al volumen + timer + haptic al arrancar. (3) transcribiendo = spinner corto "escuchando…". (4) resultado = texto en el input, editable, cursor listo, NUNCA auto-enviado. (5) error = "No te entendí bien, probá de nuevo" + reintentar, sin perder nada. (6) sin permiso de micro = mensaje claro con cómo habilitarlo, no un error crudo.
+- **No sacar del chat** (lección ChatGPT 2025): todo pasa dentro de la burbuja de WIarky.
+
+**Qué lo hace PRO (B - checklist):** waveform que reacciona a la voz real (no una animación falsa) · haptic por estado (arranque/cancel/listo) · transcripción SIEMPRE editable antes de mandar · cancelar sin castigo · manejo explícito de permiso denegado · funciona en iPhone (el 90% de los dueños) · placeholder/hint que invita ("Tocá el micro y decime qué necesitás").
+
+**Realidad técnica (C - no negociable para "funciona perfecto"):** NO usar Web Speech API como base (rota/lenta en iOS). Ir por **MediaRecorder → STT server-side (Whisper API)** soportando `audio/mp4` (iOS) y `audio/webm;opus` (Android). Web Speech API sólo como atajo opcional en Android/desktop. Backend ya tiene ANTHROPIC_API_KEY y patrón de IA server-side (insight.js, ocrGasto.js) → sumar un endpoint de transcripción es coherente con la arquitectura. Fuente: hallazgos 2026-07-10 (buildwithmatija, webreflection, Apple Dev Forums).
+
+**Errores a evitar (D):** auto-enviar sin que el dueño vea el texto (un número mal oído = plata mal cargada) · depender de Web Speech en iOS · waveform de mentira · perder el audio si falla la transcripción · sacar al usuario a otra pantalla · no manejar el permiso denegado · voice-mode conversacional (over-engineering para este caso).
+
+**Diferenciación:** demostrable en 5 segundos en una demo ("le hablo y me carga el gasto"). Diferenciador REAL si está bien hecho; contraproducente si está mal (peor que no tenerlo). Atarlo a las tools que ya ejecutan (cargar gasto, crear convocatoria, registrar jugador) para que la voz dispare acciones, no sólo consultas.
+
+**Impacto: alto (diferenciador tangible + comodidad real en el caso de uso core) · Esfuerzo: medio (frontend de grabación + estados + endpoint STT; lo caro es hacerlo robusto en iOS, no el happy path) · Estado: nueva, recomendada. Ideal combinar con OP-WIARKY-1 (onboarding): el hint de voz refuerza que WIarky HACE cosas.**
+
+---
+
 ## 2026-07-10 · WIarky — rediseño del ONBOARDING y cierre de huecos para vendible como diferenciador
 
 **Diagnóstico base (código verificado):** el MOTOR de WIarky ya está por encima del vertical (grounded sin PII, 13 herramientas con confirmación humana, red anti "confirmado fantasma", semilla proactiva de insight/caja/facturas). El HUECO no es el cerebro: es que **el primer minuto no muestra el poder de acción**, no hay memoria por club, la proactividad está encerrada en el chat, y no hay métrica de adopción. Fuente: hallazgos 2026-07-10 + NN/g + ProductLed.

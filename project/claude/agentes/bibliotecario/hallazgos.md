@@ -7,6 +7,43 @@
 
 ---
 
+## 2026-07-10 · Entrada por VOZ en WIarky — vara de UX de voz + contexto de uso (dueño en el club) + diferenciación
+
+**Contexto:** Luca quiere una entrada por voz "bien profesional, súper cómoda, que funcione perfecto" en WIarky (asistente owner-facing, usado mucho desde el celular parado en el club). Verifiqué el código real primero: `AsistenteWiark.jsx` hoy tiene un `<input>` de texto plano (placeholder "Preguntale a WIarky…"), SIN voz de ningún tipo. O sea, todo lo de acá es cancha nueva.
+
+**Distinción clave que definí (vale para toda la recomendación):** hay DOS paradigmas de voz y no son lo mismo. (1) **Dictado** = voz→texto que cae en el campo de input, editable antes de mandar. (2) **Voice mode / conversación** = ida y vuelta hablada en tiempo real (habla y escucha). Para WIarky lo que corresponde es **DICTADO**, no voice mode. El dueño está parado en el club con ruido, quiere tirar "cargá un gasto de 30 lucas de pelotas" y ver que quedó bien escrito antes de mandar — no una charla hablada. ChatGPT separa explícitamente estos dos modos por esta misma razón. Fuente: OpenAI Help (ChatGPT Voice), academy.openai.com.
+
+**Vara de UX de voz en los top [Verificado por snippet]:**
+- **ChatGPT:** dictado = tap en el micro del campo de texto, hablás, cae como texto editable. Voice mode = tap-and-hold del botón grande, soltás para cortar (push-to-talk). Upgrade 2025: unificaron para NO sacarte a otra pantalla (antes te mandaba a un orbe azul y perdías el historial); ahora ves la respuesta aparecer en la misma pantalla donde escribís. Lección: **no romper el contexto visual del chat**. Fuente: techbuzz.ai, OpenAI Help.
+- **Feedback visual mientras grabás (lo que lo hace sentir "vivo"):** waveform pulsante / orbe que reacciona en tiempo real al volumen de tu voz = el "latido" del asistente; indicador de tiempo transcurrido; idealmente **transcripción en vivo** (las palabras aparecen mientras hablás vía streaming). Un cue visual + un sonidito corto + haptic reemplazan la "certeza visual" que perdés al no tipear. Fuente: eleken.co (Voice UI 2026), aufaitux, lollypop.design.
+- **WhatsApp (el gesto que el dueño argentino YA conoce):** **hold-to-record** (mantené apretado, soltá para mandar) + **slide-to-cancel** (deslizá para descartar). Transcripción on-device, se activa por long-press → "transcribe". El patrón de WhatsApp es el más familiar para un usuario AR no técnico. Fuente: blog.whatsapp.com, faq.whatsapp.com.
+- **Multimodal + control del usuario:** combinar voz + visual + haptic (canales redundantes) = accesible y confirma en ambiente ruidoso. Tiene que ser fácil parar, repetir o corregir en cualquier momento ("borrá eso", "de nuevo"). Fuente: designlab, aguayo.co.
+- **Haptics = detalle PRO:** haptic distinto por estado (inicio grabación / lock / cancelado por slide / enviado). OJO técnico real: en iOS el AVAudioSession de grabación puede pisar el motor de haptics y hacer que falle silencioso — hay que probarlo, no darlo por hecho. Fuente: GetStream stream-chat-flutter #2463, Medium (Maksim Po, haptics vs AVAudioSession).
+
+**Realidad técnica (la trampa que te puede arruinar el "funciona perfecto") [Verificado por snippet]:**
+- **La Web Speech API (SpeechRecognition) NO es confiable en iOS.** En iOS Safari/Chrome el `SpeechRecognition` está mayormente no soportado o buguea; en WebView (PWA/app embebida) directamente no anda. Chromium desktop/Android va bien, iOS lento o roto. Fuente: webreflection (Taming the Web Speech API), Apple Dev Forums #694847, xjavascript.com.
+- **Alternativa robusta = grabar audio con MediaRecorder → mandar a transcribir (Whisper/Google STT) en backend.** Pero iOS Safari graba en `audio/mp4` (mp4a) y Android Chrome en `audio/webm;opus` → si el backend espera un solo formato, rechaza. Hay que manejar ambos. Latencia: dictado (grabá→soltá→transcribí) tolera 1-2s; conversación en vivo no. Otra razón para ir por DICTADO, no voice mode. Fuente: buildwithmatija.com, xjavascript.com.
+- **Recomendación técnica:** para "que funcione perfecto" en el celular del dueño (muchos iPhone), NO depender de Web Speech API. Ir por **MediaRecorder → STT server-side (Whisper API)**, con soporte de mp4/webm, y — si querés transcripción en vivo — streaming. Web Speech API sólo como atajo opcional en Android/desktop. Esto cuesta más que "4 líneas de SpeechRecognition" pero es la diferencia entre pro y berreta.
+
+**Contexto de uso real (dueño en el club, ruido, apurado):**
+- Ruido de fondo (pelotazos, gente) = el STT tiene que ser bueno y SIEMPRE mostrar la transcripción para editar antes de mandar (nunca auto-enviar a ciegas: un "cargá 30" mal oído como "cargá 13" en un gasto es plata real). El paso "revisá y mandá" no es fricción, es seguridad — encaja perfecto con la regla de oro de WIarky ("nunca escribe solo, confirmación humana").
+- Manos ocupadas / parado = el gesto tiene que ser de una mano y perdonar el error (poder cancelar deslizando, poder editar el texto). Frustra: perder lo que dijiste, que se mande solo algo mal transcripto, que te saque del chat.
+
+**Diferenciación en el vertical [Verificado/Probable]:** Ni Playtomic Manager ni los competidores de gestión documentan entrada por voz en el lado ADMIN (Playtomic Manager vende analítica/ocupación/pagos; su IA conversacional es para el JUGADOR en WhatsApp, ya registrado en hallazgos 2026-07-10). No encontré NINGÚN software de gestión de clubes de pádel con dictado por voz owner-facing. → Si WIarky suma dictado por voz BIEN hecho, es un diferenciador tangible y demostrable en 5 segundos en una demo ("mirá, le hablo y me carga el gasto"), no una feature de checklist. El "bien hecho" es la condición: mal hecho (Web Speech en iOS que no anda) es peor que no tenerlo. Fuente: playtomic.com/playtomic-manager + búsqueda sin resultados de voz admin en el vertical.
+
+**Implicancia → ver oportunidades.md (OP-VOZ-1).**
+
+### Fuentes
+- https://help.openai.com/en/articles/20001274-chatgpt-voice · https://academy.openai.com/public/clubs/work-users-ynjqu/resources/using-voice
+- https://www.techbuzz.ai/articles/chatgpt-voice-gets-major-ux-upgrade-with-unified-interface
+- https://blog.whatsapp.com/introducing-voice-message-transcripts · https://faq.whatsapp.com/241617298315321/
+- https://www.eleken.co/blog-posts/voice-ui-design · https://www.aufaitux.com/blog/voice-user-interface-design-best-practices/ · https://lollypop.design/blog/2025/august/voice-user-interface-design-best-practices/ · https://designlab.com/blog/voice-user-interface-design-best-practices · https://aguayo.co/en/blog-aguayo-user-experience/ux-in-voice-interfaces/
+- https://webreflection.medium.com/taming-the-web-speech-api-ef64f5a245e1 · https://www.buildwithmatija.com/blog/iphone-safari-mediarecorder-audio-recording-transcription · https://www.xjavascript.com/blog/add-ios-speech-recognition-support-for-web-app/ · https://developer.apple.com/forums/thread/694847
+- https://github.com/GetStream/stream-chat-flutter/issues/2463
+- https://playtomic.com/playtomic-manager
+
+---
+
 ## 2026-07-10 · Auditoría de WIarky (asistente IA) — onboarding + vara de mercado de asistentes IA en el vertical
 
 **Contexto:** Luca pidió auditar WIarky (el asistente conversacional del dueño de club, "caballo de batalla" del SaaS) con foco FUERTE en ONBOARDING. Verifiqué el código real primero: `backend/src/lib/insight.js` (motor + 13 herramientas + system prompt) y `frontend/.../AsistenteWiark.jsx` (la cara: bubble, primer mensaje, 3 chips de sugerencia). WebSearch SÍ habilitado; varios WebFetch (Playtomic help, tiendapadelpoint) rebotaron 403 → lo [Verificado] de esas fuentes sale de snippets del buscador, no de captura directa. Lo aclaro.

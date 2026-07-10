@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, Send, Copy, Check, ArrowRight } from 'lucide-react'
+import { X, Send, Copy, Check, ArrowRight, Mic, Square } from 'lucide-react'
 import AsistentePelota from './AsistentePelota'
 import useAuthStore from '../../store/authStore'
 import { api } from '../../lib/api'
+import { useDictado } from '../../hooks/useDictado'
 
 // Launcher + chat de WIarky, el asistente de PadelwIArk (la pelotita).
 // Responde preguntas del dueño sobre su club con datos reales (grounded, sin PII).
@@ -36,6 +37,17 @@ export default function AsistenteWiark() {
   const [sending, setSending] = useState(false)
   const [started, setStarted] = useState(false)
   const scrollRef = useRef(null)
+
+  // Dictado por voz: mientras hablás se ve en vivo en el input; al terminar se ENVÍA solo
+  // (manos libres). Es seguro: WIarky no ejecuta desde el mensaje — las acciones (gasto,
+  // reserva) van con botón de confirmación, así que un monto mal oído se caza ahí.
+  const { soportado: vozOk, grabando, error: errVoz, arrancar, parar } = useDictado({
+    onInterim: (txt) => setInput(txt),
+    onTexto: (txt) => { const t = txt.trim(); if (t) enviar(t) },
+  })
+  const toggleMic = () => (grabando ? parar() : arrancar())
+  // Si se cierra el chat mientras graba, cortar el micrófono.
+  useEffect(() => { if (!open && grabando) parar() }, [open, grabando, parar])
 
   // ── Drag: WIarky se puede arrastrar a cualquier lado; recuerda la posición.
   // Se ancla por (right, bottom) para que el chat siga abriéndose hacia arriba.
@@ -264,13 +276,31 @@ export default function AsistenteWiark() {
             )}
           </div>
 
+          {/* Feedback del dictado: siempre avisa qué pasó si algo falló. */}
+          {errVoz && (
+            <p className="shrink-0 px-3 pb-1 text-[11px] text-red-300">
+              {errVoz === 'not-allowed' ? 'Activá el permiso del micrófono 🎤 (candado en la barra del navegador).'
+                : errVoz === 'no-speech' ? 'No te escuché 🎤 Probá de nuevo, más cerca del micrófono.'
+                : errVoz === 'network' ? 'Sin conexión para el dictado. Revisá tu internet e intentá de nuevo.'
+                : 'No pude captar el audio. Probá de nuevo 🎤'}
+            </p>
+          )}
+
           {/* Input */}
           <div className="shrink-0 p-2.5 border-t border-white/10 flex items-center gap-2">
+            {vozOk && (
+              <button onClick={toggleMic}
+                aria-label={grabando ? 'Detener dictado' : 'Dictar por voz'}
+                title={grabando ? 'Detener dictado' : 'Dictar por voz'}
+                className={`w-9 h-9 shrink-0 grid place-items-center rounded-xl transition-all ${grabando ? 'bg-red-500 text-white animate-pulse' : 'bg-white/5 border border-white/10 text-white/60 hover:text-white hover:border-brand-400'}`}>
+                {grabando ? <Square size={14} /> : <Mic size={16} />}
+              </button>
+            )}
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') enviar() }}
-              placeholder="Preguntale a WIarky…"
+              placeholder={grabando ? 'Escuchando…' : 'Preguntale a WIarky…'}
               className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-brand-400 focus:outline-none"
             />
             <button onClick={() => enviar()} disabled={!input.trim() || sending}

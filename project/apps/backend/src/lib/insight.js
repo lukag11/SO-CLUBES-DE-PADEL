@@ -97,6 +97,18 @@ export async function gatherInsightData(clubId) {
   }
 }
 
+// A partir de los datos del insight, arma (si corresponde) una acción SUGERIDA concreta y grounded:
+// si hay una franja realmente floja, propone armar un Super 8 ahí. El botón siembra el flujo de
+// crear_convocatoria de WIarky con esa hora (no ejecuta nada solo: WIarky pide el resto y confirma).
+export function sugerenciaDeInsight(data) {
+  const floja = (data?.franjasFlojas || []).find((f) => f.reservas <= 2)
+  if (!floja) return null
+  return {
+    label: `Armá un Super 8 a las ${floja.hora} para llenarla`,
+    prompt: `Quiero armar un Super 8 para llenar la franja de las ${floja.hora}, que viene floja.`,
+  }
+}
+
 // Le pide a Claude UNA recomendación accionable a partir de los números.
 export async function generarInsightIA(data) {
   const flojas = (data.franjasFlojas || []).filter((f) => f.reservas <= 2)

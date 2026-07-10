@@ -8,7 +8,22 @@ import { api } from '../../lib/api'
 // Launcher + chat de WIarky, el asistente de PadelwIArk (la pelotita).
 // Responde preguntas del dueño sobre su club con datos reales (grounded, sin PII).
 // No invasivo: flotante, dismissible, el globito se va solo.
-const SUGERENCIAS = ['¿Cuántos turnos libres hay hoy?', '¿Cómo viene la semana?', '¿Qué hago con las horas muertas?']
+// Onboarding: chips agrupados por "para qué", mezclando lectura y ACCIÓN, para que el dueño
+// descubra de entrada que WIarky no solo informa — ejecuta. Cada chip manda ese texto al chat.
+const GRUPOS_INICIO = [
+  { label: 'Entendé tu negocio', items: [
+    { ic: '📊', t: '¿Gané o perdí este mes?' },
+    { ic: '💸', t: '¿Quién me debe?' },
+  ] },
+  { label: 'Llená canchas', items: [
+    { ic: '🎾', t: 'Armá un Super 8 el sábado' },
+    { ic: '📣', t: 'Publicá los turnos libres de hoy' },
+  ] },
+  { label: 'Hacé tareas', items: [
+    { ic: '➕', t: 'Cargá un gasto' },
+    { ic: '🧑', t: 'Registrá un jugador' },
+  ] },
+]
 
 export default function AsistenteWiark() {
   const [open, setOpen] = useState(false)
@@ -108,10 +123,17 @@ export default function AsistenteWiark() {
     setBubble(false)
     if (abriendo && !started) {
       setStarted(true)
-      setMessages([{ from: 'wiark', text: '¡Hola! Soy WIarky 👋 Preguntame lo que quieras sobre tu club: turnos libres, cómo viene la semana, qué franja está floja…' }])
+      setMessages([{ from: 'wiark', text: '¡Hola! Soy WIarky 👋 No solo te cuento cómo va el club: armo convocatorias, cargo gastos, cobro deudas y más. Tocá algo de acá abajo o escribime.' }])
       if (token) {
         api.get('/clubs/me/insight', { Authorization: `Bearer ${token}` })
-          .then((r) => { if (r?.texto) setMessages((m) => [...m, { from: 'wiark', text: `💡 Hoy te recomiendo: ${r.texto}` }]) })
+          .then((r) => {
+            if (!r?.texto) return
+            const msg = { from: 'wiark', text: `💡 Hoy te recomiendo: ${r.texto}` }
+            // Si el insight trae una acción sugerida (ej. franja floja → Super 8), mostramos un botón
+            // que arranca el flujo de WIarky ya sembrado (no ejecuta solo: WIarky pide el resto y confirma).
+            if (r.sugerencia?.prompt) msg.artefactos = [{ tipo: 'sugerencia', label: r.sugerencia.label, prompt: r.sugerencia.prompt }]
+            setMessages((m) => [...m, msg])
+          })
           .catch(() => {})
         // Aviso proactivo: si la caja del día NO está abierta, recordá abrirla (con botón).
         api.get('/caja/arqueo/actual', { Authorization: `Bearer ${token}` })
@@ -204,7 +226,9 @@ export default function AsistenteWiark() {
                       ? <ListaArtefacto key={j} titulo={a.titulo} items={a.items} total={a.total} />
                       : a.tipo === 'navegar'
                         ? <NavegarArtefacto key={j} texto={a.texto} onIr={() => { setOpen(false); navigate(a.ruta) }} />
-                        : <CopyArtefacto key={j} tipo={a.tipo} texto={a.texto} />)}
+                        : a.tipo === 'sugerencia'
+                          ? <SugerenciaArtefacto key={j} label={a.label} onIr={() => enviar(a.prompt)} />
+                          : <CopyArtefacto key={j} tipo={a.tipo} texto={a.texto} />)}
                 </div>
               )
             ))}
@@ -220,14 +244,21 @@ export default function AsistenteWiark() {
               </div>
             )}
 
-            {/* Sugerencias rápidas (solo al inicio) */}
-            {messages.length <= 2 && !sending && (
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {SUGERENCIAS.map((s) => (
-                  <button key={s} onClick={() => enviar(s)}
-                    className="text-[12px] text-brand-300 bg-brand-500/10 border border-brand-500/20 rounded-full px-2.5 py-1 hover:bg-brand-500/20 transition-colors">
-                    {s}
-                  </button>
+            {/* Onboarding: chips agrupados por "para qué" (solo al inicio) */}
+            {messages.length <= 3 && !sending && (
+              <div className="flex flex-col gap-2.5 mt-1">
+                {GRUPOS_INICIO.map((g) => (
+                  <div key={g.label} className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-white/35">{g.label}</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {g.items.map((it) => (
+                        <button key={it.t} onClick={() => enviar(it.t)}
+                          className="flex items-center gap-1.5 text-[12px] text-white/85 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 hover:bg-brand-500/15 hover:border-brand-500/30 transition-colors">
+                          <span>{it.ic}</span>{it.t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -295,6 +326,17 @@ function CopyArtefacto({ tipo, texto }) {
         {copied ? <><Check size={12} /> ¡Copiado!</> : <><Copy size={12} /> Copiar</>}
       </button>
     </div>
+  )
+}
+
+// Botón de acción SUGERIDA por WIarky (ej: insight del día → "armá un Super 8 a las 20").
+// Al tocarlo manda ese pedido al chat y arranca el flujo (WIarky pide el resto y confirma).
+function SugerenciaArtefacto({ label, onIr }) {
+  return (
+    <button onClick={onIr} className="ml-7 flex items-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-600 transition-colors px-3.5 py-2 text-left shadow-sm">
+      <span className="text-[13px] font-bold text-slate-900">{label}</span>
+      <ArrowRight size={15} className="text-slate-900 shrink-0" />
+    </button>
   )
 }
 

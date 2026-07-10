@@ -4,7 +4,7 @@ import { requireAuth, requireRole, requireOwner } from '../middleware/auth.js'
 import { tienePermiso } from '../lib/permisos.js'
 import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg, finEnMin, franjasDia } from '../lib/tiempo.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
-import { gatherInsightData, generarInsightIA, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado, responderChatAgente } from '../lib/insight.js'
+import { gatherInsightData, generarInsightIA, sugerenciaDeInsight, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado, responderChatAgente } from '../lib/insight.js'
 import { organizarConvocatoria, crearConvocatoriaCompleta } from '../lib/convocatorias.js'
 import { normalizarCategoria } from '../lib/categorias.js'
 import { nivelDeCategoria, catCorta, registrarCambioCategoria } from '../lib/ascenso.js'
@@ -38,9 +38,7 @@ router.get('/me', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     const club = await prisma.club.findUnique({
       where: { id: req.user.clubId },
-      // Admin ve TODAS sus canchas (activas e inactivas) para poder reactivar las apagadas.
-      // Las vistas de jugador/público filtran activo:true por su cuenta.
-      include: { canchas: { orderBy: { nombre: 'asc' } } },
+      include: { canchas: { where: { activo: true }, orderBy: { nombre: 'asc' } } },
     })
     if (!club) return res.status(404).json({ error: 'Club no encontrado' })
     res.json(club)
@@ -227,16 +225,17 @@ router.get('/me/insight', requireAuth, requireRole('admin'), requireOwner, async
     // Cache: si ya generamos el insight hoy, lo devolvemos sin volver a llamar a la IA
     // (salvo que el dueño pida regenerar con ?force=1).
     if (!forzar && cache && cache.fecha === hoyStr && cache.texto) {
-      return res.json({ texto: cache.texto, fecha: cache.fecha, cacheado: true })
+      return res.json({ texto: cache.texto, fecha: cache.fecha, cacheado: true, sugerencia: cache.sugerencia ?? null })
     }
     const data = await gatherInsightData(clubId)
     const { texto } = await generarInsightIA(data)
+    const sugerencia = sugerenciaDeInsight(data) // acción sugerida (botón) si hay franja floja
     // Guardar en config (preservando el resto de la config del club)
     await prisma.club.update({
       where: { id: clubId },
-      data: { config: { ...(club?.config || {}), insightDelDia: { fecha: hoyStr, texto } } },
+      data: { config: { ...(club?.config || {}), insightDelDia: { fecha: hoyStr, texto, sugerencia } } },
     })
-    res.json({ texto, fecha: hoyStr, cacheado: false })
+    res.json({ texto, fecha: hoyStr, cacheado: false, sugerencia })
   } catch (err) {
     console.error('Error insight IA:', err.message)
     res.status(500).json({ error: 'No se pudo generar el insight' })
@@ -466,8 +465,7 @@ router.patch('/me/canchas', requireAuth, requireRole('admin'), requireOwner, asy
             indoor: c.indoor ?? true,
             precioTurno: c.precioTurno ?? 0,
             horarios: c.horarios ?? null,
-            // El front manda el estado como `activa`; respetamos el toggle real (no hardcodear true).
-            activo: c.activa ?? c.activo ?? true,
+            activo: true,
           },
         })
       }
@@ -480,7 +478,7 @@ router.patch('/me/canchas', requireAuth, requireRole('admin'), requireOwner, asy
           indoor: c.indoor ?? true,
           precioTurno: c.precioTurno ?? 0,
           horarios: c.horarios ?? null,
-          activo: c.activa ?? c.activo ?? true,
+          activo: true,
         },
       })
     })
@@ -493,10 +491,9 @@ router.patch('/me/canchas', requireAuth, requireRole('admin'), requireOwner, asy
     )
 
     await prisma.$transaction([...upsertOps, ...deactivateOps])
-    // Devolver TODAS las canchas (incluidas inactivas) para que el admin las siga viendo
-    // y pueda reactivarlas; el front actualiza los IDs reales con esta respuesta.
+    // Devolver canchas activas actualizadas para que el frontend actualice IDs
     const canchasActualizadas = await prisma.cancha.findMany({
-      where: { clubId },
+      where: { clubId, activo: true },
       orderBy: { nombre: 'asc' },
     })
     res.json({ ok: true, canchas: canchasActualizadas })

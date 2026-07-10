@@ -29,6 +29,9 @@ const DIAS_CFG = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes
 const DIAS_TF  = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
 const DIAS_NOM = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
 const toMin = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m }
+// Normaliza nombres para matchear jugadores: sin acentos, minúsculas, espacios colapsados.
+// Fuente única para que crear_reserva / buscar_jugador / crear_convocatoria no diverjan (Julián = Julian).
+const normNombre = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim()
 // franjasDia / franjaTimes viven en tiempo.js (fuente única, cross-midnight aware).
 const fechaMenos = (hoyStr, n) => {
   const [y, m, d] = hoyStr.split('-').map(Number)
@@ -417,7 +420,7 @@ const WIARK_TOOLS = [
         fecha: { type: 'string', description: 'Fecha YYYY-MM-DD' },
         horaInicio: { type: 'string', description: 'Hora de inicio HH:MM (debe ser un horario de turno válido)' },
         jugador: { type: 'string', description: 'Opcional: nombre de quien reserva' },
-        precio: { type: 'number', description: 'Opcional: precio del turno' },
+        precio: { type: 'number', description: 'NO lo preguntes: el precio sale solo del que el dueño configuró para la cancha (Club → Canchas). Pasalo únicamente si el dueño dicta un precio especial para ESTA reserva.' },
       },
       required: ['canchaNombre', 'fecha', 'horaInicio'],
     },
@@ -598,7 +601,7 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
     const horaInicio = /^\d{1,2}:\d{2}$/.test(input.horaInicio || '') ? input.horaInicio.padStart(5, '0') : null
     if (!fecha || !horaInicio) return { paraModelo: 'Necesito la fecha (YYYY-MM-DD) y la hora de inicio (HH:MM). Pediselas al usuario.' }
     if (fecha < hoyArgStr()) return { paraModelo: `Esa fecha (${fecha}) ya pasó. Confirmá con el usuario para qué día es la reserva (hoy es ${hoyArgStr()}).` }
-    const canchas = await prisma.cancha.findMany({ where: { clubId, activo: true }, select: { id: true, nombre: true } })
+    const canchas = await prisma.cancha.findMany({ where: { clubId, activo: true }, select: { id: true, nombre: true, precioTurno: true } })
     const q = (input.canchaNombre || '').toLowerCase().trim()
     const cancha = canchas.find((c) => c.nombre.toLowerCase() === q) || (q && canchas.find((c) => c.nombre.toLowerCase().includes(q)))
     if (!cancha) return { paraModelo: `No encontré esa cancha. Las canchas del club son: ${canchas.map((c) => c.nombre).join(', ')}. Preguntale al usuario en cuál.` }
@@ -610,19 +613,34 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
     if (!cDisp || !cDisp.horas.includes(horaInicio)) {
       return { paraModelo: `El turno ${cancha.nombre} ${fecha} ${horaInicio} no está disponible (ya reservado, ya pasó la hora, o no es un horario de turno válido del club). Avisale al usuario; podés ofrecer consultar la disponibilidad real.` }
     }
-    const precio = input.precio ? Math.round(Number(input.precio)) : null
+    // Precio: si el dueño no lo dicta, usamos el precio de lista de la cancha (precioTurno).
+    // Así la reserva NO nace en $0/null (que la volvería invisible en deudas y cobros).
+    const precio = input.precio ? Math.round(Number(input.precio)) : (cancha.precioTurno > 0 ? cancha.precioTurno : null)
+    const precioAuto = !input.precio && precio != null // se tomó el precio de lista, no lo dictó el dueño
+    // Sin precio configurado: NO creamos una reserva muda (quedaría sin cobrar, invisible en deudas).
+    // Mandamos al dueño a cargar el precio de la cancha.
+    if (precio == null) {
+      return {
+        paraModelo: `La cancha ${cancha.nombre} todavía no tiene precio configurado, así que no puedo crear la reserva con un monto (quedaría sin cobrar y no aparecería en deudas). Decile al dueño que configure el precio de la cancha en Club → Canchas y que después reintente. Le muestro un botón para ir directo a esa sección.`,
+        artefacto: { tipo: 'navegar', texto: `Configurar precio de ${cancha.nombre}`, ruta: '/dashboardAdmin/club' },
+      }
+    }
     const jugador = (input.jugador || '').toString().trim()
-    // Mejora 1: si el nombre coincide con UN jugador registrado, vinculamos su jugadorId.
+    // Vinculación de jugadorId: match por nombre SIN acentos (Julián = Julian) para no dejar
+    // la reserva desvinculada (sin jugadorId no entra en deudas/cobros).
     let jugadorId = null
     let nota = ''
     if (jugador) {
-      const norm = (s) => s.toLowerCase().replace(/\s+/g, ' ').trim()
       const js = await prisma.jugador.findMany({ where: { clubId }, select: { id: true, nombre: true, apellido: true } })
-      const matches = js.filter((j) => norm(`${j.nombre} ${j.apellido}`) === norm(jugador))
-      if (matches.length === 1) jugadorId = matches[0].id
-      else if (matches.length === 0) nota = ` Avisale al usuario que "${jugador}" no figura como jugador registrado: la reserva queda con el nombre suelto. Si quiere registrarlo, ofrecé hacerlo (necesitás el DNI).`
+      const exact = js.filter((j) => normNombre(`${j.nombre} ${j.apellido}`) === normNombre(jugador))
+      const parcial = js.filter((j) => normNombre(`${j.nombre} ${j.apellido}`).includes(normNombre(jugador)))
+      if (exact.length === 1) jugadorId = exact[0].id
+      else if (exact.length > 1) nota = ` OJO: hay ${exact.length} jugadores llamados "${jugador}". Pedile al dueño el apellido completo para vincular la reserva al correcto (si no, queda con el nombre suelto).`
+      else if (parcial.length === 1) { jugadorId = parcial[0].id; nota = ` (Vinculé la reserva a "${parcial[0].nombre} ${parcial[0].apellido}", el jugador que más se parece a "${jugador}"; confirmá con el dueño si es ese.)` }
+      else if (parcial.length > 1) nota = ` Hay ${parcial.length} jugadores parecidos a "${jugador}". Pedí apellido completo para vincular bien la reserva.`
+      else nota = ` Avisale al usuario que "${jugador}" no figura como jugador registrado: la reserva queda con el nombre suelto. Si quiere registrarlo, ofrecé hacerlo (necesitás el DNI).`
     }
-    const resumen = `Reservar ${cancha.nombre} — ${fecha} ${horaInicio} a ${horaFin}${jugador ? ` · ${jugador}${jugadorId ? ' (registrado)' : ''}` : ''}${precio ? ` · $${precio.toLocaleString('es-AR')}` : ''}`
+    const resumen = `Reservar ${cancha.nombre} — ${fecha} ${horaInicio} a ${horaFin}${jugador ? ` · ${jugador}${jugadorId ? ' (registrado)' : ''}` : ''}${precio ? ` · $${precio.toLocaleString('es-AR')}${precioAuto ? ' (precio de lista)' : ''}` : ''}`
     return {
       paraModelo: 'Le muestro al usuario un botón para confirmar la reserva; todavía NO está creada.' + nota,
       artefacto: { tipo: 'confirmacion', accion: 'crear_reserva', resumen, datos: { canchaId: cancha.id, fecha, horaInicio, horaFin, tipo: 'eventual', precio, jugadores: jugador ? [jugador] : [], ...(jugadorId && { jugadorId }), notas: 'Reserva via WIarky' } },

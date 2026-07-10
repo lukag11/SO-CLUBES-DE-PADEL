@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Package, AlertTriangle, Boxes, History, Truck, Tags, Percent } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Package, AlertTriangle, Boxes, History, Truck, Tags, Percent, ChevronDown } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useConfirm } from '../../components/ui/ConfirmProvider'
 
@@ -18,6 +18,15 @@ const Stat = ({ label, value, tone = 'slate' }) => (
 )
 const fmtFecha = (s) => { const d = new Date(s); return `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
 
+// Chip toggle para filtrar por estado de stock. Activo = relleno; inactivo = contorno.
+const ChipEstado = ({ activo, tone, onClick, children }) => {
+  const tones = {
+    amber: activo ? 'bg-amber-500 text-white border-amber-500' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100',
+    rose: activo ? 'bg-rose-500 text-white border-rose-500' : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100',
+  }
+  return <button onClick={onClick} className={`text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${tones[tone]}`}>{children}</button>
+}
+
 const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => {
   const confirmar = useConfirm()
   const auth = { Authorization: `Bearer ${token}` }
@@ -29,6 +38,10 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => 
   const [movsOpen, setMovsOpen] = useState(null) // productoId
   const [movs, setMovs] = useState([])
   const [q, setQ] = useState('')
+  const [filtroCat, setFiltroCat] = useState('')       // '' = todas las categorías
+  const [filtroEstado, setFiltroEstado] = useState('') // '' | 'reponer' | 'sin' | 'sobreventa'
+  const [colapsadas, setColapsadas] = useState(() => new Set()) // categorías plegadas
+  const toggleCat = (cat) => setColapsadas((s) => { const n = new Set(s); n.has(cat) ? n.delete(cat) : n.add(cat); return n })
 
   const fetchData = useCallback(async () => {
     try {
@@ -39,6 +52,12 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => 
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData() }, [fetchData])
   const catNames = categorias.map((c) => c.nombre)
+
+  // Estado inicial: todas las categorías plegadas (ahorra espacio). Se corre una sola vez, cuando llegan.
+  const [iniColapsado, setIniColapsado] = useState(false)
+  useEffect(() => {
+    if (!iniColapsado && categorias.length > 0) { setColapsadas(new Set([...catNames, 'Sin categoría'])); setIniColapsado(true) }
+  }, [categorias, iniColapsado]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const editar = (p) => setProdModal({ producto: p })
   const eliminar = async (p) => {
@@ -55,11 +74,26 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => 
   const valorInventario = conStock.reduce((s, p) => s + (p.costo || 0) * p.stock, 0)
   const bajoStock = conStock.filter((p) => p.stock <= (p.stockMin || 0))
 
+  // Predicados de estado de stock (lentes accionables para el dueño).
+  const esReponer = (p) => p.controlaStock && p.stock <= (p.stockMin || 0)   // bajo stock (incluye 0 y negativo)
+  const esSinStock = (p) => p.controlaStock && p.stock === 0
+  const esSobreventa = (p) => p.controlaStock && p.stock < 0                  // vendido sin cargar
+  const nReponer = conStock.filter(esReponer).length
+  const nSin = conStock.filter(esSinStock).length
+  const nSobre = conStock.filter(esSobreventa).length
+  const ESTADO_FN = { reponer: esReponer, sin: esSinStock, sobreventa: esSobreventa }
+
   const term = q.trim().toLowerCase()
-  const filtrados = term ? productos.filter((p) => `${p.nombre} ${p.categoria ?? ''}`.toLowerCase().includes(term)) : productos
+  const filtrados = productos.filter((p) => {
+    if (term && !`${p.nombre} ${p.categoria ?? ''}`.toLowerCase().includes(term)) return false
+    if (filtroCat && (p.categoria || 'Otros') !== filtroCat) return false
+    if (filtroEstado && !ESTADO_FN[filtroEstado]?.(p)) return false
+    return true
+  })
   const grupos = catNames.map((cat) => ({ cat, items: filtrados.filter((p) => (p.categoria || 'Otros') === cat) })).filter((g) => g.items.length > 0)
   const otras = filtrados.filter((p) => !catNames.includes(p.categoria || 'Otros'))
   if (otras.length) grupos.push({ cat: 'Sin categoría', items: otras })
+  const hayFiltro = term || filtroCat || filtroEstado
 
   const estadoBadge = (p) => {
     if (!p.controlaStock) return null
@@ -78,22 +112,22 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => 
           <div className="bg-brand-500/10 rounded-xl p-3 shrink-0"><Boxes size={20} className="text-brand-600" /></div>
           <div><p className="text-sm text-slate-500 font-medium">Invertido en stock</p><p className="text-2xl font-bold text-slate-800 mt-0.5">{money(valorInventario)}</p><p className="text-xs text-slate-400 mt-0.5">plata en mercadería (al costo) · {conStock.length} productos</p></div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-start gap-4">
+        <button type="button" onClick={() => bajoStock.length && setFiltroEstado((s) => s === 'reponer' ? '' : 'reponer')} disabled={!bajoStock.length} title={bajoStock.length ? 'Ver solo los productos a reponer' : ''} className={`text-left bg-white rounded-2xl border shadow-sm p-5 flex items-start gap-4 transition-colors ${bajoStock.length ? 'hover:bg-amber-50 cursor-pointer' : 'cursor-default'} ${filtroEstado === 'reponer' ? 'border-amber-400 ring-1 ring-amber-300' : 'border-slate-100'}`}>
           <div className="bg-amber-500/10 rounded-xl p-3 shrink-0"><AlertTriangle size={20} className="text-amber-500" /></div>
-          <div><p className="text-sm text-slate-500 font-medium">Bajo stock</p><p className="text-2xl font-bold text-slate-800 mt-0.5">{bajoStock.length}</p><p className="text-xs text-slate-400 mt-0.5">productos a reponer</p></div>
-        </div>
+          <div><p className="text-sm text-slate-500 font-medium">Bajo stock</p><p className="text-2xl font-bold text-slate-800 mt-0.5">{bajoStock.length}</p><p className="text-xs text-slate-400 mt-0.5">productos a reponer{bajoStock.length ? ' · tocá para filtrar' : ''}</p></div>
+        </button>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-start gap-4">
           <div className="bg-slate-500/10 rounded-xl p-3 shrink-0"><Package size={20} className="text-slate-500" /></div>
           <div><p className="text-sm text-slate-500 font-medium">Productos</p><p className="text-2xl font-bold text-slate-800 mt-0.5">{productos.length}</p></div>
         </div>
       </div>
 
-      {/* Alerta bajo stock */}
+      {/* Alerta bajo stock (clickeable → filtra "A reponer") */}
       {bajoStock.length > 0 && (
-        <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <button type="button" onClick={() => setFiltroEstado((s) => s === 'reponer' ? '' : 'reponer')} className={`w-full text-left flex items-start gap-2.5 rounded-2xl border bg-amber-50 hover:bg-amber-100 transition-colors px-4 py-3 ${filtroEstado === 'reponer' ? 'border-amber-400 ring-1 ring-amber-300' : 'border-amber-200'}`}>
           <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
           <div className="text-sm"><p className="text-amber-800 font-medium">A reponer ({bajoStock.length})</p><p className="text-amber-700 text-xs mt-0.5">{bajoStock.map((p) => `${p.nombre} (${p.stock})`).join(' · ')}</p></div>
-        </div>
+        </button>
       )}
 
       {/* Acciones */}
@@ -105,25 +139,43 @@ const StockTab = ({ token, metodos = ['efectivo'], showToast, onIrAGastos }) => 
         <button onClick={() => setProdModal({ producto: null })} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm shadow-sm"><Plus size={16} /> Nuevo producto</button>
       </div>
 
+      {/* Barra de filtros: categoría (escala a muchas) + estado de stock (accionable) */}
+      {productos.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap -mt-1">
+          <select value={filtroCat} onChange={(e) => setFiltroCat(e.target.value)} className={`${inputCls} py-2 text-sm ${filtroCat ? 'border-brand-400 text-brand-700 font-semibold' : ''}`}>
+            <option value="">Todas las categorías</option>
+            {catNames.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {nReponer > 0 && <ChipEstado activo={filtroEstado === 'reponer'} tone="amber" onClick={() => setFiltroEstado((s) => s === 'reponer' ? '' : 'reponer')}>A reponer {nReponer}</ChipEstado>}
+          {nSin > 0 && <ChipEstado activo={filtroEstado === 'sin'} tone="rose" onClick={() => setFiltroEstado((s) => s === 'sin' ? '' : 'sin')}>Sin stock {nSin}</ChipEstado>}
+          {nSobre > 0 && <ChipEstado activo={filtroEstado === 'sobreventa'} tone="rose" onClick={() => setFiltroEstado((s) => s === 'sobreventa' ? '' : 'sobreventa')}>Sobreventa {nSobre}</ChipEstado>}
+          {hayFiltro && <button onClick={() => { setQ(''); setFiltroCat(''); setFiltroEstado('') }} className="text-xs text-slate-400 hover:text-slate-600 font-medium px-2 py-1 flex items-center gap-1"><X size={13} /> Limpiar</button>}
+        </div>
+      )}
+
       {/* Lista de inventario */}
       <div className="flex flex-col gap-3">
         {productos.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-400 text-sm">Todavía no cargaste productos.</div>
+        ) : grupos.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-400 text-sm">No hay productos con esos filtros.</div>
         ) : grupos.map(({ cat, items }) => {
           const invCat = items.reduce((s, p) => s + (p.controlaStock ? (p.costo || 0) * p.stock : 0), 0)
+          const colapsada = colapsadas.has(cat) && !hayFiltro // con búsqueda/filtro activo, forzar expandido
           return (
           <div key={cat} className="rounded-2xl border border-slate-100 bg-white overflow-hidden shadow-sm">
-            {/* Encabezado de categoría */}
-            <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+            {/* Encabezado de categoría (clickeable: colapsa/expande) */}
+            <button type="button" onClick={() => toggleCat(cat)} className="w-full flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100 hover:bg-slate-100 transition-colors text-left">
               <div className="flex items-center gap-2 min-w-0">
+                <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${colapsada ? '-rotate-90' : ''}`} />
                 <span className="w-1 h-4 rounded-full bg-brand-400 shrink-0" />
                 <p className="text-xs font-bold text-slate-700 uppercase tracking-wide truncate">{cat}</p>
                 <span className="text-[11px] text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded-full font-semibold shrink-0">{items.length}</span>
               </div>
               {invCat > 0 && <span className="text-[11px] text-slate-400 shrink-0">invertido <b className="text-slate-600">{money(invCat)}</b></span>}
-            </div>
+            </button>
             {/* Filas con efecto cebra */}
-            {items.map((p, idx) => (
+            {!colapsada && items.map((p, idx) => (
               <div key={p.id}>
                 <div className={`flex items-center gap-2 px-4 py-2.5 transition-colors ${idx % 2 === 1 ? 'bg-slate-100' : 'bg-white'} hover:bg-brand-50/50`}>
                   <div className="flex-1 min-w-0">

@@ -179,51 +179,62 @@ const useClubStore = create((set, get) => ({
 
   // Guarda SOLO la config en el backend (sin tocar canchas). Para ajustes puntuales
   // como métodos de cobro, donde re-PATCHear canchas sería un efecto acoplado.
+  // Devuelve true si persistió OK, false si falló (fetch no rechaza en 4xx/5xx: hay que mirar res.ok).
   saveConfig: async (token) => {
     const { club } = get()
-    if (!token) return
+    if (!token) return false
     const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-    await fetch(`${BASE}/clubs/me`, { method: 'PATCH', headers, body: JSON.stringify({ config: club }) })
-    set({ _dirty: false })
+    try {
+      const res = await fetch(`${BASE}/clubs/me`, { method: 'PATCH', headers, body: JSON.stringify({ config: club }) })
+      if (!res.ok) return false
+      set({ _dirty: false })
+      return true
+    } catch {
+      return false
+    }
   },
 
-  // Guarda en el backend y actualiza DOM — sin localStorage
+  // Guarda en el backend y actualiza DOM — sin localStorage.
+  // Devuelve true si persistió OK, false si falló (para poder avisar con un toast honesto).
   saveClub: async (token) => {
     const { club } = get()
     applyColorsToDOM(club.colorPrimario, club.colorSecundario, club.fontFamilia)
-    if (!token) return
+    if (!token) return false
     const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
     try {
       // Guarda config JSON + sincroniza canchas en paralelo
-      const [, canchasRes] = await Promise.all([
+      const [configRes, canchasRes] = await Promise.all([
         fetch(`${BASE}/clubs/me`, { method: 'PATCH', headers, body: JSON.stringify({ config: club }) }),
         fetch(`${BASE}/clubs/me/canchas`, { method: 'PATCH', headers, body: JSON.stringify({ canchas: club.canchas }) }),
       ])
+      if (!configRes.ok || !canchasRes.ok) return false
       // Actualiza solo las canchas con sus IDs reales (evita reload completo que reinicia el formulario)
-      if (canchasRes.ok) {
-        const { canchas: canchasDB } = await canchasRes.json()
-        if (Array.isArray(canchasDB)) {
-          set((state) => ({
-            club: {
-              ...state.club,
-              canchas: canchasDB.map((c) => ({
-                id: c.id,
-                nombre: c.nombre,
-                tipo: c.tipo ?? 'Cristal',
-                indoor: c.indoor ?? true,
-                activa: c.activo,
-                precioTurno: c.precioTurno ?? 0,
-                horarios: normalizeHorarios(c.horarios),
-              })),
-            },
-            _dirty: false,
-          }))
-        }
+      const { canchas: canchasDB } = await canchasRes.json()
+      if (Array.isArray(canchasDB)) {
+        set((state) => ({
+          club: {
+            ...state.club,
+            canchas: canchasDB.map((c) => ({
+              id: c.id,
+              nombre: c.nombre,
+              tipo: c.tipo ?? 'Cristal',
+              indoor: c.indoor ?? true,
+              activa: c.activo,
+              precioTurno: c.precioTurno ?? 0,
+              horarios: normalizeHorarios(c.horarios),
+            })),
+          },
+          _dirty: false,
+        }))
+      } else {
+        set({ _dirty: false })
       }
+      return true
     } catch {
       // fallo silencioso — _dirty sigue true si el save falló
+      return false
     }
   },
 }))

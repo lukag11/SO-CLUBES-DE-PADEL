@@ -7,6 +7,38 @@
 
 ---
 
+## 2026-07-10 · Auditoría de WIarky (asistente IA) — onboarding + vara de mercado de asistentes IA en el vertical
+
+**Contexto:** Luca pidió auditar WIarky (el asistente conversacional del dueño de club, "caballo de batalla" del SaaS) con foco FUERTE en ONBOARDING. Verifiqué el código real primero: `backend/src/lib/insight.js` (motor + 13 herramientas + system prompt) y `frontend/.../AsistenteWiark.jsx` (la cara: bubble, primer mensaje, 3 chips de sugerencia). WebSearch SÍ habilitado; varios WebFetch (Playtomic help, tiendapadelpoint) rebotaron 403 → lo [Verificado] de esas fuentes sale de snippets del buscador, no de captura directa. Lo aclaro.
+
+**Estado interno verificado (leído en código):**
+- WIarky HOY ya es notablemente maduro para el vertical: **grounded en datos reales del club sin PII** (ocupación, turnos libres hoy/mañana, reservas 7/14d, horas muertas, deuda, jugadores, torneos activos, caja del día, facturas por vencer), **13 herramientas con tool-use** (consultar disponibilidad/deudores/ingresos/salud financiera/ascensos; armar posteo; crear convocatoria/reserva/jugador; cargar gasto; ascender jugador; abrir caja), **regla de oro "nunca escribe solo"** (toda mutación pasa por botón de confirmación humana) y una **red de seguridad determinística anti "confirmado fantasma"** (si el modelo afirma que algo quedó hecho sin haber usado herramienta, se lo fuerza a corregir). Modelo Haiku 4.5. Semilla de proactividad: al abrir inyecta el "insight del día" + recordatorio de abrir caja.
+- **El onboarding, en cambio, es el eslabón débil.** Primer contacto = bubble genérico ("Preguntame algo", se va a los 9s) + primer mensaje que lista solo 3 capacidades de LECTURA + 3 chips de sugerencia TODOS pasivos: "¿Cuántos turnos libres hay hoy?", "¿Cómo viene la semana?", "¿Qué hago con las horas muertas?". **Ninguno muestra que WIarky EJECUTA acciones.** El diferenciador real (hacer tareas por lenguaje natural) es invisible en los primeros 30 segundos.
+
+**Vara de mercado — asistentes IA en el vertical [Verificado por snippet]:**
+- **Playtomic tiene un AI assistant conversacional... pero es PARA EL JUGADOR, en WhatsApp:** reservar cancha, unirse/crear open matches, torneos, clases, pagos (Stripe), gestionar cuenta. Aprende preferencias de juego on the fly. NO es un asistente owner-facing dentro del Manager. Fuente: playerhelp.playtomic.com (Meet Your Playtomic AI Assistant on WhatsApp). Internamente Playtomic usa IA para soporte B2C (81 intents, 83% deflection). → El gigante puso la IA del lado del JUGADOR; el lado del DUEÑO está mucho menos atendido.
+- **Kananas:** "AI Writing Assistant" (genera emails/newsletters/resúmenes) + automatización de reservas/recordatorios/renovaciones/facturación. Es AUTOMATIZACIÓN + redacción, NO un agente conversacional que ejecuta acciones sobre los datos reales del club. Copy de venta: "¿Necesito conocimientos técnicos? No", trial 30 días, "ahorrá 2h de admin por semana". Fuente: kananas.com.
+- **Anolla:** IA de scheduling + dynamic pricing (optimización, no conversación). **SmashClub:** CRM que "automatiza". **Clutch/Spash:** IA de CÁMARA (highlights/análisis de partido), otro eje. Fuente: WebSearch (anolla.com, smashclub.cloud, clutchapp.io, spash.com).
+- **Lectura:** NADIE en el vertical tiene un **asistente conversacional OWNER-facing, grounded en los números reales del club, que EJECUTE acciones administrativas** (armar convocatoria, cargar gasto, registrar jugador, ascender, abrir caja) con confirmación humana. La competencia tiene: IA para el jugador (Playtomic), IA de redacción/automatización (Kananas), IA de pricing (Anolla), IA de cámara (Clutch). WIarky ocupa un cuadrante propio. Es diferenciación REAL, no vanidad — pero hoy no se comunica en el onboarding.
+
+**Vara de onboarding de asistentes IA (fuera del vertical) [Verificado]:**
+- Regla dura repetida en todas las fuentes: **"un input vacío con cursor NO es onboarding"**. Los usuarios que nunca usaron la feature no saben qué pedir y tiran queries vagas. Hay que mostrar **3-5 prompts específicos y realistas que demuestren el RANGO** de lo que hace. Fuente: NN/g (New Users Need Support with Generative-AI Tools), Jotform, designpixil, getstream.
+- **Activar en <60 segundos** (ProductLed): el primer contacto tiene que producir una experiencia de valor, no un tutorial. Templates + "suggested first actions" + personalidad (ilustración simpática) bajan la barrera. Fuente: productled.com, mobbin (empty state), logrocket.
+- Progressive disclosure: no mostrar las 13 capacidades de golpe; revelar por contexto. Fuente: uxstudioteam, mindtheproduct.
+
+**Implicancia → ver oportunidades.md (OP-WIARKY-1..5).** Resumen: el motor de WIarky ya está por encima del vertical; el hueco es que el **onboarding no muestra el poder de acción** (el diferenciador queda oculto), no hay **memoria por club** (para el "aprende tu club" del roadmap), la **proactividad está encerrada en el chat** (sin push/WhatsApp no llega el briefing) y **no hay métrica de adopción**. Lo más barato y de mayor impacto: rediseñar el primer minuto para que muestre RANGO (incluyendo acciones) y una acción guiada de 1 tap.
+
+### Fuentes
+- https://playerhelp.playtomic.com/hc/en-gb/articles/35606814522129--Meet-Your-Playtomic-AI-Assistant-on-WhatsApp
+- https://www.kananas.com/en/software/padel-club/
+- https://anolla.com/en/best-padel-software · https://smashclub.cloud/ · https://www.clutchapp.io/
+- https://www.nngroup.com/articles/new-AI-users-onboarding/
+- https://productled.com/blog/ai-onboarding
+- https://getstream.io/blog/chat-ux/ · https://www.jotform.com/ai/agents/chatbot-best-practices/
+- https://blog.logrocket.com/ux-design/empty-states-ux-examples/
+
+---
+
 ## 2026-07-06 · Arqueo de caja / cierre de turno + costos y margen (cómo lo resuelven ERP/POS)
 
 **Contexto y foco:** Luca pidió cruzar dos temas contra el módulo Dirección/Pagos de PadelwIArk. (1) Arqueo de caja físico (apertura con fondo, cobros por método, egresos, cierre con conteo declarado, diferencia faltante/sobrante, atribución a empleado/turno, multi-caja). (2) Costos y margen para negocio de alquiler de canchas + kiosco/bar chico. Verifiqué el código real antes de investigar (ver "Estado interno verificado").

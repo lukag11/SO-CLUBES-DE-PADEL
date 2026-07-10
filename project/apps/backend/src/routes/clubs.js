@@ -38,7 +38,9 @@ router.get('/me', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     const club = await prisma.club.findUnique({
       where: { id: req.user.clubId },
-      include: { canchas: { where: { activo: true }, orderBy: { nombre: 'asc' } } },
+      // Admin ve TODAS sus canchas (activas e inactivas) para poder reactivar las apagadas.
+      // Las vistas de jugador/público filtran activo:true por su cuenta.
+      include: { canchas: { orderBy: { nombre: 'asc' } } },
     })
     if (!club) return res.status(404).json({ error: 'Club no encontrado' })
     res.json(club)
@@ -464,7 +466,8 @@ router.patch('/me/canchas', requireAuth, requireRole('admin'), requireOwner, asy
             indoor: c.indoor ?? true,
             precioTurno: c.precioTurno ?? 0,
             horarios: c.horarios ?? null,
-            activo: true,
+            // El front manda el estado como `activa`; respetamos el toggle real (no hardcodear true).
+            activo: c.activa ?? c.activo ?? true,
           },
         })
       }
@@ -477,7 +480,7 @@ router.patch('/me/canchas', requireAuth, requireRole('admin'), requireOwner, asy
           indoor: c.indoor ?? true,
           precioTurno: c.precioTurno ?? 0,
           horarios: c.horarios ?? null,
-          activo: true,
+          activo: c.activa ?? c.activo ?? true,
         },
       })
     })
@@ -490,9 +493,10 @@ router.patch('/me/canchas', requireAuth, requireRole('admin'), requireOwner, asy
     )
 
     await prisma.$transaction([...upsertOps, ...deactivateOps])
-    // Devolver canchas activas actualizadas para que el frontend actualice IDs
+    // Devolver TODAS las canchas (incluidas inactivas) para que el admin las siga viendo
+    // y pueda reactivarlas; el front actualiza los IDs reales con esta respuesta.
     const canchasActualizadas = await prisma.cancha.findMany({
-      where: { clubId, activo: true },
+      where: { clubId },
       orderBy: { nombre: 'asc' },
     })
     res.json({ ok: true, canchas: canchasActualizadas })

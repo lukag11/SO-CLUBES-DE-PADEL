@@ -781,7 +781,8 @@ const PagosPage = () => {
     setSaving(true)
     try {
       updateClub({ metodosPago: ids, comisionPorMetodo: comisiones })
-      await saveConfig(token)
+      const ok = await saveConfig(token)
+      if (!ok) { showToast('error', 'No se pudieron guardar los métodos. Probá de nuevo.'); return }
       setConfigMetodos(false)
       showToast('exito', 'Métodos de cobro actualizados')
     } catch {
@@ -793,7 +794,8 @@ const PagosPage = () => {
     setSaving(true)
     try {
       updateClub({ mostrarConsumoJugador: on })
-      await saveConfig(token)
+      const ok = await saveConfig(token)
+      if (!ok) { showToast('error', 'No se pudo guardar el ajuste. Probá de nuevo.'); return }
       setConfigVista(false)
       showToast('exito', on ? 'El jugador verá su resumen de consumo' : 'Resumen de consumo oculto para el jugador')
     } catch {

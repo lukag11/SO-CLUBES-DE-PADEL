@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Send, Copy, Check } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { X, Send, Copy, Check, ArrowRight } from 'lucide-react'
 import AsistentePelota from './AsistentePelota'
 import useAuthStore from '../../store/authStore'
 import { api } from '../../lib/api'
@@ -13,6 +14,7 @@ export default function AsistenteWiark() {
   const [open, setOpen] = useState(false)
   const [bubble, setBubble] = useState(false)
   const token = useAuthStore((s) => s.token)
+  const navigate = useNavigate()
 
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -200,7 +202,9 @@ export default function AsistenteWiark() {
                     ? <ConfirmAccion key={j} artefacto={a} onConfirmado={continuarTrasAccion} />
                     : a.tipo === 'lista'
                       ? <ListaArtefacto key={j} titulo={a.titulo} items={a.items} total={a.total} />
-                      : <CopyArtefacto key={j} tipo={a.tipo} texto={a.texto} />)}
+                      : a.tipo === 'navegar'
+                        ? <NavegarArtefacto key={j} texto={a.texto} onIr={() => { setOpen(false); navigate(a.ruta) }} />
+                        : <CopyArtefacto key={j} tipo={a.tipo} texto={a.texto} />)}
                 </div>
               )
             ))}
@@ -291,6 +295,16 @@ function CopyArtefacto({ tipo, texto }) {
         {copied ? <><Check size={12} /> ¡Copiado!</> : <><Copy size={12} /> Copiar</>}
       </button>
     </div>
+  )
+}
+
+// Botón que lleva a una sección del panel (ej: configurar precio de canchas). Cierra el chat al navegar.
+function NavegarArtefacto({ texto, onIr }) {
+  return (
+    <button onClick={onIr} className="ml-7 flex items-center justify-between gap-2 rounded-xl bg-brand-500/15 border border-brand-500/30 hover:bg-brand-500/25 transition-colors px-3 py-2.5 text-left">
+      <span className="text-[13px] font-semibold text-brand-200">{texto}</span>
+      <ArrowRight size={15} className="text-brand-300 shrink-0" />
+    </button>
   )
 }
 

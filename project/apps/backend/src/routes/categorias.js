@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
+import { categoriaParecida } from '../lib/categoriaSimilar.js'
 
 const router = Router()
 const DEFAULTS = ['Bebidas', 'Comidas', 'Golosinas', 'Insumos', 'Otros']
@@ -27,8 +28,9 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
   const nombre = String(req.body.nombre ?? '').trim()
   if (!nombre) return res.status(400).json({ error: 'Poné un nombre' })
   try {
-    const existe = await prisma.categoria.findUnique({ where: { clubId_nombre: { clubId, nombre } } })
-    if (existe) return res.status(409).json({ error: 'Ya existe una categoría con ese nombre' })
+    const existentes = await prisma.categoria.findMany({ where: { clubId }, select: { nombre: true } })
+    const choca = categoriaParecida(nombre, existentes)
+    if (choca) return res.status(409).json({ error: `Ya existe "${choca}" (muy parecida). Usá esa para no duplicar.` })
     const cat = await prisma.categoria.create({ data: { clubId, nombre } })
     res.status(201).json(cat)
   } catch (err) {
@@ -46,8 +48,9 @@ router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
     const cat = await prisma.categoria.findUnique({ where: { id: req.params.id } })
     if (!cat || cat.clubId !== clubId) return res.status(404).json({ error: 'Categoría no encontrada' })
     if (cat.nombre === nuevo) return res.json(cat)
-    const choca = await prisma.categoria.findUnique({ where: { clubId_nombre: { clubId, nombre: nuevo } } })
-    if (choca) return res.status(409).json({ error: 'Ya existe una categoría con ese nombre' })
+    const otras = await prisma.categoria.findMany({ where: { clubId, id: { not: cat.id } }, select: { nombre: true } })
+    const choca = categoriaParecida(nuevo, otras)
+    if (choca) return res.status(409).json({ error: `Ya existe "${choca}" (muy parecida). Usá esa para no duplicar.` })
     const [updated] = await prisma.$transaction([
       prisma.categoria.update({ where: { id: req.params.id }, data: { nombre: nuevo } }),
       prisma.producto.updateMany({ where: { clubId, categoria: cat.nombre }, data: { categoria: nuevo } }),

@@ -152,10 +152,12 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     updateClub(form)
-    saveClub()
+    const ok = await saveClub()
+    if (!ok) { toast.error('No se pudo guardar. Probá de nuevo.'); return }
     setSaved(true)
+    toast.success('Cambios guardados')
     setTimeout(() => setSaved(false), 3000)
   }
 
@@ -432,7 +434,7 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
   const toggleSeccion = (key) =>
     setSeccionesVisibles((prev) => ({ ...prev, [key]: !prev[key] }))
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Guard: el primario es un acento (botones/badges) → no permitir muy oscuro.
     // Se valida acá (al guardar), no en el onChange, para no spamear toasts mientras
     // el usuario arrastra por la paleta del selector.
@@ -441,8 +443,10 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
       return
     }
     updateClub({ templateId, seccionesVisibles, navbarEstilo, colorPrimario, colorSecundario, modoOscuroJugadores: modoOscuro, fontFamilia })
-    saveClub()
+    const ok = await saveClub()
+    if (!ok) { toast.error('No se pudo guardar. Probá de nuevo.'); return }
     setSaved(true)
+    toast.success('Cambios guardados')
     setTimeout(() => setSaved(false), 3000)
   }
 
@@ -804,7 +808,7 @@ const CanchaRow = ({ cancha, onUpdate }) => {
     setLocal((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const { horarios: _h, ...rest } = local
     onUpdate(cancha.id, { ...rest, precioTurno: Number(rest.precioTurno) })
     setEditing(false)
@@ -950,7 +954,15 @@ const CanchaRow = ({ cancha, onUpdate }) => {
 const _hMin = (t) => { const [h, m] = (t || '00:00').split(':').map(Number); return h * 60 + (m || 0) }
 
 const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, saveClub, updateClub, token }) => {
+  const toast = useToast()
   const [saved, setSaved] = useState(false)
+  // Guardado por cancha: persiste al backend de una (no solo estado local) + toast.
+  const guardarCancha = async (id, data) => {
+    updateCancha(id, data)
+    const ok = await saveClub()
+    if (ok) toast.success('Cancha guardada')
+    else toast.error('No se pudo guardar la cancha. Probá de nuevo.')
+  }
   const [pendingDesactivar, setPendingDesactivar] = useState(null)
   // { titulo, mensaje, nivel: 'apertura'|'cierre', checked, applyFn }
   const [pendingHorario, setPendingHorario] = useState(null)
@@ -1003,9 +1015,11 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
     setPendingHorario({ titulo, mensaje, nivel: 'cierre', checked: false, applyFn })
   }
 
-  const handleSave = () => {
-    saveClub()
+  const handleSave = async () => {
+    const ok = await saveClub()
+    if (!ok) { toast.error('No se pudo guardar. Probá de nuevo.'); return }
     setSaved(true)
+    toast.success('Cambios guardados')
     setTimeout(() => setSaved(false), 3000)
   }
 
@@ -1079,7 +1093,7 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
       <SectionCard title="Canchas" subtitle="Configuración individual por cancha">
         <div className="flex flex-col gap-3">
           {club.canchas.map((c) => (
-            <CanchaRow key={c.id} cancha={c} onUpdate={updateCancha} />
+            <CanchaRow key={c.id} cancha={c} onUpdate={guardarCancha} />
           ))}
         </div>
       </SectionCard>
@@ -1405,10 +1419,12 @@ const TabHero = ({ club, updateClub, saveClub }) => {
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     updateClub(form)
-    saveClub()
+    const ok = await saveClub()
+    if (!ok) { toast.error('No se pudo guardar. Probá de nuevo.'); return }
     setSaved(true)
+    toast.success('Cambios guardados')
     setTimeout(() => setSaved(false), 3000)
   }
 
@@ -1568,10 +1584,12 @@ const TabHistoria = ({ club, updateClub, saveClub }) => {
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     updateClub(form)
-    saveClub()
+    const ok = await saveClub()
+    if (!ok) { toast.error('No se pudo guardar. Probá de nuevo.'); return }
     setSaved(true)
+    toast.success('Cambios guardados')
     setTimeout(() => setSaved(false), 3000)
   }
 
@@ -1701,10 +1719,12 @@ const TabGaleria = ({ club, updateClub, saveClub }) => {
 
   const handleDelete = (id) => setItems((prev) => prev.filter((it) => it.id !== id))
 
-  const handleSave = () => {
+  const handleSave = async () => {
     updateClub({ galeria: items })
-    saveClub()
+    const ok = await saveClub()
+    if (!ok) { toast.error('No se pudo guardar. Probá de nuevo.'); return }
     setSaved(true)
+    toast.success('Cambios guardados')
     setTimeout(() => setSaved(false), 3000)
   }
 
@@ -1771,7 +1791,7 @@ const ServicioRow = ({ servicio, onUpdate, onDelete }) => {
   const [local, setLocal] = useState({ ...servicio })
   const Icon = ICONOS_SERVICIOS[local.icono] ?? Wrench
 
-  const handleSave = () => { onUpdate(servicio.id, local); setEditing(false) }
+  const handleSave = async () => { onUpdate(servicio.id, local); setEditing(false) }
 
   return (
     <div className="border border-slate-100 rounded-xl overflow-hidden">
@@ -1833,6 +1853,7 @@ const ServicioRow = ({ servicio, onUpdate, onDelete }) => {
 }
 
 const TabServicios = ({ club, updateClub, saveClub }) => {
+  const toast = useToast()
   const [items, setItems] = useState(club.servicios ?? [])
   const [saved, setSaved] = useState(false)
 
@@ -1844,10 +1865,12 @@ const TabServicios = ({ club, updateClub, saveClub }) => {
   const handleAdd = () =>
     setItems((prev) => [...prev, { id: Date.now(), icono: 'Wifi', titulo: 'Nuevo servicio', descripcion: '', activo: true }])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     updateClub({ servicios: items })
-    saveClub()
+    const ok = await saveClub()
+    if (!ok) { toast.error('No se pudo guardar. Probá de nuevo.'); return }
     setSaved(true)
+    toast.success('Cambios guardados')
     setTimeout(() => setSaved(false), 3000)
   }
 
@@ -1891,7 +1914,7 @@ const StaffCard = ({ miembro, onUpdate, onDelete }) => {
     }
   }
 
-  const handleSave = () => { onUpdate(miembro.id, local); setEditing(false) }
+  const handleSave = async () => { onUpdate(miembro.id, local); setEditing(false) }
 
   return (
     <div className="border border-slate-100 rounded-xl overflow-hidden">
@@ -1959,6 +1982,7 @@ const StaffCard = ({ miembro, onUpdate, onDelete }) => {
 }
 
 const TabStaff = ({ club, updateClub, saveClub }) => {
+  const toast = useToast()
   const [items, setItems] = useState(club.staff ?? [])
   const [saved, setSaved] = useState(false)
 
@@ -1970,10 +1994,12 @@ const TabStaff = ({ club, updateClub, saveClub }) => {
   const handleAdd = () =>
     setItems((prev) => [...prev, { id: Date.now(), nombre: 'Nuevo integrante', rol: 'Rol', foto: null, descripcion: '' }])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     updateClub({ staff: items })
-    saveClub()
+    const ok = await saveClub()
+    if (!ok) { toast.error('No se pudo guardar. Probá de nuevo.'); return }
     setSaved(true)
+    toast.success('Cambios guardados')
     setTimeout(() => setSaved(false), 3000)
   }
 
@@ -2008,7 +2034,7 @@ const ProfesorCard = ({ profesor, canchas, onUpdate, onDelete }) => {
   const [local, setLocal] = useState({ ...profesor })
   const [showPass, setShowPass] = useState(false)
 
-  const handleSave = () => {
+  const handleSave = async () => {
     onUpdate(profesor.id, { ...local, email: local.email.trim().toLowerCase() })
     setEditing(false)
   }
@@ -2631,6 +2657,7 @@ const FaqItem = ({ item, onUpdate, onDelete }) => {
 }
 
 const TabFaq = ({ club, updateClub, saveClub }) => {
+  const toast = useToast()
   const [faqItems, setFaqItems] = useState(club.faq ?? [])
   const [politica, setPolitica] = useState(club.politicaReservas ?? '')
   const [saved, setSaved] = useState(false)
@@ -2643,10 +2670,12 @@ const TabFaq = ({ club, updateClub, saveClub }) => {
   const handleAddFaq = () =>
     setFaqItems((prev) => [...prev, { id: Date.now(), pregunta: '', respuesta: '' }])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     updateClub({ faq: faqItems, politicaReservas: politica })
-    saveClub()
+    const ok = await saveClub()
+    if (!ok) { toast.error('No se pudo guardar. Probá de nuevo.'); return }
     setSaved(true)
+    toast.success('Cambios guardados')
     setTimeout(() => setSaved(false), 3000)
   }
 

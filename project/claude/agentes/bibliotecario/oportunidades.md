@@ -7,6 +7,34 @@
 
 ---
 
+## 2026-07-10 · WIarky — rediseño del ONBOARDING y cierre de huecos para vendible como diferenciador
+
+**Diagnóstico base (código verificado):** el MOTOR de WIarky ya está por encima del vertical (grounded sin PII, 13 herramientas con confirmación humana, red anti "confirmado fantasma", semilla proactiva de insight/caja/facturas). El HUECO no es el cerebro: es que **el primer minuto no muestra el poder de acción**, no hay memoria por club, la proactividad está encerrada en el chat, y no hay métrica de adopción. Fuente: hallazgos 2026-07-10 + NN/g + ProductLed.
+
+**OP-WIARKY-1 — Rediseñar el primer minuto para mostrar RANGO + una acción guiada de 1 tap (LA prioridad).**
+Problema: bubble genérico ("Preguntame algo") + 3 chips TODOS pasivos ("¿cuántos turnos libres?", "¿cómo viene la semana?", "¿qué hago con las horas muertas?"). El diferenciador (WIarky HACE cosas) es invisible. Regla de las fuentes: input vacío ≠ onboarding; mostrar 3-5 prompts que demuestren el RANGO, incluyendo acciones. Propuesta:
+- **Bubble con dato real, no genérico** (gancho): tirar un número del club ("Tenés 3 turnos flojos hoy a la tarde 👀" / "5 personas te deben $X 💸 ¿Te muestro?"). Un número real tira más que "preguntame algo".
+- **Al abrir: abanico de capacidad por categorías, no lista de 3 preguntas.** Chips agrupados: *Entender tu negocio* (¿cómo viene la semana? · ¿gano o pierdo? · ¿quién me debe?) · *Llenar canchas* (armá un Super 8 el sábado · publicá los turnos libres) · *Hacé tareas* (cargá un gasto de $30.000 de pelotas · registrá un jugador · abrí la caja). Esto REVELA que ejecuta, que es lo que ninguna competencia tiene.
+- **"Demo viva" en 1 tap:** el insight del día llega con BOTÓN de acción inline. Ej: "💡 El martes 20hs viene flojo (2 reservas en 2 semanas). ¿Armamos un Super 8 ahí? [Sí, armémoslo]". El dueño EXPERIMENTA a WIarky haciendo algo en los primeros 30s = aha moment (ProductLed: activar en <60s).
+- **Primera vez vs recurrente:** persistir `wiarky_onboarded` (localStorage/perfil). 1ra vez = mini-tour 3 capacidades + 1 acción guiada. Recurrente = directo al briefing + lo urgente.
+**Impacto: alto (activa un diferenciador ya construido pero oculto) · Esfuerzo: bajo (frontend + reusar tools existentes) · Estado: nueva, recomendada YA.**
+
+**OP-WIARKY-2 — "Briefing de apertura" proactivo (el moat real owner-facing).**
+Al entrar al dashboard, WIarky ya calculó lo que importa HOY y lo dice sin que pregunten: "Che, hoy: caja sin abrir, la luz vence en 2 días, 4 turnos flojos a la tarde. ¿Por dónde arrancamos?". Ya existen las piezas (insight + caja + facturas por vencer); falta consolidarlas en UN briefing priorizado con acciones de 1 tap. Playtomic puso la IA del lado del JUGADOR; el lado del dueño está vacío. **Impacto: alto · Esfuerzo: bajo-medio (consolidar señales que ya se calculan) · Estado: nueva.**
+
+**OP-WIARKY-3 — Descubribilidad de las 13 herramientas ("¿qué podés hacer?").**
+Un dueño nuevo no sabe que WIarky maneja finanzas, deudores, ascensos, facturas. Chip/comando "¿qué sabés hacer?" que liste agrupado por capacidad (no las 13 crudas). Progressive disclosure. **Impacto: medio · Esfuerzo: bajo · Estado: nueva.**
+
+**OP-WIARKY-4 — Memoria por club (para el "aprende tu club" del roadmap).**
+Hoy WIarky es stateless salvo el historial del chat en curso. El wow de "aprende tu club" (memoria project_wiarky_caballo_batalla) necesita recordar decisiones/preferencias: "la última vez armaste el Super 8 de 6ta los martes, ¿lo repetimos?". Requiere store liviano de preferencias/acciones por club. **Impacto: medio-alto (habilita el diferenciador de 2da ola) · Esfuerzo: medio · Estado: nueva.**
+
+**OP-WIARKY-5 — Canal proactivo real (push/WhatsApp) + métrica de adopción.**
+(a) Hoy WIarky SOLO habla si abrís el chat → el briefing y las alertas de plata (factura por vencer, turno que va a quedar vacío) no llegan. El salto es push/WhatsApp (post-deploy, ya en roadmap project_whatsapp_notif / push_celular_postdeploy). Sin esto la proactividad está a mitad de camino. (b) No hay tracking de si el dueño usa WIarky, qué pregunta, si confirma las acciones → sin métrica no sabés si el diferenciador funciona ni qué herramienta sobra/falta. **Impacto: alto (a, post-deploy) / medio (b) · Esfuerzo: alto (a) / bajo (b) · Estado: (b) hacer ya, (a) atado a deploy.**
+
+**Qué NO tocar (proteger, no rehacer):** grounding sin PII, confirmación humana de toda mutación, red anti "confirmado fantasma", tono rioplatense. Eso ya es diferencial y no hay que romperlo por sumar features. El fallback "no te entendí" sí conviene mejorarlo (que reofrezca capacidades en vez de dejar al dueño colgado).
+
+---
+
 ## 2026-07-06 · Arqueo de caja físico (fondo + conteo declarado + diferencia + empleado) — el hueco duro
 
 **Problema:** hoy `CajaTab` es un REPORTE teórico (ingresos−egresos por método, sección "Las deudas no son caja"). No hay apertura con fondo inicial, ni conteo físico al cierre, ni cálculo de faltante/sobrante, ni atribución a un empleado/turno. Es "cuánta plata debería haber entrado", NO "¿cuánta hay realmente en el cajón y quién responde por la diferencia?". Todo ERP/POS argentino serio (Dux, Fudo) sí lo tiene. Fuente: hallazgos 2026-07-06.

@@ -14,6 +14,7 @@ import useProfesoresStore from '../store/profesoresStore'
 import useAuthStore from '../store/authStore'
 import { api, uploadImage } from '../lib/api'
 import { useToast } from '../components/ui/ToastProvider'
+import MapaUbicacion from '../components/ubicacion/MapaUbicacion'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -131,6 +132,7 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
   const [form, setForm] = useState({ ...club })
   const [saved, setSaved] = useState(false)
   const [preview, setPreview] = useState(club.logo)
+  const [mapaOpen, setMapaOpen] = useState(false)
   const fileRef = useRef()
 
   const handleChange = (e) => {
@@ -213,6 +215,18 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
           <Field label="Email" name="email" type="email" value={form.email} onChange={handleChange} placeholder="info@club.com" icon={Mail} iconColor="text-blue-500" />
           <Field label="WhatsApp" name="whatsapp" value={form.whatsapp} onChange={handleChange} placeholder="+54 9 11 ..." icon={WhatsAppIcon} iconColor="text-[#25D366]" />
         </div>
+        {/* Ubicación — se elige en un modal (mapa) y se muestra en la landing pública */}
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setMapaOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-medium text-slate-700 transition-colors"
+          >
+            <MapPin size={16} className={form.lat != null ? 'text-emerald-500' : 'text-slate-400'} />
+            {form.lat != null ? 'Ubicación marcada · editar en el mapa' : 'Marcar ubicación en el mapa'}
+            {form.lat != null && <Check size={14} className="text-emerald-500" />}
+          </button>
+        </div>
       </SectionCard>
 
       {/* Redes sociales */}
@@ -224,6 +238,33 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
       </SectionCard>
 
       <SaveButton onClick={handleSave} saved={saved} />
+
+      {/* Modal del mapa: elegir ubicación y guardarla */}
+      {mapaOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setMapaOpen(false)}>
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+          <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-[popIn_.2s_ease-out]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+              <p className="font-bold text-slate-800">Ubicación del club</p>
+              <button onClick={() => setMapaOpen(false)} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
+            </div>
+            <div className="p-4">
+              <MapaUbicacion
+                lat={form.lat}
+                lng={form.lng}
+                direccion={form.direccion}
+                editable
+                alto={380}
+                onChange={(lat, lng) => setForm((prev) => ({ ...prev, lat, lng }))}
+              />
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-slate-100">
+              <button onClick={() => setMapaOpen(false)} className="px-4 py-2 rounded-xl text-slate-500 font-medium text-sm hover:bg-slate-100 transition-colors">Cancelar</button>
+              <button onClick={async () => { await handleSave(); setMapaOpen(false) }} className="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors">Guardar ubicación</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

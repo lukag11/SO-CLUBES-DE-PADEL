@@ -2,7 +2,7 @@
 // Near-black, líneas decorativas finas, layout asimétrico, premium.
 
 import { Zap, CalendarDays, Trophy, Users, ArrowRight, ArrowUpRight } from 'lucide-react'
-import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection } from './LandingSections'
+import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection } from './LandingSections'
 
 const FEATURES = [
   { icon: CalendarDays, title: 'Reservas online',  desc: 'Reservá tu cancha en segundos, 24/7, desde cualquier dispositivo.' },
@@ -239,6 +239,17 @@ const Template5 = ({ club, onCta, onTorneos }) => {
             {heroCtaPrimarioTexto || 'Reservar cancha'}
             <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" />
           </button>
+        </div>
+      </section>
+
+      {/* CONTACTO */}
+      <section id="contacto" className="py-24 px-6 border-t border-white/5">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-white">Contacto</h2>
+            <p className="text-white/40 mt-3">Escribinos o pasá a visitarnos.</p>
+          </div>
+          <ContactoSection club={club} colorPrimario={colorPrimario} dark={true} />
         </div>
       </section>
 

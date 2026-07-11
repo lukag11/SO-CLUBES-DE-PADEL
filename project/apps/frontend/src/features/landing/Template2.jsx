@@ -2,7 +2,7 @@
 // Hero fullscreen con imagen, texto centrado superpuesto, degradado dramático.
 
 import { Zap, CalendarDays, Trophy, Users, ArrowRight, ChevronDown } from 'lucide-react'
-import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection } from './LandingSections'
+import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection } from './LandingSections'
 
 const FEATURES = [
   { icon: CalendarDays, title: 'Reservas online',  desc: 'Reservá tu cancha en segundos, 24/7, desde cualquier dispositivo.' },
@@ -201,6 +201,17 @@ const Template2 = ({ club, onCta, onTorneos }) => {
           <button onClick={onCta} className="inline-flex items-center gap-3 font-black text-lg px-10 py-5 rounded-2xl transition-all duration-200" style={{ backgroundColor: colorPrimario, color: '#0a0a0a', boxShadow: `0 16px 48px ${colorPrimario}40` }}>
             {heroCtaPrimarioTexto || 'Reservar cancha'} <ArrowRight size={20} />
           </button>
+        </div>
+      </section>
+
+      {/* CONTACTO */}
+      <section id="contacto" className="py-24 px-6 bg-black/20">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-white">Contacto</h2>
+            <p className="text-white/40 mt-3">Escribinos o pasá a visitarnos.</p>
+          </div>
+          <ContactoSection club={club} colorPrimario={colorPrimario} dark={true} />
         </div>
       </section>
 

@@ -2,7 +2,7 @@
 // Muy oscuro, bordes en color primario, números de sección grandes, agresivo y dinámico.
 
 import { Zap, CalendarDays, Trophy, Users, ArrowRight } from 'lucide-react'
-import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection, hayContacto } from './LandingSections'
+import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection, hayContacto, FirmaPlataforma } from './LandingSections'
 
 const FEATURES = [
   { icon: CalendarDays, title: 'Reservas online',  desc: 'Reservá tu cancha en segundos, 24/7, desde cualquier dispositivo.' },
@@ -234,6 +234,7 @@ const Template4 = ({ club, onCta, onTorneos }) => {
           <span className="text-white font-bold text-sm flex-1">{nombre}</span>
           <p className="text-white/20 text-xs">© {new Date().getFullYear()} {nombre}</p>
         </div>
+        <div className="max-w-5xl mx-auto"><FirmaPlataforma /></div>
       </footer>
     </div>
   )

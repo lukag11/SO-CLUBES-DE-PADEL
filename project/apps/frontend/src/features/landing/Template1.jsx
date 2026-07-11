@@ -2,9 +2,8 @@
 // Split hero, glows, dark cards. Moderno y deportivo.
 
 import { Fragment } from 'react'
-import { Link } from 'react-router-dom'
 import { Zap, CalendarDays, Trophy, Users, ArrowRight, CheckCircle, Star, ChevronDown } from 'lucide-react'
-import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection, hayContacto, SectionTitle } from './LandingSections'
+import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection, hayContacto, SectionTitle, FirmaPlataforma } from './LandingSections'
 import Reveal from '../../components/ui/Reveal'
 import CountUp from '../../components/ui/CountUp'
 
@@ -296,19 +295,7 @@ const Template1 = ({ club, onCta, onTorneos }) => {
           <span className="text-white font-bold text-sm">{nombre}</span>
         </div>
         <p className="text-white/25 text-xs">© {new Date().getFullYear()} {nombre}. Todos los derechos reservados.</p>
-
-        {/* Firma de la plataforma */}
-        <div className="mt-6 pt-6 border-t border-white/5">
-          <Link to="/padelwiark" className="group inline-flex items-center gap-1.5 text-[11px] text-white/30 hover:text-white/55 transition-colors">
-            <span>Hecho con</span>
-            <span className="inline-flex items-center gap-1 font-bold">
-              <span className="w-4 h-4 rounded-[5px] flex items-center justify-center" style={{ backgroundColor: '#afca0b' }}>
-                <Zap size={10} className="text-[#0d1117]" />
-              </span>
-              <span className="text-white/55 group-hover:text-white/80 transition-colors">Padelw<span style={{ color: '#afca0b' }}>IA</span>rk</span>
-            </span>
-          </Link>
-        </div>
+        <FirmaPlataforma />
       </footer>
     </div>
   )

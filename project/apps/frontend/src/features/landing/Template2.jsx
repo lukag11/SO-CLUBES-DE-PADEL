@@ -2,7 +2,7 @@
 // Hero fullscreen con imagen, texto centrado superpuesto, degradado dramático.
 
 import { Zap, CalendarDays, Trophy, Users, ArrowRight, ChevronDown } from 'lucide-react'
-import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection, hayContacto } from './LandingSections'
+import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection, hayContacto, FirmaPlataforma } from './LandingSections'
 
 const FEATURES = [
   { icon: CalendarDays, title: 'Reservas online',  desc: 'Reservá tu cancha en segundos, 24/7, desde cualquier dispositivo.' },
@@ -226,6 +226,7 @@ const Template2 = ({ club, onCta, onTorneos }) => {
           <span className="text-white font-bold text-sm">{nombre}</span>
         </div>
         <p className="text-white/25 text-xs">© {new Date().getFullYear()} {nombre}. Todos los derechos reservados.</p>
+        <FirmaPlataforma />
       </footer>
     </div>
   )

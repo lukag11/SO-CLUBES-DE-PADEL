@@ -2,7 +2,7 @@
 // Near-black, líneas decorativas finas, layout asimétrico, premium.
 
 import { Zap, CalendarDays, Trophy, Users, ArrowRight, ArrowUpRight } from 'lucide-react'
-import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection, hayContacto } from './LandingSections'
+import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection, hayContacto, FirmaPlataforma } from './LandingSections'
 
 const FEATURES = [
   { icon: CalendarDays, title: 'Reservas online',  desc: 'Reservá tu cancha en segundos, 24/7, desde cualquier dispositivo.' },
@@ -266,6 +266,7 @@ const Template5 = ({ club, onCta, onTorneos }) => {
           </div>
           <p className="text-white/15 text-xs">© {new Date().getFullYear()}</p>
         </div>
+        <div className="max-w-5xl mx-auto"><FirmaPlataforma /></div>
       </footer>
     </div>
   )

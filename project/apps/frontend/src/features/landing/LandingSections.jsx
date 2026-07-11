@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import {
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   ShowerHead, Car, GraduationCap, Wifi, Coffee,
@@ -1264,6 +1264,23 @@ export const ServicioIcon = ({ icono, size = 20, className }) => {
 
 // ─── Galería ─────────────────────────────────────────────────────────────────
 
+// ─── Firma de la plataforma (footer de todos los templates) ───────────────────
+// "Hecho con PadelwIArk" → link a la landing de ventas. Marca propia (lima), NO el
+// color del club. Distribución SaaS: cada landing de club es un cartel de PadelwIArk.
+export const FirmaPlataforma = ({ className = '' }) => (
+  <div className={`mt-6 pt-6 border-t border-white/5 flex justify-center ${className}`}>
+    <Link to="/padelwiark" className="group inline-flex items-center gap-1.5 text-[11px] text-white/30 hover:text-white/55 transition-colors">
+      <span>Hecho con</span>
+      <span className="inline-flex items-center gap-1 font-bold">
+        <span className="w-4 h-4 rounded-[5px] flex items-center justify-center" style={{ backgroundColor: '#afca0b' }}>
+          <Zap size={10} className="text-[#0d1117]" />
+        </span>
+        <span className="text-white/55 group-hover:text-white/80 transition-colors">Padelw<span style={{ color: '#afca0b' }}>IA</span>rk</span>
+      </span>
+    </Link>
+  </div>
+)
+
 export const GaleriaGrid = ({ galeria, className = '', variant = 'grid' }) => {
   const [lightbox, setLightbox] = useState(null)
 
@@ -2174,20 +2191,20 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
                   <div className="px-4 pb-3 flex flex-col gap-1.5">
                     {slots.map((slot) => {
                       const recienLiberado = isRecienLiberado(cancha.id, slot.inicio)
+                      const esLight = !dark
                       if (!slot.libre || slot.pasado) {
                         return (
                           <div key={slot.inicio}
-                            className="h-8 px-3 rounded-xl text-[10px] font-medium flex items-center select-none"
+                            className={`px-3 rounded-xl font-medium flex items-center select-none ${esLight ? 'h-10 text-[13px]' : 'h-8 text-[10px]'}`}
                             style={{
-                              backgroundColor: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.03)',
-                              color: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.15)',
-                              textDecoration: slot.pasado ? 'none' : 'line-through',
-                              border: dark ? '1px solid rgba(255,255,255,0.04)' : '1px solid rgba(0,0,0,0.05)',
+                              backgroundColor: dark ? 'rgba(255,255,255,0.02)' : '#f8fafc',
+                              color: dark ? 'rgba(255,255,255,0.1)' : '#94a3b8',
+                              border: dark ? '1px solid rgba(255,255,255,0.04)' : '1px solid #e2e8f0',
                             }}
                           >
-                            {slot.inicio} — {slot.fin}
+                            <span className="line-through">{slot.inicio} — {slot.fin}</span>
                             {slot.pasado && (
-                              <span className="ml-auto text-[8px] uppercase tracking-wider opacity-50">Pasado</span>
+                              <span className="ml-auto text-[9px] uppercase tracking-wider opacity-70">Pasado</span>
                             )}
                           </div>
                         )
@@ -2199,21 +2216,24 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
                             if (!isAuthenticated) { onCta(); return }
                             navigate('/dashboardJugadores/reservas', { state: { canchaId: cancha.id, fechaStr, hora: slot.inicio } })
                           }}
-                          className="relative h-8 px-3 rounded-xl text-[10px] font-bold flex items-center justify-between gap-2 transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] hover:brightness-110 overflow-hidden group"
                           style={{
-                            backgroundColor: recienLiberado ? 'rgba(16,185,129,0.12)' : `${cp}12`,
+                            '--clr': cp,
                             color: recienLiberado ? '#10b981' : cp,
-                            border: recienLiberado ? '1px solid rgba(16,185,129,0.35)' : `1px solid ${cp}28`,
-                            animation: recienLiberado ? 'td-slot-glow 1.6s ease-in-out infinite' : 'none',
+                            ...(recienLiberado
+                              ? { backgroundColor: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.35)', animation: 'td-slot-glow 1.6s ease-in-out infinite' }
+                              : esLight ? {} : { backgroundColor: `${cp}12`, border: `1px solid ${cp}28` }),
                           }}
+                          className={`relative px-3 rounded-xl font-bold flex items-center justify-between gap-2 transition-all duration-150 active:scale-[0.98] overflow-hidden group ${esLight ? 'h-10 text-[13px]' : 'h-8 text-[10px]'} ${esLight && !recienLiberado ? 'bg-white border border-slate-200 hover:border-[var(--clr)] hover:bg-[color-mix(in_srgb,var(--clr)_8%,transparent)]' : 'hover:scale-[1.02] hover:brightness-110'}`}
                         >
-                          {/* Scan shimmer on hover */}
-                          <div className="absolute inset-y-0 w-1/3 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"
-                            style={{ background: `linear-gradient(90deg,transparent,${recienLiberado ? 'rgba(16,185,129,0.15)' : `${cp}25`},transparent)`, animation: 'td-scan 1.4s ease-in-out' }} />
+                          {/* Scan shimmer solo en oscuro/liberado (en minimal molesta) */}
+                          {(!esLight || recienLiberado) && (
+                            <div className="absolute inset-y-0 w-1/3 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={{ background: `linear-gradient(90deg,transparent,${recienLiberado ? 'rgba(16,185,129,0.15)' : `${cp}25`},transparent)`, animation: 'td-scan 1.4s ease-in-out' }} />
+                          )}
                           <span className="relative z-10">{slot.inicio} — {slot.fin}</span>
                           <span className="relative z-10 flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                            {!isAuthenticated && <Lock size={7} />}
-                            <span className="text-[8px] font-black uppercase tracking-wider">
+                            {!isAuthenticated && <Lock size={esLight ? 9 : 7} />}
+                            <span className={`font-black uppercase tracking-wider ${esLight ? 'text-[10px]' : 'text-[8px]'}`}>
                               {isAuthenticated ? 'Reservar →' : 'Ver'}
                             </span>
                           </span>
@@ -2222,35 +2242,40 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
                     })}
                   </div>
 
-                  {/* Card footer: ocupación futurista */}
-                  <div className="mx-4 mb-4 px-3 py-2.5 rounded-xl"
-                    style={{ backgroundColor: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: dark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(0,0,0,0.05)' }}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className={`text-[8px] font-black uppercase tracking-[0.18em] ${dark ? 'text-white/20' : 'text-slate-300'}`}>Ocupación</span>
-                      <span className="text-[10px] font-black tabular-nums" style={{ color: pctOcupado > 70 ? '#f87171' : pctOcupado > 40 ? '#fbbf24' : cp }}>
-                        {pctOcupado}<span className="text-[7px] font-bold">%</span>
-                      </span>
+                  {/* Card footer: ocupación */}
+                  {dark ? (
+                    <div className="mx-4 mb-4 px-3 py-2.5 rounded-xl"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[8px] font-black uppercase tracking-[0.18em] text-white/20">Ocupación</span>
+                        <span className="text-[10px] font-black tabular-nums" style={{ color: pctOcupado > 70 ? '#f87171' : pctOcupado > 40 ? '#fbbf24' : cp }}>
+                          {pctOcupado}<span className="text-[7px] font-bold">%</span>
+                        </span>
+                      </div>
+                      {/* Segmented progress bar */}
+                      <div className="flex gap-0.5">
+                        {Array.from({ length: 10 }, (_, i) => {
+                          const filled = i < Math.round(pctOcupado / 10)
+                          const fillColor = pctOcupado > 70 ? '#f87171' : pctOcupado > 40 ? '#fbbf24' : cp
+                          return (
+                            <div key={i} className="flex-1 h-1 rounded-full transition-all duration-700"
+                              style={{ backgroundColor: filled ? fillColor : 'rgba(255,255,255,0.06)', boxShadow: filled ? `0 0 4px ${fillColor}80` : 'none' }} />
+                          )
+                        })}
+                      </div>
                     </div>
-                    {/* Segmented progress bar */}
-                    <div className="flex gap-0.5">
-                      {Array.from({ length: 10 }, (_, i) => {
-                        const filled = i < Math.round(pctOcupado / 10)
-                        const fillColor = pctOcupado > 70 ? '#f87171' : pctOcupado > 40 ? '#fbbf24' : cp
-                        return (
-                          <div
-                            key={i}
-                            className="flex-1 h-1 rounded-full transition-all duration-700"
-                            style={{
-                              backgroundColor: filled
-                                ? fillColor
-                                : dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)',
-                              boxShadow: filled ? `0 0 4px ${fillColor}80` : 'none',
-                            }}
-                          />
-                        )
-                      })}
+                  ) : (
+                    /* Minimal: una sola barra fina, sin colores de alarma */
+                    <div className="mx-4 mb-4 pt-3 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-300">Ocupación</span>
+                        <span className="text-[11px] font-bold tabular-nums text-slate-500">{pctOcupado}%</span>
+                      </div>
+                      <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pctOcupado}%`, backgroundColor: cp }} />
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )
             })}

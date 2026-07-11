@@ -1000,7 +1000,8 @@ router.post('/', requireAuth, requireRole('admin'), requirePermiso('jugadores'),
         dni,
         email: email ?? null,
         telefono: telefono ?? null,
-        categoria: categoria ?? null,
+        // Formato canónico ("6ta Categoría", no "6ta") para que matchee en convocatorias/filtros.
+        categoria: categoria != null ? normalizarCategoria(categoria) : null,
         cuentaActiva: false,
       },
       select: {

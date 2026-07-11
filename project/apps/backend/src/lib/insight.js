@@ -3,7 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import prisma from './prisma.js'
 import { hoyArgStr, inicioDiaArg, inicioMesArg, ahoraArgHHMM, franjasDia, franjaTimes } from './tiempo.js'
-import { calcularSaludFinanciera, calcularContribucionSectores } from './finanzas.js'
+import { calcularSaludFinanciera, calcularContribucionSectores, calcularRetencionTF, calcularHeatmap, calcularFlujoCaja } from './finanzas.js'
 import { calcularSenalesAscenso, catCorta } from './ascenso.js'
 import { normalizarCategoria } from './categorias.js'
 
@@ -400,6 +400,21 @@ const WIARK_TOOLS = [
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
+    name: 'consultar_tf_riesgo',
+    description: 'Devuelve los TURNOS FIJOS en riesgo de baja: los clientes recurrentes que faltaron varias veces en las últimas 8 semanas (señal de que pueden dejar de venir), con cuánta plata al año representa cada uno. Usala cuando el dueño pregunta quién puede darse de baja, qué turnos fijos están flojos o en riesgo, a quién debería llamar/retener, o cuánta plata recurrente tiene en juego.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'consultar_heatmap',
+    description: 'Devuelve qué DÍAS y FRANJAS HORARIAS rinden más y menos (ocupación real por día×hora en las últimas 8 semanas): los horarios fríos (poca gente, para llenar) y el pico. Usala cuando el dueño pregunta qué día/horario viene flojo o fuerte, cuándo tiene más o menos gente, cuáles son sus mejores o peores horarios, o qué franjas conviene llenar.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'consultar_flujo_caja',
+    description: 'Devuelve la PROYECCIÓN de flujo de caja de los próximos ~3 meses: cobros esperados (turnos fijos + reservas agendadas) menos pagos por venir (costos, sueldos, aguinaldo), mes a mes, para anticipar meses complicados. Usala cuando el dueño pregunta cómo viene la plata los próximos meses, si va a tener para pagar sueldos/aguinaldo, qué mes se le complica, o su proyección/flujo de caja a futuro.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
     name: 'cargar_gasto',
     description: 'Prepara la carga de un gasto/factura del club. NO lo guarda: el dueño lo confirma después con un botón. Usala cuando el dueño pide cargar, anotar o registrar un gasto o una factura.',
     input_schema: {
@@ -408,6 +423,7 @@ const WIARK_TOOLS = [
         monto: { type: 'number', description: 'Monto en pesos, solo el número (sin $ ni puntos)' },
         concepto: { type: 'string', description: 'Qué se gastó (ej: pelotas, luz, sueldos)' },
         categoria: { type: 'string', description: 'Opcional: categoría del gasto' },
+        vencimiento: { type: 'string', description: 'Opcional, formato YYYY-MM-DD. SOLO si es una factura POR PAGAR con fecha de vencimiento (ej: "la luz vence el 20"). Si el dueño ya lo pagó / es al contado, NO lo pongas (el gasto queda pagado).' },
       },
       required: ['monto', 'concepto'],
     },
@@ -624,13 +640,42 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
     ]
     return { paraModelo: partes.filter(Boolean).join('\n') }
   }
+  if (name === 'consultar_tf_riesgo') {
+    const r = await calcularRetencionTF(clubId)
+    const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
+    if (!r.enRiesgo.length) {
+      return { paraModelo: `Ningún turno fijo en riesgo: los ${r.totalTF} vienen bien (nadie faltó ${r.umbral}+ veces en 8 semanas). Tenés ${money(r.valorRecurrenteAnual)} al año de plata recurrente en juego. Contáselo tranqui, no inventes nombres.` }
+    }
+    const enJuego = r.enRiesgo.reduce((s, x) => s + (x.valorAnual || 0), 0)
+    return {
+      paraModelo: `Hay ${r.enRiesgo.length} turno(s) fijo(s) en riesgo de baja (faltaron ${r.umbral}+ veces en 8 semanas). Si se van, son ${money(enJuego)} al año que perdés. La lista con los nombres, el día/hora y la plata en juego se le muestra al dueño abajo; NO repitas los nombres vos (privacidad). Decile que conviene llamarlos/retenerlos antes de que se vayan, en criollo y breve.`,
+      artefacto: { tipo: 'lista', titulo: 'Turnos fijos en riesgo', total: enJuego, items: r.enRiesgo.map((x) => ({ nombre: x.jugador, detalle: `${x.dia} ${x.horaInicio} · faltó ${x.ausenciasRecientes}× · ${money(x.valorAnual)}/año` })) },
+    }
+  }
+  if (name === 'consultar_heatmap') {
+    const h = await calcularHeatmap(clubId)
+    const arr = []
+    for (const dia of h.dias) for (const fr of h.franjas) { const c = h.celdas[dia]?.[fr]; if (c) arr.push({ dia, fr, pct: c.pct }) }
+    if (!arr.length) return { paraModelo: 'Todavía no hay suficientes reservas para ver qué horarios rinden. Cuando haya más movimiento te lo digo, no inventes.' }
+    const frios = [...arr].sort((a, b) => a.pct - b.pct).slice(0, 4)
+    const pico = [...arr].sort((a, b) => b.pct - a.pct)[0]
+    return { paraModelo: `Ocupación real por día y franja (últimas ${h.periodo.semanas} semanas). Horarios más FRÍOS (poca gente, ideales para llenar con un Super 8/Americano): ${frios.map((c) => `${c.dia} ${c.fr} (${c.pct}%)`).join(', ')}. Tu PICO: ${pico.dia} ${pico.fr} (${pico.pct}%). En criollo y breve; para los fríos sugerí armar un evento para llenarlos. No inventes horarios ni números que no estén acá.` }
+  }
+  if (name === 'consultar_flujo_caja') {
+    const f = await calcularFlujoCaja(clubId)
+    const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
+    const mesesTxt = f.meses.map((m) => `${m.label}: entra ${money(m.cobros)}, sale ${money(m.pagos)} → ${m.neto >= 0 ? '+' : ''}${money(m.neto)}`).join('; ')
+    const rojo = f.meses.find((m) => m.neto < 0)
+    return { paraModelo: `Proyección de caja de los próximos 3 meses (${mesesTxt}). ${rojo ? `OJO: en ${rojo.label} los pagos le ganan a los cobros (${money(rojo.neto)}).` : 'Los tres meses proyectan más cobros que pagos.'} IMPORTANTE: esto muestra la FORMA de lo que entra vs. sale cada mes, NO la plata que vas a tener en la cuenta (no conozco tu saldo del banco). Presentalo así, en criollo y breve, para anticipar meses complicados. No inventes números.` }
+  }
   if (name === 'cargar_gasto') {
     const monto = Math.round(Number(input.monto) || 0)
     const concepto = (input.concepto || '').toString().trim()
     if (monto <= 0 || !concepto) return { paraModelo: 'Faltan datos: necesito el monto (mayor a 0) y el concepto. Pedíselos al usuario.' }
     const categoria = input.categoria ? input.categoria.toString().trim() : null
-    const resumen = `Cargar gasto de $${monto.toLocaleString('es-AR')} — ${concepto}${categoria ? ` (${categoria})` : ''}`
-    return { paraModelo: 'Le muestro al usuario un botón para confirmar; el gasto NO está cargado todavía.', artefacto: { tipo: 'confirmacion', accion: 'cargar_gasto', datos: { monto, concepto, categoria }, resumen } }
+    const vencimiento = /^\d{4}-\d{2}-\d{2}$/.test(input.vencimiento) ? input.vencimiento : null
+    const resumen = `Cargar gasto de $${monto.toLocaleString('es-AR')} — ${concepto}${categoria ? ` (${categoria})` : ''}${vencimiento ? ` · a pagar, vence ${vencimiento}` : ' · pagado'}`
+    return { paraModelo: 'Le muestro al usuario un botón para confirmar; el gasto NO está cargado todavía.', artefacto: { tipo: 'confirmacion', accion: 'cargar_gasto', datos: { monto, concepto, categoria, vencimiento }, resumen } }
   }
   if (name === 'crear_reserva') {
     const fecha = /^\d{4}-\d{2}-\d{2}$/.test(input.fecha) ? input.fecha : null
@@ -738,7 +783,7 @@ async function ejecutarHerramientaWiark(name, input, clubId) {
 // `mensajes` = historial [{role:'user'|'assistant', content}]. Grounded, sin PII.
 export async function responderChatAgente(clubId, mensajes) {
   const contexto = await armarContextoClub(clubId)
-  const system = `Sos WIarky, el asistente IA de un club de pádel (marca PadelwIArk). Hablás en español rioplatense, cercano y breve, con alguna emoji con moderación. Ayudás al dueño a entender sus números y a llenar canchas.
+  const systemBase = `Sos WIarky, el asistente IA de un club de pádel (marca PadelwIArk). Hablás en español rioplatense, cercano y breve, con alguna emoji con moderación. Ayudás al dueño a entender sus números y a llenar canchas.
 
 Reglas:
 - REGLA DE ORO (no la rompas nunca): vos NO creás nada por tu cuenta. Para registrar un jugador, reservar un turno, crear una convocatoria o cargar un gasto SIEMPRE tenés que USAR la herramienta correspondiente, que hace aparecer un BOTÓN de confirmar abajo de tu mensaje. El dato se crea SOLO cuando el dueño toca ese botón. Por lo tanto: NUNCA digas que algo "ya quedó", "está confirmado", "lo reservé", "listo, creado" si no usaste la herramienta. Cuando tengas todos los datos, llamá a la herramienta y decí una línea corta tipo "Te dejo el botón para confirmar 👇" — y NADA de afirmar que está hecho.
@@ -757,6 +802,9 @@ Reglas:
 - Para cargar un gasto usá la herramienta cargar_gasto con el monto y el concepto. El gasto NO se guarda hasta que el dueño confirme con un botón que aparece abajo de tu mensaje; vos solo decí una línea corta (ej. "Te dejo el gasto para confirmar 👇"). Si falta el monto o el concepto, pediselo.
 - Para "quién me debe" usá consultar_deudores y para "cuánto facturé" usá consultar_ingresos. La lista de deudores (con nombres) se le muestra al usuario abajo: NUNCA repitas nombres de jugadores en tu texto (privacidad); referite al total y la cantidad.
 - Para preguntas de RESULTADO EN PESOS (¿gané o perdí este mes?, ¿cuánto gané/perdí?, cuánto me dejó/aportó el bar/las clases/las canchas, mi ganancia/rentabilidad en plata) usá consultar_resultado_mes. Contestá en PESOS, en criollo y breve. Si la herramienta dice que faltan costos, NO inventes un resultado: mandalo a cargarlos en Dirección.
+- Para preguntas sobre TURNOS FIJOS EN RIESGO (¿quién se puede dar de baja?, qué turnos fijos vienen flojos/en riesgo, a quién debería llamar para retener, cuánta plata recurrente tengo en juego) usá consultar_tf_riesgo. La lista con nombres se le muestra al dueño abajo: NUNCA repitas nombres en tu texto (privacidad); hablá del total y la cantidad, y sugerí llamarlos antes de que se vayan.
+- Para preguntas sobre QUÉ DÍA/HORARIO rinde (¿qué franja viene floja/fuerte?, ¿cuándo tengo más/menos gente?, mis mejores/peores horarios, qué horarios llenar) usá consultar_heatmap. Para los horarios fríos sugerí armar un Super 8/Americano para llenarlos.
+- Para preguntas sobre la PLATA A FUTURO (¿cómo viene la caja los próximos meses?, ¿voy a tener para los sueldos/aguinaldo?, qué mes se complica, mi proyección/flujo de caja) usá consultar_flujo_caja. Aclará SIEMPRE que es la forma de lo que entra vs. sale, no la plata en la cuenta (no conocés el saldo del banco).
 - Para preguntas sobre CÓMO VA EL NEGOCIO en turnos/ocupación (¿cuántos turnos necesito para no perder?, mi punto de equilibrio, mi rinde/ocupación, por qué pierdo plata, cuánto pierdo por canchas vacías o por ausencias, mi yield) usá consultar_salud_financiera. Explicá el número en criollo, sin tecnicismos, y si sirve sugerí la palanca (ej: "llená los horarios fríos"). Si el dueño no cargó los costos, invitalo a hacerlo en la sección Dirección (son 2 preguntas).
 - Para reservar un turno usá crear_reserva (cancha + fecha + hora de inicio; el turno dura 1.5h, la hora de fin se calcula sola). NO se crea hasta que el dueño confirme con el botón. Si falta la cancha, la fecha o la hora, pediselas.
 - Para registrar/dar de alta un jugador usá crear_jugador (nombre + apellido + DNI; el DNI es OBLIGATORIO). NO se crea hasta que el dueño confirme. Si falta el DNI, pediselo. El nombre completo separalo en nombre y apellido.
@@ -765,12 +813,18 @@ Reglas:
 - CAJA DEL DÍA: para abrir la caja usá abrir_caja (opcionalmente con el fondo/cambio inicial). NO afirmes que la abriste: se abre recién cuando el dueño toca el botón. Si en los datos de abajo la caja figura como NO abierta y el dueño está arrancando el día o pregunta cómo empezar, recordáselo en criollo y corto ("Che, arrancá abriendo la caja del día 👇") y dejale el botón. Si ya está ABIERTA, no insistas; si el turno terminó, recordale que la CIERRE desde la pestaña Caja. El arqueo controla SOLO el efectivo del cajón (transferencias y MP no van ahí).
 - FACTURAS POR VENCER: en los datos de abajo tenés "Facturas por pagar". Si hay VENCIDAS o que vencen en ≤5 días, avisale al dueño en criollo y corto (ej: "Ojo: la luz vence el 05/08, no te la olvides" o "Tenés la factura de agua VENCIDA sin pagar"). Es un aviso útil, no una alarma dramática. Si no hay nada por vencer, no lo menciones. Mencionalo cuando el dueño abra el chat o pregunte cómo viene, priorizándolo si algo ya venció (es plata que se puede ir en recargos o cortes).
 - PROACTIVO: cuando el dueño abra el chat o haga una pregunta general ("¿cómo venimos?", "¿alguna novedad?"), si hay jugadores pasados mencionalo por iniciativa propia como una OPORTUNIDAD linda (no como alerta), en una línea al pasar, y ofrecé mostrarle la lista. Reglas: no lo repitas si ya lo mencionaste en el chat; no lo metas a la fuerza si el dueño está en otra cosa (un cobro, un gasto, una reserva); no lo pongas primero si hay algo más urgente (deuda alta, caja). Es un "che, de paso te tiro esto", no una interrupción.
-- En tus propios mensajes del chat escribí en texto plano, sin markdown.
+- En tus propios mensajes del chat escribí en texto plano, sin markdown.`
 
-${contexto}`
+  // Prompt caching: la parte ESTÁTICA (instrucciones) y las tools se cachean (se reenvían idénticas
+  // en cada turno/iteración); el contexto del club (cambia) va en un bloque aparte, sin cachear.
+  const system = [
+    { type: 'text', text: systemBase, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: `\n\n${contexto}` },
+  ]
+  const toolsCached = WIARK_TOOLS.map((t, i) => (i === WIARK_TOOLS.length - 1 ? { ...t, cache_control: { type: 'ephemeral' } } : t))
 
   let msgs = mensajes.map((m) => ({ role: m.role, content: m.content }))
-  let resp = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: WIARK_TOOLS, messages: msgs })
+  let resp = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: toolsCached, messages: msgs })
 
   const artefactos = []
 
@@ -789,7 +843,7 @@ ${contexto}`
         results.push({ type: 'tool_result', tool_use_id: b.id, content: out.paraModelo })
       }
       msgs.push({ role: 'user', content: results })
-      r = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: WIARK_TOOLS, messages: msgs })
+      r = await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: toolsCached, messages: msgs })
     }
     return r
   }
@@ -804,7 +858,7 @@ ${contexto}`
   if (!artefactos.some((a) => a.accion) && afirmaAccion.test(texto)) {
     msgs.push({ role: 'assistant', content: resp.content })
     msgs.push({ role: 'user', content: [{ type: 'text', text: '[Sistema interno: en este turno NO usaste ninguna herramienta, así que NO se creó ni confirmó NADA y el dueño NO tiene ningún botón para tocar. Si ya tenés todos los datos para crear lo que el dueño pidió, llamá AHORA a la herramienta correspondiente (crear_convocatoria / crear_reserva / crear_jugador / cargar_gasto) para generar el botón de confirmar. Si en realidad no estabas creando nada, reformulá tu respuesta SIN afirmar que algo quedó hecho.]' }] })
-    resp = await procesarTools(await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: WIARK_TOOLS, messages: msgs }))
+    resp = await procesarTools(await client.messages.create({ model: 'claude-haiku-4-5', max_tokens: 700, system, tools: toolsCached, messages: msgs }))
     texto = resp.content.find((b) => b.type === 'text')?.text?.trim() ?? texto
   }
 

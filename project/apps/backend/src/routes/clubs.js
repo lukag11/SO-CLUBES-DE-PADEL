@@ -360,8 +360,11 @@ router.post('/me/insight/accion', requireAuth, requireRole('admin'), requireOwne
       const concepto = (datos?.concepto || '').toString().trim()
       if (monto <= 0 || !concepto) return res.status(400).json({ error: 'Monto o concepto inválido' })
       const categoria = datos?.categoria ? datos.categoria.toString().trim() : null
+      // Si trae vencimiento (factura por pagar) → queda IMPAGO con su vencimiento; si no, es contado (pagado).
+      const vencimiento = /^\d{4}-\d{2}-\d{2}$/.test(datos?.vencimiento) ? datos.vencimiento : null
+      const pagado = !vencimiento
       const g = await prisma.gasto.create({
-        data: { clubId, concepto, monto, categoria, fecha: hoyArgStr(), pagado: true, pagadoAt: new Date(), fuente: 'manual' },
+        data: { clubId, concepto, monto, categoria, fecha: hoyArgStr(), vencimiento, pagado, pagadoAt: pagado ? new Date() : null, fuente: 'manual' },
       })
       return res.json({ ok: true, mensaje: `Gasto de $${monto.toLocaleString('es-AR')} cargado ✅`, id: g.id })
     }

@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, Send, Copy, Check, ArrowRight, Mic, Square } from 'lucide-react'
+import { X, Send, Copy, Check, ArrowRight, Mic, Square, Camera } from 'lucide-react'
 import AsistentePelota from './AsistentePelota'
 import useAuthStore from '../../store/authStore'
 import { api } from '../../lib/api'
 import { useDictado } from '../../hooks/useDictado'
+import useWiarkyGastoStore from '../../store/wiarkyGastoStore'
 
 // Launcher + chat de WIarky, el asistente de PadelwIArk (la pelotita).
 // Responde preguntas del dueño sobre su club con datos reales (grounded, sin PII).
@@ -31,6 +32,7 @@ export default function AsistenteWiark() {
   const [bubble, setBubble] = useState(false)
   const token = useAuthStore((s) => s.token)
   const navigate = useNavigate()
+  const setDatosOcr = useWiarkyGastoStore((s) => s.setDatosOcr)
 
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -48,6 +50,32 @@ export default function AsistenteWiark() {
   const toggleMic = () => (grabando ? parar() : arrancar())
   // Si se cierra el chat mientras graba, cortar el micrófono.
   useEffect(() => { if (!open && grabando) parar() }, [open, grabando, parar])
+
+  // Adjuntar foto de factura → OCR (reusa /gastos/extraer). Paso 1: leer y mostrar en el chat.
+  const facturaRef = useRef(null)
+  const [leyendoFactura, setLeyendoFactura] = useState(false)
+  const subirFactura = async (file) => {
+    if (!file || leyendoFactura) return
+    setLeyendoFactura(true)
+    setMessages((m) => [...m, { from: 'wiark', text: '📸 Estoy leyendo la factura, dame un segundo…' }])
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const r = new FileReader()
+        r.onload = () => resolve(r.result)
+        r.onerror = () => reject(new Error('No pude leer el archivo'))
+        r.readAsDataURL(file)
+      })
+      // El backend ya prueba dos modelos (Haiku → Sonnet) en una sola llamada, así que acá
+      // no hace falta reintentar.
+      const datos = await api.post('/gastos/extraer', { image: dataUrl }, { Authorization: `Bearer ${token}` })
+      const money = (n) => `$${Number(n || 0).toLocaleString('es-AR')}`
+      const nItems = Array.isArray(datos.items) ? datos.items.length : 0
+      const resumen = `📄 Leí la factura${datos.proveedor ? ` de ${datos.proveedor}` : ''} por ${money(datos.monto)}${datos.vencimiento ? ` · vence ${datos.vencimiento}` : datos.contado ? ' · contado' : ''}${nItems ? ` · ${nItems} producto${nItems === 1 ? '' : 's'} para el stock` : ''}. Revisá y confirmá 👇`
+      setMessages((m) => [...m, { from: 'wiark', text: resumen, artefactos: [{ tipo: 'gasto_ocr', datos, label: 'Revisar y cargar en Gastos' }] }])
+    } catch {
+      setMessages((m) => [...m, { from: 'wiark', text: 'Uy, no pude leer la factura 🙈 Probá otra foto: acercá la cámara, con buena luz, derecha y sin sombras.' }])
+    } finally { setLeyendoFactura(false) }
+  }
 
   // ── Drag: WIarky se puede arrastrar a cualquier lado; recuerda la posición.
   // Se ancla por (right, bottom) para que el chat siga abriéndose hacia arriba.
@@ -240,7 +268,9 @@ export default function AsistenteWiark() {
                         ? <NavegarArtefacto key={j} texto={a.texto} onIr={() => { setOpen(false); navigate(a.ruta) }} />
                         : a.tipo === 'sugerencia'
                           ? <SugerenciaArtefacto key={j} label={a.label} onIr={() => enviar(a.prompt)} />
-                          : <CopyArtefacto key={j} tipo={a.tipo} texto={a.texto} />)}
+                          : a.tipo === 'gasto_ocr'
+                            ? <SugerenciaArtefacto key={j} label={a.label} onIr={() => { setDatosOcr(a.datos); setOpen(false); navigate('/dashboardAdmin/pagos') }} />
+                            : <CopyArtefacto key={j} tipo={a.tipo} texto={a.texto} />)}
                 </div>
               )
             ))}
@@ -288,6 +318,13 @@ export default function AsistenteWiark() {
 
           {/* Input */}
           <div className="shrink-0 p-2.5 border-t border-white/10 flex items-center gap-2">
+            <input ref={facturaRef} type="file" accept="image/*,application/pdf" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) subirFactura(f) }} />
+            <button onClick={() => facturaRef.current?.click()} disabled={leyendoFactura || sending}
+              aria-label="Cargar factura (foto o PDF)" title="Cargar factura (foto o PDF)"
+              className="w-9 h-9 shrink-0 grid place-items-center rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-white hover:border-brand-400 transition-all disabled:opacity-40">
+              <Camera size={16} />
+            </button>
             {vozOk && (
               <button onClick={toggleMic}
                 aria-label={grabando ? 'Detener dictado' : 'Dictar por voz'}

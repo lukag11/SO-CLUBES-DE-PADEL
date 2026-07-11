@@ -9,7 +9,7 @@ const client = new Anthropic() // toma ANTHROPIC_API_KEY del entorno
 const CATEGORIAS = new Set(['servicios', 'alquiler', 'sueldos', 'impuestos', 'bebidas', 'kiosco', 'deportivo', 'insumos', 'mantenimiento', 'otros'])
 
 const PROMPT = `Sos un asistente que lee facturas, tickets y recibos argentinos y extrae sus datos.
-Mirá la imagen y devolvé SOLO un JSON válido (sin explicaciones, sin markdown, sin \`\`\`) con esta forma EXACTA:
+Mirá la imagen o el documento (PDF) y devolvé SOLO un JSON válido (sin explicaciones, sin markdown, sin \`\`\`) con esta forma EXACTA:
 {"proveedor": string|null, "cuitProveedor": string|null, "tipoComprobante": string|null, "concepto": string, "monto": number, "fecha": "YYYY-MM-DD"|null, "vencimiento": "YYYY-MM-DD"|null, "contado": boolean, "numeroFactura": string|null, "categoria": string, "items": [{"descripcion": string, "nombreLimpio": string, "bultos": number, "unidadesPorBulto": number, "importe": number}]}
 Reglas:
 - "monto": el TOTAL A PAGAR (buscá el texto "TOTAL A PAGAR", o "TOTAL FACTURADO", o "TOTAL"). Devolvelo como ENTERO en pesos.
@@ -53,28 +53,44 @@ Reglas:
 
 // Extrae { proveedor, concepto, monto, fecha, numeroFactura, categoria } de una imagen dataURL.
 export async function extraerGastoDeImagen(dataUrl) {
-  const m = /^data:(image\/(?:jpeg|jpg|png|webp|gif));base64,(.+)$/s.exec((dataUrl || '').trim())
+  // Acepta imágenes (foto de la factura) o PDF (factura que llega por mail). Claude lee ambos.
+  const m = /^data:(image\/(?:jpeg|jpg|png|webp|gif)|application\/pdf);base64,(.+)$/s.exec((dataUrl || '').trim())
   if (!m) throw new Error('formato_imagen_invalido')
+  const esPdf = m[1] === 'application/pdf'
   const mediaType = m[1] === 'image/jpg' ? 'image/jpeg' : m[1]
   const data = m[2]
+  // El PDF va como bloque "document"; la imagen como "image".
+  const adjunto = esPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data } }
 
-  const resp = await client.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 400,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image', source: { type: 'base64', media_type: mediaType, data } },
-        { type: 'text', text: PROMPT },
-      ],
-    }],
-  })
+  // Lee la factura con un modelo y devuelve el JSON crudo, o lanza no_se_pudo_leer.
+  const leerCon = async (model) => {
+    const resp = await client.messages.create({
+      model,
+      max_tokens: 1500, // facturas con muchos ítems no se cortan (antes 400)
+      messages: [{
+        role: 'user',
+        content: [
+          adjunto,
+          { type: 'text', text: PROMPT },
+        ],
+      }],
+    })
+    const txt = (resp.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('')
+    const ini = txt.indexOf('{'), fin = txt.lastIndexOf('}')
+    if (ini < 0 || fin < 0) throw new Error('no_se_pudo_leer')
+    try { return JSON.parse(txt.slice(ini, fin + 1)) } catch { throw new Error('no_se_pudo_leer') }
+  }
 
-  const txt = (resp.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('')
-  const ini = txt.indexOf('{'), fin = txt.lastIndexOf('}')
-  if (ini < 0 || fin < 0) throw new Error('no_se_pudo_leer')
+  // Fallback en cascada: Haiku (rápido/barato) para el 90%; si no puede con una foto
+  // difícil, la rescata Sonnet (mejor OCR). Sonnet corre solo cuando Haiku falla.
   let raw
-  try { raw = JSON.parse(txt.slice(ini, fin + 1)) } catch { throw new Error('no_se_pudo_leer') }
+  try {
+    raw = await leerCon('claude-haiku-4-5')
+  } catch {
+    raw = await leerCon('claude-sonnet-5')
+  }
 
   const cat = String(raw.categoria || '').trim().toLowerCase()
   const contado = raw.contado === true

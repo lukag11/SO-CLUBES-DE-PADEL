@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
+import useWiarkyGastoStore from '../store/wiarkyGastoStore'
 import { api } from '../lib/api'
 import { useToast } from '../components/ui/ToastProvider'
 import { METODOS_CATALOGO, METODO_MAP, metodosDelClub, MetodoBadge } from '../lib/metodosPago'
@@ -688,6 +689,9 @@ const PagosPage = () => {
       if (primera) setTab(primera)
     }
   }, [permisos, esDueno]) // eslint-disable-line
+  // WIarky mandó una factura por el chat → saltamos a la tab Gastos (ahí GastosTab abre el modal).
+  const ocrPendiente = useWiarkyGastoStore((s) => s.datosOcr)
+  useEffect(() => { if (ocrPendiente && puedeTab('gastos')) setTab('gastos') }, [ocrPendiente]) // eslint-disable-line
   const [resumen, setResumen] = useState(null)
   const [deudas, setDeudas] = useState([])
   const [jugadores, setJugadores] = useState([])

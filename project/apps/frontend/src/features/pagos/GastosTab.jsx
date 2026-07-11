@@ -5,6 +5,7 @@ import { useToast } from '../../components/ui/ToastProvider'
 import { METODO_MAP, MetodoBadge } from '../../lib/metodosPago'
 import { generarReporteGastos, exportarGastosCSV } from './comprobantes'
 import useClubStore from '../../store/clubStore'
+import useWiarkyGastoStore from '../../store/wiarkyGastoStore'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
@@ -39,6 +40,25 @@ const esMismaFactura = (a, b) => {
 }
 
 const RUBROS_STOCK = ['bebidas', 'kiosco', 'deportivo']
+
+// Mapea el resultado del OCR (/gastos/extraer) al prefill del ModalGasto. Fuente única:
+// lo usan el botón "Subir factura con IA" de acá Y el flujo de foto de WIarky.
+const CAT_IA = { servicios: 'Servicios', alquiler: 'Alquiler', sueldos: 'Sueldos', impuestos: 'Impuestos', bebidas: 'Bebidas', kiosco: 'Kiosco', deportivo: 'Tienda deportiva', insumos: 'Insumos', mantenimiento: 'Mantenimiento', otros: 'Otros' }
+const datosAPrefill = (datos) => ({
+  proveedor: datos.proveedor || '',
+  cuitProveedor: datos.cuitProveedor || '',
+  tipoComprobante: datos.tipoComprobante || '',
+  concepto: datos.concepto || '',
+  monto: datos.monto || '',
+  categoria: CAT_IA[datos.categoria] || 'Otros',
+  fecha: datos.fecha || hoy(),
+  vencimiento: datos.vencimiento || '',
+  // CONTADO → ya pagada. Si es a crédito con vencimiento futuro → "A pagar".
+  pagado: datos.contado ? true : !datos.vencimiento,
+  numeroFactura: datos.numeroFactura || '',
+  items: Array.isArray(datos.items) ? datos.items : [],
+  categoriaKey: datos.categoria, // rubro crudo (bebidas/kiosco/deportivo) para sugerir cargar al stock
+})
 
 const ModalGasto = ({ gasto, prefill, existentes = [], productos = [], metodos, token, onSave, onClose, saving }) => {
   const editing = !!gasto
@@ -307,7 +327,7 @@ const ModalTipsIA = ({ onCancel, onContinuar }) => {
           <div className="mx-auto w-14 h-14 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center mb-3 ring-1 ring-white/20">
             <Camera size={26} className="text-white" />
           </div>
-          <p className="text-white font-bold text-lg leading-tight">Sacá la mejor foto</p>
+          <p className="text-white font-bold text-lg leading-tight">Foto o PDF de la factura</p>
           <p className="text-white/80 text-xs mt-1">La IA lee lo que ve — ayudala y carga todo sola 🎾</p>
         </div>
 
@@ -323,7 +343,7 @@ const ModalTipsIA = ({ onCancel, onContinuar }) => {
             ))}
           </div>
 
-          <p className="text-center text-[11px] text-slate-400 mt-3">Que se lean el <b className="text-slate-500">total</b>, el <b className="text-slate-500">proveedor</b> y el <b className="text-slate-500">detalle</b>.</p>
+          <p className="text-center text-[11px] text-slate-400 mt-3">Que se lean el <b className="text-slate-500">total</b>, el <b className="text-slate-500">proveedor</b> y el <b className="text-slate-500">detalle</b>. <span className="text-slate-500">¿Te llegó por mail? Subí el PDF directo</span> 👌</p>
 
           {/* Aviso honesto */}
           <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 mt-3">
@@ -338,7 +358,7 @@ const ModalTipsIA = ({ onCancel, onContinuar }) => {
             </label>
             <div className="flex gap-2">
               <button onClick={onCancel} className="px-4 py-2.5 rounded-xl text-slate-500 font-medium text-sm hover:bg-slate-100 transition-colors">Cancelar</button>
-              <button onClick={() => onContinuar(noMostrar)} className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors flex items-center gap-2 shadow-sm shadow-brand-500/30"><Camera size={15} /> Elegir foto</button>
+              <button onClick={() => onContinuar(noMostrar)} className="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors flex items-center gap-2 shadow-sm shadow-brand-500/30"><Camera size={15} /> Elegir foto o PDF</button>
             </div>
           </div>
         </div>
@@ -382,6 +402,13 @@ const GastosTab = ({ token, metodos }) => {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  // WIarky mandó una factura por el chat → abrimos el ModalGasto prellenado (reusa la revisión).
+  const datosOcr = useWiarkyGastoStore((s) => s.datosOcr)
+  const limpiarOcr = useWiarkyGastoStore((s) => s.limpiar)
+  useEffect(() => {
+    if (datosOcr) { setModal({ nuevo: true, prefill: datosAPrefill(datosOcr) }); limpiarOcr() }
+  }, [datosOcr, limpiarOcr])
+
   const categoriasGasto = [...new Set(gastos.map((g) => g.categoria).filter(Boolean))].sort()
   const proveedoresGasto = [...new Set(gastos.map((g) => g.proveedor).filter(Boolean))].sort()
   const visibles = gastos.filter((g) =>
@@ -412,8 +439,6 @@ const GastosTab = ({ token, metodos }) => {
     try { if (localStorage.getItem('gastos_ia_tips_ok') === '1') { fileRef.current?.click(); return } } catch { /* */ }
     setTipsIA(true)
   }
-  const CAT_IA = { servicios: 'Servicios', alquiler: 'Alquiler', sueldos: 'Sueldos', impuestos: 'Impuestos', bebidas: 'Bebidas', kiosco: 'Kiosco', deportivo: 'Tienda deportiva', insumos: 'Insumos', mantenimiento: 'Mantenimiento', otros: 'Otros' }
-
   const subirConIA = async (file) => {
     if (!file) return
     setLeyendoIA(true)
@@ -427,21 +452,7 @@ const GastosTab = ({ token, metodos }) => {
       // La IA lee la factura (como un scanner): extrae los datos y descarta la imagen.
       // No se guarda la foto — todo lo que importa queda en los campos estructurados.
       const datos = await api.post('/gastos/extraer', { image: dataUrl }, { Authorization: `Bearer ${token}` })
-      setModal({ nuevo: true, prefill: {
-        proveedor: datos.proveedor || '',
-        cuitProveedor: datos.cuitProveedor || '',
-        tipoComprobante: datos.tipoComprobante || '',
-        concepto: datos.concepto || '',
-        monto: datos.monto || '',
-        categoria: CAT_IA[datos.categoria] || 'Otros',
-        fecha: datos.fecha || hoy(),
-        vencimiento: datos.vencimiento || '',
-        // CONTADO → ya pagada. Si es a crédito con vencimiento futuro → "A pagar".
-        pagado: datos.contado ? true : !datos.vencimiento,
-        numeroFactura: datos.numeroFactura || '',
-        items: Array.isArray(datos.items) ? datos.items : [],
-        categoriaKey: datos.categoria, // rubro crudo (bebidas/kiosco/deportivo) para sugerir cargar al stock
-      } })
+      setModal({ nuevo: true, prefill: datosAPrefill(datos) })
     } catch (err) {
       showToast('error', err?.message || 'No pude leer la factura. Probá con una foto más nítida.')
     } finally { setLeyendoIA(false) }
@@ -474,7 +485,7 @@ const GastosTab = ({ token, metodos }) => {
     <div className="flex flex-col gap-6">
       {/* Header acción */}
       <div className="flex items-center justify-end gap-2 flex-wrap">
-        <input ref={fileRef} type="file" accept="image/*" className="hidden"
+        <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; subirConIA(f) }} />
         <button onClick={abrirSelectorIA} disabled={leyendoIA}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-brand-500 text-brand-600 hover:bg-brand-50 font-semibold text-sm transition-colors disabled:opacity-60">

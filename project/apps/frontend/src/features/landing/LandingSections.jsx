@@ -2,18 +2,28 @@
 // Galería, Servicios, Staff, FAQ, TurnosDisponibles — cada template las importa y adapta su wrapper visual
 
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   ShowerHead, Car, GraduationCap, Wifi, Coffee,
   Dumbbell, Shield, Wind, Utensils, Music, Wrench,
   CalendarDays, CheckCircle, Lock, Trophy, Zap, Users, Medal, Swords, UserPlus,
-  MapPin, Phone, Navigation, ArrowRight,
+  MapPin, Phone, Navigation, ArrowRight, Clock, X,
 } from 'lucide-react'
 import usePlayerStore from '../../store/playerStore'
 import useTorneosStore from '../../store/torneosStore'
 import { overlaps, generateFranjas, toMin } from '../../utils/timeUtils'
 import MapaUbicacion from '../../components/ubicacion/MapaUbicacion'
+import Reveal from '../../components/ui/Reveal'
+
+// Encabezado de sección unificado: display Anton en mayúscula + aparición al scrollear.
+export const SectionTitle = ({ titulo, subtitulo, dark = true }) => (
+  <Reveal className="text-center mb-12">
+    <h2 className={`font-display uppercase text-4xl md:text-5xl tracking-tight ${dark ? 'text-white' : 'text-slate-900'}`}>{titulo}</h2>
+    {subtitulo && <p className={`mt-3 ${dark ? 'text-white/40' : 'text-slate-500'}`}>{subtitulo}</p>}
+  </Reveal>
+)
 
 // Íconos de marca (SVG). Usan currentColor → toman el color del contenedor.
 const WhatsAppIcon = ({ size = 17, className }) => (
@@ -49,7 +59,7 @@ export const TorneoBanner = ({ colorPrimario = '#afca0b', dark = true }) => {
   if (!torneo) return null
 
   return (
-    <section className="py-12 px-6 relative overflow-hidden" style={{ background: dark ? 'linear-gradient(135deg,#0a0a12 0%,#0d1117 100%)' : 'linear-gradient(135deg,#f1f5f9 0%,#ffffff 100%)' }}>
+    <section className="py-12 px-6 relative overflow-hidden" style={{ background: dark ? '#0d1117' : 'linear-gradient(135deg,#f1f5f9 0%,#ffffff 100%)' }}>
       <div className="max-w-5xl mx-auto">
         <div className={`relative rounded-3xl overflow-hidden border p-8 ${dark ? 'border-white/8 bg-white/3' : 'border-slate-200 bg-white shadow-sm'}`}>
           <div className="absolute -top-20 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none" style={{ backgroundColor: colorPrimario, opacity: 0.06 }} />
@@ -109,57 +119,59 @@ export const AmericanoSuper8Section = ({ colorPrimario = '#afca0b', dark = true 
 
   return (
     <section id="americano-super8" className="py-14 px-6 relative overflow-hidden"
-      style={{ background: dark ? 'linear-gradient(135deg,#0a0a12 0%,#0d1117 100%)' : 'linear-gradient(135deg,#f1f5f9 0%,#ffffff 100%)' }}>
-      <div className="max-w-5xl mx-auto">
-        <div className={`relative rounded-3xl overflow-hidden border p-8 md:p-10 ${dark ? 'border-white/8 bg-white/3' : 'border-slate-200 bg-white shadow-sm'}`}>
-          <div className="absolute -top-24 -right-10 w-96 h-96 rounded-full blur-3xl pointer-events-none" style={{ backgroundColor: colorPrimario, opacity: 0.08 }} />
+      style={{ background: dark ? '#0d1117' : 'linear-gradient(135deg,#f1f5f9 0%,#ffffff 100%)' }}>
+      {/* glow ambiental de la sección */}
+      <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full blur-3xl pointer-events-none" style={{ backgroundColor: colorPrimario, opacity: 0.06 }} />
 
-          <div className="relative flex flex-col md:flex-row gap-8 md:items-center">
-            {/* Pitch */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] px-2 py-1 rounded-full"
-                  style={{ color: colorPrimario, backgroundColor: `${colorPrimario}18`, border: `1px solid ${colorPrimario}30` }}>
-                  Gratis · sin registrarte
-                </span>
+      <div className="relative max-w-5xl mx-auto">
+        {/* Header centrado */}
+        <div className="text-center max-w-2xl mx-auto mb-9">
+          <span className="inline-block text-[10px] font-bold uppercase tracking-[0.18em] px-3 py-1 rounded-full"
+            style={{ color: colorPrimario, backgroundColor: `${colorPrimario}18`, border: `1px solid ${colorPrimario}30` }}>
+            La herramienta es gratis
+          </span>
+          <h2 className={`text-2xl md:text-4xl font-bold leading-tight mt-4 ${dark ? 'text-white' : 'text-slate-900'}`}>
+            Armá tu <span style={{ color: colorPrimario }}>Americano</span> o <span style={{ color: colorPrimario }}>Super 8</span>
+          </h2>
+          <p className={`text-sm md:text-base mt-3 leading-relaxed ${dark ? 'text-white/50' : 'text-slate-600'}`}>
+            ¿Se juntan a jugar? Organizá el fixture y llevá el ranking en vivo desde el celu, en segundos. Sin planillas.
+          </p>
+        </div>
+
+        {/* Dos formatos enfrentados */}
+        <div className="relative grid md:grid-cols-2 gap-4 md:gap-5">
+          {modos.map(({ icon: Icon, titulo, desc }) => (
+            <div
+              key={titulo}
+              className={`group relative rounded-3xl border p-6 md:p-8 flex flex-col transition-all duration-200 hover:-translate-y-1 ${dark ? 'border-white/8 bg-white/[0.03] hover:bg-white/[0.05] hover:border-white/15' : 'border-slate-200 bg-white shadow-sm hover:shadow-md'}`}
+            >
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ backgroundColor: `${colorPrimario}18` }}>
+                <Icon size={22} style={{ color: colorPrimario }} />
               </div>
-              <h2 className={`text-2xl md:text-3xl font-bold leading-tight ${dark ? 'text-white' : 'text-slate-900'}`}>
-                Armá tu <span style={{ color: colorPrimario }}>Americano</span> o <span style={{ color: colorPrimario }}>Super 8</span>
-              </h2>
-              <p className={`text-sm md:text-base mt-3 leading-relaxed ${dark ? 'text-white/50' : 'text-slate-600'}`}>
-                ¿Se juntan a jugar? Organizá el fixture y llevá el ranking en vivo desde el celu, en segundos. Sin planillas, sin cuentas.
-              </p>
-
-              {/* Modalidades */}
-              <div className="grid sm:grid-cols-2 gap-3 mt-6">
-                {modos.map(({ icon: Icon, titulo, desc }) => (
-                  <div key={titulo} className={`rounded-2xl p-4 border ${dark ? 'border-white/8 bg-white/4' : 'border-slate-200 bg-slate-50'}`}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: `${colorPrimario}18` }}>
-                        <Icon size={15} style={{ color: colorPrimario }} />
-                      </span>
-                      <span className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>{titulo}</span>
-                    </div>
-                    <p className={`text-xs leading-snug ${dark ? 'text-white/40' : 'text-slate-500'}`}>{desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* CTA */}
-            <div className="shrink-0 md:w-52">
-              <button onClick={() => navigate('/eventos')}
-                className="w-full font-bold py-4 px-6 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm"
-                style={{ backgroundColor: colorPrimario, color: '#080b0f', boxShadow: `0 12px 32px -10px ${colorPrimario}99` }}>
-                <Zap size={17} /> Armá tu evento
+              <h3 className={`text-xl font-bold mt-4 ${dark ? 'text-white' : 'text-slate-900'}`}>{titulo}</h3>
+              <p className={`text-sm mt-2 leading-relaxed flex-1 ${dark ? 'text-white/45' : 'text-slate-500'}`}>{desc}</p>
+              <button
+                onClick={() => navigate('/eventos')}
+                className="mt-6 w-full inline-flex items-center justify-center gap-2 font-bold py-3.5 px-6 rounded-2xl text-sm transition-all active:scale-[0.98]"
+                style={{ backgroundColor: `${colorPrimario}14`, color: colorPrimario, border: `1px solid ${colorPrimario}30` }}
+              >
+                Armar {titulo} <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
               </button>
-              <p className={`text-[11px] text-center mt-3 ${dark ? 'text-white/30' : 'text-slate-400'}`}>
-                Listo en menos de un minuto
-              </p>
             </div>
+          ))}
+
+          {/* Divisor "o" en el centro (desktop) */}
+          <div
+            className={`hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full items-center justify-center text-sm font-black ${dark ? 'text-white/60' : 'text-slate-500'}`}
+            style={{ backgroundColor: dark ? '#0d1117' : '#ffffff', border: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : '#e2e8f0'}` }}
+          >
+            o
           </div>
         </div>
+
+        <p className={`text-center text-[11px] mt-5 ${dark ? 'text-white/30' : 'text-slate-400'}`}>
+          Gratis · registrate para invitar
+        </p>
       </div>
     </section>
   )
@@ -177,7 +189,7 @@ export const PartidosAbiertosSection = ({ colorPrimario = '#afca0b', dark = true
   ]
   return (
     <section id="partidos-abiertos" className="py-16 px-6 relative overflow-hidden"
-      style={{ background: dark ? '#0a0f0d' : '#f8fafc' }}>
+      style={{ background: dark ? '#0d1117' : '#f8fafc' }}>
       {/* glow lateral (distinto al banner de Americano, que es un recuadro) */}
       <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(55% 80% at 90% 40%, ${colorPrimario}14, transparent 60%)` }} />
       <div className="relative max-w-4xl mx-auto text-center">
@@ -1252,21 +1264,99 @@ export const ServicioIcon = ({ icono, size = 20, className }) => {
 
 // ─── Galería ─────────────────────────────────────────────────────────────────
 
-export const GaleriaGrid = ({ galeria, className = '' }) => {
+export const GaleriaGrid = ({ galeria, className = '', variant = 'grid' }) => {
+  const [lightbox, setLightbox] = useState(null)
+
+  // Teclado + bloqueo de scroll mientras el lightbox está abierto
+  useEffect(() => {
+    if (lightbox === null || !galeria?.length) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setLightbox(null)
+      else if (e.key === 'ArrowLeft') setLightbox((v) => (v === null ? v : (v - 1 + galeria.length) % galeria.length))
+      else if (e.key === 'ArrowRight') setLightbox((v) => (v === null ? v : (v + 1) % galeria.length))
+    }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
+  }, [lightbox, galeria])
+
   if (!galeria?.length) return null
-  return (
+
+  const nav = (dir) => setLightbox((v) => (v === null ? v : (v + dir + galeria.length) % galeria.length))
+
+  const grid = variant === 'mosaico' && galeria.length >= 3 ? (
+    // Mosaico: primera foto destacada (2x2) + el resto en piezas chicas.
     <div className={`grid grid-cols-2 md:grid-cols-4 gap-3 ${className}`}>
-      {galeria.map((foto) => (
-        <div key={foto.id} className="relative group rounded-xl overflow-hidden aspect-video">
+      {galeria.map((foto, i) => (
+        <button
+          key={foto.id}
+          onClick={() => setLightbox(i)}
+          className={`relative group block w-full overflow-hidden rounded-2xl border border-white/8 cursor-zoom-in ${i === 0 ? 'col-span-2 aspect-video md:row-span-2 md:aspect-auto' : 'aspect-[4/3]'}`}
+        >
+          <img src={foto.url} alt={foto.caption} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          {foto.caption && (
+            <div className="absolute inset-x-0 bottom-0 p-3 pt-10 bg-gradient-to-t from-black/75 via-black/20 to-transparent text-left">
+              <p className={`text-white font-semibold drop-shadow ${i === 0 ? 'text-sm' : 'text-xs'}`}>{foto.caption}</p>
+            </div>
+          )}
+        </button>
+      ))}
+    </div>
+  ) : (
+    <div className={`grid grid-cols-2 md:grid-cols-4 gap-3 ${className}`}>
+      {galeria.map((foto, i) => (
+        <button key={foto.id} onClick={() => setLightbox(i)} className="relative group block w-full rounded-xl overflow-hidden aspect-video cursor-zoom-in">
           <img src={foto.url} alt={foto.caption} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
           {foto.caption && (
             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
-              <p className="text-white text-xs font-medium">{foto.caption}</p>
+              <p className="text-white text-xs font-medium text-left">{foto.caption}</p>
             </div>
           )}
-        </div>
+        </button>
       ))}
     </div>
+  )
+
+  return (
+    <>
+      {grid}
+      {lightbox !== null && createPortal(
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 sm:p-10"
+          style={{ animation: 'fadeInUp 0.2s ease-out' }}
+          onClick={() => setLightbox(null)}
+        >
+          {/* Cerrar */}
+          <button onClick={() => setLightbox(null)} aria-label="Cerrar"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white transition-colors">
+            <X size={20} />
+          </button>
+
+          {/* Navegación */}
+          {galeria.length > 1 && (
+            <>
+              <button onClick={(e) => { e.stopPropagation(); nav(-1) }} aria-label="Anterior"
+                className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white transition-colors">
+                <ChevronLeft size={22} />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); nav(1) }} aria-label="Siguiente"
+                className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white transition-colors">
+                <ChevronRight size={22} />
+              </button>
+            </>
+          )}
+
+          {/* Imagen */}
+          <figure className="max-w-5xl max-h-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <img src={galeria[lightbox].url} alt={galeria[lightbox].caption} className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl" />
+            {galeria[lightbox].caption && <figcaption className="text-white/70 text-sm mt-4 text-center px-4">{galeria[lightbox].caption}</figcaption>}
+            {galeria.length > 1 && <p className="text-white/30 text-xs mt-2 tabular-nums">{lightbox + 1} / {galeria.length}</p>}
+          </figure>
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 
@@ -1280,14 +1370,15 @@ export const ServiciosGrid = ({ servicios, colorPrimario, dark = true }) => {
       {activos.map((s) => (
         <div
           key={s.id}
-          className={`flex items-start gap-4 p-5 rounded-2xl border ${dark ? 'bg-white/5 border-white/8' : 'bg-white border-slate-100 shadow-sm'}`}
+          style={{ '--clr': colorPrimario }}
+          className={`group flex items-start gap-4 p-6 rounded-2xl border transition-all duration-200 hover:-translate-y-1 hover:border-[color-mix(in_srgb,var(--clr)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--clr)_12%,transparent)] ${dark ? 'bg-white/5 border-white/8' : 'bg-white border-slate-100 shadow-sm'}`}
         >
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${colorPrimario}20` }}>
-            <ServicioIcon icono={s.icono} size={20} style={{ color: colorPrimario }} />
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110" style={{ backgroundColor: `${colorPrimario}20` }}>
+            <ServicioIcon icono={s.icono} size={24} style={{ color: colorPrimario }} />
           </div>
           <div>
-            <p className={`font-semibold text-sm mb-1 ${dark ? 'text-white' : 'text-slate-800'}`}>{s.titulo}</p>
-            <p className={`text-xs leading-relaxed ${dark ? 'text-white/45' : 'text-slate-500'}`}>{s.descripcion}</p>
+            <p className={`font-bold text-lg mb-1 ${dark ? 'text-white' : 'text-slate-800'}`}>{s.titulo}</p>
+            <p className={`text-sm leading-relaxed ${dark ? 'text-white/50' : 'text-slate-500'}`}>{s.descripcion}</p>
           </div>
         </div>
       ))}
@@ -1348,6 +1439,8 @@ const FaqItemLanding = ({ item, colorPrimario, dark }) => {
     </div>
   )
 }
+
+export { hayContacto } from './landingUtils' // re-export (los templates lo importan de acá)
 
 // Sección de contacto: datos del club + redes + mapa (read-only) + botón "Cómo llegar".
 export const ContactoSection = ({ club, colorPrimario = '#afca0b', dark = true }) => {
@@ -1507,7 +1600,7 @@ const KEYFRAMES = `
   }
 `
 
-export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dark = true }) => {
+export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dark = true, variant = 'columns' }) => {
   const navigate = useNavigate()
   const isAuthenticated = usePlayerStore((s) => s.isAuthenticated)
   const torneos = useTorneosStore((s) => s.torneos)
@@ -1679,6 +1772,72 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
         )}
 
         {/* ── HEADER: live badge + counter + selector de días ─────────────────── */}
+        {variant === 'matrix' ? (
+          <div className="flex flex-col gap-3.5">
+            {/* Fila compacta: en vivo + contador inline */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Píldora EN VIVO */}
+              <div className={`inline-flex items-center gap-2 rounded-full pl-2 pr-3 py-1.5 border ${dark ? 'bg-white/[0.04] border-white/8' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="relative w-3.5 h-3.5 flex items-center justify-center shrink-0">
+                  <div className="absolute inset-0 rounded-full" style={{ backgroundColor: cp, opacity: 0.2, animation: 'td-ring 1.8s ease-out infinite' }} />
+                  <div className="absolute inset-0 rounded-full" style={{ backgroundColor: cp, opacity: 0.12, animation: 'td-ring 1.8s ease-out infinite 0.6s' }} />
+                  <div className="w-1.5 h-1.5 rounded-full relative z-10" style={{ backgroundColor: cp }} />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: cp }}>En vivo</span>
+              </div>
+
+              {/* Contador */}
+              {torneoDelDia ? (
+                <span className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-800'}`}>Torneo en curso — sin turnos este día</span>
+              ) : horarioDia?.activo ? (
+                <div className="flex items-baseline gap-2">
+                  <span key={`${totalLibres}-${fechaStr}`} className="text-3xl font-black tabular-nums leading-none" style={{ color: cp, animation: 'td-num-pop 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>{totalLibres}</span>
+                  <span className={`text-base font-bold ${dark ? 'text-white' : 'text-slate-800'}`}>turno{totalLibres !== 1 ? 's' : ''} libre{totalLibres !== 1 ? 's' : ''}</span>
+                  <span className={`hidden sm:flex items-center gap-1.5 text-[11px] ml-1 ${dark ? 'text-white/25' : 'text-slate-400'}`}>
+                    <Clock size={11} />{horarioDia.apertura}–{horarioDia.cierre} hs
+                  </span>
+                </div>
+              ) : (
+                <span className={`text-sm font-bold ${dark ? 'text-white/25' : 'text-slate-400'}`}>Club cerrado hoy</span>
+              )}
+
+              {/* Chip de fecha */}
+              <div className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 border text-[11px] font-medium capitalize ${dark ? 'bg-white/[0.04] border-white/8 text-white/40' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                <CalendarDays size={12} style={{ color: cp }} />
+                {diaOffset === 0 ? 'Hoy · ' : ''}{DIAS_CORTOS[diaActual.getDay()]} {diaActual.getDate()}
+              </div>
+            </div>
+            {/* Tabs de días a todo el ancho */}
+            <div className="grid grid-cols-7 gap-1.5">
+              {Array.from({ length: 7 }, (_, i) => {
+                const d = addDaysTo(hoy, i)
+                const sel = i === diaOffset
+                const esTorneo = esDiaTorneo(d)
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setDiaOffset(i)}
+                    className={[
+                      'flex flex-col items-center w-full py-2 rounded-xl border text-center transition-all duration-200',
+                      esTorneo && !sel ? (dark ? 'border-white/4 text-white/15' : 'border-slate-100 text-slate-300') : '',
+                      !esTorneo && !sel && dark  ? 'border-white/6 text-white/30 hover:text-white hover:bg-white/5 hover:border-white/15' : '',
+                      !esTorneo && !sel && !dark ? 'border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50' : '',
+                    ].join(' ')}
+                    style={sel && esTorneo
+                      ? { backgroundColor: `${cp}10`, borderColor: `${cp}30`, color: dark ? 'rgba(255,255,255,0.3)' : '#94a3b8' }
+                      : sel
+                      ? { backgroundColor: `${cp}18`, borderColor: `${cp}50`, color: cp }
+                      : {}}
+                  >
+                    <span className="text-[8px] font-black uppercase leading-none mb-0.5">{i === 0 ? 'Hoy' : DIAS_CORTOS[d.getDay()]}</span>
+                    <span className="text-[15px] font-black leading-tight">{d.getDate()}</span>
+                    {esTorneo && <span className="text-[7px] leading-none mt-0.5 opacity-60" style={{ color: cp }}>torneo</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ) : (
         <div className="flex flex-col sm:flex-row sm:items-end gap-5">
 
           {/* Counter */}
@@ -1774,6 +1933,7 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
             </button>
           </div>
         </div>
+        )}
 
         {/* ── NOTIFICACIÓN: Cancha liberada ─────────────────────────────────── */}
         {recentlyFreed.map((freed) => (
@@ -1854,6 +2014,119 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
               </div>
             ))}
           </div>
+        ) : variant === 'matrix' ? (
+          (() => {
+            // Unión de todos los horarios (las canchas pueden tener franjas propias)
+            const times = [...new Set(dataPorCancha.flatMap((d) => d.slots.map((s) => s.inicio)))]
+              .sort((a, b) => toMin(a) - toMin(b))
+            const finDe = (t) => {
+              for (const d of dataPorCancha) { const s = d.slots.find((x) => x.inicio === t); if (s) return s.fin }
+              return ''
+            }
+            const colBorder = dark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'
+            const gridCols = { gridTemplateColumns: `minmax(58px, 84px) repeat(${dataPorCancha.length}, minmax(0, 1fr))` }
+            return (
+              <div className="overflow-x-auto -mx-1 px-1">
+                <div
+                  className="rounded-2xl overflow-hidden"
+                  style={{
+                    minWidth: dataPorCancha.length > 2 ? `${88 + dataPorCancha.length * 120}px` : undefined,
+                    backgroundColor: dark ? 'rgba(255,255,255,0.03)' : 'white',
+                    border: dark ? '1px solid rgba(255,255,255,0.07)' : '1px solid #f1f5f9',
+                    boxShadow: !dark ? '0 1px 4px rgba(0,0,0,0.06)' : undefined,
+                  }}
+                >
+                  {/* Cabecera: canchas */}
+                  <div className="grid" style={gridCols}>
+                    <div className="px-3 py-3" />
+                    {dataPorCancha.map(({ cancha, libres }) => {
+                      const hayFreed = recentlyFreed.some((r) => r.canchaId === cancha.id)
+                      return (
+                        <div key={cancha.id} className="px-3 py-3.5 text-center" style={{ borderLeft: `1px solid ${colBorder}` }}>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <p className={`font-black text-base truncate ${dark ? 'text-white' : 'text-slate-800'}`}>{cancha.nombre}</p>
+                            {hayFreed && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: '#10b981', animation: 'td-float 1.8s ease-in-out infinite' }} />}
+                          </div>
+                          <p className={`text-[11px] mt-0.5 ${dark ? 'text-white/30' : 'text-slate-400'}`}>{cancha.tipo} · {cancha.indoor ? 'Indoor' : 'Outdoor'}</p>
+                          <p className="text-[11px] font-black uppercase tracking-wide mt-1.5" style={{ color: cp }}>{libres} libre{libres !== 1 ? 's' : ''}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Filas por horario */}
+                  {times.map((t) => (
+                    <div key={t} className="grid" style={{ ...gridCols, borderTop: `1px solid ${colBorder}` }}>
+                      <div className={`px-3 py-2 flex flex-col justify-center ${dark ? 'text-white/50' : 'text-slate-400'}`}>
+                        <span className="text-sm font-bold tabular-nums leading-none">{t}</span>
+                        <span className="text-[10px] leading-none mt-1 opacity-60 tabular-nums">{finDe(t)}</span>
+                      </div>
+                      {dataPorCancha.map((d) => {
+                        const slot = d.slots.find((s) => s.inicio === t)
+                        if (!slot) return <div key={d.cancha.id} style={{ borderLeft: `1px solid ${colBorder}` }} />
+                        if (!slot.libre || slot.pasado) {
+                          return (
+                            <div key={d.cancha.id} className="flex items-center justify-center py-2 px-2" style={{ borderLeft: `1px solid ${colBorder}` }}>
+                              <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.18)' }}>
+                                {slot.pasado ? 'Pasado' : 'Ocupado'}
+                              </span>
+                            </div>
+                          )
+                        }
+                        const recienLiberado = isRecienLiberado(d.cancha.id, slot.inicio)
+                        return (
+                          <div key={d.cancha.id} className="p-1.5" style={{ borderLeft: `1px solid ${colBorder}` }}>
+                            <button
+                              onClick={() => {
+                                if (!isAuthenticated) { onCta(); return }
+                                navigate('/dashboardJugadores/reservas', { state: { canchaId: d.cancha.id, fechaStr, hora: slot.inicio } })
+                              }}
+                              className="group relative w-full min-h-[40px] rounded-lg text-[13px] font-black flex items-center justify-center gap-1.5 transition-all duration-150 hover:brightness-110 active:scale-[0.97] overflow-hidden"
+                              style={{
+                                backgroundColor: recienLiberado ? 'rgba(16,185,129,0.14)' : `${cp}12`,
+                                color: recienLiberado ? '#10b981' : cp,
+                                border: recienLiberado ? '1px solid rgba(16,185,129,0.35)' : `1px solid ${cp}28`,
+                                animation: recienLiberado ? 'td-slot-glow 1.6s ease-in-out infinite' : 'none',
+                              }}
+                            >
+                              <div className="absolute inset-y-0 w-1/3 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"
+                                style={{ background: `linear-gradient(90deg,transparent,${recienLiberado ? 'rgba(16,185,129,0.15)' : `${cp}25`},transparent)`, animation: 'td-scan 1.4s ease-in-out' }} />
+                              {!isAuthenticated && <Lock size={11} className="relative z-10" />}
+                              <span className="relative z-10 uppercase tracking-wider">{isAuthenticated ? 'Reservar' : 'Ver'}</span>
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ))}
+
+                  {/* Pie: ocupación por cancha */}
+                  <div className="grid" style={{ ...gridCols, borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.07)' : '#eef1f4'}` }}>
+                    <div className={`px-3 py-2.5 flex items-center ${dark ? 'text-white/25' : 'text-slate-300'}`}>
+                      <span className="text-[10px] font-black uppercase tracking-[0.12em]">Ocup.</span>
+                    </div>
+                    {dataPorCancha.map((d) => {
+                      const pctOcupado = Math.round(((d.slots.length - d.libres) / Math.max(d.slots.length, 1)) * 100)
+                      const fillColor = pctOcupado > 70 ? '#f87171' : pctOcupado > 40 ? '#fbbf24' : cp
+                      return (
+                        <div key={d.cancha.id} className="px-3 py-2.5" style={{ borderLeft: `1px solid ${colBorder}` }}>
+                          <div className="flex items-center justify-end mb-1.5">
+                            <span className="text-[11px] font-black tabular-nums" style={{ color: fillColor }}>{pctOcupado}%</span>
+                          </div>
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: 8 }, (_, i) => {
+                              const filled = i < Math.round(pctOcupado / 12.5)
+                              return <div key={i} className="flex-1 h-1 rounded-full transition-all duration-700" style={{ backgroundColor: filled ? fillColor : dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)', boxShadow: filled ? `0 0 4px ${fillColor}80` : 'none' }} />
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )
+          })()
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">
             {dataPorCancha.map(({ cancha, slots, libres }) => {

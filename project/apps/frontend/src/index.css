@@ -47,6 +47,13 @@
   font-family: var(--club-font, 'Inter', system-ui, sans-serif);
 }
 
+/* Display deportiva (títulos y números grandes de la landing) — Anton, condensada de impacto. */
+.font-display {
+  font-family: 'Anton', 'Space Grotesk', system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
@@ -91,6 +98,26 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .animate-\[fadeInUp_\.35s_ease-out\] { animation: none !important; }
+}
+
+/* Aurora: glows de fondo de la landing que se mueven lento (deja de estar quieto el fondo). */
+@keyframes auroraDrift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(40px, -30px) scale(1.12); }
+}
+/* Nudge: empujoncito para el indicador de scroll del hero. */
+@keyframes nudge {
+  0%, 100% { transform: translateY(0); opacity: .5; }
+  50%      { transform: translateY(7px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora, .animate-\[nudge_1\.8s_ease-in-out_infinite\] { animation: none !important; }
+}
+
+/* Textura de ruido sutil (evita el look plano/plástico en fondos oscuros). */
+.noise-overlay {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.03;
 }
 
 /* Shake — validación de campos requeridos */

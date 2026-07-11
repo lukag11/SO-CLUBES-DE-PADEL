@@ -7,6 +7,16 @@
 
 ---
 
+## 2026-07-11 · OP-LANDING-DISEÑO · Rediseño visual de la landing pública del club (de "plana" a premium deportiva)
+
+**Hueco / razón:** la landing es la cara comercial del club y hoy se ve estática. La base técnica ya está (dark, `colorPrimario` configurable, glass, glows) pero le falta la capa que hace sentir premium en 2026: display tipográfica expresiva, foto full-bleed con gradiente direccional (no cortina negra plana), jerarquía bento, y motion sutil (scroll-reveals + micro-hovers). Todo hacible en React+Tailwind sin backend nuevo. Fuente: hallazgos 2026-07-11.
+
+**Impacto:** ALTO — es lo primero que ve un jugador nuevo y lo que el dueño muestra para vender su club; diferenciador de venta del propio SaaS ("mirá qué landing te doy"). **Esfuerzo:** MEDIO — ejecución de CSS/JSX sobre estructura existente; el grueso es una fuente display + gradientes + IntersectionObserver + rework de grilla. **Estado:** nueva.
+
+**Los 6 movimientos (detalle en el entregable a Luca):** (A) hero con display condensada + foto/gradiente/bento + un CTA dominante; (B) secciones con bento + números grandes + iconografía consistente; (C) tipografía: display condensada (Bebas/Anton/Archivo/Saira) + Space Grotesk/Inter ya cargadas; (D) acento del club como glow/gradient border + neutros fríos, evitar chatura; (E) motion: scroll-reveal (fade+translate), hover scale+shadow, evitar autoplay video y blur pesado en mobile; (F) 5 errores a no cometer (cortina negra plana, cards clon sin jerarquía, stock photos, tipografía tibia, cero movimiento).
+
+---
+
 ## 2026-07-10 · OP-VOZ-1 · Entrada por voz (DICTADO) en WIarky, nivel pro
 
 **Hueco de mercado:** ningún software de gestión de pádel documenta dictado por voz owner-facing. Playtomic pone su IA de voz del lado del jugador, no del dueño. Un dueño parado en el club, celular en mano, con ruido, apurado, es EXACTAMENTE el caso donde tipear molesta y hablar gana. Fuente: hallazgos 2026-07-10.

@@ -2,7 +2,7 @@
 // Hero fullscreen con imagen, texto centrado superpuesto, degradado dramático.
 
 import { Zap, CalendarDays, Trophy, Users, ArrowRight, ChevronDown } from 'lucide-react'
-import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection } from './LandingSections'
+import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection, hayContacto } from './LandingSections'
 
 const FEATURES = [
   { icon: CalendarDays, title: 'Reservas online',  desc: 'Reservá tu cancha en segundos, 24/7, desde cualquier dispositivo.' },
@@ -205,15 +205,17 @@ const Template2 = ({ club, onCta, onTorneos }) => {
       </section>
 
       {/* CONTACTO */}
-      <section id="contacto" className="py-24 px-6 bg-black/20">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-white">Contacto</h2>
-            <p className="text-white/40 mt-3">Escribinos o pasá a visitarnos.</p>
+      {hayContacto(club) && (
+        <section id="contacto" className="py-24 px-6 bg-black/20">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-white">Contacto</h2>
+              <p className="text-white/40 mt-3">Escribinos o pasá a visitarnos.</p>
+            </div>
+            <ContactoSection club={club} colorPrimario={colorPrimario} dark={true} />
           </div>
-          <ContactoSection club={club} colorPrimario={colorPrimario} dark={true} />
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* FOOTER */}
       <footer className="border-t border-white/5 py-10 px-6 text-center">

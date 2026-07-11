@@ -2,7 +2,7 @@
 // Fondo claro, tipografía limpia, mucho espacio. Profesional y sobrio.
 
 import { Zap, CalendarDays, Trophy, Users, ArrowRight, CheckCircle } from 'lucide-react'
-import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection } from './LandingSections'
+import { GaleriaGrid, ServiciosGrid, StaffGrid, FaqList, TurnosDisponibles, TorneosSection, AmericanoSuper8Section, PartidosAbiertosSection, ContactoSection, hayContacto } from './LandingSections'
 
 const FEATURES = [
   { icon: CalendarDays, title: 'Reservas online',  desc: 'Reservá tu cancha en segundos, 24/7, desde cualquier dispositivo.' },
@@ -212,15 +212,17 @@ const Template3 = ({ club, onCta, onTorneos }) => {
       </section>
 
       {/* CONTACTO */}
-      <section id="contacto" className="py-24 px-6 bg-white">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-slate-900">Contacto</h2>
-            <p className="text-slate-500 mt-3">Escribinos o pasá a visitarnos.</p>
+      {hayContacto(club) && (
+        <section id="contacto" className="py-24 px-6 bg-white">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-slate-900">Contacto</h2>
+              <p className="text-slate-500 mt-3">Escribinos o pasá a visitarnos.</p>
+            </div>
+            <ContactoSection club={club} colorPrimario={colorPrimario} dark={false} />
           </div>
-          <ContactoSection club={club} colorPrimario={colorPrimario} dark={false} />
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* FOOTER */}
       <footer className="bg-slate-900 border-t border-white/5 py-10 px-6 text-center">

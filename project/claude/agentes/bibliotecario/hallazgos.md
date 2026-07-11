@@ -7,6 +7,34 @@
 
 ---
 
+## 2026-07-11 · DISEÑO / UX VISUAL de landing pública de club — rediseño (hero, secciones, tipografía, color, motion)
+
+**Contexto:** Luca quiere rediseñar la landing pública del club (hoy "plana/vaga", tema oscuro). Foco DISEÑO, no features. Verifiqué el código real primero: `frontend/src/features/landing/Template1..5.jsx` + `LandingSections.jsx` (135KB). Estado ACTUAL: ya hay tema oscuro (`#0d1117`), split hero, glows radiales con `colorPrimario` configurable, cards glass (`bg-white/5 border-white/8 backdrop-blur`), un SVG de líneas de cancha al 4% de opacidad, badge, dual CTA, "dot" pulsante de canchas activas. O sea: la base es decente pero **100% estática** — no hay motion, la tipografía es `font-bold` genérica (sin display expresiva), las fotos van con un `bg-black/65` plano encima que las apaga, y las cards son todas del mismo tamaño (sin jerarquía bento). Ahí está el "se ve vago". WebSearch OK; varios WebFetch a SPAs (sitios live) rebotan — lo [Verificado] sale de artículos de diseño + docs, no de captura pixel de los sitios.
+
+**Hallazgos clave [Verificado por snippet salvo donde diga]:**
+
+1. **La tipografía es el hero de 2026, no la foto.** Múltiples fuentes coinciden: "large-scale, expressive headlines han REEMPLAZADO al stock hero image" como el elemento que agarra la atención. Typography-as-design-element, custom/oversized/motion. El sector deportivo tiene convención propia y fuerte: **condensadas bold** (Bebas Neue, Oswald, Barlow Condensed, Saira, Trade Gothic/Futura Condensed) porque maximizan el tamaño de letra — vienen de camisetas, scoreboards y posters deportivos. → El hero actual usa Space Grotesk/Inter `font-bold` a `text-6xl`: correcto pero tibio. Fuente: line25, freefontzone, typewolf (Sporting Grotesque), fontalternatives.
+
+2. **Foto full-bleed con TRATAMIENTO, no con cortina negra plana.** Los gyms premium (Equinox "cinematic red hero", JOHN REED video de DJ, Tomo "full-bleed climbing action" + 7 palabras de copy) usan foto/video real de SU espacio a sangre completa. Regla dura citada: "stock fitness photos are an instant credibility killer" — foto propia = señal premium. El overlay tiene que ser un GRADIENTE direccional (oscuro abajo/lado del texto → transparente sobre la acción), no un `bg-black/65` uniforme que apaga todo. Fuente: nanoglobals (12 gym websites), hotmintdigital.
+
+3. **Bento grid = jerarquía visual implícita.** Layout modular estilo Apple: cards de distinto tamaño, la grande agarra el ojo primero, las chicas dan soporte. Ya es EL patrón del mid-2020s para SaaS/marketing. → El hero actual tiene 3 cards del mismo tamaño (sin jerarquía). Un bento le daría "vida" sin agregar contenido. Fuente: figma resource library, midrocket, gezar.
+
+4. **Motion: scroll-driven CSS nativo + micro-hovers, NO autoplay pesado.** Lo que suma: reveals on-scroll (fade+translate-up al entrar en viewport), progress/parallax de capas, hover con scale + shadow + "grosor" 3D en cards. Lo que se logra con CSS scroll-driven animations o IntersectionObserver (sin JS pesado); GSAP ScrollTrigger solo para lo complejo. Lo que se EVITA: autoplay de video (flag explícito de performance/bandwidth), motion decorativo sin narrativa ("animation should reinforce the narrative, not distract"). Fuente: line25 (motion 2026), studiomeyer (reality check).
+
+5. **Aurora UI / glow gradiente + glassmorphism refinado.** Glassmorphism 2026 = capas translúcidas SUTILES (no blur pesado) + noise texture + gradient borders + soft shadows, "especialmente efectivo en dark UI". Aurora = mesh gradients animados suaves de fondo. → El club ya tiene glows radiales; falta refinarlos (gradient border en cards, un toque de grano) y quizás un mesh sutil con el acento. Fuente: midrocket, gezar, inspoai.
+
+6. **Restraint = premium.** "True premium environments are defined less by excess and more by intentional restraint." Copy corto y filoso gana (JOHN REED: "Finally, a gym that doesn't suck"). → No llenar de texto; headline corto, mucho aire, un acento.
+
+**Cruce contra PadelwIArk:** la infra ya soporta lo necesario — `colorPrimario` configurable por club (perfecto para acento + glow), sistema de 5 templates, tema oscuro instalado, fuentes Space Grotesk/Inter/JetBrains ya cargadas (memoria marca). El gap es puramente de EJECUCIÓN visual: (a) meter una display condensada para los H1/números, (b) gradiente direccional sobre las fotos en vez de cortina plana, (c) bento en el hero y en features, (d) scroll-reveals + hover micro-interacciones, (e) refinar glows/glass. Todo hacible en React+Tailwind sin backend nuevo. Riesgo: no cargar la página (autoplay video, blur pesado en mobile). → ver oportunidades OP-LANDING-DISEÑO.
+
+### Fuentes
+- https://nanoglobals.com/gym-websites/ · https://www.hotmintdigital.co.uk/post/padel-website-template · https://zynkdesign.com/our-work/the-padel-club/
+- https://line25.com/articles/web-design-trends-2026/ · https://studiomeyer.io/en/blog/webdesign-trends-2026-reality-check · https://midrocket.com/en/guides/ui-design-trends-2026/ · https://gezar.dk/en/blog/web-design-trends-2026 · https://www.figma.com/resource-library/web-design-trends/ · https://www.inspoai.io/blog/web-design-trends-2026
+- https://www.typewolf.com/sporting-grotesque · https://freefontzone.com/guides/best-font-pairings-2026 · https://fontalternatives.com/best-fonts-for/sports/ · https://www.landingpageflow.com/post/google-font-pairings-for-websites
+- Inspiración visual: https://www.behance.net/search/projects/padel · https://dribbble.com/search/padel-website · https://webflow.com/made-in-webflow/padel · https://www.gymshark.com/
+
+---
+
 ## 2026-07-10 · Entrada por VOZ en WIarky — vara de UX de voz + contexto de uso (dueño en el club) + diferenciación
 
 **Contexto:** Luca quiere una entrada por voz "bien profesional, súper cómoda, que funcione perfecto" en WIarky (asistente owner-facing, usado mucho desde el celular parado en el club). Verifiqué el código real primero: `AsistenteWiark.jsx` hoy tiene un `<input>` de texto plano (placeholder "Preguntale a WIarky…"), SIN voz de ningún tipo. O sea, todo lo de acá es cancha nueva.

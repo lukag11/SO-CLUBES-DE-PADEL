@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Zap, Menu, X, GraduationCap, User, Swords } from 'lucide-react'
 import useClubStore from '../../store/clubStore'
+import { hayContacto } from '../../features/landing/landingUtils'
 
 // CENTRO = navegar el sitio. El último (Americano y Super 8) va destacado con el color del club.
 const navLinks = [
-  { to: '/#quienes-somos', label: 'Quiénes Somos' },
+  { to: '/#nosotros', label: 'Quiénes Somos' },
   { to: '/#reservas', label: 'Reservas' },
   { to: '/torneos', label: 'Torneos', route: true },
   { to: '/#contacto', label: 'Contacto' },
@@ -16,9 +17,19 @@ const navLinks = [
 const PublicNavbar = () => {
   const [menuOpen, setMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-  const { templateId, colorPrimario, navbarEstilo, nombre, logo } = useClubStore((s) => s.club)
+  const club = useClubStore((s) => s.club)
+  const { templateId, colorPrimario, navbarEstilo, nombre, logo } = club
   const isLight = templateId === 3
   const esColorSolido = navbarEstilo === 'color-solido' && !isLight
+
+  // Los links de ancla solo se muestran si su sección existe en la landing (así no llevan a la nada).
+  const verNosotros = !!(club.historia && club.historia.trim()) && (club.seccionesVisibles?.historia ?? true)
+  const verReservas = club.seccionesVisibles?.reservas ?? true
+  const links = navLinks.filter((l) =>
+    l.to === '/#nosotros' ? verNosotros
+      : l.to === '/#reservas' ? verReservas
+        : l.to === '/#contacto' ? hayContacto(club)
+          : true)
 
   useEffect(() => {
     if (navbarEstilo !== 'transparente') return
@@ -94,7 +105,7 @@ const PublicNavbar = () => {
 
         {/* CENTRO — navegar el sitio */}
         <nav className="hidden md:flex items-center justify-center gap-2">
-          {navLinks.map((item) => renderNavLink(item))}
+          {links.map((item) => renderNavLink(item))}
         </nav>
 
         {/* DERECHA — acceder */}
@@ -128,7 +139,7 @@ const PublicNavbar = () => {
               : { backgroundColor: '#1E1F23', borderColor: 'rgba(255,255,255,0.05)' }
           }
         >
-          {navLinks.map((item) => renderNavLink(item, () => setMenuOpen(false)))}
+          {links.map((item) => renderNavLink(item, () => setMenuOpen(false)))}
 
           <span className={`h-px my-2.5 ${dividerColor}`} />
           <p className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${esColorSolido ? 'text-black/40' : isLight ? 'text-slate-400' : 'text-white/30'}`}>Acceso</p>

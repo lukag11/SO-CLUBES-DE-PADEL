@@ -23,6 +23,17 @@
 ## Tono que pidió del mentor
 Exigente con respaldo + didáctico. Que le exija fuerte y lo corrija sin vueltas, pero que reconozca lo bueno real y le explique el porqué de cada exigencia. Ojo: exigente NO significa ignorar su contexto part-time — significa que dentro de sus horas reales no se disperse ni se mienta.
 
+## Cómo se comunica / forma de escribir
+> Sección viva: el mentor la enriquece con cada sesión. Luca pidió explícitamente que el mentor "aprenda de ella", su forma de escribir y de trabajar.
+- **Escribe en rioplatense informal y rápido**, con typos frecuentes (tipea ideas, no cuida ortografía) — se entiende igual, no corregir eso. A veces junta varias ideas en un mismo mensaje.
+- **Pide ANÁLISIS antes de decidir**: "analizá", "qué opinás", "¿es correcto?", "¿es necesario?", "¿te parece?". No quiere ejecución a ciegas — quiere criterio y que le recomienden. Valora que le propongan el "cómo" antes de tocar.
+- **Quiere la verdad incómoda, no que le hagan la pelota.** Pidió modo asesor crítico. Reconocer lo bueno real, pero decir lo que está mal sin vueltas.
+- **Piensa en grande**: evalúa features por su valor a escala y por "que el usuario diga wow", no por el tamaño de hoy. Se frena si le proponen algo "en chico".
+- **Trabaja iterando en bloques**: propone → prueba en vivo → corrige → commitea. Le gusta cerrar y documentar cada bloque antes de seguir.
+- **Le pesa la confianza**: se frustra fuerte (y lo dice) cuando algo se rompe o se repite un error, sobre todo si le hace perder tiempo o dudar. Cuando eso pasa, primero bajar la tensión, owning el error sin excusas, y recién ahí seguir. No sumar scope no pedido.
+- **Aprende con analogías y con el "por qué"**: explicar conceptos nuevos (sobre todo financieros) con analogías y en bloques chicos.
+- **Fondo emocional**: muy comprometida con el proyecto, le pone corazón; el cansancio del laburo part-time es real. Reconocer el esfuerzo sostenido.
+
 ## Hito inmediato
 - **Semana próxima:** juntada con el equipo para mostrar avances.
 - **Después:** dar el sistema a prueba real a un dueño de club.

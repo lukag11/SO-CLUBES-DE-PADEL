@@ -2146,8 +2146,8 @@ const PanelAlertas = ({
           </div>
         </div>
 
-        {/* Lista con scroll interno — max 300px */}
-        <div className="max-h-72 overflow-y-auto">
+        {/* Lista con scroll interno — muestra ~2 avisos y el resto scrollea (no ocupa tanto) */}
+        <div className="max-h-32 overflow-y-auto">
 
         {/* Reservas pendientes desde el backend — fuente de verdad */}
         {reservasPendientes.length > 0 && (

@@ -1377,8 +1377,13 @@ router.delete('/:id', requireAuth, async (req, res) => {
           // La búsqueda de jugadores atada a este turno es un conjunto con la reserva: se cancela y se avisa.
           await cancelarBusquedasDeReserva(reserva.clubId, id)
 
-          // Solo registrar cargo si hay un monto a cobrar
-          const montoCargo = reserva.precio ?? 0
+          // Monto del cargo según la política del club: turno completo (default), la mitad,
+          // o un % personalizado que el dueño elige (cargoCancelacionPct, 0–100).
+          const modoCancel = club?.config?.cargoCancelacion
+          const factorCancel = modoCancel === 'mitad' ? 0.5
+            : modoCancel === 'personalizado' ? Math.min(100, Math.max(0, Number(club?.config?.cargoCancelacionPct) || 0)) / 100
+            : 1
+          const montoCargo = Math.round((reserva.precio ?? 0) * factorCancel)
           if (montoCargo <= 0) {
             await notifCancelacionAdmin()
             return res.json({ ok: true, cargoAplicado: false })
@@ -1406,7 +1411,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
                 fecha: reserva.fecha,
                 horaInicio: reserva.horaInicio,
                 horaFin: reserva.horaFin,
-                monto: reserva.precio ?? 0,
+                monto: montoCargo,
                 horasMinimas,
               },
             },

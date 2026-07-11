@@ -242,17 +242,22 @@ export default function PlayerMisReservasPage() {
 
   // Política de cancelación
   const cancelacionInfo = useMemo(() => {
-    if (!reservaACancelar) return { horasMinimas: 0, horasRestantes: Infinity, fueraDePlazo: false }
+    if (!reservaACancelar) return { horasMinimas: 0, horasRestantes: Infinity, fueraDePlazo: false, montoCargo: 0 }
     const horasMinimas = club?.horasCancelacion ?? 0
     const [y, m, d] = reservaACancelar.fecha.split('-').map(Number)
     const [h, min] = reservaACancelar.hora.split(':').map(Number)
     const fechaTurno = new Date(y, m - 1, d, h, min)
     const horasRestantes = (fechaTurno - new Date()) / (1000 * 60 * 60)
     const fueraDePlazo = horasMinimas > 0 && horasRestantes < horasMinimas && horasRestantes >= 0
-    return { horasMinimas, horasRestantes, fueraDePlazo }
-  }, [reservaACancelar, club?.horasCancelacion])
+    // Monto del cargo según la política del club (mismo criterio que el backend): completo / mitad / % custom.
+    const factor = club?.cargoCancelacion === 'mitad' ? 0.5
+      : club?.cargoCancelacion === 'personalizado' ? Math.min(100, Math.max(0, Number(club?.cargoCancelacionPct) || 0)) / 100
+      : 1
+    const montoCargo = Math.round((reservaACancelar.precio ?? 0) * factor)
+    return { horasMinimas, horasRestantes, fueraDePlazo, montoCargo }
+  }, [reservaACancelar, club?.horasCancelacion, club?.cargoCancelacion, club?.cargoCancelacionPct])
 
-  const { horasMinimas, horasRestantes, fueraDePlazo } = cancelacionInfo
+  const { horasMinimas, horasRestantes, fueraDePlazo, montoCargo } = cancelacionInfo
 
   const handleCancelar = async () => {
     if (cancelando || !reservaACancelar) return
@@ -513,7 +518,7 @@ export default function PlayerMisReservasPage() {
                     <p className="text-amber-300 font-semibold text-xs">Cancelación fuera de plazo</p>
                     <p className="text-white/40 text-xs mt-1 leading-relaxed">
                       El club requiere cancelar con al menos <span className="text-amber-300 font-bold">{horasMinimas}h de anticipación</span>.
-                      Se registrará un cargo de <span className="text-amber-300 font-bold">${reservaACancelar.precio?.toLocaleString('es-AR')}</span> en tu cuenta.
+                      Se registrará un cargo de <span className="text-amber-300 font-bold">${montoCargo?.toLocaleString('es-AR')}</span> en tu cuenta.
                     </p>
                   </div>
                 </div>
@@ -561,7 +566,7 @@ export default function PlayerMisReservasPage() {
                   <>
                     <XCircle size={15} />
                     {fueraDePlazo
-                      ? `Cancelar con cargo ($${reservaACancelar.precio?.toLocaleString('es-AR')})`
+                      ? `Cancelar con cargo ($${montoCargo?.toLocaleString('es-AR')})`
                       : 'Sí, cancelar reserva'}
                   </>
                 )}

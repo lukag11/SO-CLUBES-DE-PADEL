@@ -970,6 +970,8 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
   const [existingData, setExistingData] = useState({ diasConDatos: new Set(), canchaDiaConDatos: new Set() })
   const cantidad = club.canchas.length
   const horasCancelacion = club.horasCancelacion ?? 0
+  const cargoCancelacion = club.cargoCancelacion ?? 'completo' // 'completo' | 'mitad' | 'personalizado'
+  const cargoCancelacionPct = club.cargoCancelacionPct ?? 50 // % cuando es personalizado
 
   useEffect(() => {
     if (!token) return
@@ -1050,9 +1052,33 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
               />
               <span className="text-slate-500 text-sm">horas de anticipación</span>
               {horasCancelacion > 0 && (
-                <span className="text-emerald-600 text-xs font-medium bg-emerald-50 px-2 py-1 rounded-lg">
-                  Cargo = precio del turno
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-slate-500 text-sm">Cargo:</span>
+                  <select
+                    value={cargoCancelacion}
+                    onChange={(e) => updateClub({ cargoCancelacion: e.target.value })}
+                    className="border border-slate-200 rounded-xl px-2.5 py-2 text-sm text-emerald-700 font-medium bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  >
+                    <option value="completo">Turno completo</option>
+                    <option value="mitad">Mitad del turno</option>
+                    <option value="personalizado">Personalizado (%)</option>
+                  </select>
+                  {cargoCancelacion === 'personalizado' && (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={cargoCancelacionPct}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, '') // solo números, sin ceros a la izquierda
+                          updateClub({ cargoCancelacionPct: digits === '' ? 0 : Math.min(100, Number(digits)) })
+                        }}
+                        className="w-20 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 font-semibold text-center focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      />
+                      <span className="text-slate-500 text-sm">% del turno</span>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

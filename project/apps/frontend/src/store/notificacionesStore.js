@@ -2,6 +2,13 @@ import { create } from 'zustand'
 import { api } from '../lib/api'
 
 const TIPOS_TORNEO = ['inscripcion_torneo', 'baja_torneo', 'actualizacion_torneo', 'completacion_torneo']
+// Notificaciones de la AGENDA (reservas / turnos fijos / clases) — las que corresponden al
+// badge del ítem "Reservas" del sidebar. El resto (ej. stock_bajo) va SOLO a la campana.
+const TIPOS_RESERVA = [
+  'nueva_reserva', 'reserva_autoconfirmada', 'turno_fijo_autoconfirmado',
+  'turno_liberado_auto', 'turno_fijo_pendiente',
+  'nueva_clase_profesor', 'cancelacion_clase_profesor', 'actualizacion_disponibilidad_profesor',
+]
 
 const coalesceNotif = (list, nueva) => {
   if (!TIPOS_TORNEO.includes(nueva.tipo)) return list
@@ -149,6 +156,11 @@ const useNotificacionesStore = create((set, get) => ({
 
   sinLeerTorneos: () =>
     get().notificaciones.filter((n) => !n.leida && TIPOS_TORNEO.includes(n.tipo)).length,
+
+  // Solo notificaciones de la agenda (reservas/turnos/clases) → badge del ítem "Reservas".
+  // Excluye stock y cualquier otra notificación general (que sí aparece en la campana).
+  sinLeerReservas: () =>
+    get().notificaciones.filter((n) => !n.leida && TIPOS_RESERVA.includes(n.tipo)).length,
 }))
 
 export default useNotificacionesStore

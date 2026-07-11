@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   DollarSign, AlertTriangle, TrendingUp, Search, Plus, X,
   CheckCircle, Trash2, Clock, Settings, Check, Package, Pencil, Minus, Printer, Download, FileText, Wallet, RotateCcw, ShoppingCart, Boxes, Camera, TrendingDown, MessageCircle, Eye,
@@ -449,7 +450,11 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     setSaving(true); setError('')
     try {
       await crearNuevas(false)
-      setLineas([]); showToast('exito', 'Anotado a la cuenta'); await fetchDeudas(jugadorId); onRefresh()
+      showToast('exito', 'Anotado a la cuenta'); onRefresh()
+      // En una VENTA, anotar a cuenta = operación terminada → se cierra el modal.
+      // En modo COBRO se queda abierto (podés seguir gestionando la cuenta del jugador).
+      if (esVenta) { setSaving(false); onClose(); return }
+      setLineas([]); await fetchDeudas(jugadorId)
     } catch (e) { showToast('error', e?.message || 'No se pudo anotar') } finally { setSaving(false) }
   }
   const cobrarTodo = async () => {
@@ -680,7 +685,13 @@ const PagosPage = () => {
   const TAB_PERMISO = { ventas: 'ventas', stock: 'ventas', cobranzas: 'ventas', gastos: 'caja', caja: 'caja' }
   const puedeTab = (id) => esDueno || !!permisos?.includes(TAB_PERMISO[id])
 
-  const [tab, setTab] = useState('ventas') // ventas | cobranzas | gastos | caja
+  // Tab inicial: la del query param (?tab=cobranzas), si es válida; si no, ventas.
+  // (El efecto de permisos de abajo la corrige si el empleado no puede verla.)
+  const [searchParams] = useSearchParams()
+  const [tab, setTab] = useState(() => {
+    const t = searchParams.get('tab')
+    return ['ventas', 'stock', 'cobranzas', 'gastos', 'caja'].includes(t) ? t : 'ventas'
+  })
 
   // Si el empleado cae en una pestaña que no puede ver, lo mando a la primera permitida
   useEffect(() => {
@@ -704,8 +715,12 @@ const PagosPage = () => {
   const [eliminando, setEliminando] = useState(null) // cargo a eliminar
   const [anulando, setAnulando] = useState(null)   // cobro pagado a revertir a pendiente
   const [cambiandoMetodo, setCambiandoMetodo] = useState(null) // cobro pagado al que se le corrige el método
+  const navigate = useNavigate()
   const [modalModo, setModalModo] = useState(null)   // null | 'venta' | 'cobro'
+  const [vinoDeResumen, setVinoDeResumen] = useState(false) // venta rápida disparada desde el Resumen
   const cuentaOpen = modalModo !== null
+  // Venta rápida desde el dashboard (?tab=ventas&nueva=1): abre el modal de venta al llegar.
+  useEffect(() => { if (searchParams.get('nueva') === '1' && puedeTab('ventas')) { setModalModo('venta'); setVinoDeResumen(true) } }, []) // eslint-disable-line
   const [configMetodos, setConfigMetodos] = useState(false)
   const [configVista, setConfigVista] = useState(false)
   const mostrarConsumoJugador = useClubStore((s) => s.club?.mostrarConsumoJugador) !== false
@@ -1124,7 +1139,7 @@ const PagosPage = () => {
       {cambiandoMetodo && <ModalCobro cargo={cambiandoMetodo} metodos={metodosHabilitados} onConfirm={cambiarMetodo} onClose={() => setCambiandoMetodo(null)} saving={saving} titulo="Cambiar método" />}
       {anulando && <ModalAnular cargo={anulando} onConfirm={anular} onClose={() => setAnulando(null)} saving={saving} />}
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}
-      {cuentaOpen && <ModalCuentaJugador modo={modalModo} jugadores={jugadores} deudores={deudores} productos={productos} metodos={metodosHabilitados} token={token} club={club} initialJugadorId={cobroPreset?.jugadorId} initialDeudaId={cobroPreset?.deudaId} onClose={() => { setModalModo(null); setCobroPreset(null) }} onRefresh={fetchData} showToast={showToast} />}
+      {cuentaOpen && <ModalCuentaJugador modo={modalModo} jugadores={jugadores} deudores={deudores} productos={productos} metodos={metodosHabilitados} token={token} club={club} initialJugadorId={cobroPreset?.jugadorId} initialDeudaId={cobroPreset?.deudaId} onClose={() => { setModalModo(null); setCobroPreset(null); if (vinoDeResumen) { setVinoDeResumen(false); navigate('/dashboardAdmin') } }} onRefresh={fetchData} showToast={showToast} />}
       {configMetodos && <ModalMetodos seleccion={metodosHabilitados} comisionesIniciales={club?.comisionPorMetodo ?? {}} onSave={guardarMetodos} onClose={() => setConfigMetodos(false)} saving={saving} />}
       {configVista && <ModalVistaJugador value={mostrarConsumoJugador} onSave={guardarVistaJugador} onClose={() => setConfigVista(false)} saving={saving} />}
 

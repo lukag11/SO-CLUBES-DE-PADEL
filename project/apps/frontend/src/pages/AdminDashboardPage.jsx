@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   CalendarDays, Users, Trophy, TrendingUp, TrendingDown, DollarSign, Activity,
   Wallet, Clock, ArrowRight, CheckCircle2, AlertCircle, UserPlus, Receipt, Sparkles, RefreshCw,
-  MessageCircle, Copy, Check, Zap, Users2, Megaphone, Bell, Compass, Target,
+  MessageCircle, Copy, Check, Zap, Users2, Megaphone, Bell, Compass, Target, ShoppingCart,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 import { api } from '../lib/api'
@@ -259,22 +259,30 @@ const DashboardPage = () => {
   const maxIng = Math.max(1, ...serie.map((s) => s.ingresos || 0))
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 animate-[fadeInUp_.35s_ease-out]">
       {/* Encabezado */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-slate-800">Resumen del club</h2>
           <p className="text-sm text-slate-400 mt-1 capitalize">{today}</p>
         </div>
-        {data?.ahora && (
-          <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-xl px-3 py-1.5 shadow-sm">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            <span className="text-xs font-semibold text-slate-600">En vivo · {data.ahora}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Venta rápida: atajo al modal de venta (POS) que ya existe en Pagos → Ventas */}
+          {verCobros && (
+            <Link to="/dashboardAdmin/pagos?tab=ventas&nueva=1" className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm shadow-sm transition-colors">
+              <ShoppingCart size={16} /> Venta rápida
+            </Link>
+          )}
+          {data?.ahora && (
+            <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-xl px-3 py-1.5 shadow-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="text-xs font-semibold text-slate-600">En vivo · {data.ahora}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Insight del día con IA (Court Noir: oscuro + neón lima, marca PadelwIArk) ── */}
@@ -553,7 +561,7 @@ const DashboardPage = () => {
 
             {/* Por cobrar — permiso de cobros (ventas o caja) */}
             {verCobros && (
-              <Link to="/dashboardAdmin/pagos" className="group bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col hover:shadow-md hover:border-amber-200 transition-all">
+              <Link to="/dashboardAdmin/pagos?tab=cobranzas" className="group bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col hover:shadow-md hover:border-amber-200 transition-all">
                 <div className="flex items-center gap-2 text-slate-500">
                   <Wallet size={16} className="text-amber-500" />
                   <span className="text-sm font-medium">Por cobrar</span>

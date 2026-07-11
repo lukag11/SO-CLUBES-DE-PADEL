@@ -41,7 +41,9 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
   const [hovered, setHovered] = useState(false)
   const navigate   = useNavigate()
   const logout     = useAuthStore((state) => state.logout)
-  const sinLeer        = useNotificacionesStore((state) => state.sinLeer())
+  // Badge de "Reservas": SOLO notificaciones de agenda (reservas/turnos/clases), NO stock ni
+  // otras generales (esas viven en la campana). Antes usaba sinLeer() (total) y el stock lo inflaba.
+  const sinLeer        = useNotificacionesStore((state) => state.sinLeerReservas())
   const sinLeerTorneos = useNotificacionesStore((state) => state.sinLeerTorneos())
   const clubNombre = useClubStore((state) => state.club.nombre)
   const clubLogo   = useClubStore((state) => state.club.logo)

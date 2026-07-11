@@ -88,10 +88,10 @@ const PublicNavbar = () => {
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${headerClass}`} style={headerStyle}>
-      <div className="max-w-[1600px] mx-auto px-8 h-16 grid grid-cols-[auto_1fr_auto] items-center gap-8">
+      <div className="max-w-[1600px] mx-auto px-4 md:px-8 h-16 grid grid-cols-[auto_1fr_auto] items-center gap-4 md:gap-8">
 
         {/* IZQUIERDA — identidad del club */}
-        <Link to="/" className="flex items-center gap-2.5 shrink-0">
+        <Link to="/" className="flex items-center gap-2.5 shrink-0 min-w-0">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
             style={{ backgroundColor: logo ? 'transparent' : (esColorSolido ? 'rgba(0,0,0,0.15)' : colorPrimario) }}
           >
@@ -100,7 +100,7 @@ const PublicNavbar = () => {
               : <Zap size={16} className={esColorSolido ? 'text-black/70' : isLight ? 'text-white' : 'text-[#1E1F23]'} />
             }
           </div>
-          <span className={`font-bold text-lg tracking-tight whitespace-nowrap ${logoTextColor}`}>{nombre || 'PadelwIArk'}</span>
+          <span className={`font-bold text-lg tracking-tight truncate max-w-[55vw] md:max-w-none ${logoTextColor}`}>{nombre || 'PadelwIArk'}</span>
         </Link>
 
         {/* CENTRO — navegar el sitio */}

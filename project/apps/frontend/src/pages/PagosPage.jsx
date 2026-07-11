@@ -955,11 +955,11 @@ const PagosPage = () => {
       </div>
 
       {/* Tabs: Ventas (POS) · Cobranzas (deudas) · Gastos · Caja */}
-      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit max-w-full overflow-x-auto no-scrollbar">
         {[{ id: 'ventas', label: 'Ventas' }, { id: 'stock', label: 'Stock' }, { id: 'cobranzas', label: 'Cobranzas' }, { id: 'gastos', label: 'Gastos' }, { id: 'caja', label: 'Caja / Reportes' }].filter(({ id }) => puedeTab(id)).map(({ id, label }) => (
           <button
             key={id} onClick={() => setTab(id)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:text-slate-800'}`}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all shrink-0 whitespace-nowrap ${tab === id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:text-slate-800'}`}
           >
             {label}
           </button>
@@ -1070,7 +1070,7 @@ const PagosPage = () => {
         ) : (
           <div>
             {visibles.map((c, idx) => (
-              <div key={c.id} className={`flex items-center gap-4 px-5 py-4 border-b border-slate-100 transition-colors ${idx % 2 === 1 ? 'bg-slate-100' : 'bg-white'} hover:bg-brand-50/60`}>
+              <div key={c.id} className={`flex flex-wrap items-center gap-4 gap-y-2 px-5 py-4 border-b border-slate-100 transition-colors ${idx % 2 === 1 ? 'bg-slate-100' : 'bg-white'} hover:bg-brand-50/60`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-slate-800 font-semibold text-sm truncate">

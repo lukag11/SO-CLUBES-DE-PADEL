@@ -5373,7 +5373,7 @@ const TorneoDetallePage = () => {
                   <div>
                     <label className="text-xs font-medium text-slate-600 block mb-1">Diseño de card</label>
                     <p className="text-xs text-slate-400 mb-3">Elegí el estilo visual. Podés personalizar el color e imagen de fondo independientemente del template elegido.</p>
-                    <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2">
                       {[
                         { id: 1,  name: 'Sport Hero',    bg: 'linear-gradient(135deg,#080b0f,#0d1117)' },
                         { id: 2,  name: 'Neon Grid',     bg: '#050508',   neon: true },

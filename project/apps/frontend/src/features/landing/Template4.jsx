@@ -104,7 +104,7 @@ const Template4 = ({ club, onCta, onTorneos }) => {
 
       {/* FEATURES — con números grandes */}
       <section className="py-24 px-6 border-t border-white/5">
-        <div className="max-w-5xl mx-auto pl-8">
+        <div className="max-w-5xl mx-auto pl-0 md:pl-8">
           <h2 className="text-xs font-bold uppercase tracking-[0.25em] mb-16" style={{ color: colorPrimario }}>// Lo que ofrecemos</h2>
           <div className="flex flex-col gap-0 divide-y divide-white/5">
             {FEATURES.map(({ icon: Icon, title, desc }, i) => (
@@ -128,7 +128,7 @@ const Template4 = ({ club, onCta, onTorneos }) => {
       {/* TURNOS DISPONIBLES */}
       {(seccionesVisibles?.reservas ?? true) && (
         <section id="reservas" className="py-24 px-6 border-t border-white/5">
-          <div className="max-w-5xl mx-auto pl-8">
+          <div className="max-w-5xl mx-auto pl-0 md:pl-8">
             <TurnosDisponibles canchas={canchas} horarios={horarios} colorPrimario={colorPrimario} onCta={onCta} dark={true} />
           </div>
         </section>
@@ -141,7 +141,7 @@ const Template4 = ({ club, onCta, onTorneos }) => {
       {/* HISTORIA */}
       {parrafos.length > 0 && (seccionesVisibles?.historia ?? true) && (
         <section id="nosotros" className="py-24 px-6 border-t border-white/5">
-          <div className="max-w-5xl mx-auto pl-8">
+          <div className="max-w-5xl mx-auto pl-0 md:pl-8">
             <h2 className="text-xs font-bold uppercase tracking-[0.25em] mb-12" style={{ color: colorPrimario }}>// {tituloBio}</h2>
             <div className="grid md:grid-cols-2 gap-16 items-center">
               <div>
@@ -160,7 +160,7 @@ const Template4 = ({ club, onCta, onTorneos }) => {
       {/* GALERÍA */}
       {galeria?.length > 0 && (seccionesVisibles?.galeria ?? true) && (
         <section id="galeria" className="py-24 px-6 border-t border-white/5">
-          <div className="max-w-5xl mx-auto pl-8">
+          <div className="max-w-5xl mx-auto pl-0 md:pl-8">
             <h2 className="text-xs font-bold uppercase tracking-[0.25em] mb-8" style={{ color: colorPrimario }}>// Instalaciones</h2>
             <GaleriaGrid galeria={galeria} />
           </div>
@@ -170,7 +170,7 @@ const Template4 = ({ club, onCta, onTorneos }) => {
       {/* SERVICIOS */}
       {servicios?.some((s) => s.activo) && (seccionesVisibles?.servicios ?? true) && (
         <section id="servicios" className="py-24 px-6 border-t border-white/5">
-          <div className="max-w-5xl mx-auto pl-8">
+          <div className="max-w-5xl mx-auto pl-0 md:pl-8">
             <h2 className="text-xs font-bold uppercase tracking-[0.25em] mb-8" style={{ color: colorPrimario }}>// Servicios</h2>
             <ServiciosGrid servicios={servicios} colorPrimario={colorPrimario} dark={true} />
           </div>
@@ -180,7 +180,7 @@ const Template4 = ({ club, onCta, onTorneos }) => {
       {/* STAFF */}
       {staff?.length > 0 && (seccionesVisibles?.staff ?? true) && (
         <section id="equipo" className="py-24 px-6 border-t border-white/5">
-          <div className="max-w-5xl mx-auto pl-8">
+          <div className="max-w-5xl mx-auto pl-0 md:pl-8">
             <h2 className="text-xs font-bold uppercase tracking-[0.25em] mb-8" style={{ color: colorPrimario }}>// Nuestro equipo</h2>
             <StaffGrid staff={staff} colorPrimario={colorPrimario} dark={true} />
           </div>
@@ -190,7 +190,7 @@ const Template4 = ({ club, onCta, onTorneos }) => {
       {/* FAQ */}
       {faq?.length > 0 && (seccionesVisibles?.faq ?? true) && (
         <section id="faq" className="py-24 px-6 border-t border-white/5">
-          <div className="max-w-3xl mx-auto pl-8">
+          <div className="max-w-3xl mx-auto pl-0 md:pl-8">
             <h2 className="text-xs font-bold uppercase tracking-[0.25em] mb-8" style={{ color: colorPrimario }}>// Preguntas frecuentes</h2>
             <FaqList faq={faq} colorPrimario={colorPrimario} dark={true} />
           </div>
@@ -199,7 +199,7 @@ const Template4 = ({ club, onCta, onTorneos }) => {
 
       {/* CTA FINAL */}
       <section className="py-24 px-6 border-t border-white/5">
-        <div className="max-w-5xl mx-auto pl-8">
+        <div className="max-w-5xl mx-auto pl-0 md:pl-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
             <div>
               <h2 className="text-xs font-bold uppercase tracking-[0.25em] mb-4" style={{ color: colorPrimario }}>// Empezá ahora</h2>
@@ -226,7 +226,7 @@ const Template4 = ({ club, onCta, onTorneos }) => {
       )}
 
       {/* FOOTER */}
-      <footer className="border-t border-white/5 py-10 px-6 pl-14">
+      <footer className="border-t border-white/5 py-10 px-6 md:pl-14">
         <div className="max-w-5xl mx-auto flex items-center gap-3">
           <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: colorPrimario }}>
             <Zap size={12} className="text-[#080808]" />

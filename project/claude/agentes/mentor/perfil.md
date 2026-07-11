@@ -3,12 +3,12 @@
 > Lo lee el agente `mentor` antes de cada sesión. Mantener actualizado a medida que cambian objetivos, contexto de vida y debilidades.
 
 ## Quién es
-- **Luca** (no Lucas). Analista en sistemas + desarrollador web fullstack. Tiene base técnica: muchas cosas las entiende rápido, no parte de cero.
+- **Luca** (no Lucas). Analista en sistemas + desarrollador web fullstack. Tiene base técnica: muchas cosas las entiende rápido, no parte de cero. **Trabajar con él de par a par técnico** — sigue el código y el DevTools en vivo mientras se avanza (ej: revisaba el responsive en el inspector en paralelo). No hace falta explicarle lo básico ni sobre-simplificar; ir al hueso con stack, archivos y trade-offs. Lo pidió explícitamente ("así conocés más de mi vida").
 - Fundador y motor técnico de **WIARK**, equipo de 3 personas formado hace pocos meses.
 - Desarrolla **PadelwIArk**, un SaaS multi-tenant para clubes de pádel.
 
 ## Contexto de vida (clave para calibrar la exigencia)
-- Trabaja **en relación de dependencia en una empresa de telecomunicaciones**, hace **8 años**. 7 horas diarias + **guardias cada 2 semanas** + estrés alto: trato constante con gente, le siguen escribiendo por redes aunque no tenga el celular de guardia, le cuesta desconectar.
+- Trabaja **en relación de dependencia en una cooperativa**, hace **8 años**. 7 horas diarias + **guardias cada 2 semanas** + estrés alto: trato constante con gente, le siguen escribiendo por redes aunque no tenga el celular de guardia, le cuesta desconectar.
 - Por eso el proyecto es **part-time** y le roba horas al cansancio. Aun así hace un **esfuerzo enorme por avanzar algo todos los días**. Esto es disciplina real bajo condiciones difíciles — el mentor lo tiene que reconocer, no exigirle como si fuera full-time.
 
 ## Los dos objetivos grandes de su vida (contra esto se lo mide)

@@ -200,7 +200,7 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
           </div>
 
           {/* Nombre + descripción */}
-          <div className="flex-1 flex flex-col gap-4">
+          <div className="w-full sm:flex-1 min-w-0 flex flex-col gap-4">
             <Field label="Nombre del club" name="nombre" value={form.nombre} onChange={handleChange} placeholder="Club de Pádel..." icon={Building2} />
             <Field label="Descripción" name="descripcion" value={form.descripcion} onChange={handleChange} placeholder="Breve descripción del club..." textarea />
           </div>
@@ -243,7 +243,7 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
       {mapaOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setMapaOpen(false)}>
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
-          <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-[popIn_.2s_ease-out]" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto animate-[popIn_.2s_ease-out]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
               <p className="font-bold text-slate-800">Ubicación del club</p>
               <button onClick={() => setMapaOpen(false)} className="text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
@@ -468,7 +468,6 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
   const [navbarEstilo, setNavbarEstilo] = useState(club.navbarEstilo ?? 'fijo-oscuro')
   const [colorPrimario, setColorPrimario] = useState(club.colorPrimario)
   const [colorSecundario, setColorSecundario] = useState(club.colorSecundario)
-  const [modoOscuro, setModoOscuro] = useState(club.modoOscuroJugadores)
   const [fontFamilia, setFontFamilia] = useState(club.fontFamilia || 'Inter')
   const [saved, setSaved] = useState(false)
 
@@ -483,7 +482,7 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
       toast.error('Ese color es muy oscuro para un acento. Elegí uno más claro para que se lea bien sobre los botones.')
       return
     }
-    updateClub({ templateId, seccionesVisibles, navbarEstilo, colorPrimario, colorSecundario, modoOscuroJugadores: modoOscuro, fontFamilia })
+    updateClub({ templateId, seccionesVisibles, navbarEstilo, colorPrimario, colorSecundario, fontFamilia })
     const ok = await saveClub()
     if (!ok) { toast.error('No se pudo guardar. Probá de nuevo.'); return }
     setSaved(true)
@@ -705,33 +704,6 @@ const TabApariencia = ({ club, updateClub, saveClub }) => {
               </div>
             </div>
           </div>
-        </div>
-      </SectionCard>
-
-      {/* Modo oscuro jugadores */}
-      <SectionCard title="Configuración de tema" subtitle="Modo visual del área de jugadores">
-        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-          <div className="flex items-center gap-3">
-            {modoOscuro ? <Moon size={18} className="text-slate-600" /> : <Sun size={18} className="text-amber-500" />}
-            <div>
-              <p className="text-slate-700 font-medium text-sm">Modo oscuro en área jugadores</p>
-              <p className="text-slate-400 text-xs mt-0.5">
-                {modoOscuro ? 'Actualmente en modo oscuro (recomendado)' : 'Actualmente en modo claro'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setModoOscuro((v) => !v)}
-            className={[
-              'relative w-12 h-6 rounded-full transition-all duration-300',
-              modoOscuro ? 'bg-emerald-500' : 'bg-slate-200',
-            ].join(' ')}
-          >
-            <div className={[
-              'absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300',
-              modoOscuro ? 'left-6' : 'left-0.5',
-            ].join(' ')} />
-          </button>
         </div>
       </SectionCard>
 
@@ -1082,43 +1054,50 @@ const TabCanchas = ({ club, updateCancha, setCantidadCanchas, updateHorario, sav
                 Ponê 0 para deshabilitar.
               </p>
             </div>
-            <div className="flex items-center gap-3 mt-1">
-              <input
-                type="number"
-                min={0}
-                max={168}
-                value={horasCancelacion}
-                onChange={(e) => updateClub({ horasCancelacion: Number(e.target.value) })}
-                className="w-24 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 font-semibold text-center focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              />
-              <span className="text-slate-500 text-sm">horas de anticipación</span>
+            <div className="flex flex-wrap items-end gap-x-6 gap-y-3 mt-2">
+              {/* Anticipación */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-slate-500 text-xs font-medium">Horas de anticipación</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={168}
+                  value={horasCancelacion}
+                  onChange={(e) => updateClub({ horasCancelacion: Number(e.target.value) })}
+                  className="w-24 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 font-semibold text-center focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+
+              {/* Cargo */}
               {horasCancelacion > 0 && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-slate-500 text-sm">Cargo:</span>
-                  <select
-                    value={cargoCancelacion}
-                    onChange={(e) => updateClub({ cargoCancelacion: e.target.value })}
-                    className="border border-slate-200 rounded-xl px-2.5 py-2 text-sm text-emerald-700 font-medium bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  >
-                    <option value="completo">Turno completo</option>
-                    <option value="mitad">Mitad del turno</option>
-                    <option value="personalizado">Personalizado (%)</option>
-                  </select>
-                  {cargoCancelacion === 'personalizado' && (
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={cargoCancelacionPct}
-                        onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, '') // solo números, sin ceros a la izquierda
-                          updateClub({ cargoCancelacionPct: digits === '' ? 0 : Math.min(100, Number(digits)) })
-                        }}
-                        className="w-20 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 font-semibold text-center focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                      />
-                      <span className="text-slate-500 text-sm">% del turno</span>
-                    </div>
-                  )}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-slate-500 text-xs font-medium">Cargo por cancelación</label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={cargoCancelacion}
+                      onChange={(e) => updateClub({ cargoCancelacion: e.target.value })}
+                      className="border border-slate-200 rounded-xl px-2.5 py-2 text-sm text-emerald-700 font-medium bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    >
+                      <option value="completo">Turno completo</option>
+                      <option value="mitad">Mitad del turno</option>
+                      <option value="personalizado">Personalizado (%)</option>
+                    </select>
+                    {cargoCancelacion === 'personalizado' && (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={cargoCancelacionPct}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, '') // solo números, sin ceros a la izquierda
+                            updateClub({ cargoCancelacionPct: digits === '' ? 0 : Math.min(100, Number(digits)) })
+                          }}
+                          className="w-20 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 font-semibold text-center focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                        />
+                        <span className="text-slate-500 text-sm">% del turno</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

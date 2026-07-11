@@ -26,7 +26,7 @@ const Template2 = ({ club, onCta, onTorneos }) => {
     <div className="bg-[#0a0a0a] min-h-screen">
 
       {/* HERO — fullscreen imagen + overlay degradado */}
-      <section className="relative h-screen flex flex-col items-center justify-center overflow-hidden">
+      <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden py-24 md:py-0">
 
         {/* Fondo */}
         {heroImagen

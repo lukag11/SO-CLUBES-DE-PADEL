@@ -283,7 +283,7 @@ export default function PlayerMisReservasPage() {
     <div className="flex flex-col gap-6 pb-10">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-white text-xl font-bold">Mis reservas</h1>
           <p className="text-white/30 text-sm mt-0.5">Reservas eventuales de cancha</p>

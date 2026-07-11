@@ -122,7 +122,7 @@ const Heatmap = ({ data }) => {
         </div>
       </div>
       {/* Leyenda */}
-      <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-xs text-slate-500">
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: '#84cc16' }} /> Pico (&gt;80%)</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: '#fbbf24' }} /> Medio (40-80%)</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ background: '#bae6fd' }} /> Frío (&lt;40%)</span>

@@ -62,7 +62,9 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
     navigate('/login')
   }
 
-  const expanded = hovered
+  // En desktop se expande con hover; en mobile el drawer SIEMPRE va expandido (labels + plan),
+  // si no abre colapsado (solo íconos) hasta que el usuario lo hoverea.
+  const expanded = hovered || mobileOpen
 
   return (
     <aside

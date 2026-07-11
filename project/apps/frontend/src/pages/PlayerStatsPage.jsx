@@ -59,7 +59,7 @@ const MiniStat = ({ label, value, sub, icon: Icon, accent = false, gold = false 
       <p className="text-white/40 text-xs font-medium">{label}</p>
       <Icon size={15} className={gold ? 'text-yellow-400' : accent ? 'text-club' : 'text-white/20'} />
     </div>
-    <p className={`text-3xl font-black ${gold ? 'text-yellow-400' : accent ? 'text-club' : 'text-white'}`}>{value}</p>
+    <p className={`text-2xl sm:text-3xl font-black break-words ${gold ? 'text-yellow-400' : accent ? 'text-club' : 'text-white'}`}>{value}</p>
     {sub && <p className="text-white/30 text-xs mt-1">{sub}</p>}
   </div>
 )

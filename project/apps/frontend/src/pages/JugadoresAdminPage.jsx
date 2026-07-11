@@ -484,17 +484,17 @@ const DrawerJugador = ({ jugador, onClose, onEditar, onEliminar, onDarDeBaja, on
         style={{ boxShadow: '0 -20px 60px rgba(0,0,0,0.5), -20px 0 60px rgba(0,0,0,0.3)' }}
       >
         {/* Hero */}
-        <div className="relative overflow-hidden px-6 pt-8 pb-6">
+        <div className="relative shrink-0 overflow-hidden px-6 pt-8 pb-6">
           <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-10`} />
           <div className={`absolute top-0 right-0 w-48 h-48 bg-gradient-to-br ${gradient} opacity-20 rounded-full blur-3xl -translate-y-1/4 translate-x-1/4`} />
-          <div className="relative flex items-start justify-between mb-5">
-            <div className="flex items-center gap-4">
+          <div className="relative flex items-start justify-between gap-3 mb-5">
+            <div className="flex items-center gap-4 min-w-0 flex-1">
               <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg shrink-0`}>
                 <span className="text-white font-black text-xl">{initials(jugador)}</span>
               </div>
-              <div>
-                <p className="text-white font-bold text-lg leading-tight">{jugador.nombre} {jugador.apellido}</p>
-                <p className="text-white/40 text-sm">DNI {jugador.dni}</p>
+              <div className="min-w-0">
+                <p className="text-white font-bold text-lg leading-tight break-words">{jugador.nombre} {jugador.apellido}</p>
+                <p className="text-white/50 text-sm mt-0.5">DNI {jugador.dni}</p>
                 {jugador.categoria && (
                   <span className="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30">{jugador.categoria}</span>
                 )}
@@ -527,7 +527,7 @@ const DrawerJugador = ({ jugador, onClose, onEditar, onEliminar, onDarDeBaja, on
         </div>
 
         {/* Mini-stats torneos */}
-        <div className="px-6 pb-4 flex flex-col gap-2">
+        <div className="px-6 pt-4 pb-4 flex flex-col gap-2">
           {loadingStats ? (
             <div className="grid grid-cols-4 gap-2">
               {[...Array(4)].map((_, i) => <div key={i} className="h-14 rounded-xl bg-white/4 animate-pulse" />)}

@@ -145,7 +145,7 @@ const generateFranjas = (horarioDia) => {
 // ─── Componentes pequeños ─────────────────────────────────────────────────────
 
 const Badge = ({ label, cls }) => (
-  <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${cls}`}>
+  <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${cls}`}>
     {label}
   </span>
 )
@@ -564,7 +564,7 @@ const CeldaMobile = ({ reserva, franja, cancha, onClick, pasado }) => {
       <div
         onClick={() => !pasado && onClick({ tipo: 'libre', franja, cancha })}
         className={[
-          'flex-1 border-l border-slate-100 flex items-center justify-center min-h-[44px] transition-colors',
+          'flex-1 min-w-0 border-l border-slate-100 flex items-center justify-center min-h-[44px] transition-colors',
           pasado ? 'bg-slate-50/60 cursor-default' : 'hover:bg-emerald-50/60 cursor-pointer group',
         ].join(' ')}
       >
@@ -591,7 +591,7 @@ const CeldaMobile = ({ reserva, franja, cancha, onClick, pasado }) => {
   return (
     <div
       onClick={() => onClick({ tipo: 'detalle', reserva, franja, cancha })}
-      className={`flex-1 border-l border-slate-100 cursor-pointer min-h-[44px] p-1.5 flex flex-col gap-0.5 ${cfg.bg} hover:brightness-95 transition-all`}
+      className={`flex-1 min-w-0 overflow-hidden border-l border-slate-100 cursor-pointer min-h-[44px] p-1.5 flex flex-col gap-0.5 ${cfg.bg} hover:brightness-95 transition-all`}
     >
       <div className="flex items-center gap-1 min-w-0">
         <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
@@ -619,6 +619,9 @@ const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], 
   const [page, setPage] = useState(0)
   const totalPages = Math.ceil(canchas.length / 2)
   const canchasVisible = canchas.slice(page * 2, page * 2 + 2)
+  // Grid con columnas idénticas garantizadas (minmax(0,1fr)) — evita que la celda con
+  // contenido "empuje" y se pase a la de al lado, cosa que sí pasaba con flex-1.
+  const gridCols = `4rem repeat(${canchasVisible.length}, minmax(0, 1fr))`
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -645,10 +648,10 @@ const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], 
       )}
 
       {/* Header canchas */}
-      <div className="flex border-b border-slate-100 bg-slate-50">
-        <div className="w-14 shrink-0 px-2 py-2" />
+      <div className="grid border-b border-slate-100 bg-slate-50" style={{ gridTemplateColumns: gridCols }}>
+        <div className="px-2 py-2" />
         {canchasVisible.map((c) => (
-          <div key={c.id} className="flex-1 px-1 py-2 text-center border-l border-slate-100">
+          <div key={c.id} className="flex-1 min-w-0 px-1 py-2 text-center border-l border-slate-100">
             <p className="text-slate-700 font-semibold text-xs">{c.nombre}</p>
             <p className="text-slate-400 text-[9px]">{c.tipo} · {c.indoor ? 'In' : 'Out'}</p>
           </div>
@@ -659,10 +662,10 @@ const GrillaMobile = ({ reservas, clasesDia, fecha, onCeldaClick, canchas = [], 
       {franjas.map((franja) => {
         const pasado = esPasado(fecha, franja.inicio)
         return (
-          <div key={franja.inicio} className={`flex border-b border-slate-50 last:border-0 ${pasado ? 'opacity-65' : ''}`}>
-            <div className="w-14 shrink-0 px-2 py-1.5 bg-slate-50/50 flex flex-col justify-center border-r border-slate-100">
-              <span className="text-slate-500 text-[10px] font-mono leading-none">{franja.inicio}</span>
-              <span className="text-slate-300 text-[9px] font-mono leading-none mt-0.5">{franja.fin}</span>
+          <div key={franja.inicio} className={`grid border-b border-slate-50 last:border-0 ${pasado ? 'opacity-65' : ''}`} style={{ gridTemplateColumns: gridCols }}>
+            <div className="px-2 py-1.5 bg-slate-50/50 flex flex-col justify-center border-r border-slate-100">
+              <span className="text-slate-600 text-sm font-mono font-medium leading-none">{franja.inicio}</span>
+              <span className="text-slate-400 text-[11px] font-mono leading-none mt-1">{franja.fin}</span>
             </div>
             {canchasVisible.map((cancha) => {
               const clase = getReserva(clasesDia, cancha.id, franja)
@@ -1530,7 +1533,7 @@ const Leyenda = () => (
         </div>
       ))}
     </div>
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
       <span className="text-slate-500 text-xs font-medium">Estado de pago:</span>
       {Object.entries(PAGO_CONFIG).map(([, { label, cls }]) => (
         <Badge key={label} label={label} cls={cls} />
@@ -3368,7 +3371,7 @@ const ReservasPage = () => {
 
       {/* Tabs + botón ayuda */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit max-w-full min-w-0 overflow-x-auto no-scrollbar">
           {[
             { key: 'grilla',  label: 'Grilla del día',      icon: CalendarDays },
             { key: 'fijos',   label: 'Turnos fijos',         icon: Repeat,        badge: sinLeer > 0 ? sinLeer : null },
@@ -3377,7 +3380,7 @@ const ReservasPage = () => {
             <button
               key={key}
               onClick={() => setTabActiva(key)}
-              className={['flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+              className={['flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all shrink-0 whitespace-nowrap',
                 tabActiva === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600',
               ].join(' ')}
             >

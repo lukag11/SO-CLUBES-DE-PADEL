@@ -390,7 +390,7 @@ const PlayerTurnosFijosPage = () => {
           </div>
           <div className="divide-y divide-white/5">
             {pendientes.map((t) => (
-              <div key={t.id} className="px-6 py-4 flex items-center justify-between gap-4">
+              <div key={t.id} className="px-4 sm:px-6 py-4 flex items-center justify-between gap-3 sm:gap-4">
                 <div>
                   <p className="text-white text-sm font-medium">
                     {DIAS_LABEL[t.dia] ?? t.dia} · {t.inicio}–{t.fin}
@@ -462,7 +462,7 @@ const PlayerTurnosFijosPage = () => {
                     const yaTermino = turnoYaTerminoHoy(turno.dia, turno.fin)
 
                     return (
-                      <div key={turno.id} className="px-6 py-4 flex items-center gap-4">
+                      <div key={turno.id} className="px-4 sm:px-6 py-4 flex items-center gap-3 sm:gap-4">
                         <div className={`w-1.5 h-12 rounded-full shrink-0 ${esPendiente ? 'bg-amber-500/60' : esAusente ? 'bg-white/15' : 'bg-violet-500/60'}`} />
 
                         <div className="flex-1 min-w-0">

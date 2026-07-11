@@ -165,12 +165,12 @@ const PlayerDashboardPage = () => {
     <div className="flex flex-col gap-6">
 
       {/* ── Hero perfil ── */}
-      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#0d1117] via-[#1a1f2e] to-[#0d1117] border border-white/8 p-8">
+      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#0d1117] via-[#1a1f2e] to-[#0d1117] border border-white/8 p-5 sm:p-8">
         {/* Glow decorativo */}
         <div className="absolute top-0 right-0 w-72 h-72 bg-club/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-club/5 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 flex items-center gap-6">
+        <div className="relative z-10 flex items-center gap-4 sm:gap-6">
           {/* Avatar */}
           <div className="w-20 h-20 rounded-2xl bg-club/15 border border-club/30 flex items-center justify-center shrink-0">
             <span className="text-3xl font-bold text-club">{initials}</span>
@@ -211,7 +211,7 @@ const PlayerDashboardPage = () => {
         </div>
 
         {/* Mini stats en la hero */}
-        <div className="relative z-10 grid grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/8">
+        <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/8">
           {statCards.map(({ label, value, icon: Icon }) => (
             <div key={label} className="text-center">
               <Icon size={16} className="text-club mx-auto mb-1.5" />

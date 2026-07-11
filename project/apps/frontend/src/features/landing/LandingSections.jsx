@@ -1905,15 +1905,15 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
           </div>
 
           {/* Selector de días */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto">
             <button
               onClick={() => setDiaOffset(Math.max(0, diaOffset - 1))}
               disabled={diaOffset === 0}
-              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all disabled:opacity-20 ${dark ? 'text-white/30 hover:text-white hover:bg-white/8' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+              className={`w-7 h-7 rounded-lg hidden sm:flex items-center justify-center transition-all disabled:opacity-20 ${dark ? 'text-white/30 hover:text-white hover:bg-white/8' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
             >
               <ChevronLeft size={14} />
             </button>
-            <div className="flex gap-1">
+            <div className="grid grid-cols-7 gap-1 w-full sm:flex sm:w-auto">
               {Array.from({ length: 7 }, (_, i) => {
                 const d = addDaysTo(hoy, i)
                 const sel = i === diaOffset
@@ -1923,7 +1923,7 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
                     key={i}
                     onClick={() => setDiaOffset(i)}
                     className={[
-                      'flex flex-col items-center w-10 py-1.5 rounded-xl border text-center transition-all duration-200',
+                      'flex flex-col items-center w-full sm:w-10 py-1.5 rounded-xl border text-center transition-all duration-200',
                       esTorneo && !sel ? (dark ? 'border-white/4 text-white/15 cursor-pointer' : 'border-slate-100 text-slate-300 cursor-pointer') : '',
                       !esTorneo && !sel && dark  ? 'border-white/6 text-white/30 hover:text-white hover:bg-white/5 hover:border-white/15' : '',
                       !esTorneo && !sel && !dark ? 'border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50' : '',
@@ -1944,7 +1944,7 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
             <button
               onClick={() => setDiaOffset(Math.min(6, diaOffset + 1))}
               disabled={diaOffset === 6}
-              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all disabled:opacity-20 ${dark ? 'text-white/30 hover:text-white hover:bg-white/8' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+              className={`w-7 h-7 rounded-lg hidden sm:flex items-center justify-center transition-all disabled:opacity-20 ${dark ? 'text-white/30 hover:text-white hover:bg-white/8' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
             >
               <ChevronRight size={14} />
             </button>

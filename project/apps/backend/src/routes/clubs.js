@@ -242,6 +242,59 @@ router.get('/me/insight', requireAuth, requireRole('admin'), requireOwner, async
   }
 })
 
+// GET /api/clubs/me/nudges — avisos PROACTIVOS de WIarky (reglas deterministas, SIN IA → barato,
+// no quema egress). Devuelve una lista priorizada; el front muestra el más urgente en el globito.
+// Cada nudge trae `corto` (para el globito), `mensaje` (para el chat) y un `artefacto` (el botón
+// que ya sabe renderizar el front: accion / navegar / sugerencia).
+router.get('/me/nudges', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const [data, cajaAbierta] = await Promise.all([
+      gatherInsightData(clubId),
+      prisma.arqueoCaja.findFirst({ where: { clubId, estado: 'abierta' }, select: { id: true } }),
+    ])
+    const nudges = []
+
+    // 🔴 Caja sin abrir (operativo)
+    if (!cajaAbierta) {
+      nudges.push({
+        id: 'caja_sin_abrir', prioridad: 3,
+        mensaje: 'Che, arrancá el día abriendo la caja 👇 así controlás el efectivo del cajón.',
+        corto: 'Abrí la caja del día',
+        artefacto: { accion: 'abrir_caja', resumen: 'Abrir la caja del día con fondo inicial $0 (podés cambiar el fondo desde la pestaña Caja).', datos: { fondoInicial: 0 } },
+      })
+    }
+
+    // 🔴/🟠 Plata sin cobrar
+    if (data.deudaPorCobrar > 0) {
+      const monto = `$${data.deudaPorCobrar.toLocaleString('es-AR')}`
+      nudges.push({
+        id: 'deuda_por_cobrar', prioridad: data.deudaPorCobrar >= 20000 ? 3 : 2,
+        mensaje: `Tenés ${monto} sin cobrar de jugadores. Cuando quieras lo revisamos 👇`,
+        corto: `${monto} sin cobrar`,
+        artefacto: { tipo: 'navegar', texto: 'Ver cobranzas', ruta: '/dashboardAdmin/pagos?tab=cobranzas' },
+      })
+    }
+
+    // 🟠 Franja floja → Super 8 (reusa la sugerencia determinista)
+    const sug = sugerenciaDeInsight(data)
+    if (sug) {
+      nudges.push({
+        id: 'franja_floja', prioridad: 2,
+        mensaje: `${sug.label} 👇`,
+        corto: sug.label,
+        artefacto: { tipo: 'sugerencia', label: sug.label, prompt: sug.prompt },
+      })
+    }
+
+    nudges.sort((a, b) => b.prioridad - a.prioridad)
+    res.json({ nudges, fecha: hoyArgStr() })
+  } catch (err) {
+    console.error('Error nudges:', err.message)
+    res.status(500).json({ error: 'No se pudieron calcular los avisos' })
+  }
+})
+
 // POST /api/clubs/me/insight/convocatoria-mensaje — redacta un mensaje de WhatsApp para
 // convocar un Americano/Super 8 y llenar una franja (solo dueño). On-demand, no cacheado.
 router.post('/me/insight/convocatoria-mensaje', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {

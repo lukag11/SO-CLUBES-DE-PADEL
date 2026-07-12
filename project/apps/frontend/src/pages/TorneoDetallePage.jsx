@@ -686,22 +686,6 @@ const StandingsZonaAdmin = ({ zona, puntosPorVictoria = 2 }) => {
     setOpenCrit({ i, rect })
   }
 
-  // ── Grilla cruzada ─────────────────────────────────────────────────────────
-  const getCell = (rowId, colId) => {
-    if (rowId === colId) return 'self'
-    const m = zona.partidos.find((p) =>
-      (p.pareja1?.id === rowId && p.pareja2?.id === colId) ||
-      (p.pareja1?.id === colId && p.pareja2?.id === rowId)
-    )
-    if (!m || m.estado !== 'finalizado') return null
-    const rowIsP1 = m.pareja1?.id === rowId
-    const won     = m.ganador?.id === rowId
-    const sets    = (m.resultado ?? []).map((r) => rowIsP1 ? `${r.p1}-${r.p2}` : `${r.p2}-${r.p1}`)
-    return { won, sets }
-  }
-
-  const hayResultados = zona.partidos.some((m) => m.estado === 'finalizado')
-
   return (
     <div className="flex flex-col gap-3">
 
@@ -726,18 +710,18 @@ const StandingsZonaAdmin = ({ zona, puntosPorVictoria = 2 }) => {
       )}
 
       {/* ── Tabla de posiciones ──────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-slate-100 overflow-hidden">
+      <div className="rounded-xl border border-slate-100 overflow-x-auto max-w-full">
         <table className="w-full text-[11px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              <th className="px-3 py-2 text-left text-slate-400 font-semibold w-10">Pos.</th>
-              <th className="px-3 py-2 text-left text-slate-400 font-semibold">Pareja</th>
-              <th className="px-3 py-2 text-center text-brand-500 font-bold w-10" title="Puntos">Pts</th>
-              <th className="px-3 py-2 text-center text-slate-400 font-semibold w-10">PG</th>
-              <th className="px-3 py-2 text-center text-slate-400 font-semibold w-10">PP</th>
-              <th className="px-3 py-2 text-center text-slate-400 font-semibold w-13" title="Diferencia de sets">Dif.S</th>
-              <th className="px-3 py-2 text-center text-slate-400 font-semibold w-13" title="Diferencia de games">Dif.G</th>
-              <th className="px-3 py-2 text-center text-slate-400 font-semibold w-14" title="Criterio de clasificación">Crit.</th>
+              <th className="px-1.5 lg:px-3 py-2 text-left text-slate-400 font-semibold w-9">Pos.</th>
+              <th className="px-1.5 lg:px-3 py-2 text-left text-slate-400 font-semibold">Pareja</th>
+              <th className="px-1 lg:px-2 py-2 text-center text-brand-500 font-bold w-9" title="Puntos">Pts</th>
+              <th className="px-1 lg:px-2 py-2 text-center text-slate-400 font-semibold w-8">PG</th>
+              <th className="px-1 lg:px-2 py-2 text-center text-slate-400 font-semibold w-8">PP</th>
+              <th className="px-1 lg:px-2 py-2 text-center text-slate-400 font-semibold w-9 lg:w-12" title="Diferencia de sets">Dif.S</th>
+              <th className="px-1 lg:px-2 py-2 text-center text-slate-400 font-semibold w-9 lg:w-12" title="Diferencia de games">Dif.G</th>
+              <th className="px-1 lg:px-2 py-2 text-center text-slate-400 font-semibold w-11 lg:w-14" title="Criterio de clasificación">Crit.</th>
             </tr>
           </thead>
           <tbody>
@@ -756,30 +740,30 @@ const StandingsZonaAdmin = ({ zona, puntosPorVictoria = 2 }) => {
                               : ''
               return (
                 <tr key={pareja.id} className={`border-b border-slate-50 last:border-0 ${esC1 ? 'bg-amber-50/60' : esC2 ? 'bg-slate-50/60' : ''}`}>
-                  <td className="px-3 py-2 font-bold text-slate-300">{i + 1}°</td>
-                  <td className="px-3 py-2 max-w-0">
-                    <div className="flex items-center gap-1.5">
+                  <td className="px-1.5 lg:px-3 py-2 font-bold text-slate-300">{i + 1}°</td>
+                  <td className="px-1.5 lg:px-3 py-2 max-w-[38vw] lg:max-w-none">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       {(esC1 || esC2) && zona.clasificados && (
                         <span className={`w-1 h-3.5 rounded-full shrink-0 ${esC1 ? 'bg-amber-400' : 'bg-slate-300'}`} />
                       )}
                       <span className={`font-medium truncate ${eliminado ? 'text-slate-300 line-through' : 'text-slate-700'}`}>
-                        {pareja.jugador1} / {pareja.jugador2}
+                        {pareja.jugador1.split(' ')[0]} / {pareja.jugador2.split(' ')[0]}
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-center font-bold text-brand-600">{st.pts}</td>
-                  <td className="px-3 py-2 text-center font-semibold text-emerald-600">{st.wins}</td>
-                  <td className="px-3 py-2 text-center text-slate-400">{st.losses}</td>
-                  <td className={`px-3 py-2 text-center font-semibold tabular-nums ${
+                  <td className="px-1 lg:px-2 py-2 text-center font-bold text-brand-600">{st.pts}</td>
+                  <td className="px-1 lg:px-2 py-2 text-center font-semibold text-emerald-600">{st.wins}</td>
+                  <td className="px-1 lg:px-2 py-2 text-center text-slate-400">{st.losses}</td>
+                  <td className={`px-1 lg:px-2 py-2 text-center font-semibold tabular-nums ${
                     difSets  > 0 ? 'text-emerald-600' : difSets  < 0 ? 'text-red-400' : 'text-slate-300'
                   }`}>{difSets  > 0 ? `+${difSets}`  : difSets}</td>
-                  <td className={`px-3 py-2 text-center font-semibold tabular-nums ${
+                  <td className={`px-1 lg:px-2 py-2 text-center font-semibold tabular-nums ${
                     difGames > 0 ? 'text-sky-500'    : difGames < 0 ? 'text-red-400' : 'text-slate-300'
                   }`}>{difGames > 0 ? `+${difGames}` : difGames}</td>
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-1 lg:px-2 py-2 text-center">
                     <button
                       onClick={(e) => handleCritClick(e, i)}
-                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border transition-opacity hover:opacity-70 ${
+                      className={`text-[9px] font-bold px-1 lg:px-1.5 py-0.5 rounded-md border transition-opacity hover:opacity-70 ${
                         criterio ? critCls : 'text-slate-200 border-transparent bg-transparent cursor-default'
                       }`}
                     >
@@ -793,70 +777,6 @@ const StandingsZonaAdmin = ({ zona, puntosPorVictoria = 2 }) => {
         </table>
       </div>
 
-      {/* ── Grilla de enfrentamientos ─────────────────────────────────────────── */}
-      {hayResultados && (
-        <div className="rounded-xl border border-slate-100 overflow-hidden">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-100 bg-slate-50">
-            <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">Enfrentamientos</span>
-          </div>
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className="bg-slate-50/60 border-b border-slate-100">
-                <th className="px-3 py-1.5 text-left text-slate-400 font-semibold" style={{ width: '38%' }}>Pareja</th>
-                {sorted.map((p, i) => (
-                  <th key={p.id} className="py-1.5 text-center text-slate-400 font-bold">P{i + 1}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((rowPar, rowIdx) => (
-                <tr key={rowPar.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500 shrink-0">
-                        {rowIdx + 1}
-                      </span>
-                      <span className="truncate font-medium text-slate-600">
-                        {rowPar.jugador1.split(' ')[0]}
-                      </span>
-                    </div>
-                  </td>
-                  {sorted.map((colPar) => {
-                    const cell = getCell(rowPar.id, colPar.id)
-                    if (cell === 'self') return (
-                      <td key={colPar.id} className="py-2 text-center">
-                        <span className="text-slate-200 font-bold">×</span>
-                      </td>
-                    )
-                    if (!cell) return (
-                      <td key={colPar.id} className="py-2 text-center">
-                        <span className="text-slate-300 text-[12px]">·</span>
-                      </td>
-                    )
-                    return (
-                      <td key={colPar.id} className="py-1.5 text-center">
-                        {cell.sets.length > 0 ? (
-                          <div className="flex flex-col items-center gap-0.5">
-                            {cell.sets.map((set, si) => (
-                              <span key={si} className={`font-mono font-semibold leading-none text-[9px] ${
-                                cell.won ? 'text-emerald-600' : 'text-red-400'
-                              }`}>{set}</span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className={`font-bold text-[11px] ${cell.won ? 'text-emerald-600' : 'text-red-400'}`}>
-                            {cell.won ? 'G' : 'P'}
-                          </span>
-                        )}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   )
 }
@@ -971,129 +891,108 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName, punto
 
   const jugados = zona.partidos.filter((p) => p.estado === 'finalizado').length
 
-  const renderSets = (resultado, ganadorEsP1) => {
-    if (!resultado?.length) return <span className="text-slate-300 text-xs">—</span>
-    return (
-      <div className="flex flex-col items-start gap-1">
-        {resultado.map((s, i) => {
-          const p1Gano = s.p1 > s.p2
-          const esWin  = ganadorEsP1 ? p1Gano : !p1Gano
-          return (
-            <span key={i} className={`text-xs font-mono font-semibold px-1.5 py-0.5 rounded border ${
-              esWin
-                ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
-                : 'text-slate-400 bg-slate-50 border-slate-100'
-            }`}>
-              {s.p1}-{s.p2}
-            </span>
-          )
-        })}
-      </div>
-    )
-  }
-
   const renderPartidoRow = (partido, tipoLabel = null) => {
     const n1          = eqNum(partido.pareja1)
     const n2          = eqNum(partido.pareja2)
     const finalizado  = partido.estado === 'finalizado'
     const ganadorEsP1 = partido.ganador?.id === partido.pareja1?.id
+    const ganadorEsP2 = partido.ganador?.id === partido.pareja2?.id
     const ganadorN    = partido.ganador ? (ganadorEsP1 ? n1 : n2) : null
     const listo       = !finalizado && partido.pareja1 && partido.pareja2
     const isExpanded  = expandedId === partido.id
+    const res         = partido.resultado
+
+    const nombrePareja = (p) => p ? `${p.jugador1.split(' ')[0]} / ${p.jugador2.split(' ')[0]}` : '—'
+
+    // Una fila por pareja (formato marcador): seed + nombre a la izquierda, games por set a la derecha.
+    const filaPareja = (pareja, seed, gano, lado) => (
+      <div className="flex items-center gap-2">
+        <span className={`inline-flex w-5 h-5 rounded-full items-center justify-center text-[10px] font-bold shrink-0 ${
+          gano ? 'bg-emerald-500 text-white' : finalizado ? 'bg-slate-100 text-slate-400' : 'bg-slate-100 text-slate-500'
+        }`}>{seed ?? '?'}</span>
+        <span className={`flex-1 min-w-0 truncate text-sm ${
+          gano ? 'font-bold text-slate-800' : finalizado ? 'text-slate-400' : 'font-medium text-slate-600'
+        }`}>{nombrePareja(pareja)}</span>
+        {finalizado && res?.length > 0 && (
+          <div className="flex items-center gap-1 shrink-0">
+            {res.map((sset, i) => {
+              const mine = lado === 1 ? sset.p1 : sset.p2
+              const otro = lado === 1 ? sset.p2 : sset.p1
+              return (
+                <span key={i} className={`w-5 text-center font-mono text-sm tabular-nums ${
+                  mine > otro ? 'text-emerald-600 font-bold' : 'text-slate-300'
+                }`}>{mine}</span>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
 
     return (
-      <Fragment key={partido.id}>
-        <tr className={`border-b border-slate-50 transition-colors ${
-          finalizado ? 'bg-emerald-50/30' : listo ? 'hover:bg-slate-50/60' : ''
-        }`}>
-          {/* Partido */}
-          <td className="px-4 py-3 whitespace-nowrap">
-            {tipoLabel && (
-              <p className="text-[10px] text-slate-400 font-medium leading-none mb-1">{tipoLabel}</p>
-            )}
-            {n1 && n2 ? (
-              <div className="flex items-center gap-1.5">
-                <span className={`inline-flex w-5 h-5 rounded-full items-center justify-center text-[10px] font-bold shrink-0 ${
-                  ganadorN === n1 ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'
-                }`}>{n1}</span>
-                <span className="text-slate-300 text-[10px] font-bold">vs</span>
-                <span className={`inline-flex w-5 h-5 rounded-full items-center justify-center text-[10px] font-bold shrink-0 ${
-                  ganadorN === n2 ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'
-                }`}>{n2}</span>
-              </div>
-            ) : (
-              <span className="text-slate-300 text-xs italic">Por definir</span>
-            )}
-          </td>
+      <div key={partido.id} className={`rounded-xl border transition-all ${
+        finalizado ? 'border-emerald-100 bg-emerald-50/30' : listo ? 'border-slate-200 bg-white hover:border-slate-300' : 'border-slate-100 bg-white'
+      }`}>
+        {tipoLabel && (
+          <p className="px-3.5 pt-2.5 text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{tipoLabel}</p>
+        )}
 
-          {/* Horario · Cancha */}
-          <td className="px-4 py-3 text-xs whitespace-nowrap">
-            {partido.slot ? (
-              <div>
-                <p className="font-semibold text-slate-700">
-                  {partido.slot.dia}
-                  {partido.slot.hora
-                    ? <span className="text-slate-400 font-normal"> · <span className="font-bold text-slate-800">{partido.slot.hora} hs</span></span>
-                    : <span className="font-normal text-slate-400"> · sin hora exacta</span>
-                  }
-                </p>
-                {partido.cancha && (
-                  <p className="text-brand-600 font-semibold mt-0.5">{canchaName(partido.cancha)}</p>
-                )}
-              </div>
-            ) : (
-              <span className="text-slate-300">Sin asignar</span>
-            )}
-          </td>
+        {/* Cuerpo: una pareja arriba de la otra (marcador vertical) */}
+        {n1 && n2 ? (
+          <div className="px-3.5 py-3 flex flex-col gap-2">
+            {filaPareja(partido.pareja1, n1, ganadorEsP1, 1)}
+            {filaPareja(partido.pareja2, n2, ganadorEsP2, 2)}
+          </div>
+        ) : (
+          <div className="px-3.5 py-3">
+            <span className="text-slate-300 text-xs italic">Por definir</span>
+          </div>
+        )}
 
-          {/* Sets */}
-          <td className="px-4 py-3">
-            {renderSets(partido.resultado, ganadorEsP1)}
-          </td>
+        {/* Footer: horario · cancha + acción / resultado */}
+        <div className="flex items-center justify-between gap-2 flex-wrap px-3.5 py-2 border-t border-slate-100 bg-slate-50/40">
+          {partido.slot ? (
+            <span className="text-xs text-slate-500">
+              <span className="font-semibold text-slate-600">{partido.slot.dia}</span>
+              {partido.slot.hora
+                ? <> · <span className="font-bold text-slate-800">{partido.slot.hora} hs</span></>
+                : <span className="text-slate-400"> · sin hora</span>}
+              {partido.cancha && <span className="text-brand-600 font-semibold"> · {canchaName(partido.cancha)}</span>}
+            </span>
+          ) : (
+            <span className="text-xs text-slate-300">Sin asignar</span>
+          )}
 
-          {/* Ganador */}
-          <td className="px-4 py-3 whitespace-nowrap">
-            {finalizado && ganadorN ? (
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg">
-                <CheckCircle size={11} />
-                Eq.{ganadorN} ganó
-              </span>
-            ) : (
-              <span className="text-slate-300 text-xs">—</span>
-            )}
-          </td>
-
-          {/* Acción */}
-          <td className="px-4 py-3 whitespace-nowrap">
-            {listo && (
-              <button
-                onClick={() => setExpandedId(isExpanded ? null : partido.id)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
-                  isExpanded
-                    ? 'bg-slate-200 text-slate-600 border-slate-300'
-                    : 'text-brand-600 border-brand-200 bg-brand-50 hover:bg-brand-100'
-                }`}
-              >
-                {isExpanded ? 'Cancelar' : 'Cargar resultado'}
-              </button>
-            )}
-          </td>
-        </tr>
+          {finalizado && ganadorN ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg">
+              <CheckCircle size={11} /> Eq.{ganadorN} ganó
+            </span>
+          ) : listo ? (
+            <button
+              onClick={() => setExpandedId(isExpanded ? null : partido.id)}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
+                isExpanded
+                  ? 'bg-slate-200 text-slate-600 border-slate-300'
+                  : 'text-brand-600 border-brand-200 bg-brand-50 hover:bg-brand-100'
+              }`}
+            >
+              {isExpanded ? 'Cancelar' : 'Cargar resultado'}
+            </button>
+          ) : null}
+        </div>
 
         {isExpanded && (
-          <tr>
-            <td colSpan={5} className="p-0 border-b border-brand-100">
-              <SetInputInline
-                partido={partido}
-                eqNum1={n1}
-                eqNum2={n2}
-                onConfirmar={(res) => { setExpandedId(null); onResultado(partido.id, res) }}
-                onCancelar={() => setExpandedId(null)}
-              />
-            </td>
-          </tr>
+          <div className="border-t border-brand-100">
+            <SetInputInline
+              partido={partido}
+              eqNum1={n1}
+              eqNum2={n2}
+              onConfirmar={(res2) => { setExpandedId(null); onResultado(partido.id, res2) }}
+              onCancelar={() => setExpandedId(null)}
+            />
+          </div>
         )}
-      </Fragment>
+      </div>
     )
   }
 
@@ -1104,19 +1003,11 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName, punto
       const lf = zona.partidos.find((p) => p.tipo === 'lf')
       return (
         <>
-          <tr className="bg-slate-50/70">
-            <td colSpan={5} className="px-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Ronda 1
-            </td>
-          </tr>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-1">Ronda 1</p>
           {r1.map((p) => renderPartidoRow(p))}
-          <tr className="bg-slate-50/70 border-t border-slate-100">
-            <td colSpan={5} className="px-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Finales
-            </td>
-          </tr>
-          {renderPartidoRow(wf, 'Final ganadores → 1°')}
-          {renderPartidoRow(lf, 'Final perdedores → 2°')}
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-2">Finales</p>
+          {wf && renderPartidoRow(wf, 'Final ganadores → 1°')}
+          {lf && renderPartidoRow(lf, 'Final perdedores → 2°')}
         </>
       )
     }
@@ -1157,20 +1048,12 @@ const ZonaTable = ({ zona, zonaIdx, onResultado, onResolveTie, canchaName, punto
         <StandingsZonaAdmin zona={zona} puntosPorVictoria={puntosPorVictoria} />
       </div>
 
-      {/* Tabla de partidos */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-100">
-              <th className="text-left px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Partido</th>
-              <th className="text-left px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Horario · Cancha</th>
-              <th className="text-left px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sets</th>
-              <th className="text-left px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ganador</th>
-              <th className="px-4 py-2.5"></th>
-            </tr>
-          </thead>
-          <tbody>{renderPartidos()}</tbody>
-        </table>
+      {/* Partidos */}
+      <div className="px-5 py-4">
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Partidos</p>
+        <div className="flex flex-col gap-2">
+          {renderPartidos()}
+        </div>
       </div>
 
       {/* Desempate */}

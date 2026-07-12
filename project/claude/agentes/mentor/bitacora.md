@@ -5,6 +5,18 @@
 
 <!-- Las entradas nuevas se agregan acá abajo, la más reciente primero. -->
 
+## [2026-07-12] — Cumplió el push (por fin un gesto hacia afuera), pero dos días enteros de puro cosmético y el deploy sigue en cero (6ta vez)
+- **Objetivo declarado:** sesión tardía, sin rutina de arranque. Se venía trabajando el rediseño de la sección Torneos del dash admin en mobile (tabla → cards, sacar grilla de enfrentamientos, nombres de pila).
+- **Qué hizo realmente (git confirmado, remoto = local en `c99da87`):**
+  - **CUMPLIÓ LA EXIGENCIA que le dejé el 07-10:** los 4 commits locales que tenía sin pushear están en el remoto. Primer gesto real "hacia afuera" en 5 sesiones. Se registra como cumplido.
+  - Desde entonces, dos días de laburo 100% visual/responsive: `4d204be` cerebros financieros a WIarky, `a7f8c17` mapa Leaflet + Contacto en 5 templates, `803f121` rediseño Template 1, `a99ea2f` pulido Template 3 + firma, `c99da87` pase responsive mobile grande (landing + jugadores + admin, con auditorías por agente, bottom-nav fuera, drawer sidebar, grilla reservas a CSS Grid). Hoy: cards de torneos mobile (sin commitear todavía — `TorneoDetallePage.jsx` modificado).
+- **Patrón detectado — el mismo, 6ta sesión, pero con un matiz nuevo:**
+  (1) [SEGURO] La evitación del deploy ya es estructural: 28/06, 05/07, 06/07, 10/07 y ahora dos días más (11 y 12/07) de construir/pulir sin dar el paso afuera. Push cumplido, pero push ≠ deploy.
+  (2) [NUEVO, importante] El responsive NO es puro capricho esta vez: la juntada con el equipo es "semana próxima" y después va a un dueño de club real. Un dueño abre el sistema en el celular. Así que el trabajo mobile es defendible como prep de demo. PERO eso mismo lo delata: se está preparando para mostrarlo y entregarlo, y las dos cosas que quiere (juntada + club real) NO funcionan desde su laptop. El deploy dejó de ser "pulido opcional" y pasó a ser el cuello de botella del camino crítico. Lo cosmético es infinito; el deploy es binario y está bloqueando.
+- **Lo bueno (real):** cumplió el push que le venía esquivando — no es menor, era el gesto que hace 5 sesiones no daba. Y el responsive está bien hecho (con red de agentes, cazó hasta un bug fino de overflow-hidden + flex-col). Un sistema que en mobile se ve roto no se le muestra a nadie; ese laburo tiene sentido de cara a la demo. Disciplina sostenida part-time, otra vez.
+- **Exigencia para la próxima (una, sin salida):** commitea las cards de torneos y con eso se cierra lo visual. La juntada es la semana que viene: antes de esa juntada tiene que existir UNA URL pública viva (Railway backend con env + DB migrada, o Vercel front apuntando a algo). El objetivo de la PRÓXIMA sesión no es una feature ni un pixel: es abrir la terminal de deploy y no cerrarla hasta que haya un link que se pueda abrir desde otro dispositivo. Si aparece otro commit visual antes de esa URL, ya no es foco: es miedo a que el sistema salga de su control y lo juzguen afuera.
+- **Confianza del análisis:** [Seguro] sobre lo hecho (git: remoto = local, todo pusheado). [Seguro] sobre la evitación del deploy (6 sesiones). [Probable] sobre que el responsive es prep de demo legítima (encaja con el hito juntada+club declarado).
+
 ## [2026-07-10] — WIarky quedó de otro nivel, la config quedó blindada, y el deploy sigue sin existir (5ta vez)
 - **Objetivo que YO le dejé para hoy (explícito, una sola cosa):** la sesión NO abre con editor, abre con la terminal de deploy. Meta mínima innegociable: algo vivo fuera de su máquina (Railway con env+DB, o front en Vercel apuntando a algo). **NO se cumplió.** Cero metros de deploy otra vez.
 - **Qué hizo realmente (mucho y de calidad, 4 commits — OJO: NO pusheados):**

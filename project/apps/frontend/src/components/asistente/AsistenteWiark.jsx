@@ -38,6 +38,15 @@ export default function AsistenteWiark() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [started, setStarted] = useState(false)
+  const [nudges, setNudges] = useState([])            // avisos proactivos del día (caja, deuda, franja floja)
+  const [nudgesSeen, setNudgesSeen] = useState(false) // ¿ya abrió WIarky con estos avisos? → apaga el puntito
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('wiarky_nudges_dismissed') || 'null')
+      if (s && s.fecha === new Date().toISOString().slice(0, 10) && Array.isArray(s.ids)) return s.ids
+    } catch { /* */ }
+    return []
+  })
   const scrollRef = useRef(null)
 
   // Dictado por voz: mientras hablás se ve en vivo en el input; al terminar se ENVÍA solo
@@ -90,6 +99,16 @@ export default function AsistenteWiark() {
   // Dirección de apertura del chat, según dónde quedó la pelotita (para no abrir fuera de pantalla).
   const [openDir, setOpenDir] = useState({ v: 'up', h: 'right' })
 
+  // Mobile (<lg): sin drag, dock fijo abajo-derecha, y el chat abre FULL-SCREEN (la barra de input
+  // respira y la pelotita nunca queda off-screen por una posición guardada en desktop).
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 1023px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const on = () => setIsMobile(mq.matches)
+    mq.addEventListener?.('change', on)
+    return () => mq.removeEventListener?.('change', on)
+  }, [])
+
   const onDragStart = (e) => {
     const p = pelotaRef.current?.getBoundingClientRect()
     if (!p) return
@@ -98,12 +117,33 @@ export default function AsistenteWiark() {
     dragRef.current = { dragging: true, moved: false, offR: p.right - cx, offB: p.bottom - cy, sx: cx, sy: cy }
   }
 
-  // Globito de saludo: aparece a poco de entrar y se va solo (no invasivo).
+  // Globito de saludo/sugerencia: aparece a poco de entrar. Si hay sugerencia del día se
+  // queda un poco más (es valiosa); si es el saludo genérico, se va antes (no invasivo).
   useEffect(() => {
     const t1 = setTimeout(() => setBubble(true), 1400)
-    const t2 = setTimeout(() => setBubble(false), 9000)
+    const t2 = setTimeout(() => setBubble(false), 14000)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
+
+  // Avisos proactivos del día (una sola llamada, reglas deterministas → barato). El globito muestra
+  // el más urgente sin que el dueño tenga que abrir WIarky; el resto queda con un puntito en la pelotita.
+  useEffect(() => {
+    if (!token) return
+    api.get('/clubs/me/nudges', { Authorization: `Bearer ${token}` })
+      .then((r) => { if (Array.isArray(r?.nudges)) setNudges(r.nudges) })
+      .catch(() => {})
+  }, [token])
+
+  // Descartar un aviso por el día (no vuelve a molestar con lo mismo hasta mañana).
+  const dismissNudge = (id) => {
+    setDismissed((prev) => {
+      const next = [...new Set([...prev, id])]
+      try { localStorage.setItem('wiarky_nudges_dismissed', JSON.stringify({ fecha: new Date().toISOString().slice(0, 10), ids: next })) } catch { /* */ }
+      return next
+    })
+  }
+  const pendientes = nudges.filter((n) => !dismissed.includes(n.id))
+  const topNudge = pendientes[0] || null
 
   // Auto-scroll al último mensaje
   useEffect(() => {
@@ -161,31 +201,18 @@ export default function AsistenteWiark() {
     }
     setOpen(abriendo)
     setBubble(false)
+    if (abriendo) setNudgesSeen(true)
     if (abriendo && !started) {
       setStarted(true)
-      setMessages([{ from: 'wiark', text: '¡Hola! Soy WIarky 👋 No solo te cuento cómo va el club: armo convocatorias, cargo gastos, cobro deudas y más. Tocá algo de acá abajo o escribime.' }])
+      // Saludo + los avisos del día (los mismos del globito) como mensajes accionables, cada uno con
+      // su botón (abrir caja / ver cobranzas / armar Super 8). Una sola fuente: el endpoint /nudges.
+      const base = [{ from: 'wiark', text: '¡Hola! Soy WIarky 👋 No solo te cuento cómo va el club: armo convocatorias, cargo gastos, cobro deudas y más. Tocá algo de acá abajo o escribime.' }]
+      pendientes.forEach((n) => base.push({ from: 'wiark', text: n.mensaje, artefactos: [n.artefacto] }))
+      setMessages(base)
+      // Insight IA del día (narrativa, cacheado 24h). Va SIN botón: las acciones ya van en los avisos.
       if (token) {
         api.get('/clubs/me/insight', { Authorization: `Bearer ${token}` })
-          .then((r) => {
-            if (!r?.texto) return
-            const msg = { from: 'wiark', text: `💡 Hoy te recomiendo: ${r.texto}` }
-            // Si el insight trae una acción sugerida (ej. franja floja → Super 8), mostramos un botón
-            // que arranca el flujo de WIarky ya sembrado (no ejecuta solo: WIarky pide el resto y confirma).
-            if (r.sugerencia?.prompt) msg.artefactos = [{ tipo: 'sugerencia', label: r.sugerencia.label, prompt: r.sugerencia.prompt }]
-            setMessages((m) => [...m, msg])
-          })
-          .catch(() => {})
-        // Aviso proactivo: si la caja del día NO está abierta, recordá abrirla (con botón).
-        api.get('/caja/arqueo/actual', { Authorization: `Bearer ${token}` })
-          .then((r) => {
-            if (r && r.abierta == null) {
-              setMessages((m) => [...m, {
-                from: 'wiark',
-                text: 'Che, arrancá el día abriendo la caja 👇 así controlás el efectivo del cajón.',
-                artefactos: [{ accion: 'abrir_caja', resumen: 'Abrir la caja del día con fondo inicial $0 (podés cambiar el fondo desde la pestaña Caja).', datos: { fondoInicial: 0 } }],
-              }])
-            }
-          })
+          .then((r) => { if (r?.texto) setMessages((m) => [...m, { from: 'wiark', text: `💡 Hoy te recomiendo: ${r.texto}` }]) })
           .catch(() => {})
       }
     }
@@ -223,13 +250,16 @@ export default function AsistenteWiark() {
   return (
     <div
       ref={wrapRef}
-      className={`fixed z-50 print:hidden ${pos ? '' : 'bottom-20 right-5 lg:bottom-5'}`}
-      style={pos ? { right: pos.right, bottom: pos.bottom } : undefined}
+      className={`fixed z-50 print:hidden ${(!isMobile && pos) ? '' : 'bottom-4 right-4 lg:bottom-5 lg:right-5'}`}
+      style={(!isMobile && pos) ? { right: pos.right, bottom: pos.bottom } : undefined}
     >
      <div className="relative flex flex-col items-end gap-3">
       {/* Panel del chat — se ancla con `absolute` hacia el lado con espacio (openDir) */}
       {open && (
-        <div className={`absolute ${openDir.v === 'up' ? 'bottom-full mb-3' : 'top-full mt-3'} ${openDir.h === 'right' ? 'right-0' : 'left-0'} w-[340px] max-w-[calc(100vw-2.5rem)] h-[480px] max-h-[calc(100vh-8rem)] flex flex-col rounded-2xl overflow-hidden border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl shadow-black/30 animate-[wiark-pop_.18s_ease-out]`}>
+        <div className={isMobile
+          ? 'fixed inset-0 z-[60] flex flex-col overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 animate-[wiark-pop_.18s_ease-out]'
+          : `absolute ${openDir.v === 'up' ? 'bottom-full mb-3' : 'top-full mt-3'} ${openDir.h === 'right' ? 'right-0' : 'left-0'} w-[340px] max-w-[calc(100vw-2.5rem)] h-[480px] max-h-[calc(100vh-8rem)] flex flex-col rounded-2xl overflow-hidden border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl shadow-black/30 animate-[wiark-pop_.18s_ease-out]`
+        }>
           <style>{`@keyframes wiark-pop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
             @keyframes wiark-dot{0%,80%,100%{opacity:.25}40%{opacity:1}}`}</style>
 
@@ -348,28 +378,43 @@ export default function AsistenteWiark() {
         </div>
       )}
 
-      {/* Globito de saludo */}
+      {/* Globito de saludo / aviso proactivo del día (el más urgente) */}
       {bubble && !open && (
-        <div className="relative mr-1 rounded-2xl rounded-br-md bg-white shadow-lg border border-slate-200 px-3.5 py-2.5 max-w-[210px] animate-[wiark-pop_.2s_ease-out]">
+        <button
+          onClick={abrir}
+          className="relative mr-1 text-left rounded-2xl rounded-br-md bg-white shadow-lg border border-slate-200 px-3.5 py-2.5 max-w-[240px] animate-[wiark-pop_.2s_ease-out] hover:border-brand-300 transition-colors"
+        >
           <style>{`@keyframes wiark-pop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}`}</style>
-          <button onClick={() => setBubble(false)} className="absolute -top-2 -right-2 w-5 h-5 grid place-items-center rounded-full bg-slate-700 text-white/80 hover:bg-slate-900">
+          <span onClick={(e) => { e.stopPropagation(); if (topNudge) dismissNudge(topNudge.id); setBubble(false) }} className="absolute -top-2 -right-2 w-5 h-5 grid place-items-center rounded-full bg-slate-700 text-white/80 hover:bg-slate-900 cursor-pointer">
             <X size={11} />
-          </button>
-          <p className="text-[13px] text-slate-700 font-medium leading-snug">¡Hola! Soy WIarky 🎾 Preguntame algo</p>
-        </div>
+          </span>
+          {topNudge ? (
+            <>
+              <p className="text-[13px] text-slate-700 font-medium leading-snug">💡 {topNudge.corto || topNudge.mensaje}</p>
+              <p className="text-[11px] text-brand-600 font-semibold mt-1">Tocá para verlo →</p>
+            </>
+          ) : (
+            <p className="text-[13px] text-slate-700 font-medium leading-snug">¡Hola! Soy WIarky 🎾 Preguntame algo</p>
+          )}
+        </button>
       )}
 
       {/* Botón pelotita — arrastrable (drag) y clickeable (abrir). Si hubo arrastre, no abre. */}
       <button
         ref={pelotaRef}
-        onMouseDown={onDragStart}
-        onTouchStart={onDragStart}
-        onClick={() => { if (!dragRef.current.moved) abrir() }}
-        aria-label="Abrir o mover el asistente WIarky"
-        className="relative w-16 h-16 rounded-full grid place-items-center transition-transform hover:scale-105 active:scale-95 cursor-grab active:cursor-grabbing touch-none"
+        onMouseDown={isMobile ? undefined : onDragStart}
+        onTouchStart={isMobile ? undefined : onDragStart}
+        onClick={() => { if (isMobile || !dragRef.current.moved) abrir() }}
+        aria-label={isMobile ? 'Abrir el asistente WIarky' : 'Abrir o mover el asistente WIarky'}
+        className={`relative w-16 h-16 rounded-full grid place-items-center transition-transform hover:scale-105 active:scale-95 ${isMobile ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing touch-none'}`}
         style={{ filter: 'drop-shadow(0 8px 20px rgba(175,202,11,0.45))' }}
       >
         <AsistentePelota size={64} expresion={open ? 'feliz' : 'idle'} />
+        {pendientes.length > 0 && !nudgesSeen && !open && (
+          <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-red-500 text-white text-[11px] font-bold border-2 border-white shadow">
+            {pendientes.length}
+          </span>
+        )}
       </button>
      </div>
     </div>

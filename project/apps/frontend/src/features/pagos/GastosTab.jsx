@@ -554,7 +554,7 @@ const GastosTab = ({ token, metodos }) => {
         ) : (
           <div>
             {visibles.map((g, idx) => (
-              <div key={g.id} className={`flex items-center gap-4 px-5 py-4 border-b border-slate-100 transition-colors ${idx % 2 === 1 ? 'bg-slate-100' : 'bg-white'} hover:bg-brand-50/60`}>
+              <div key={g.id} className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 sm:px-5 py-4 border-b border-slate-100 transition-colors ${idx % 2 === 1 ? 'bg-slate-100' : 'bg-white'} hover:bg-brand-50/60`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-slate-800 font-semibold text-sm truncate">{g.concepto}</p>
@@ -565,7 +565,8 @@ const GastosTab = ({ token, metodos }) => {
                     {g.proveedor ? `${g.proveedor} · ` : ''}{fmtFecha(g.fecha)}{g.numeroFactura ? ` · Fac. ${g.numeroFactura}` : ''}
                   </p>
                 </div>
-                <p className="text-slate-800 font-bold text-sm shrink-0 w-24 text-right">{money(g.monto)}</p>
+                <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0">
+                <p className="text-slate-800 font-bold text-sm shrink-0 text-right sm:w-24">{money(g.monto)}</p>
                 <div className="shrink-0 flex items-center justify-end gap-1.5">
                   {g.pagado ? (
                     <div className="flex items-center gap-1.5">
@@ -577,6 +578,7 @@ const GastosTab = ({ token, metodos }) => {
                   )}
                   <button onClick={() => setModal({ gasto: g })} className="text-slate-300 hover:text-brand-500 p-1"><Pencil size={14} /></button>
                   <button onClick={() => setEliminando(g)} className="text-slate-300 hover:text-rose-500 p-1"><Trash2 size={14} /></button>
+                </div>
                 </div>
               </div>
             ))}

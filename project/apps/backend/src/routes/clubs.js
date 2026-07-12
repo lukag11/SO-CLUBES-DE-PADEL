@@ -5,6 +5,7 @@ import { tienePermiso } from '../lib/permisos.js'
 import { inicioMesArg, hoyArgStr, ahoraArgHHMM, rangoDiaArg, finEnMin, franjasDia } from '../lib/tiempo.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
 import { gatherInsightData, generarInsightIA, sugerenciaDeInsight, generarConvocatoriaWhatsapp, gatherDisponibilidad, generarPostDisponibilidad, generarPostLiberado, responderChatAgente } from '../lib/insight.js'
+import { calcularRetencionTF } from '../lib/finanzas.js'
 import { organizarConvocatoria, crearConvocatoriaCompleta } from '../lib/convocatorias.js'
 import { normalizarCategoria } from '../lib/categorias.js'
 import { nivelDeCategoria, catCorta, registrarCambioCategoria } from '../lib/ascenso.js'
@@ -249,9 +250,11 @@ router.get('/me/insight', requireAuth, requireRole('admin'), requireOwner, async
 router.get('/me/nudges', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
   const clubId = req.user.clubId
   try {
-    const [data, cajaAbierta] = await Promise.all([
+    const [data, cajaAbierta, productos, tfRiesgo] = await Promise.all([
       gatherInsightData(clubId),
       prisma.arqueoCaja.findFirst({ where: { clubId, estado: 'abierta' }, select: { id: true } }),
+      prisma.producto.findMany({ where: { clubId, activo: true, controlaStock: true }, select: { nombre: true, stock: true, stockMin: true } }),
+      calcularRetencionTF(clubId).catch(() => null),
     ])
     const nudges = []
 
@@ -284,6 +287,30 @@ router.get('/me/nudges', requireAuth, requireRole('admin'), requireOwner, async 
         mensaje: `${sug.label} 👇`,
         corto: sug.label,
         artefacto: { tipo: 'sugerencia', label: sug.label, prompt: sug.prompt },
+      })
+    }
+
+    // 🟠 Turnos fijos en RIESGO de baja (faltaron seguido) — plata recurrente que se puede ir.
+    const enRiesgo = tfRiesgo?.enRiesgo ?? []
+    if (enRiesgo.length > 0) {
+      const plataAnual = enRiesgo.reduce((s, t) => s + (t.valorAnual || 0), 0)
+      nudges.push({
+        id: 'tf_en_riesgo', prioridad: 2,
+        mensaje: `Hay ${enRiesgo.length} turno${enRiesgo.length !== 1 ? 's' : ''} fijo${enRiesgo.length !== 1 ? 's' : ''} en riesgo de baja (faltaron seguido) — ~$${plataAnual.toLocaleString('es-AR')}/año en juego. ¿Los vemos? 👇`,
+        corto: `${enRiesgo.length} turno${enRiesgo.length !== 1 ? 's' : ''} fijo${enRiesgo.length !== 1 ? 's' : ''} en riesgo`,
+        artefacto: { tipo: 'sugerencia', label: 'Ver turnos fijos en riesgo', prompt: '¿Qué turnos fijos están en riesgo de baja?' },
+      })
+    }
+
+    // 🟠 Stock bajo (opt-in por producto): stock actual ≤ mínimo definido.
+    const bajos = (productos || []).filter((p) => p.stock <= p.stockMin)
+    if (bajos.length > 0) {
+      const extra = bajos.length > 1 ? ` y ${bajos.length - 1} más` : ''
+      nudges.push({
+        id: 'stock_bajo', prioridad: 1,
+        mensaje: `Se te está por acabar ${bajos[0].nombre}${extra}. Reponé antes de quedarte sin vender 👇`,
+        corto: `Stock bajo: ${bajos.length} producto${bajos.length !== 1 ? 's' : ''}`,
+        artefacto: { tipo: 'navegar', texto: 'Ver stock', ruta: '/dashboardAdmin/pagos?tab=stock' },
       })
     }
 

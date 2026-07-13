@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import usePlayerStore from '../../store/playerStore'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
 export const usePlayerStats = (periodo) => {
   const player = usePlayerStore((s) => s.player)
@@ -20,7 +20,7 @@ export const usePlayerStats = (periodo) => {
     setLoadingStats(true)
     setStats(null)
     const qs = periodo && periodo !== 'todo' ? `?periodo=${periodo}` : ''
-    fetch(`${API_URL}/api/jugadores/me/stats${qs}`, {
+    fetch(`${API_URL}/jugadores/me/stats${qs}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => { if (!r.ok) throw new Error('Error al obtener estadísticas'); return r.json() })
@@ -31,7 +31,7 @@ export const usePlayerStats = (periodo) => {
   const fetchOponentes = useCallback(() => {
     if (!token || oponentes !== null || loadingOponentes) return
     setLoadingOponentes(true)
-    fetch(`${API_URL}/api/jugadores/me/oponentes`, {
+    fetch(`${API_URL}/jugadores/me/oponentes`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => { if (!r.ok) throw new Error('Error al obtener oponentes'); return r.json() })

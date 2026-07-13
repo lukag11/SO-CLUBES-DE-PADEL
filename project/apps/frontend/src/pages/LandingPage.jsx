@@ -89,8 +89,10 @@ const LandingPage = () => {
   const handleTorneos = () => navigate('/torneos')
 
   // Esperamos hasta que el fetch terminó (_loaded: datos reales) o hasta que
-  // se confirmó que no hay datos disponibles (fetchDone: defaults o error)
-  if (!_loaded && !fetchDone) {
+  // se confirmó que no hay datos disponibles (fetchDone: defaults o error).
+  // Excepción: si venimos de caché (club.id ya presente) renderizamos al instante
+  // y revalidamos en background → sin flash ni spinner al recargar (stale-while-revalidate).
+  if (!_loaded && !fetchDone && !club.id) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

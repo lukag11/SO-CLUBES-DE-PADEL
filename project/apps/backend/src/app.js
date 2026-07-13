@@ -46,6 +46,11 @@ if (process.env.SENTRY_DSN) {
 
 const app = express()
 
+// Detrás del proxy de Railway: confiar en 1 salto para que express-rate-limit
+// lea la IP real del cliente (X-Forwarded-For) y no la del proxy. '1' (no true)
+// evita que un atacante falsee la IP para saltar el rate-limit.
+app.set('trust proxy', 1)
+
 const corsOrigin = (origin, callback) => {
   const allowed = process.env.FRONTEND_URL || ''
   if (!origin || origin === allowed || /^http:\/\/localhost:\d+$/.test(origin)) {

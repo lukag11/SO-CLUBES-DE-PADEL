@@ -92,10 +92,24 @@ const applyColorsToDOM = (colorPrimario, colorSecundario, fontFamilia = 'Inter')
   document.documentElement.style.setProperty('--club-font', fontFamilia)
 }
 
+// Caché del último club cargado (stale-while-revalidate): al recargar arrancamos con
+// estos datos para evitar el flash de defaults + spinner. Solo por slug (público).
+const CLUB_CACHE_KEY = `padelos_club_cache_${import.meta.env.VITE_CLUB_SLUG || 'default'}`
+const readClubCache = () => {
+  try {
+    if (!import.meta.env.VITE_CLUB_SLUG) return null
+    const raw = localStorage.getItem(CLUB_CACHE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+const _clubCache = readClubCache()
+// Aplicamos los colores cacheados YA, para que el primer paint tenga el acento del club.
+if (_clubCache) applyColorsToDOM(_clubCache.colorPrimario, _clubCache.colorSecundario, _clubCache.fontFamilia)
+
 const useClubStore = create((set, get) => ({
-  club: INITIAL_CLUB,
+  club: _clubCache || INITIAL_CLUB,  // hidratamos branding desde caché (navbar/landing sin flash)
   _dirty: false,   // true cuando hay cambios locales sin guardar en el backend
-  _loaded: false,  // true una vez que llegaron datos reales del backend
+  _loaded: false,  // se mantiene false hasta el fetch real (no cambia la lógica de admin/torneos)
 
   updateClub: (data) => {
     set((state) => ({ club: { ...state.club, ...data }, _dirty: true }))
@@ -173,6 +187,8 @@ const useClubStore = create((set, get) => ({
         }),
       }
       applyColorsToDOM(merged.colorPrimario, merged.colorSecundario, merged.fontFamilia)
+      // Refresca la caché para el próximo reload (stale-while-revalidate).
+      try { localStorage.setItem(CLUB_CACHE_KEY, JSON.stringify(merged)) } catch { /* storage lleno/bloqueado: no es crítico */ }
       return { club: merged, _dirty: false, _loaded: true }
     })
   },

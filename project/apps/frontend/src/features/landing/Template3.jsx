@@ -11,7 +11,7 @@ const FEATURES = [
 ]
 
 const Template3 = ({ club, onCta, onTorneos }) => {
-  const { colorPrimario, nombre, canchas, horarios,
+  const { colorPrimario, nombre, logo, canchas, horarios,
     heroTitulo, heroTituloDestacado, heroSubtitulo, heroBadge,
     heroCtaPrimarioTexto, heroCtaSecundarioTexto, heroImagen,
     tituloBio, historia, anoFundacion, fotoPrincipal,
@@ -232,8 +232,8 @@ const Template3 = ({ club, onCta, onTorneos }) => {
       {/* FOOTER */}
       <footer className="bg-slate-900 border-t border-white/5 py-10 px-6 text-center">
         <div className="flex items-center justify-center gap-2 mb-3">
-          <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: colorPrimario }}>
-            <Zap size={12} className="text-white" />
+          <div className="w-6 h-6 rounded-md flex items-center justify-center overflow-hidden" style={{ backgroundColor: logo ? 'transparent' : colorPrimario }}>
+            {logo ? <img src={logo} alt={nombre || 'Club'} className="w-full h-full object-contain" /> : <Zap size={12} className="text-white" />}
           </div>
           <span className="text-white font-bold text-sm">{nombre}</span>
         </div>

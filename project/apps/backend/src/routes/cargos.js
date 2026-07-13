@@ -4,9 +4,10 @@ import { requireAuth, requireRole, requireActive, requireFeature, requirePermiso
 import { inicioMesArg } from '../lib/tiempo.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
-import { pagosQueImputan, revertirPagoTx } from '../lib/pagos.js'
+import { pagosQueImputan, revertirPagoTx, imputarPagoTx } from '../lib/pagos.js'
 import { runSerializable } from '../lib/serializable.js'
 import { reponerStock } from '../lib/stock.js'
+import { mpConfigurado, crearPreferencia } from '../lib/mercadopago.js'
 
 const router = Router()
 
@@ -268,35 +269,11 @@ router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), requireFeature(
       if (lineasIn.length === 0) throw Object.assign(new Error('Cargá al menos un método con monto'), { status: 400, error: 'metodos_invalidos' })
       const sumaLineas = lineasIn.reduce((s, l) => s + l.monto, 0)
       if (sumaLineas !== montoACobrar) throw Object.assign(new Error(`Los métodos suman ${sumaLineas} pero el cobro es ${montoACobrar}`), { status: 400, error: 'split_no_cuadra' })
-      const metodoStamp = lineasIn.length === 1 ? lineasIn[0].metodo : 'mixto'
 
-      // Imputación FIFO: reparto el monto a las deudas más viejas primero.
-      let resto = montoACobrar
-      const imputaciones = []
-      const applyUpdates = []
-      const now = new Date()
-      for (const d of deudas) {
-        if (resto <= 0) break
-        const aplicar = Math.min(d.restante, resto)
-        resto -= aplicar
-        const nuevoSaldo = d.saldo + aplicar
-        const completo = nuevoSaldo >= d.total
-        imputaciones.push({ origen: d.origen, refId: d.refId, monto: aplicar })
-        if (d.origen === 'cargo') {
-          applyUpdates.push(() => tx.cargo.update({ where: { id: d.refId }, data: { saldoPagado: nuevoSaldo, ...(completo ? { estado: 'pagado', pagadoAt: now, metodoPago: metodoStamp } : {}) } }))
-        } else {
-          applyUpdates.push(() => tx.reserva.update({ where: { id: d.refId }, data: { saldoPagado: nuevoSaldo, ...(completo ? { pagado: true, pagadoAt: now, metodoPago: metodoStamp } : {}) } }))
-        }
-      }
-
-      const pago = await tx.pago.create({
-        data: {
-          clubId, jugadorId, total: montoACobrar, imputaciones, pagadoAt: now,
-          lineas: { create: lineasIn.map((l) => ({ metodo: l.metodo, monto: l.monto })) },
-        },
-      })
-      for (const u of applyUpdates) await u()
-      return { pagoId: pago.id, montoACobrar, totalRestante }
+      // Imputación FIFO compartida con el webhook de MP (lib/pagos.js: imputarPagoTx).
+      // La MISMA lógica dentro de esta TX Serializable → mostrador y webhook no se pisan.
+      const impu = await imputarPagoTx(tx, { clubId, jugadorId, items, monto: montoACobrar, lineas: lineasIn })
+      return { pagoId: impu.pagoId, montoACobrar, totalRestante }
     })
 
     res.json({ ok: true, pagoId: out.pagoId, cobrado: out.montoACobrar, parcial: out.montoACobrar < out.totalRestante, restante: out.totalRestante - out.montoACobrar })
@@ -372,6 +349,76 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), requireFeature('f
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al actualizar cargo' })
+  }
+})
+
+// POST /api/cargos/:id/link-pago — genera un link de Mercado Pago (Checkout Pro) para
+// cobrar UNA deuda. Crea el PagoMP (fuente de verdad) y devuelve el init_point para
+// mandar por WhatsApp. La acreditación REAL ocurre por webhook (Slice 2). RN-70/76/77.
+router.post('/:id/link-pago', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+  const clubId = req.user.clubId
+  const { id } = req.params
+  if (!mpConfigurado(clubId)) {
+    return res.status(503).json({ error: 'mp_no_configurado', message: 'Mercado Pago no está configurado todavía.' })
+  }
+  try {
+    const cargo = await prisma.cargo.findFirst({ where: { id, clubId } })
+    if (!cargo) return res.status(404).json({ error: 'no_encontrado', message: 'Deuda no encontrada' })
+    if (cargo.estado !== 'pendiente') {
+      return res.status(409).json({ error: 'sin_deuda', message: 'Esa deuda no está pendiente.' })
+    }
+    const restante = cargo.monto - (cargo.saldoPagado || 0)
+    if (restante <= 0) return res.status(409).json({ error: 'sin_deuda', message: 'Esa deuda ya está saldada.' })
+
+    // Reusar un link vivo si ya existe → no generar duplicados. RN-77.
+    const ahora = new Date()
+    const vivo = await prisma.pagoMP.findFirst({
+      where: {
+        clubId, origen: 'cargo', refId: cargo.id,
+        status: { in: ['iniciado', 'pending'] },
+        initPoint: { not: null },
+        OR: [{ expiraAt: null }, { expiraAt: { gt: ahora } }],
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    if (vivo) return res.json({ initPoint: vivo.initPoint, pagoMpId: vivo.id, expiraAt: vivo.expiraAt, reusado: true })
+
+    const expiraAt = new Date(ahora.getTime() + 7 * 24 * 60 * 60 * 1000) // 7 días (RN-76)
+
+    // 1) PagoMP PRIMERO → su id es el external_reference (fuente de verdad).
+    const pagoMP = await prisma.pagoMP.create({
+      data: { clubId, origen: 'cargo', refId: cargo.id, montoEsperado: restante, status: 'iniciado', expiraAt },
+    })
+
+    // 2) Preferencia de Checkout Pro.
+    const backendBase = process.env.PUBLIC_BACKEND_URL || 'https://so-clubes-de-padel-production.up.railway.app'
+    const frontBase = (process.env.APP_PUBLIC_URL && process.env.APP_PUBLIC_URL.startsWith('https'))
+      ? process.env.APP_PUBLIC_URL : 'https://padelwiarkdemo.vercel.app'
+    let pref
+    try {
+      pref = await crearPreferencia(clubId, {
+        titulo: cargo.concepto || 'Deuda',
+        monto: restante,
+        externalReference: pagoMP.id,
+        notificationUrl: `${backendBase}/api/webhooks/mercadopago`,
+        backUrls: { success: `${frontBase}/`, failure: `${frontBase}/`, pending: `${frontBase}/` },
+        expiraAt,
+      })
+    } catch (e) {
+      await prisma.pagoMP.update({ where: { id: pagoMP.id }, data: { status: 'error', statusDetail: String(e.message).slice(0, 200) } }).catch(() => {})
+      throw e
+    }
+
+    // 3) Guardamos preferenceId + initPoint.
+    const upd = await prisma.pagoMP.update({
+      where: { id: pagoMP.id },
+      data: { preferenceId: pref.id, initPoint: pref.initPoint },
+    })
+    res.status(201).json({ initPoint: upd.initPoint, pagoMpId: upd.id, expiraAt: upd.expiraAt })
+  } catch (err) {
+    const status = err.status || 500
+    if (status >= 500) console.error('[link-pago]', err)
+    res.status(status).json({ error: err.error || 'error', message: err.message || 'No se pudo generar el link de pago' })
   }
 })
 

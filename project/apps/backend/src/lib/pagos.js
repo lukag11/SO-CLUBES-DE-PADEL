@@ -46,6 +46,68 @@ export async function ingresosTotalEntre(clubId, desde, hasta) {
   return Object.values(porMetodo).reduce((s, v) => s + v, 0)
 }
 
+// ── Imputación de un cobro (FIFO) — COMPARTIDO por mostrador y webhook MP ─────────
+// Reparte `monto` a las deudas de `items` (la más vieja primero), crea un Pago con sus
+// PagoLinea y sube el saldoPagado de cada ítem (marcándolo pagado al completarse).
+// DEBE correr dentro de runSerializable (re-lee saldos → anti doble-cobro). Capa el monto
+// al restante real (RN-75: nunca imputa de más). Devuelve { pagoId, imputado, totalRestante }.
+// Si no queda restante → { pagoId: null, imputado: 0, totalRestante } (el caller decide qué
+// hacer con el sobrante, ej. avisar saldo a favor).
+export async function imputarPagoTx(tx, { clubId, jugadorId = null, items, monto, lineas }) {
+  const cargoIds = items.filter((i) => i.origen === 'cargo').map((i) => i.refId)
+  const reservaIds = items.filter((i) => i.origen === 'reserva').map((i) => i.refId)
+  const [cargos, reservas] = await Promise.all([
+    cargoIds.length ? tx.cargo.findMany({ where: { id: { in: cargoIds }, clubId, ...(jugadorId ? { jugadorId } : {}), estado: 'pendiente', comandaId: null }, select: { id: true, monto: true, saldoPagado: true, createdAt: true } }) : [],
+    reservaIds.length ? tx.reserva.findMany({ where: { id: { in: reservaIds }, clubId, ...(jugadorId ? { jugadorId } : {}), pagado: false }, select: { id: true, precio: true, saldoPagado: true, fecha: true, horaInicio: true, createdAt: true } }) : [],
+  ])
+
+  const deudas = [
+    ...cargos.map((c) => ({ origen: 'cargo', refId: c.id, total: c.monto ?? 0, saldo: c.saldoPagado ?? 0, orden: c.createdAt.getTime() })),
+    ...reservas.map((r) => ({ origen: 'reserva', refId: r.id, total: r.precio ?? 0, saldo: r.saldoPagado ?? 0, orden: new Date(`${r.fecha}T${r.horaInicio || '00:00'}`).getTime() || r.createdAt.getTime() })),
+  ]
+    .map((d) => ({ ...d, restante: d.total - d.saldo }))
+    .filter((d) => d.restante > 0)
+    .sort((a, b) => a.orden - b.orden)
+
+  const totalRestante = deudas.reduce((s, d) => s + d.restante, 0)
+  const montoR = Math.round(monto)
+  const aImputar = Math.min(montoR, totalRestante)
+  // excedente = plata que se quiso imputar pero no entra en la deuda (sobrepago). RN-75.
+  if (aImputar <= 0) return { pagoId: null, imputado: 0, totalRestante, excedente: montoR }
+
+  // Líneas efectivas: si el monto se capó (sobrepago) y hay una sola línea, la ajustamos.
+  // El split (varias líneas) sólo llega del mostrador, donde monto ya está validado ≤ restante.
+  let lineasEf = lineas
+  if (aImputar !== montoR) {
+    if (lineas.length === 1) lineasEf = [{ metodo: lineas[0].metodo, monto: aImputar }]
+    else throw Object.assign(new Error('El split supera lo adeudado'), { status: 400, error: 'split_excede' })
+  }
+  const metodoStamp = lineasEf.length === 1 ? lineasEf[0].metodo : 'mixto'
+
+  let resto = aImputar
+  const imputaciones = []
+  const applyUpdates = []
+  const now = new Date()
+  for (const d of deudas) {
+    if (resto <= 0) break
+    const aplicar = Math.min(d.restante, resto)
+    resto -= aplicar
+    const nuevoSaldo = d.saldo + aplicar
+    const completo = nuevoSaldo >= d.total
+    imputaciones.push({ origen: d.origen, refId: d.refId, monto: aplicar })
+    if (d.origen === 'cargo') {
+      applyUpdates.push(() => tx.cargo.update({ where: { id: d.refId }, data: { saldoPagado: nuevoSaldo, ...(completo ? { estado: 'pagado', pagadoAt: now, metodoPago: metodoStamp } : {}) } }))
+    } else {
+      applyUpdates.push(() => tx.reserva.update({ where: { id: d.refId }, data: { saldoPagado: nuevoSaldo, ...(completo ? { pagado: true, pagadoAt: now, metodoPago: metodoStamp } : {}) } }))
+    }
+  }
+  const pago = await tx.pago.create({
+    data: { clubId, jugadorId, total: aImputar, imputaciones, pagadoAt: now, lineas: { create: lineasEf.map((l) => ({ metodo: l.metodo, monto: l.monto })) } },
+  })
+  for (const u of applyUpdates) await u()
+  return { pagoId: pago.id, imputado: aImputar, totalRestante, excedente: montoR - aImputar }
+}
+
 // ── Anular un Pago del libro de plata (revierte saldoPagado y reabre ítems) ──────
 // Pagos que imputaron plata a un ítem (para reconciliar al des-pagarlo por vías legacy).
 // Escanea los pagos no anulados del club y filtra por la imputación (JSON) al ítem.

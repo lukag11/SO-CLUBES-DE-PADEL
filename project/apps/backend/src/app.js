@@ -29,6 +29,7 @@ import solicitudesPublicasRouter from './routes/solicitudes-publicas.js'
 import eventosRouter from './routes/eventos.js'
 import costosRouter from './routes/costos.js'
 import finanzasRouter from './routes/finanzas.js'
+import webhooksRouter from './routes/webhooks.js'
 import { requireAuth, requireRole, requireFeature, requireClubActivo, requirePermiso } from './middleware/auth.js'
 
 // Sentry (error tracking en producción). DORMIDO si no hay SENTRY_DSN: ni siquiera se
@@ -102,6 +103,7 @@ app.use('/api/convocatorias', requireAuth, requireClubActivo, convocatoriasRoute
 app.use('/api/solicitudes/publica', solicitudesPublicasRouter) // público (sin auth) — debe ir ANTES del router autenticado
 app.use('/api/solicitudes', requireAuth, requireClubActivo, solicitudesRouter)
 app.use('/api/eventos', requireAuth, eventosRouter) // telemetría de uso (fire-and-forget)
+app.use('/api/webhooks', webhooksRouter) // PÚBLICO (sin auth) — MP notifica pagos. Verifica por re-consulta.
 
 // Captura de errores no manejados → Sentry (solo si está activo). Va DESPUÉS de las rutas.
 if (Sentry) Sentry.setupExpressErrorHandler(app)

@@ -2,6 +2,13 @@
 
 **Última actualización:** 2026-07-13 — **🚀 DEPLOY A PRODUCCIÓN.** PadelwIArk está VIVO: **`https://padelwiarkdemo.vercel.app`** (frontend Vercel) → **`https://so-clubes-de-padel-production.up.railway.app`** (backend Railway) → Supabase dedicado. Login admin/jugador probado OK desde compu y celular. Club DEMO single-tenant (por build). Ver bloque abajo.
 
+**MERCADO PAGO Fase 2 — cobro real de deudas por link (Slices 0-2.5, 2026-07-13).** Plan auditado por asesor-financiero + código auditado por qa-flujos (**APTO**). Ver memoria [[project_mercadopago_fase2]] (RN-70..77).
+- **S0:** modelo `PagoMP` (fuente de verdad del intento, `mpPaymentId @unique`) + tabla `pagos_mp` (db push). SDK `mercadopago`. App MP "PadelwIark Cobros" (Checkout Pro, sandbox). Token en `.env` `MP_ACCESS_TOKEN` (validado contra API), NO en `config` (evita leak). `lib/mercadopago.js`.
+- **S1:** `POST /api/cargos/:id/link-pago` → crea `PagoMP` + preferencia Checkout Pro → devuelve `init_point` (link WhatsApp). Reusa link vivo, expira 7d. **Probado**: genera link real de sandbox (201).
+- **S2.5:** `imputarPagoTx` en `lib/pagos.js` = FIFO+Pago compartido; `cobrar-cuenta` refactorizado para usarlo (idéntico). Capa al restante + devuelve `excedente`.
+- **S2:** webhook `POST /api/webhooks/mercadopago` (público): re-consulta a MP (nunca el body), idempotente por `mpPaymentId`, approved→imputa en Serializable + avisa sobrepago (parcial/total) y doble-pago, refunded/charged_back→revierte (reabre deuda). 45/45 tests OK.
+- **Pendiente:** S3 (UI botón "Cobrar por link" + estado en vivo) + deploy webhook a Railway (`MP_ACCESS_TOKEN` en Railway + notification_url en panel MP) + prueba viva con comprador de prueba.
+
 **POST-DEPLOY: logo en footer + trust proxy + fix flash de recarga (2026-07-13).** Pulido con el demo ya en producción.
 - **Logo del club en el footer** de los **5 templates** de landing: antes mostraban el ícono `Zap` genérico; ahora, mismo patrón que `PublicNavbar` → `logo ? <img> : <Zap>` (fallback), fondo transparente si hay logo. Se agregó `logo` al destructure de club en cada template.
 - **Seguridad — `app.set('trust proxy', 1)`** en `app.js`: detrás del proxy de Railway, `express-rate-limit` ahora lee la IP real (X-Forwarded-For) y no la del proxy → el anti-fuerza-bruta cuenta bien. `1` (no `true`) para que no se pueda falsear la IP. Ver [[project_deploy_pendiente]].

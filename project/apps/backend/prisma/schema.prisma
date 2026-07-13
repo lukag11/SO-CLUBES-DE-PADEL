@@ -560,6 +560,32 @@ model PagoLinea {
   @@map("pago_lineas")
 }
 
+// Intento de cobro con Mercado Pago (Checkout Pro). FUENTE DE VERDAD del pago online:
+// da idempotencia (mpPaymentId @unique) y trazabilidad (iniciado → pending → approved/refunded).
+// La acreditación REAL (crear Pago + imputar FIFO) ocurre UNA sola vez en la transición → approved,
+// verificada por webhook + re-consulta GET /v1/payments/{id}. NUNCA acreditar por el back_url.
+// clubId/refId/pagoId son referencias simples (sin FK Prisma) para no tocar Club/Pago. Ver RN-70..77
+// y la memoria project_mercadopago_fase2.
+model PagoMP {
+  id            String    @id @default(cuid())
+  clubId        String                                  // club que cobra (token MP resuelto aparte)
+  origen        String                                  // 'cargo' | 'reserva' — qué se está cobrando
+  refId         String                                  // id del Cargo (o Reserva) que se cobra
+  montoEsperado Int                                     // restante de la deuda al generar el link (pesos)
+  preferenceId  String?                                 // id de la preferencia de Checkout Pro
+  initPoint     String?                                 // URL de pago (init_point) para mandar por WhatsApp
+  mpPaymentId   String?   @unique                       // id del payment de MP → idempotencia (llega en el webhook)
+  status        String    @default("iniciado")          // iniciado | pending | approved | rejected | refunded | charged_back | cancelled
+  statusDetail  String?                                 // status_detail crudo de MP (auditoría)
+  pagoId        String?                                 // ref al Pago creado al acreditar (una sola vez)
+  expiraAt      DateTime?                               // vencimiento del link (RN-76)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([clubId, refId])
+  @@map("pagos_mp")
+}
+
 model Notificacion {
   id         String   @id @default(cuid())
   clubId     String

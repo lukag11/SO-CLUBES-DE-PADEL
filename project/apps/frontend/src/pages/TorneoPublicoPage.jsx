@@ -2729,7 +2729,7 @@ const TorneoPublicoPage = () => {
     fetchTorneo(true)
 
     // Polling cada 30s para mantener datos en tiempo real
-    pollRef.current = setInterval(() => fetchTorneo(false), 30_000)
+    pollRef.current = setInterval(() => { if (!document.hidden) fetchTorneo(false) }, 30_000)
     return () => clearInterval(pollRef.current)
   }, [id])
 

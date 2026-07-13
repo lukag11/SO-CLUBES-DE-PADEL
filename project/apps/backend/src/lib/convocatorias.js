@@ -75,7 +75,11 @@ export async function crearConvocatoriaCompleta({ clubId, organizadorJugadorId, 
 
   // Notif in-app a la categoría — solo si es pública
   if (vis === 'publica' && categorias.length) {
-    const jugadores = await prisma.jugador.findMany({ where: { clubId, activo: true, categoria: { in: categorias } }, select: { id: true } })
+    // Match por categoría NORMALIZADA de ambos lados (no `in` exacto): así matchea aunque un
+    // jugador tenga guardada una forma vieja/corta ("4ta" vs "4ta Categoría"). Falla-mudo evitado.
+    const catSet = new Set(categorias.map(normalizarCategoria).filter(Boolean))
+    const jugadores = (await prisma.jugador.findMany({ where: { clubId, activo: true, categoria: { not: null } }, select: { id: true, categoria: true } }))
+      .filter((j) => catSet.has(normalizarCategoria(j.categoria)))
     if (jugadores.length) {
       await prisma.notificacion.createMany({
         data: jugadores.map((j) => ({ clubId, jugadorId: j.id, tipo: 'convocatoria_abierta', data: { convocatoriaId: convocatoria.id, modalidad, fecha, horaInicio, categorias } })),

@@ -189,7 +189,7 @@ const DashboardPage = () => {
       .catch(() => {})
       .finally(() => { if (activo) setLoading(false) })
     fetchData()
-    const id = setInterval(fetchData, REFRESH_MS)
+    const id = setInterval(() => { if (!document.hidden) fetchData() }, REFRESH_MS)
     return () => { activo = false; clearInterval(id) }
   }, [token])
 

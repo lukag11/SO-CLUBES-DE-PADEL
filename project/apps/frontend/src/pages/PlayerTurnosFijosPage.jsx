@@ -271,7 +271,7 @@ const PlayerTurnosFijosPage = () => {
         .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
         .catch((err) => console.error('[TurnosFijos] Error al cargar:', err.message))
     fetchTurnos()
-    const interval = setInterval(fetchTurnos, 30_000)
+    const interval = setInterval(() => { if (!document.hidden) fetchTurnos() }, 30_000)
     return () => clearInterval(interval)
   }, [token])
 

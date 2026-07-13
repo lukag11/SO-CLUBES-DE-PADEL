@@ -2940,7 +2940,7 @@ const ReservasPage = () => {
     if (!adminToken) return
     setReservasBackend([])
     fetchReservasBackend(fecha, true)  // showLoading=true solo al cambiar fecha, no en polling
-    const interval = setInterval(() => fetchReservasBackend(fecha), 30_000)
+    const interval = setInterval(() => { if (!document.hidden) fetchReservasBackend(fecha) }, 30_000)
     const onFocus = () => fetchReservasBackend(fecha)
     window.addEventListener('focus', onFocus)
     return () => {
@@ -2961,7 +2961,7 @@ const ReservasPage = () => {
 
   useEffect(() => {
     fetchReservasPendientes()
-    const interval = setInterval(fetchReservasPendientes, 30_000)
+    const interval = setInterval(() => { if (!document.hidden) fetchReservasPendientes() }, 30_000)
     window.addEventListener('focus', fetchReservasPendientes)
     return () => {
       clearInterval(interval)

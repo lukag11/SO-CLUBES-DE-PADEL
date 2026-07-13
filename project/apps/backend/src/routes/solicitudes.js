@@ -43,7 +43,11 @@ router.post('/', requireRole('jugador'), async (req, res) => {
     // Notificar (in-app) a los jugadores de ESAS categorías SOLO si es público. Privado = solo por link.
     let notificados = 0
     if (categorias.length && vis === 'publica') {
-      const jugadores = await prisma.jugador.findMany({ where: { clubId, activo: true, categoria: { in: categorias }, id: { not: solicitanteId } }, select: { id: true } })
+      // Match por categoría NORMALIZADA de ambos lados (no `in` exacto): matchea aunque un jugador
+      // tenga guardada una forma vieja/corta ("4ta" vs "4ta Categoría").
+      const catSet = new Set(categorias.map(normalizarCategoria).filter(Boolean))
+      const jugadores = (await prisma.jugador.findMany({ where: { clubId, activo: true, categoria: { not: null }, id: { not: solicitanteId } }, select: { id: true, categoria: true } }))
+        .filter((j) => catSet.has(normalizarCategoria(j.categoria)))
       if (jugadores.length) {
         await prisma.notificacion.createMany({
           data: jugadores.map((j) => ({ clubId, jugadorId: j.id, tipo: 'busca_jugador', data: { solicitudId: solicitud.id, busco: buscoOk, cupos, categoria: catTxt, fecha, horaInicio: solicitud.horaInicio, nota: solicitud.nota, solicitante: nombreDe(sol) } })),

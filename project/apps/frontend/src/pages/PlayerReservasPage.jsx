@@ -364,7 +364,7 @@ const PlayerReservasPage = () => {
         .then((data) => { if (Array.isArray(data)) setSlotsOcupadosClub(data) })
         .catch(() => {})
     fetch()
-    const interval = setInterval(fetch, 30_000)
+    const interval = setInterval(() => { if (!document.hidden) fetch() }, 30_000)
     return () => clearInterval(interval)
   }, [token])
 
@@ -375,6 +375,7 @@ const PlayerReservasPage = () => {
     fetchReservasDia(fechaSeleccionada)
     fetchMisReservas()
     const interval = setInterval(() => {
+      if (document.hidden) return
       fetchReservasDia(fechaSeleccionada)
       fetchMisReservas()
     }, 30_000)

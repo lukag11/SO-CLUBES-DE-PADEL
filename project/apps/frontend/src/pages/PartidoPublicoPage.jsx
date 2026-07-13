@@ -36,7 +36,7 @@ export default function PartidoPublicoPage() {
   }
   useEffect(() => { cargar() }, [id])
   // Auto-refresh suave: ver el lobby llenarse en vivo.
-  useEffect(() => { const t = setInterval(cargar, 15000); return () => clearInterval(t) }, [id])
+  useEffect(() => { const t = setInterval(() => { if (!document.hidden) cargar() }, 15000); return () => clearInterval(t) }, [id])
 
   const compartirWhatsapp = () => {
     const link = window.location.href

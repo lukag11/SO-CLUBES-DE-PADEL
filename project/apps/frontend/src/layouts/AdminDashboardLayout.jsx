@@ -47,7 +47,7 @@ const DashboardLayout = () => {
         .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
         .catch(() => {})
     fetch()
-    const interval = setInterval(fetch, 30_000)
+    const interval = setInterval(() => { if (!document.hidden) fetch() }, 30_000)
     const onFocus = () => fetch()
     window.addEventListener('focus', onFocus)
     return () => { clearInterval(interval); window.removeEventListener('focus', onFocus) }
@@ -57,7 +57,7 @@ const DashboardLayout = () => {
   useEffect(() => {
     if (!token) return
     fetchNotificaciones(token)
-    const interval = setInterval(() => fetchNotificaciones(token), 30_000)
+    const interval = setInterval(() => { if (!document.hidden) fetchNotificaciones(token) }, 30_000)
     const onFocus = () => fetchNotificaciones(token)
     window.addEventListener('focus', onFocus)
     return () => { clearInterval(interval); window.removeEventListener('focus', onFocus) }

@@ -124,7 +124,7 @@ const PlayerLayout = () => {
         .then((data) => { if (Array.isArray(data)) setTurnosFijos(data) })
         .catch(() => {})
     fetch()
-    const interval = setInterval(fetch, 30_000)
+    const interval = setInterval(() => { if (!document.hidden) fetch() }, 30_000)
     const onFocus = () => fetch()
     window.addEventListener('focus', onFocus)
     return () => { clearInterval(interval); window.removeEventListener('focus', onFocus) }
@@ -134,7 +134,7 @@ const PlayerLayout = () => {
   useEffect(() => {
     if (!token) return
     fetchNotificaciones()
-    const interval = setInterval(fetchNotificaciones, 30_000)
+    const interval = setInterval(() => { if (!document.hidden) fetchNotificaciones() }, 30_000)
     return () => clearInterval(interval)
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 

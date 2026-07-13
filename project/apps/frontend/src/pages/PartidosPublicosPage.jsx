@@ -25,7 +25,7 @@ export default function PartidosPublicosPage() {
     if (!slug) { setLista([]); return }
     const cargar = () => api.get(`/solicitudes/publica/club/${slug}`).then((r) => setLista(Array.isArray(r) ? r : [])).catch(() => setLista([]))
     cargar()
-    const t = setInterval(cargar, 15000) // ver el lobby llenarse en vivo
+    const t = setInterval(() => { if (!document.hidden) cargar() }, 15000) // ver el lobby llenarse en vivo
     return () => clearInterval(t)
   }, [slug])
 

@@ -44,7 +44,7 @@ export default function ConvocatoriaPublicaPage() {
   // Auto-refresh suave (ranking en vivo para la TV/link): re-consulta cada 15s mientras la página
   // está abierta. Liviano: un solo endpoint público.
   useEffect(() => {
-    const t = setInterval(() => { cargar() }, 15000)
+    const t = setInterval(() => { if (!document.hidden) cargar() }, 15000)
     return () => clearInterval(t)
   }, [id])
 

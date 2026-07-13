@@ -62,12 +62,12 @@ async function procesarPago(pagoMP, { paymentId, status, statusDetail, amount })
         }
         return
       }
-      const cargo = pagoMP.origen === 'cargo'
-        ? await tx.cargo.findUnique({ where: { id: pagoMP.refId }, select: { jugadorId: true } })
-        : null
+      const jugadorId = pagoMP.origen === 'reserva'
+        ? (await tx.reserva.findUnique({ where: { id: pagoMP.refId }, select: { jugadorId: true } }))?.jugadorId ?? null
+        : (await tx.cargo.findUnique({ where: { id: pagoMP.refId }, select: { jugadorId: true } }))?.jugadorId ?? null
       const impu = await imputarPagoTx(tx, {
         clubId: pagoMP.clubId,
-        jugadorId: cargo?.jugadorId ?? null,
+        jugadorId,
         items: [{ origen: pagoMP.origen, refId: pagoMP.refId }],
         monto: amount,
         lineas: [{ metodo: 'mercadopago', monto: amount }],

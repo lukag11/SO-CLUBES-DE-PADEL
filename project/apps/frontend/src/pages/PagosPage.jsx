@@ -378,6 +378,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   const [otroPrecio, setOtroPrecio] = useState('')
   const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
   const [montoCobrar, setMontoCobrar] = useState('')   // cobro: monto a cobrar (editable → entrega parcial)
+  const [mpLink, setMpLink] = useState(null)           // link de pago MP generado { initPoint, concepto, monto, tel }
   const [usarSplit, setUsarSplit] = useState(false)     // cobro: pagó con 2 métodos
   const [metodo2, setMetodo2] = useState(metodos[1] ?? metodos[0] ?? 'transferencia')
   const [monto1, setMonto1] = useState('')              // cobro: monto del método 1 cuando hay split
@@ -494,6 +495,21 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     } catch (e) { showToast('error', e?.message || 'No se pudo cobrar') } finally { setSaving(false) }
   }
 
+  // Genera un link de pago de Mercado Pago para UNA deuda (cargo). La deuda se marca
+  // pagada sola cuando el jugador pague (webhook). No cobra en el acto.
+  const generarLinkMP = async () => {
+    const d = deudaSel[0]
+    if (!d) { setError('Elegí una deuda para el link de pago'); return }
+    setSaving(true); setError('')
+    try {
+      const r = await api.post('/pagos/link-pago', { origen: d.origen, refId: d.refId }, { Authorization: `Bearer ${token}` })
+      const jug = jugadores.find((j) => j.id === jugadorId)
+      setMpLink({ initPoint: r.initPoint, concepto: d.concepto, monto: d.monto, tel: jug?.telefono || jug?.tel || '' })
+    } catch (e) {
+      showToast('error', e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el link'))
+    } finally { setSaving(false) }
+  }
+
   const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
 
   return (
@@ -512,6 +528,22 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
               <button onClick={() => enviarWhatsApp(ticketTexto(ticketVenta, club), ticketVenta.tel)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#25D366] hover:brightness-95 text-white font-semibold text-sm">WhatsApp</button>
             </div>
             <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
+          </div>
+        )}
+        {mpLink && (
+          <div className="absolute inset-0 z-10 bg-white flex flex-col items-center justify-center text-center gap-3 p-8">
+            <div className="w-12 h-12 rounded-2xl bg-sky-50 flex items-center justify-center text-2xl">🔗</div>
+            <div>
+              <p className="text-slate-800 font-bold">Link de pago generado</p>
+              <p className="text-slate-400 text-xs mt-0.5">{mpLink.concepto} · {money(mpLink.monto)}</p>
+            </div>
+            <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[11px] text-slate-500 break-all">{mpLink.initPoint}</div>
+            <div className="flex gap-2 w-full">
+              <button onClick={() => { navigator.clipboard?.writeText(mpLink.initPoint); showToast('exito', 'Link copiado') }} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm">Copiar link</button>
+              <button onClick={() => enviarWhatsApp(`Hola! Podés pagar ${mpLink.concepto} (${money(mpLink.monto)}) con este link de Mercado Pago:\n${mpLink.initPoint}`, mpLink.tel)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#25D366] hover:brightness-95 text-white font-semibold text-sm">WhatsApp</button>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-snug">La deuda se marca pagada <b>sola</b> cuando el jugador pague. Mientras tanto, no la cobres en efectivo para no cobrar dos veces.</p>
+            <button onClick={() => { setMpLink(null); onClose() }} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
           </div>
         )}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
@@ -657,6 +689,11 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
                 {esVenta && !mostrador && (
                   <button onClick={anotarACuenta} disabled={saving || lineas.length === 0} title="Suma los consumos nuevos como deuda pendiente" className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors disabled:opacity-40">
                     Anotar a cuenta{totalNuevo > 0 ? ` ${money(totalNuevo)}` : ''}
+                  </button>
+                )}
+                {esCobro && metodoPago === 'mercadopago' && (
+                  <button onClick={generarLinkMP} disabled={saving || deudaSel.length !== 1} title="Genera un link de Mercado Pago para enviar por WhatsApp (la deuda se marca sola al pagar)" className="flex-1 py-2.5 rounded-xl border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 font-semibold text-sm transition-colors disabled:opacity-40">
+                    Link de pago
                   </button>
                 )}
                 <button onClick={cobrarTodo} disabled={saving || (esCobro && deudaSel.length ? montoCobrarNum === 0 : totalCobrar === 0)} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">

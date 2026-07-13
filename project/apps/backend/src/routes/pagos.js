@@ -4,6 +4,8 @@ import { requireAuth, requireRole, requireFeature, requirePermiso } from '../mid
 import { inicioMesArg } from '../lib/tiempo.js'
 import { revertirPagoTx } from '../lib/pagos.js'
 import { runSerializable } from '../lib/serializable.js'
+import { mpConfigurado } from '../lib/mercadopago.js'
+import { crearLinkPagoDeuda } from '../lib/cobrosMP.js'
 
 const router = Router()
 
@@ -49,6 +51,23 @@ router.post('/:id/anular', requireAuth, requireRole('admin'), requireFeature('fi
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al anular el pago' })
+  }
+})
+
+// POST /api/pagos/link-pago — link de Mercado Pago para UNA deuda (cargo o turno).
+// Body: { origen: 'cargo'|'reserva', refId }. La acreditación real ocurre por webhook.
+router.post('/link-pago', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+  const clubId = req.user.clubId
+  const { origen, refId } = req.body || {}
+  if (!mpConfigurado(clubId)) return res.status(503).json({ error: 'mp_no_configurado', message: 'Mercado Pago no está configurado todavía.' })
+  if (!refId || !['cargo', 'reserva'].includes(origen)) return res.status(400).json({ error: 'datos_incompletos', message: 'Falta la deuda a cobrar.' })
+  try {
+    const out = await crearLinkPagoDeuda({ clubId, origen, refId })
+    res.status(out.reusado ? 200 : 201).json(out)
+  } catch (err) {
+    const status = err.status || 500
+    if (status >= 500) console.error('[link-pago]', err)
+    res.status(status).json({ error: err.error || 'error', message: err.message || 'No se pudo generar el link de pago' })
   }
 })
 

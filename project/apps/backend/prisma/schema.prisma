@@ -43,8 +43,45 @@ model Club {
   costos         Costo[]
   arqueosCaja    ArqueoCaja[]
   pagos          Pago[]
+  mpConexion     MpConexion?   // conexión OAuth de Mercado Pago (NUNCA incluir en lecturas del club)
 
   @@map("clubs")
+}
+
+// Conexión OAuth de Mercado Pago de un club (el club conectó SU cuenta). Los tokens van
+// CIFRADOS (AES-256-GCM, lib/cripto.js) — NUNCA en Club.config (que se serializa al front).
+// Nunca incluir en `include` de lecturas del club ni loguear los tokens. Ver diseño en
+// memoria project_mp_oauth_diseno.
+model MpConexion {
+  id                 String    @id @default(cuid())
+  clubId             String    @unique                 // 1-1 con Club
+  club               Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  mpUserId           String    @unique                 // user_id de MP (una cuenta MP no en dos clubes)
+  accessTokenEnc     String                            // AES-256-GCM (iv:tag:ct)
+  refreshTokenEnc    String                            // AES-256-GCM
+  scope              String?
+  expiresAt          DateTime                          // vencimiento del access_token
+  keyVersion         Int       @default(1)             // rotación de la enc key
+  estado             String    @default("conectado")   // conectado | desconectado
+  desconectadoMotivo String?                           // refresh_failed | revocado | error
+  conectadoAt        DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("mp_conexiones")
+}
+
+// Estado anti-CSRF del flujo OAuth: aleatorio, single-use, TTL corto. El clubId sale de
+// acá (server-side), NUNCA de un query param del callback (anti confused-deputy).
+model MpOAuthState {
+  id        String    @id @default(cuid())
+  state     String    @unique                          // random 32B base64url
+  clubId    String
+  usedAt    DateTime?                                  // single-use: se marca antes de canjear el code
+  expiresAt DateTime                                   // now + 10 min
+  createdAt DateTime  @default(now())
+
+  @@index([expiresAt])
+  @@map("mp_oauth_states")
 }
 
 model Admin {

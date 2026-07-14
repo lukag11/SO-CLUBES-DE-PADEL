@@ -2,6 +2,12 @@
 
 **Última actualización:** 2026-07-13 — **🚀 DEPLOY A PRODUCCIÓN.** PadelwIArk está VIVO: **`https://padelwiarkdemo.vercel.app`** (frontend Vercel) → **`https://so-clubes-de-padel-production.up.railway.app`** (backend Railway) → Supabase dedicado. Login admin/jugador probado OK desde compu y celular. Club DEMO single-tenant (por build). Ver bloque abajo.
 
+**MP OAuth multi-tenant — Slice 0: cripto + tablas (2026-07-13).** Diseño validado por security-architect (ver [[project_mp_oauth_diseno]]): cada club conecta SU cuenta de MP (los cobros van a su cuenta). 2 reglas críticas: R1 clubId en la URL del webhook (`/webhooks/mercadopago/:clubId`), R2 el clubId del callback sale del `state` server-side (no de query param).
+- **`lib/cripto.js`**: cifrado AES-256-GCM de tokens at-rest (`encryptToken`/`decryptToken`, formato `iv:tag:ct`, clave `MP_TOKEN_ENC_KEY` env 32B base64). Detecta manipulación (GCM auth). 3 tests (`cripto.test.js`, autocontenidos) → 48/48.
+- **Modelos** `MpConexion` (1-1 con Club: mpUserId @unique, accessTokenEnc, refreshTokenEnc, expiresAt, keyVersion, estado) + `MpOAuthState` (state @unique, clubId, usedAt, expiresAt). `Club.mpConexion` — NUNCA en `include` de lecturas ni en `config` (que se serializa al front). Tablas creadas (db push).
+- **`MP_TOKEN_ENC_KEY`** generada + en `.env`, verificada (cifra tokens reales). NO se pierde/cambia una vez en uso. Pendiente: misma clave en Railway al deployar.
+- **Pendiente:** S1 (rutas OAuth start/callback + registrar redirect_uri + client_id/secret en panel MP), S2 (resolveMpToken async + refresh), S3 (webhook /:clubId), S4 (UI conectar/desconectar), S5 (QA 2 clubes).
+
 **MERCADO PAGO Fase 2 — cobro real de deudas por link (Slices 0-2.5, 2026-07-13).** Plan auditado por asesor-financiero + código auditado por qa-flujos (**APTO**). Ver memoria [[project_mercadopago_fase2]] (RN-70..77).
 - **S0:** modelo `PagoMP` (fuente de verdad del intento, `mpPaymentId @unique`) + tabla `pagos_mp` (db push). SDK `mercadopago`. App MP "PadelwIark Cobros" (Checkout Pro, sandbox). Token en `.env` `MP_ACCESS_TOKEN` (validado contra API), NO en `config` (evita leak). `lib/mercadopago.js`.
 - **S1:** `POST /api/cargos/:id/link-pago` → crea `PagoMP` + preferencia Checkout Pro → devuelve `init_point` (link WhatsApp). Reusa link vivo, expira 7d. **Probado**: genera link real de sandbox (201).

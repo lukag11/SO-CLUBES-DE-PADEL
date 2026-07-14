@@ -59,7 +59,7 @@ router.post('/:id/anular', requireAuth, requireRole('admin'), requireFeature('fi
 router.post('/link-pago', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
   const { origen, refId } = req.body || {}
-  if (!mpConfigurado(clubId)) return res.status(503).json({ error: 'mp_no_configurado', message: 'Mercado Pago no está configurado todavía.' })
+  if (!(await mpConfigurado(clubId))) return res.status(503).json({ error: 'mp_no_configurado', message: 'Mercado Pago no está configurado todavía.' })
   if (!refId || !['cargo', 'reserva'].includes(origen)) return res.status(400).json({ error: 'datos_incompletos', message: 'Falta la deuda a cobrar.' })
   try {
     const out = await crearLinkPagoDeuda({ clubId, origen, refId })

@@ -46,7 +46,7 @@ export async function crearLinkPagoDeuda({ clubId, origen, refId }) {
       titulo: concepto,
       monto: restante,
       externalReference: pagoMP.id,
-      notificationUrl: `${backendBase}/api/webhooks/mercadopago`,
+      notificationUrl: `${backendBase}/api/webhooks/mercadopago/${clubId}`,
       backUrls: { success: `${frontBase}/`, failure: `${frontBase}/`, pending: `${frontBase}/` },
       expiraAt,
     })

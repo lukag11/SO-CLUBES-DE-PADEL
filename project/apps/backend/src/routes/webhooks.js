@@ -105,9 +105,10 @@ async function procesarPago(pagoMP, { paymentId, status, statusDetail, amount })
   await prisma.pagoMP.update({ where: { id: pagoMP.id }, data: { mpPaymentId: paymentId, status: nuevo, statusDetail: statusDetail || null } })
 }
 
-// POST /api/webhooks/mercadopago — MP notifica un evento de pago.
-// Respondemos 200 rápido. NUNCA acreditamos por el body: re-consultamos el pago a la API.
-router.post('/mercadopago', async (req, res) => {
+// Handler compartido. `clubIdPath` = club dueño del pago (viene en la URL, multi-tenant).
+// Respondemos 200 rápido. NUNCA acreditamos por el body: re-consultamos el pago a la API
+// CON EL TOKEN DEL CLUB (RN-70). R1: verificamos que el pago sea de ESE club (anti cross-tenant).
+async function manejarWebhook(req, res, clubIdPath) {
   try {
     const topic = req.query.type || req.query.topic || req.body?.type || req.body?.topic
     const paymentId = extractPaymentId(req)
@@ -117,10 +118,10 @@ router.post('/mercadopago', async (req, res) => {
       console.warn('[webhook mp] firma inválida para', paymentId, '(igual verificamos por API)')
     }
 
-    // Re-consulta a la API de MP — fuente de verdad (RN-70).
+    // Re-consulta a la API de MP con el token del club de la URL (RN-70).
     let pago
     try {
-      pago = await obtenerPago(null, paymentId)
+      pago = await obtenerPago(clubIdPath || null, paymentId)
     } catch (e) {
       console.error('[webhook mp] no se pudo consultar el pago', paymentId, e.message)
       return res.status(500).json({ error: 'fetch_failed' }) // MP reintenta
@@ -131,6 +132,12 @@ router.post('/mercadopago', async (req, res) => {
 
     const pagoMP = await prisma.pagoMP.findUnique({ where: { id: extRef } })
     if (!pagoMP) return res.status(200).json({ ignored: 'pagomp_no_encontrado' })
+
+    // R1: el pago tiene que ser del club de la URL. Si no coincide → ignorar (cross-tenant).
+    if (clubIdPath && pagoMP.clubId !== clubIdPath) {
+      console.warn(`[webhook mp] cross-tenant: pago del club ${pagoMP.clubId} llegó por la URL de ${clubIdPath} → ignorado`)
+      return res.status(200).json({ ignored: 'cross_tenant' })
+    }
 
     // Idempotencia (RN-71): mismo pago + mismo estado ya persistido → no-op.
     if (pagoMP.mpPaymentId === String(paymentId) && pagoMP.status === mapStatus(pago.status)) {
@@ -148,6 +155,11 @@ router.post('/mercadopago', async (req, res) => {
     console.error('[webhook mp] error', err)
     return res.status(200).json({ ok: false }) // 200 para no gatillar retry infinito por bug propio
   }
-})
+}
+
+// Ruta multi-tenant: el clubId viene en la URL (lo pone crearPreferencia por preferencia).
+router.post('/mercadopago/:clubId', (req, res) => manejarWebhook(req, res, req.params.clubId))
+// Ruta legacy (links viejos sin clubId): resuelve con el token de env.
+router.post('/mercadopago', (req, res) => manejarWebhook(req, res, null))
 
 export default router

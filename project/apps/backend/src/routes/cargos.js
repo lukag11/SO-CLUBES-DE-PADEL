@@ -358,7 +358,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), requireFeature('f
 // POST /api/pagos/link-pago. RN-70/76/77.
 router.post('/:id/link-pago', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
-  if (!mpConfigurado(clubId)) return res.status(503).json({ error: 'mp_no_configurado', message: 'Mercado Pago no está configurado todavía.' })
+  if (!(await mpConfigurado(clubId))) return res.status(503).json({ error: 'mp_no_configurado', message: 'Mercado Pago no está configurado todavía.' })
   try {
     const out = await crearLinkPagoDeuda({ clubId, origen: 'cargo', refId: req.params.id })
     res.status(out.reusado ? 200 : 201).json(out)

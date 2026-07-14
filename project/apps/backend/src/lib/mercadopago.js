@@ -1,17 +1,47 @@
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago'
+import prisma from './prisma.js'
+import { encryptToken, decryptToken } from './cripto.js'
 
 // ── Resolución del access token del club ──────────────────────────────────────
-// HOY (Fase 2, sandbox, 1 club): un único token por variable de entorno.
-// FUTURO (OAuth multi-tenant): token por club, cifrado en DB. El token NUNCA sale
-// al frontend. Ver memoria project_mercadopago_fase2.
-export function resolveMpToken(_clubId) {
-  return process.env.MP_ACCESS_TOKEN || null
+// Usa la cuenta que el club conectó por OAuth (MpConexion, token CIFRADO); refresca si
+// está por vencer. Fallback al token de env (transición/demo) si el club no conectó.
+// El token NUNCA sale al frontend. Ver project_mp_oauth_diseno.
+const REFRESH_ANTES_MS = 15 * 24 * 60 * 60 * 1000 // refrescar si vence en <15 días
+
+// Renueva el access_token de una conexión (con su refresh_token). Si falla (el club
+// revocó el permiso en MP) → marca la conexión 'desconectado'. Devuelve el token o null.
+async function refrescarConexion(con) {
+  try {
+    const tok = await refrescarTokenOAuth(decryptToken(con.refreshTokenEnc))
+    const expiresAt = new Date(Date.now() + (Number(tok.expires_in) || 15552000) * 1000)
+    await prisma.mpConexion.update({
+      where: { id: con.id },
+      data: { accessTokenEnc: encryptToken(tok.access_token), refreshTokenEnc: encryptToken(tok.refresh_token), scope: tok.scope || con.scope, expiresAt },
+    })
+    return tok.access_token
+  } catch {
+    await prisma.mpConexion.update({ where: { id: con.id }, data: { estado: 'desconectado', desconectadoMotivo: 'refresh_failed' } }).catch(() => {})
+    return null
+  }
 }
 
-export const mpConfigurado = (clubId) => !!resolveMpToken(clubId)
+export async function resolveMpToken(clubId) {
+  if (clubId) {
+    const con = await prisma.mpConexion.findUnique({ where: { clubId } })
+    if (con && con.estado === 'conectado') {
+      if (con.expiresAt.getTime() < Date.now() + REFRESH_ANTES_MS) return await refrescarConexion(con)
+      return decryptToken(con.accessTokenEnc)
+    }
+  }
+  return process.env.MP_ACCESS_TOKEN || null // fallback transición (demo sin conectar / legacy)
+}
 
-const clientFor = (clubId) => {
-  const accessToken = resolveMpToken(clubId)
+export async function mpConfigurado(clubId) {
+  return !!(await resolveMpToken(clubId))
+}
+
+async function clientFor(clubId) {
+  const accessToken = await resolveMpToken(clubId)
   if (!accessToken) {
     throw Object.assign(new Error('Mercado Pago no está configurado en este club'), { status: 503, error: 'mp_no_configurado' })
   }
@@ -29,7 +59,7 @@ const mpFecha = (date) => {
 // `monto` en pesos (Int). `externalReference` = id del PagoMP (fuente de verdad).
 // `binary_mode` = solo approved/rejected (sin 'pending' intermedios raros). RN-70/76.
 export async function crearPreferencia(clubId, { titulo, monto, externalReference, notificationUrl, backUrls, expiraAt, payerEmail }) {
-  const pref = new Preference(clientFor(clubId))
+  const pref = new Preference(await clientFor(clubId))
   const body = {
     items: [{ id: externalReference, title: titulo, quantity: 1, unit_price: monto, currency_id: 'ARS' }],
     external_reference: externalReference,
@@ -47,7 +77,7 @@ export async function crearPreferencia(clubId, { titulo, monto, externalReferenc
 // Consulta un pago por id contra la API de MP (para el webhook — NUNCA confiar en
 // el body de la notificación). RN-70.
 export async function obtenerPago(clubId, paymentId) {
-  const payment = new Payment(clientFor(clubId))
+  const payment = new Payment(await clientFor(clubId))
   return payment.get({ id: paymentId })
 }
 

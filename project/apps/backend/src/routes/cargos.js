@@ -175,8 +175,9 @@ router.post('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), 
   if (!concepto?.trim() || monto == null) {
     return res.status(400).json({ error: 'datos_incompletos', message: 'Concepto y monto son requeridos' })
   }
-  // jugadorId null = venta de mostrador / casual: debe cobrarse al contado (no puede quedar a cuenta)
-  if (!jugadorId && !cobrar) {
+  // jugadorId null = venta de mostrador / casual: al contado. Excepción: Mercado Pago, que
+  // queda pendiente hasta que el webhook confirma (el PagoMP la rastrea).
+  if (!jugadorId && !cobrar && metodoPago !== 'mercadopago') {
     return res.status(400).json({ error: 'mostrador_a_cuenta', message: 'Una venta de mostrador debe cobrarse al contado' })
   }
   const montoNum = Math.round(Number(monto))

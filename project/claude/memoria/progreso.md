@@ -1,6 +1,13 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-07-14 — **MP: link de pago ROBUSTO (Cobranzas).** Link por varias deudas + visibilidad "esperando pago" + recupero/reenvío + anti-duplicado + anti-doble-cobro + auto-cancelación. Ver bloque abajo.
+**Última actualización:** 2026-07-14 — **MP EN PUNTO DE VENTA: QR presencial (venta + venta rápida + mesa).** Los 3 flujos ya cobran con QR (antes marcaban pagado sin cobrar). Ver bloque abajo.
+
+**MP QR PRESENCIAL en punto de venta (S1+S2+S3, 2026-07-14).** "Mercado Pago" en venta/venta-rápida/mesa antes marcaba pagado SIN cobrar (income fantasma); ahora genera un **QR** (checkout renderizado con `qrcode.react`) → cliente escanea → paga → webhook confirma. Reusa preferencia+webhook+PagoMP+anti-duplicado+auto-cancel. Ver [[project_mercadopago_fase2]].
+- **S1 venta a jugador** (`PagosPage`): "Generar QR de pago" → crea venta PENDIENTE (`/productos/venta` con `createManyAndReturn` devuelve `cargoIds`) → `/pagos/link-pago` → panel QR. Webhook imputa.
+- **S2 mostrador (jugadorId=null):** se relajó el guard "mostrador al contado" en `/productos/venta` y `/cargos` (pendiente solo si método=mercadopago). `crearLinkPagoMultiple` acepta sin jugador.
+- **S3 mesa/comanda:** `crearLinkPagoComanda` + `POST /api/comandas/:id/link-pago` (PagoMP `origen='comanda'`). `VentasTab`: botón QR, mesa queda ABIERTA. Webhook `origen==='comanda'`: approved→cierra la mesa (`updateMany` + comanda cerrada, mecanismo legacy); refunded→reabre. Cierre por caja cancela el link vivo.
+- **Dep nueva:** `qrcode.react ^4.2.0`.
+- **PENDIENTE VISUAL (no bloqueante):** el panel del QR en venta se ve chico y el botón "Listo" se corta abajo (modal `max-w-md`/`max-h-[90vh]`). Luca quiere el modal MÁS GRANDE, sin scroll. Ya tiene X para cerrar. **Corregir después.**
 
 **MP LINK ROBUSTO — bloque Cobranzas (2026-07-14).** El link pasó de "1 deuda, sin visibilidad" a flujo completo. Probado en vivo (link real por 8 deudas $129.146). Ver [[project_mercadopago_fase2]].
 - **Modelo:** `PagoMP` sumó `jugadorId String?` + `items Json?` (nullable, `db push` a Supabase remoto, migración no destructiva). `origen` puede ser `'multi'` (refId=jugadorId, deudas en `items`). Cliente Prisma regenerado (bajó/subió backend por EPERM de Windows).

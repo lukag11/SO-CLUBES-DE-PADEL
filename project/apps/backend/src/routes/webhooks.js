@@ -52,6 +52,32 @@ const firmaValida = (req, paymentId) => {
 async function procesarPago(pagoMP, { paymentId, status, statusDetail, amount }) {
   const nuevo = mapStatus(status)
 
+  // Mesa (comanda): NO pasa por imputarPagoTx. Al acreditar, cierra la mesa (marca cargos
+  // pagados + comanda cerrada), igual que el cierre por caja pero disparado por el webhook.
+  if (pagoMP.origen === 'comanda') {
+    if (nuevo === 'approved') {
+      await runSerializable(async (tx) => {
+        const actual = await tx.pagoMP.findUnique({ where: { id: pagoMP.id } })
+        if (actual && actual.status === 'approved') return // idempotente (RN-71)
+        const now = new Date()
+        await tx.cargo.updateMany({ where: { comandaId: pagoMP.refId, estado: 'pendiente' }, data: { estado: 'pagado', metodoPago: 'mercadopago', pagadoAt: now } })
+        await tx.comanda.update({ where: { id: pagoMP.refId }, data: { estado: 'cerrada', closedAt: now } }).catch(() => {})
+        await tx.pagoMP.update({ where: { id: pagoMP.id }, data: { mpPaymentId: paymentId, status: 'approved', statusDetail: statusDetail || null } })
+      })
+    } else if (nuevo === 'refunded' || nuevo === 'charged_back') {
+      await runSerializable(async (tx) => {
+        const now = new Date()
+        await tx.cargo.updateMany({ where: { comandaId: pagoMP.refId, estado: 'pagado', metodoPago: 'mercadopago' }, data: { estado: 'pendiente', metodoPago: null, pagadoAt: null } })
+        await tx.comanda.update({ where: { id: pagoMP.refId }, data: { estado: 'abierta', closedAt: null } }).catch(() => {})
+        await tx.pagoMP.update({ where: { id: pagoMP.id }, data: { mpPaymentId: paymentId, status: nuevo, statusDetail: statusDetail || null } })
+      })
+      console.warn(`[webhook mp] ${nuevo.toUpperCase()} comanda ${pagoMP.refId} → mesa reabierta. RN-74`)
+    } else {
+      await prisma.pagoMP.update({ where: { id: pagoMP.id }, data: { mpPaymentId: paymentId, status: nuevo, statusDetail: statusDetail || null } })
+    }
+    return
+  }
+
   if (nuevo === 'approved') {
     await runSerializable(async (tx) => {
       const actual = await tx.pagoMP.findUnique({ where: { id: pagoMP.id } })

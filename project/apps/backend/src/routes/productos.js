@@ -181,7 +181,9 @@ router.post('/venta', requireAuth, requireRole('admin'), async (req, res) => {
   const { jugadorId = null, items, cobrar, metodoPago } = req.body
   const clubId = req.user.clubId
 
-  if (!jugadorId && !cobrar) {
+  // Mostrador (sin ficha) normalmente se cobra al contado. Excepción: pago con Mercado Pago,
+  // que queda PENDIENTE brevemente hasta que el webhook confirma (el PagoMP la rastrea).
+  if (!jugadorId && !cobrar && metodoPago !== 'mercadopago') {
     return res.status(400).json({ error: 'Una venta de mostrador debe cobrarse al contado (no puede quedar a cuenta)' })
   }
   if (!Array.isArray(items) || items.length === 0) {
@@ -210,9 +212,10 @@ router.post('/venta', requireAuth, requireRole('admin'), async (req, res) => {
     const now = new Date()
     const estado = cobrar ? 'pagado' : 'pendiente'
     const pagoData = cobrar ? { pagadoAt: now, metodoPago: normalizarMetodo(metodoPago) } : {}
-    // Un cargo por línea (para reporting por producto/categoría) + descuento de stock
-    await prisma.$transaction(async (tx) => {
-      await tx.cargo.createMany({
+    // Un cargo por línea (para reporting por producto/categoría) + descuento de stock.
+    // createManyAndReturn devuelve los ids → sirven para colgarles un link de MP (venta pendiente).
+    const creados = await prisma.$transaction(async (tx) => {
+      const rows = await tx.cargo.createManyAndReturn({
         data: lineas.map((l) => {
           const costoUnit = snap[l.productoId]?.costo
           return {
@@ -225,10 +228,12 @@ router.post('/venta', requireAuth, requireRole('admin'), async (req, res) => {
             ...pagoData,
           }
         }),
+        select: { id: true },
       })
       await descontarStock(tx, clubId, lineas.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad })), { tipo: 'cargo', motivo: 'Venta' })
+      return rows
     })
-    res.status(201).json({ ok: true })
+    res.status(201).json({ ok: true, cargoIds: creados.map((c) => c.id) })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al registrar la venta' })

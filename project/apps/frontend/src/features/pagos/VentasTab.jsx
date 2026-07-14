@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Minus, X, ShoppingCart, Clock, Trash2, Users, AlertTriangle, FileText } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { api } from '../../lib/api'
 import { METODO_MAP } from '../../lib/metodosPago'
 import { imprimirTicket, ticketTexto, enviarWhatsApp } from './comprobantes'
@@ -144,6 +145,7 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
   const [dividir, setDividir] = useState(1)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [mpQR, setMpQR] = useState(null) // { initPoint, monto } cuando se generó el QR de MP
   const total = items.reduce((s, c) => s + c.monto, 0)
 
   const refetch = async () => {
@@ -183,6 +185,18 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
     try { await api.delete(`/comandas/${mesa.id}`, auth); showToast('exito', 'Mesa descartada'); onCerrada() }
     catch (e) { setError(e?.message || 'No se pudo eliminar'); setSaving(false) }
   }
+  // MP: genera un QR por el total de la mesa. La mesa queda ABIERTA hasta que el cliente pague
+  // (el webhook la cierra sola). No cobra en el acto (nada de income fantasma).
+  const generarQRMesa = async () => {
+    if (total <= 0) return setError('La mesa no tiene consumos')
+    setSaving(true); setError('')
+    try {
+      const r = await api.post(`/comandas/${mesa.id}/link-pago`, {}, auth)
+      setMpQR({ initPoint: r.initPoint, monto: r.monto ?? total })
+    } catch (e) {
+      setError(e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el QR'))
+    } finally { setSaving(false) }
+  }
 
   const porPersona = dividir > 1 ? Math.ceil(total / dividir) : 0
 
@@ -210,6 +224,22 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
               <button onClick={() => enviarWhatsApp(ticketTexto(cerrada, club))} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#25D366] hover:brightness-95 text-white font-semibold text-sm">WhatsApp</button>
             </div>
             <button onClick={onCerrada} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
+          </div>
+        ) : mpQR ? (
+          <div className="p-6 flex flex-col items-center text-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-sky-50 flex items-center justify-center text-2xl">📱</div>
+            <div>
+              <p className="text-slate-800 font-bold">Escaneá para pagar</p>
+              <p className="text-slate-400 text-xs mt-0.5">{mesa.etiqueta} · {money(mpQR.monto)}</p>
+            </div>
+            <div className="bg-white p-2.5 rounded-xl border border-slate-200"><QRCodeSVG value={mpQR.initPoint} size={158} level="M" /></div>
+            <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[11px] text-slate-500 break-all">{mpQR.initPoint}</div>
+            <div className="flex gap-2 w-full">
+              <button onClick={() => { navigator.clipboard?.writeText(mpQR.initPoint); showToast('exito', 'Link copiado') }} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm">Copiar</button>
+              <button onClick={() => enviarWhatsApp(`Podés pagar la mesa (${money(mpQR.monto)}) con este link de Mercado Pago:\n${mpQR.initPoint}`)} className="flex-1 py-2.5 rounded-xl bg-[#25D366] hover:brightness-95 text-white font-semibold text-sm">WhatsApp</button>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-snug">La mesa se cierra <b>sola</b> cuando el cliente escanee y pague. Queda abierta hasta entonces.</p>
+            <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
           </div>
         ) : (<>
         <div className="overflow-y-auto p-6 flex flex-col gap-4">
@@ -268,9 +298,15 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
 
           <div className="flex gap-2">
             <button onClick={eliminarMesa} disabled={saving} title="Descartar la mesa (no cobra nada)" className="px-3 py-2.5 rounded-xl border border-slate-200 text-slate-400 hover:text-rose-500 hover:bg-rose-50 text-sm font-medium transition-colors disabled:opacity-40"><Trash2 size={15} /></button>
-            <button onClick={cerrar} disabled={saving || total <= 0} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
-              {saving ? 'Procesando…' : `Cobrar y cerrar ${money(total)}`}
-            </button>
+            {metodoPago === 'mercadopago' ? (
+              <button onClick={generarQRMesa} disabled={saving || total <= 0} title="Genera un QR de Mercado Pago; la mesa se cierra sola cuando el cliente paga" className="flex-1 py-2.5 rounded-xl border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 font-semibold text-sm transition-colors disabled:opacity-40">
+                {saving ? 'Generando…' : `Generar QR de pago ${money(total)}`}
+              </button>
+            ) : (
+              <button onClick={cerrar} disabled={saving || total <= 0} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
+                {saving ? 'Procesando…' : `Cobrar y cerrar ${money(total)}`}
+              </button>
+            )}
           </div>
         </div>
         </>)}

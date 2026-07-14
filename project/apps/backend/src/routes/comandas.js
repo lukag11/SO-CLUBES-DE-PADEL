@@ -4,6 +4,8 @@ import { requireAuth, requireRole } from '../middleware/auth.js'
 import { normalizarMetodo } from '../lib/metodosPago.js'
 import { snapshotProductos } from '../lib/productos.js'
 import { descontarStock, reponerStock } from '../lib/stock.js'
+import { mpConfigurado } from '../lib/mercadopago.js'
+import { crearLinkPagoComanda, cancelarLinksDeItems } from '../lib/cobrosMP.js'
 
 const router = Router()
 
@@ -158,6 +160,8 @@ router.post('/:id/cerrar', requireAuth, requireRole('admin'), async (req, res) =
       prisma.cargo.updateMany({ where: { comandaId: id, estado: 'pendiente' }, data: { estado: 'pagado', metodoPago: metodo, pagadoAt: now } }),
       prisma.comanda.update({ where: { id }, data: { estado: 'cerrada', closedAt: now } }),
     ])
+    // Se cerró por caja → si había un link/QR de MP vivo para esta mesa, cancelarlo (anti fantasma).
+    await cancelarLinksDeItems(clubId, [{ origen: 'comanda', refId: id }]).catch(() => {})
     res.json({ ok: true })
   } catch (err) {
     console.error(err)
@@ -182,6 +186,21 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al eliminar la comanda' })
+  }
+})
+
+// POST /api/comandas/:id/link-pago — genera un link/QR de Mercado Pago por el total de la mesa.
+// La mesa queda ABIERTA hasta que el webhook confirma el pago → ahí se cierra sola. RN-70/76/77.
+router.post('/:id/link-pago', requireAuth, requireRole('admin'), async (req, res) => {
+  const clubId = req.user.clubId
+  if (!(await mpConfigurado(clubId))) return res.status(503).json({ error: 'mp_no_configurado', message: 'Mercado Pago no está configurado todavía.' })
+  try {
+    const out = await crearLinkPagoComanda({ clubId, comandaId: req.params.id })
+    res.status(out.reusado ? 200 : 201).json(out)
+  } catch (err) {
+    const status = err.status || 500
+    if (status >= 500) console.error('[comanda link-pago]', err)
+    res.status(status).json({ error: err.error || 'error', message: err.message || 'No se pudo generar el link de pago' })
   }
 })
 

@@ -105,17 +105,17 @@ export async function crearLinkPagoDeuda({ clubId, origen, refId }) {
 // crea un PagoMP 'multi' (con la lista en `items`) y una sola preferencia por el total. Al
 // acreditar, el webhook imputa FIFO a todas (imputarPagoTx). Reusa un link 'multi' vivo solo
 // si cubre EXACTAMENTE el mismo set de deudas (RN-77). Devuelve { initPoint, pagoMpId, ... }.
-export async function crearLinkPagoMultiple({ clubId, jugadorId, deudas }) {
-  if (!jugadorId) throw err(400, 'datos_incompletos', 'Falta el jugador de las deudas.')
+export async function crearLinkPagoMultiple({ clubId, jugadorId = null, deudas }) {
   if (!Array.isArray(deudas) || deudas.length === 0) throw err(400, 'datos_incompletos', 'No hay deudas para cobrar.')
 
-  // Resolver cada deuda (restante real) y exigir que TODAS sean del mismo jugador.
+  // Resolver cada deuda (restante real). Con jugador → exigir que TODAS sean de ese jugador.
+  // Sin jugador (mostrador) → todas deben ser de mostrador también (sin ficha).
   let total = 0
   const items = []
   for (const d of deudas) {
     if (!d || !['cargo', 'reserva'].includes(d.origen) || !d.refId) throw err(400, 'origen_invalido', 'Hay una deuda inválida en la lista.')
     const info = await _resolverDeuda(clubId, d.origen, d.refId)
-    if (info.jugadorId && info.jugadorId !== jugadorId) throw err(409, 'jugador_mixto', 'Todas las deudas del link deben ser del mismo jugador.')
+    if (jugadorId ? (info.jugadorId && info.jugadorId !== jugadorId) : !!info.jugadorId) throw err(409, 'jugador_mixto', 'Todas las deudas del link deben ser del mismo jugador.')
     total += info.restante
     items.push({ origen: d.origen, refId: d.refId })
   }
@@ -129,7 +129,9 @@ export async function crearLinkPagoMultiple({ clubId, jugadorId, deudas }) {
   if (reuse) return reuse
 
   const expiraAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 días (RN-76)
-  const pagoMP = await prisma.pagoMP.create({ data: { clubId, origen: 'multi', refId: jugadorId, jugadorId, items, montoEsperado: total, status: 'iniciado', expiraAt } })
+  // refId (columna no-null): el jugador si hay, si no un ancla (primer cargo). El reuso/choque
+  // se resuelve por `items` (no por refId), así que el ancla no afecta la lógica.
+  const pagoMP = await prisma.pagoMP.create({ data: { clubId, origen: 'multi', refId: jugadorId || items[0].refId, jugadorId, items, montoEsperado: total, status: 'iniciado', expiraAt } })
 
   let pref
   try {
@@ -147,4 +149,41 @@ export async function crearLinkPagoMultiple({ clubId, jugadorId, deudas }) {
   }
   const upd = await prisma.pagoMP.update({ where: { id: pagoMP.id }, data: { preferenceId: pref.id, initPoint: pref.initPoint } })
   return { initPoint: upd.initPoint, pagoMpId: upd.id, expiraAt: upd.expiraAt, monto: total, concepto }
+}
+
+// Genera un link/QR de MP para una MESA (comanda) abierta. Suma sus consumos pendientes y crea
+// un PagoMP `origen='comanda'` (refId=comandaId). La mesa queda ABIERTA hasta que el webhook
+// confirma el pago → ahí se cierra (marca cargos pagados + comanda cerrada). Reusa/bloquea (RN-77).
+export async function crearLinkPagoComanda({ clubId, comandaId }) {
+  const comanda = await prisma.comanda.findFirst({
+    where: { id: comandaId, clubId },
+    select: { id: true, estado: true, cargos: { where: { estado: 'pendiente' }, select: { monto: true } } },
+  })
+  if (!comanda) throw err(404, 'no_encontrado', 'Mesa no encontrada')
+  if (comanda.estado !== 'abierta') throw err(409, 'sin_deuda', 'La mesa ya está cerrada.')
+  const total = comanda.cargos.reduce((s, c) => s + (c.monto || 0), 0)
+  if (total <= 0) throw err(409, 'sin_deuda', 'La mesa no tiene consumos.')
+
+  const { reuse } = await _reusarOChocar(clubId, new Set([`comanda:${comandaId}`]), 'Mesa')
+  if (reuse) return reuse
+
+  const expiraAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 días (RN-76)
+  const pagoMP = await prisma.pagoMP.create({ data: { clubId, origen: 'comanda', refId: comandaId, montoEsperado: total, status: 'iniciado', expiraAt } })
+
+  let pref
+  try {
+    pref = await crearPreferencia(clubId, {
+      titulo: 'Mesa',
+      monto: total,
+      externalReference: pagoMP.id,
+      notificationUrl: `${backendBase()}/api/webhooks/mercadopago/${clubId}`,
+      backUrls: { success: `${frontBase()}/`, failure: `${frontBase()}/`, pending: `${frontBase()}/` },
+      expiraAt,
+    })
+  } catch (e) {
+    await prisma.pagoMP.update({ where: { id: pagoMP.id }, data: { status: 'error', statusDetail: String(e.message).slice(0, 200) } }).catch(() => {})
+    throw e
+  }
+  const upd = await prisma.pagoMP.update({ where: { id: pagoMP.id }, data: { preferenceId: pref.id, initPoint: pref.initPoint } })
+  return { initPoint: upd.initPoint, pagoMpId: upd.id, expiraAt: upd.expiraAt, monto: total, concepto: 'Mesa' }
 }

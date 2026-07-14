@@ -7,6 +7,7 @@ import {
 import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
 import useWiarkyGastoStore from '../store/wiarkyGastoStore'
+import { QRCodeSVG } from 'qrcode.react'
 import { api } from '../lib/api'
 import { useToast } from '../components/ui/ToastProvider'
 import { METODOS_CATALOGO, METODO_MAP, metodosDelClub, MetodoBadge } from '../lib/metodosPago'
@@ -452,14 +453,43 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   const puedeSplit = metodos.length >= 2
 
   // Crea las líneas nuevas (productos → venta; otros → cargo), pagadas o a cuenta
+  // Crea los consumos nuevos (venta). Devuelve los ids de los cargos creados (para colgarles
+  // un link/QR de MP cuando la venta se genera PENDIENTE).
   const crearNuevas = async (cobrar) => {
     const jid = mostrador ? null : jugadorId   // mostrador = venta sin ficha
     const items = lineas.filter((l) => l.tipo === 'producto').map((l) => ({ nombre: l.nombre, precio: l.precio, cantidad: l.cantidad, productoId: l.id }))
     const otros = lineas.filter((l) => l.tipo === 'otro')
-    if (items.length) await api.post('/productos/venta', { jugadorId: jid, items, cobrar, metodoPago }, auth)
-    for (const o of otros) {
-      await api.post('/cargos', { jugadorId: jid, concepto: o.cantidad > 1 ? `${o.cantidad}× ${o.nombre}` : o.nombre, monto: o.precio * o.cantidad, cobrar, metodoPago }, auth)
+    const ids = []
+    if (items.length) {
+      const r = await api.post('/productos/venta', { jugadorId: jid, items, cobrar, metodoPago }, auth)
+      if (Array.isArray(r?.cargoIds)) ids.push(...r.cargoIds)
     }
+    for (const o of otros) {
+      const c = await api.post('/cargos', { jugadorId: jid, concepto: o.cantidad > 1 ? `${o.cantidad}× ${o.nombre}` : o.nombre, monto: o.precio * o.cantidad, cobrar, metodoPago }, auth)
+      if (c?.id) ids.push(c.id)
+    }
+    return ids
+  }
+
+  // Venta a jugador con QR/link de Mercado Pago: crea la venta PENDIENTE y genera el link;
+  // el QR se muestra en pantalla (cliente presente) y también sirve por WhatsApp. La venta se
+  // salda sola cuando paga (webhook). NO cobra en el acto (nada de income fantasma).
+  const generarQRVenta = async () => {
+    if (!mostrador && !jugadorId) { setError('Elegí un jugador o pasá a mostrador'); return }
+    if (lineas.length === 0) { setError('Agregá al menos un producto'); return }
+    setSaving(true); setError('')
+    try {
+      const jid = mostrador ? null : jugadorId
+      const ids = await crearNuevas(false) // crea la venta PENDIENTE (no cobra)
+      if (!ids.length) throw new Error('No se pudo crear la venta')
+      const items = ids.map((id) => ({ origen: 'cargo', refId: id }))
+      const r = await api.post('/pagos/link-pago', { items, jugadorId: jid }, auth)
+      const jug = jid ? jugadores.find((j) => j.id === jid) : null
+      setMpLink({ initPoint: r.initPoint, concepto: r.concepto || 'Venta', monto: r.monto ?? totalNuevo, tel: jug?.telefono || jug?.tel || '', qr: true })
+      setLineas([]); onRefresh()
+    } catch (e) {
+      showToast('error', e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el QR'))
+    } finally { setSaving(false) }
   }
 
   const anotarACuenta = async () => {
@@ -573,18 +603,24 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
           </div>
         )}
         {mpLink && (
-          <div className="absolute inset-0 z-10 bg-white flex flex-col items-center justify-center text-center gap-3 p-8">
-            <div className="w-12 h-12 rounded-2xl bg-sky-50 flex items-center justify-center text-2xl">🔗</div>
+          <div className="absolute inset-0 z-10 bg-white flex flex-col items-center justify-center text-center gap-2.5 p-6">
+            <button onClick={() => { setMpLink(null); onClose() }} className="absolute top-4 right-4 text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
+            <div className="w-11 h-11 rounded-2xl bg-sky-50 flex items-center justify-center text-2xl">{mpLink.qr ? '📱' : '🔗'}</div>
             <div>
-              <p className="text-slate-800 font-bold">Link de pago generado</p>
+              <p className="text-slate-800 font-bold">{mpLink.qr ? 'Escaneá para pagar' : 'Link de pago generado'}</p>
               <p className="text-slate-400 text-xs mt-0.5">{mpLink.concepto} · {money(mpLink.monto)}</p>
             </div>
+            {mpLink.qr && (
+              <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                <QRCodeSVG value={mpLink.initPoint} size={158} level="M" />
+              </div>
+            )}
             <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[11px] text-slate-500 break-all">{mpLink.initPoint}</div>
             <div className="flex gap-2 w-full">
               <button onClick={() => { navigator.clipboard?.writeText(mpLink.initPoint); showToast('exito', 'Link copiado') }} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm">Copiar link</button>
               <button onClick={() => enviarWhatsApp(`Hola! Podés pagar ${mpLink.concepto} (${money(mpLink.monto)}) con este link de Mercado Pago:\n${mpLink.initPoint}`, mpLink.tel)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#25D366] hover:brightness-95 text-white font-semibold text-sm">WhatsApp</button>
             </div>
-            <p className="text-[11px] text-slate-400 leading-snug">La deuda se marca pagada <b>sola</b> cuando el jugador pague. Mientras tanto, no la cobres en efectivo para no cobrar dos veces.</p>
+            <p className="text-[11px] text-slate-400 leading-snug">{mpLink.qr ? <>La venta se marca pagada <b>sola</b> cuando el jugador escanee y pague. Queda como deuda pendiente hasta entonces.</> : <>La deuda se marca pagada <b>sola</b> cuando el jugador pague. Mientras tanto, no la cobres en efectivo para no cobrar dos veces.</>}</p>
             <button onClick={() => { setMpLink(null); onClose() }} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
           </div>
         )}
@@ -756,9 +792,16 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
                     {deudaSelConLink ? 'Link activo ↑' : `Link de pago${deudaSel.length > 1 ? ` (${deudaSel.length})` : ''}`}
                   </button>
                 )}
-                <button onClick={cobrarTodo} disabled={saving || (esCobro && deudaSel.length ? montoCobrarNum === 0 : totalCobrar === 0)} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
-                  {saving ? 'Procesando…' : `Cobrar ${money(esCobro && deudaSel.length ? montoCobrarNum : totalCobrar)}`}
-                </button>
+                {esVenta && metodoPago === 'mercadopago' && (
+                  <button onClick={generarQRVenta} disabled={saving || lineas.length === 0} title="Crea la venta pendiente y muestra un QR de Mercado Pago para que el cliente lo escane y pague (se salda sola al pagar)" className="flex-1 py-2.5 rounded-xl border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 font-semibold text-sm transition-colors disabled:opacity-40">
+                    Generar QR de pago
+                  </button>
+                )}
+                {!(esVenta && metodoPago === 'mercadopago') && (
+                  <button onClick={cobrarTodo} disabled={saving || (esCobro && deudaSel.length ? montoCobrarNum === 0 : totalCobrar === 0)} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
+                    {saving ? 'Procesando…' : `Cobrar ${money(esCobro && deudaSel.length ? montoCobrarNum : totalCobrar)}`}
+                  </button>
+                )}
               </div>
             </div>
           </>)}

@@ -50,3 +50,25 @@ export async function obtenerPago(clubId, paymentId) {
   const payment = new Payment(clientFor(clubId))
   return payment.get({ id: paymentId })
 }
+
+// ── OAuth (conectar la cuenta MP de cada club) ────────────────────────────────
+export const mpOAuthConfigurado = () => !!(process.env.MP_CLIENT_ID && process.env.MP_CLIENT_SECRET)
+
+async function oauthToken(body) {
+  const r = await fetch('https://api.mercadopago.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ client_id: process.env.MP_CLIENT_ID, client_secret: process.env.MP_CLIENT_SECRET, ...body }),
+  })
+  const d = await r.json().catch(() => ({}))
+  if (!r.ok) throw Object.assign(new Error(d.message || d.error || 'Error OAuth Mercado Pago'), { status: 502 })
+  return d // { access_token, refresh_token, user_id, expires_in, scope }
+}
+
+// Canjea el `code` del callback por el token del club.
+export const intercambiarCodeOAuth = (code, redirectUri) =>
+  oauthToken({ grant_type: 'authorization_code', code, redirect_uri: redirectUri })
+
+// Renueva el access_token con el refresh_token (vence ~180 días).
+export const refrescarTokenOAuth = (refreshToken) =>
+  oauthToken({ grant_type: 'refresh_token', refresh_token: refreshToken })

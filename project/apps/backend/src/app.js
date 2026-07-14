@@ -105,7 +105,7 @@ app.use('/api/solicitudes/publica', solicitudesPublicasRouter) // público (sin 
 app.use('/api/solicitudes', requireAuth, requireClubActivo, solicitudesRouter)
 app.use('/api/eventos', requireAuth, eventosRouter) // telemetría de uso (fire-and-forget)
 app.use('/api/webhooks', webhooksRouter) // PÚBLICO (sin auth) — MP notifica pagos. Verifica por re-consulta.
-app.use('/api/mp/oauth', mpOAuthRouter) // OAuth MP: /start (owner) + /callback (público, amarrado por state)
+app.use('/api/mp', mpOAuthRouter) // MP OAuth: /oauth/start + /oauth/callback + /estado + /disconnect
 
 // Captura de errores no manejados → Sentry (solo si está activo). Va DESPUÉS de las rutas.
 if (Sentry) Sentry.setupExpressErrorHandler(app)

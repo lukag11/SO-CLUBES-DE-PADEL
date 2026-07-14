@@ -15,7 +15,7 @@ const RETORNO = `${FRONT}/dashboardAdmin/club` // a dónde vuelve el dueño desp
 
 // GET /api/mp/oauth/start — el DUEÑO conecta la cuenta MP de su club. Genera un `state`
 // anti-CSRF (aleatorio, server-side, single-use) y devuelve la URL de autorización de MP.
-router.get('/start', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+router.get('/oauth/start', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
   if (!mpOAuthConfigurado()) return res.status(503).json({ error: 'mp_oauth_no_configurado', message: 'Falta configurar OAuth de Mercado Pago.' })
   try {
     const state = crypto.randomBytes(32).toString('base64url')
@@ -35,7 +35,7 @@ router.get('/start', requireAuth, requireRole('admin'), requireOwner, async (req
 // GET /api/mp/oauth/callback — MP devuelve al dueño acá. SIN auth (el JWT no viaja en un
 // redirect del navegador): el amarre es el `state`. El clubId sale del state guardado,
 // NUNCA de un query param (anti confused-deputy). R2 del diseño.
-router.get('/callback', async (req, res) => {
+router.get('/oauth/callback', async (req, res) => {
   const { code, state, error } = req.query
   if (error || !code || !state) return res.redirect(`${RETORNO}?mp=error`)
   try {
@@ -64,6 +64,24 @@ router.get('/callback', async (req, res) => {
     console.error('[mp oauth callback]', e.message)
     res.redirect(`${RETORNO}?mp=error`)
   }
+})
+
+// GET /api/mp/estado — estado de la conexión (SIN token). Lo lee cualquier admin.
+router.get('/estado', requireAuth, requireRole('admin'), async (req, res) => {
+  const con = await prisma.mpConexion.findUnique({
+    where: { clubId: req.user.clubId },
+    select: { mpUserId: true, estado: true, expiresAt: true, desconectadoMotivo: true, conectadoAt: true },
+  })
+  res.json({
+    conectado: !!con && con.estado === 'conectado',
+    ...(con ? { mpUserId: con.mpUserId, estado: con.estado, expiraAt: con.expiresAt, desconectadoMotivo: con.desconectadoMotivo, conectadoAt: con.conectadoAt } : {}),
+  })
+})
+
+// POST /api/mp/disconnect — el DUEÑO desconecta la cuenta de MP del club.
+router.post('/disconnect', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  await prisma.mpConexion.deleteMany({ where: { clubId: req.user.clubId } }) // scoped al club del token
+  res.json({ ok: true })
 })
 
 export default router

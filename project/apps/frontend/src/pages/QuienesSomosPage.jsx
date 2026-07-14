@@ -126,6 +126,78 @@ const SaveButton = ({ onClick, saved, label = 'Guardar cambios' }) => (
 
 // ─── Tab: Información ────────────────────────────────────────────────────────
 
+// Conexión de Mercado Pago (OAuth por club). El dueño conecta SU cuenta → los cobros por
+// link van a su cuenta. El token se guarda cifrado en el backend, nunca acá. El callback
+// del OAuth vuelve a esta página con ?mp=ok|error|cuenta_en_uso.
+const MercadoPagoConexion = () => {
+  const token = useAuthStore((s) => s.token)
+  const esDueno = useAuthStore((s) => s.user?.rol) !== 'staff'
+  const toast = useToast()
+  const [estado, setEstado] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+
+  const cargar = async () => {
+    try { setEstado(await api.get('/mp/estado', { Authorization: `Bearer ${token}` })) }
+    catch { setEstado({ conectado: false }) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('mp')
+    if (p) {
+      if (p === 'ok') toast.success('Mercado Pago conectado ✓')
+      else if (p === 'cuenta_en_uso') toast.error('Esa cuenta de Mercado Pago ya está vinculada a otro club')
+      else toast.error('No se pudo conectar Mercado Pago. Probá de nuevo.')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    cargar()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const conectar = async () => {
+    setBusy(true)
+    try {
+      const { url } = await api.get('/mp/oauth/start', { Authorization: `Bearer ${token}` })
+      window.location.href = url
+    } catch (e) {
+      toast.error(e?.status === 503 ? 'Mercado Pago no está configurado en la plataforma' : 'No se pudo iniciar la conexión')
+      setBusy(false)
+    }
+  }
+
+  const desconectar = async () => {
+    if (!window.confirm('¿Desconectar Mercado Pago? Vas a dejar de cobrar con links hasta reconectar.')) return
+    setBusy(true)
+    try { await api.post('/mp/disconnect', {}, { Authorization: `Bearer ${token}` }); toast.success('Mercado Pago desconectado'); await cargar() }
+    catch { toast.error('No se pudo desconectar') }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <SectionCard title="Mercado Pago" subtitle="Conectá la cuenta del club para cobrar deudas con links de pago. La plata va directo a tu cuenta.">
+      {loading ? (
+        <p className="text-slate-400 text-sm py-1">Cargando…</p>
+      ) : estado?.conectado ? (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+            <span className="font-semibold text-slate-700">Conectado</span>
+            <span className="text-slate-400">· cuenta {estado.mpUserId}</span>
+          </div>
+          {esDueno && <button onClick={desconectar} disabled={busy} className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold text-sm disabled:opacity-50">Desconectar</button>}
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm text-slate-500">{estado?.estado === 'desconectado' ? 'La conexión se cayó. Reconectá para seguir cobrando.' : 'Todavía no conectaste Mercado Pago.'}</p>
+          {esDueno
+            ? <button onClick={conectar} disabled={busy} className="px-4 py-2 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-semibold text-sm disabled:opacity-50">{busy ? 'Abriendo…' : 'Conectar Mercado Pago'}</button>
+            : <p className="text-xs text-slate-400">Solo el dueño puede conectar.</p>}
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
 const TabInfo = ({ club, updateClub, saveClub }) => {
   const token = useAuthStore((s) => s.token)
   const toast = useToast()
@@ -238,6 +310,8 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
       </SectionCard>
 
       <SaveButton onClick={handleSave} saved={saved} />
+
+      <MercadoPagoConexion />
 
       {/* Modal del mapa: elegir ubicación y guardarla */}
       {mapaOpen && (

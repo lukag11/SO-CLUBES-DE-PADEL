@@ -606,9 +606,11 @@ model PagoLinea {
 model PagoMP {
   id            String    @id @default(cuid())
   clubId        String                                  // club que cobra (token MP resuelto aparte)
-  origen        String                                  // 'cargo' | 'reserva' — qué se está cobrando
-  refId         String                                  // id del Cargo (o Reserva) que se cobra
-  montoEsperado Int                                     // restante de la deuda al generar el link (pesos)
+  origen        String                                  // 'cargo' | 'reserva' | 'multi' — qué se está cobrando
+  refId         String                                  // id del Cargo/Reserva; en 'multi' = jugadorId (las deudas van en `items`)
+  jugadorId     String?                                 // dueño de la(s) deuda(s); se completa al generar (para imputar sin re-derivar)
+  items         Json?                                   // solo 'multi': [{origen,refId}] de las deudas que cubre el link
+  montoEsperado Int                                     // restante de la(s) deuda(s) al generar el link (pesos)
   preferenceId  String?                                 // id de la preferencia de Checkout Pro
   initPoint     String?                                 // URL de pago (init_point) para mandar por WhatsApp
   mpPaymentId   String?   @unique                       // id del payment de MP → idempotencia (llega en el webhook)

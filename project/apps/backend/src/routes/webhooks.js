@@ -62,13 +62,24 @@ async function procesarPago(pagoMP, { paymentId, status, statusDetail, amount })
         }
         return
       }
-      const jugadorId = pagoMP.origen === 'reserva'
-        ? (await tx.reserva.findUnique({ where: { id: pagoMP.refId }, select: { jugadorId: true } }))?.jugadorId ?? null
-        : (await tx.cargo.findUnique({ where: { id: pagoMP.refId }, select: { jugadorId: true } }))?.jugadorId ?? null
+      // jugadorId: preferimos el guardado en el PagoMP (links nuevos); si no está (links
+      // viejos), lo derivamos del ítem. En 'multi' las deudas van en `items`.
+      let jugadorId = pagoMP.jugadorId ?? null
+      let items
+      if (pagoMP.origen === 'multi') {
+        items = Array.isArray(pagoMP.items) ? pagoMP.items : []
+      } else {
+        items = [{ origen: pagoMP.origen, refId: pagoMP.refId }]
+        if (!jugadorId) {
+          jugadorId = pagoMP.origen === 'reserva'
+            ? (await tx.reserva.findUnique({ where: { id: pagoMP.refId }, select: { jugadorId: true } }))?.jugadorId ?? null
+            : (await tx.cargo.findUnique({ where: { id: pagoMP.refId }, select: { jugadorId: true } }))?.jugadorId ?? null
+        }
+      }
       const impu = await imputarPagoTx(tx, {
         clubId: pagoMP.clubId,
         jugadorId,
-        items: [{ origen: pagoMP.origen, refId: pagoMP.refId }],
+        items,
         monto: amount,
         lineas: [{ metodo: 'mercadopago', monto: amount }],
       })

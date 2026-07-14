@@ -1,6 +1,14 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-07-14 — **MP OAuth S5: auditoría de aislamiento multi-tenant (APTO, 0 fugas) + fix del refresh de token.** Ver bloque abajo.
+**Última actualización:** 2026-07-14 — **MP: link de pago ROBUSTO (Cobranzas).** Link por varias deudas + visibilidad "esperando pago" + recupero/reenvío + anti-duplicado + anti-doble-cobro + auto-cancelación. Ver bloque abajo.
+
+**MP LINK ROBUSTO — bloque Cobranzas (2026-07-14).** El link pasó de "1 deuda, sin visibilidad" a flujo completo. Probado en vivo (link real por 8 deudas $129.146). Ver [[project_mercadopago_fase2]].
+- **Modelo:** `PagoMP` sumó `jugadorId String?` + `items Json?` (nullable, `db push` a Supabase remoto, migración no destructiva). `origen` puede ser `'multi'` (refId=jugadorId, deudas en `items`). Cliente Prisma regenerado (bajó/subió backend por EPERM de Windows).
+- **Link múltiples deudas (Opción A):** `crearLinkPagoMultiple` en `cobrosMP.js` (suma restantes, exige mismo jugador, 1 preferencia por el total). Webhook imputa FIFO a todas (`imputarPagoTx` ya tomaba `items[]` — 1 línea de cambio). Endpoint `/api/pagos/link-pago` acepta `items[]`. Front: botón con varias ("Link de pago (N)") + panel "N deudas · $total".
+- **Anti-generar-duplicado (RN-77):** `_reusarOChocar` — reusa si set idéntico, **bloquea 409 `link_vivo`** si solapa. Front deshabilita el botón ("Link activo ↑") si la selección ya tiene link.
+- **Visibilidad + recupero:** `GET /api/pagos/links-vivos?jugadorId=`. Front: cartel "Link activo · $X · N deudas · vence en Y" con Copiar/WhatsApp (reenviar el mismo) / Cancelar + badge "🔗 esperando pago" por deuda.
+- **Cancelar + anti-doble-cobro:** `POST /api/pagos/link-pago/:id/cancelar`. Aviso antes de cobrar efectivo una deuda con link vivo. **Auto-cancelación** (`cancelarLinksDeItems`): cobrar por otro medio mata el link vivo — enganchado en `cobrar-cuenta` + `PATCH cargo/:id/estado` pagado. Sin fantasmas. Red de atrás: sobrepago RN-75.
+- **PRÓXIMO (mesa limpia):** MP en punto de venta = **QR presencial** (venta/venta rápida/mesa hoy marcan pagado sin cobrar → income fantasma). S1 venta a jugador, S2 mostrador, S3 mesa/comanda. Falta `qrcode.react` + `/productos/venta` con `createManyAndReturn`.
 
 **MP OAuth — S5 QA aislamiento multi-tenant + fix refresh (2026-07-14).** Cierre del bloque OAuth. Ver [[project_mp_oauth_diseno]].
 - **S5 — auditoría de aislamiento (qa-flujos): APTO para producción multi-club, 0 fugas entre clubes.** Se trazaron 10 escenarios de ataque contra `mpOAuth.js`, `mercadopago.js`, `cobrosMP.js`, `webhooks.js`, `cripto.js`, `cargos.js`, `pagos.js`, `schema.prisma`, `auth.js`. Todo SEGURO: token isolation (`resolveMpToken` filtra por `clubId`), webhook cross-tenant (re-consulta con token del club + R1 `pagoMP.clubId===clubIdPath`), state single-use server-side, anti-takeover `mpUserId @unique`, disconnect scoped, `/estado` sin tokens, cifrado GCM con tag validado, sin tokens en logs, `external_reference=PagoMP.id` re-resuelto server-side. Informe en `project/claude/agentes/qa/registro-auditorias.md`.

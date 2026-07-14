@@ -379,6 +379,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
   const [montoCobrar, setMontoCobrar] = useState('')   // cobro: monto a cobrar (editable → entrega parcial)
   const [mpLink, setMpLink] = useState(null)           // link de pago MP generado { initPoint, concepto, monto, tel }
+  const [linksVivos, setLinksVivos] = useState([])     // links de MP activos del jugador (esperando pago)
   const [usarSplit, setUsarSplit] = useState(false)     // cobro: pagó con 2 métodos
   const [metodo2, setMetodo2] = useState(metodos[1] ?? metodos[0] ?? 'transferencia')
   const [monto1, setMonto1] = useState('')              // cobro: monto del método 1 cuando hay split
@@ -388,8 +389,18 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   const auth = { Authorization: `Bearer ${token}` }
   const activos = productos.filter((p) => p.activo)
 
+  // Links de MP activos (esperando pago) del jugador → para mostrar "esperando pago",
+  // recuperar/reenviar el link y avisar antes de cobrar en efectivo (anti-doble-cobro).
+  const fetchLinksVivos = async (jid) => {
+    if (!jid) { setLinksVivos([]); return }
+    try {
+      const data = await api.get(`/pagos/links-vivos?jugadorId=${jid}`, auth)
+      setLinksVivos(Array.isArray(data) ? data : [])
+    } catch { setLinksVivos([]) }
+  }
+
   const fetchDeudas = async (jid) => {
-    if (!jid) { setDeudas([]); setSelDeuda({}); return }
+    if (!jid) { setDeudas([]); setSelDeuda({}); setLinksVivos([]); return }
     setLoadingDeudas(true)
     try {
       const data = await api.get(`/cargos/cobranzas?jugadorId=${jid}`, auth)
@@ -398,6 +409,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
       // Si se entró desde una fila puntual, pre-tildo solo esa deuda; si no, todas
       const solo = (jid === initialJugadorId && initialDeudaId) ? initialDeudaId : null
       setSelDeuda(Object.fromEntries(pend.map((d) => [d.id, solo ? d.id === solo : true])))
+      await fetchLinksVivos(jid)
     } catch { setDeudas([]) } finally { setLoadingDeudas(false) }
   }
   useEffect(() => { if (esCobro) fetchDeudas(jugadorId) }, [jugadorId, esCobro]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -424,6 +436,10 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   const totalNuevo = lineas.reduce((s, l) => s + l.precio * l.cantidad, 0)
   const deudaSel = deudas.filter((d) => selDeuda[d.id])
   const totalDeudaSel = deudaSel.reduce((s, d) => s + d.monto, 0)
+  // Deudas cubiertas por un link de MP vivo (para badge + aviso anti-doble-cobro).
+  const clavesConLink = new Set(linksVivos.flatMap((l) => (l.deudas || []).map((x) => `${x.origen}:${x.refId}`)))
+  const tieneLink = (d) => clavesConLink.has(`${d.origen}:${d.refId}`)
+  const deudaSelConLink = deudaSel.some(tieneLink)
   const totalCobrar = totalNuevo + totalDeudaSel
 
   // Cobro parcial + split (solo modo cobro, sobre la deuda seleccionada). Al cambiar la
@@ -467,6 +483,10 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
       if (montoCobrarNum > totalDeudaSel) return setError('El monto supera lo que debe')
       if (usarSplit && !(monto1Num > 0 && monto1Num < montoCobrarNum)) return setError('Repartí el monto entre los 2 métodos')
     }
+    // Anti-doble-cobro: si alguna deuda tildada tiene un link de MP vivo, avisar antes de cobrar.
+    if (esCobro && deudaSel.length && deudaSelConLink) {
+      if (!window.confirm('Ojo: hay un link de pago de Mercado Pago activo para alguna de estas deudas. Si cobrás ahora y el jugador también paga el link, va a quedar un pago de más para devolver. ¿Cobrar igual?')) return
+    }
     setSaving(true); setError('')
     try {
       if (lineas.length) await crearNuevas(true)
@@ -495,19 +515,41 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     } catch (e) { showToast('error', e?.message || 'No se pudo cobrar') } finally { setSaving(false) }
   }
 
-  // Genera un link de pago de Mercado Pago para UNA deuda (cargo). La deuda se marca
-  // pagada sola cuando el jugador pague (webhook). No cobra en el acto.
+  // Genera un link de pago de Mercado Pago para UNA o VARIAS deudas del jugador. Las deudas
+  // se marcan pagadas solas cuando el jugador pague (webhook). No cobra en el acto.
   const generarLinkMP = async () => {
-    const d = deudaSel[0]
-    if (!d) { setError('Elegí una deuda para el link de pago'); return }
+    if (deudaSel.length === 0) { setError('Elegí al menos una deuda para el link de pago'); return }
     setSaving(true); setError('')
     try {
-      const r = await api.post('/pagos/link-pago', { origen: d.origen, refId: d.refId }, { Authorization: `Bearer ${token}` })
+      const items = deudaSel.map((d) => ({ origen: d.origen, refId: d.refId }))
+      const r = await api.post('/pagos/link-pago', { items, jugadorId }, { Authorization: `Bearer ${token}` })
       const jug = jugadores.find((j) => j.id === jugadorId)
-      setMpLink({ initPoint: r.initPoint, concepto: d.concepto, monto: d.monto, tel: jug?.telefono || jug?.tel || '' })
+      const concepto = r.concepto || (deudaSel.length === 1 ? deudaSel[0].concepto : `${deudaSel.length} deudas`)
+      setMpLink({ initPoint: r.initPoint, concepto, monto: r.monto ?? totalDeudaSel, tel: jug?.telefono || jug?.tel || '' })
+      await fetchLinksVivos(jugadorId) // que aparezca el estado "esperando pago"
     } catch (e) {
       showToast('error', e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el link'))
     } finally { setSaving(false) }
+  }
+
+  // Días hasta el vencimiento del link, en criollo.
+  const venceEn = (iso) => {
+    const dias = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000)
+    return dias <= 0 ? 'hoy' : dias === 1 ? 'mañana' : `en ${dias} días`
+  }
+  // Reenvía por WhatsApp el MISMO link ya generado (por si el jugador lo perdió).
+  const reenviarLink = (l) => {
+    const jug = jugadores.find((j) => j.id === jugadorId)
+    enviarWhatsApp(`Hola! Te reenvío el link de Mercado Pago para pagar ${money(l.monto)}:\n${l.initPoint}`, jug?.telefono || jug?.tel || '')
+  }
+  // Da de baja un link activo (el admin prefiere cobrar de otra forma).
+  const cancelarLink = async (l) => {
+    if (!window.confirm(`¿Cancelar el link de pago de ${money(l.monto)}? Si el jugador igual lo paga, la deuda se salda igual (no lo frena en Mercado Pago).`)) return
+    try {
+      await api.post(`/pagos/link-pago/${l.id}/cancelar`, {}, auth)
+      showToast('exito', 'Link cancelado')
+      await fetchLinksVivos(jugadorId)
+    } catch (e) { showToast('error', e?.message || 'No se pudo cancelar el link') }
   }
 
   const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
@@ -568,6 +610,23 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
             {/* ── Lo que debe (solo en modo cobro) ── */}
             {esCobro && (
             <div>
+              {linksVivos.length > 0 && (
+                <div className="mb-3 flex flex-col gap-2">
+                  {linksVivos.map((l) => (
+                    <div key={l.id} className="rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-sky-800">🔗 Link de pago activo</p>
+                        <p className="text-[11px] text-sky-600">{money(l.monto)} · {(l.deudas?.length || 1)} {(l.deudas?.length || 1) === 1 ? 'deuda' : 'deudas'}{l.expiraAt ? ` · vence ${venceEn(l.expiraAt)}` : ''}</p>
+                      </div>
+                      <div className="flex gap-1.5 mt-2">
+                        <button onClick={() => { navigator.clipboard?.writeText(l.initPoint); showToast('exito', 'Link copiado') }} className="flex-1 py-1.5 rounded-lg border border-sky-200 bg-white text-sky-700 text-xs font-semibold hover:bg-sky-50">Copiar</button>
+                        <button onClick={() => reenviarLink(l)} className="flex-1 py-1.5 rounded-lg bg-[#25D366] text-white text-xs font-semibold hover:brightness-95">WhatsApp</button>
+                        <button onClick={() => cancelarLink(l)} className="flex-1 py-1.5 rounded-lg border border-rose-200 bg-white text-rose-600 text-xs font-semibold hover:bg-rose-50">Cancelar</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Lo que debe</p>
               {loadingDeudas ? (
                 <p className="text-slate-400 text-sm py-2">Cargando…</p>
@@ -581,6 +640,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
                       <div className="flex-1 min-w-0">
                         <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{TIPO_LABEL[d.tipo] ?? d.tipo}</span>
                         {d.saldoPagado > 0 && <span className="ml-1 text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">parcial · pagó {money(d.saldoPagado)}</span>}
+                        {tieneLink(d) && <span className="ml-1 text-[10px] font-semibold text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded">🔗 esperando pago</span>}
                         <p className="text-xs text-slate-600 truncate mt-0.5">{d.concepto}</p>
                       </div>
                       <p className="text-sm font-semibold text-slate-700 shrink-0">{money(d.monto)}</p>
@@ -692,8 +752,8 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
                   </button>
                 )}
                 {esCobro && metodoPago === 'mercadopago' && (
-                  <button onClick={generarLinkMP} disabled={saving || deudaSel.length !== 1} title="Genera un link de Mercado Pago para enviar por WhatsApp (la deuda se marca sola al pagar)" className="flex-1 py-2.5 rounded-xl border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 font-semibold text-sm transition-colors disabled:opacity-40">
-                    Link de pago
+                  <button onClick={generarLinkMP} disabled={saving || deudaSel.length < 1 || deudaSelConLink} title={deudaSelConLink ? 'Estas deudas ya tienen un link activo: reenvialo o cancelalo desde el cartel de arriba' : 'Genera un link de Mercado Pago para enviar por WhatsApp (una o varias deudas juntas; se marcan solas al pagar)'} className="flex-1 py-2.5 rounded-xl border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 font-semibold text-sm transition-colors disabled:opacity-40">
+                    {deudaSelConLink ? 'Link activo ↑' : `Link de pago${deudaSel.length > 1 ? ` (${deudaSel.length})` : ''}`}
                   </button>
                 )}
                 <button onClick={cobrarTodo} disabled={saving || (esCobro && deudaSel.length ? montoCobrarNum === 0 : totalCobrar === 0)} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">

@@ -5,7 +5,7 @@ import { inicioMesArg } from '../lib/tiempo.js'
 import { revertirPagoTx } from '../lib/pagos.js'
 import { runSerializable } from '../lib/serializable.js'
 import { mpConfigurado } from '../lib/mercadopago.js'
-import { crearLinkPagoDeuda } from '../lib/cobrosMP.js'
+import { crearLinkPagoDeuda, crearLinkPagoMultiple } from '../lib/cobrosMP.js'
 
 const router = Router()
 
@@ -54,20 +54,76 @@ router.post('/:id/anular', requireAuth, requireRole('admin'), requireFeature('fi
   }
 })
 
-// POST /api/pagos/link-pago — link de Mercado Pago para UNA deuda (cargo o turno).
-// Body: { origen: 'cargo'|'reserva', refId }. La acreditación real ocurre por webhook.
+// POST /api/pagos/link-pago — link de Mercado Pago para una o varias deudas de un jugador.
+// Body: { items: [{origen,refId}], jugadorId } (varias) o { origen, refId } (una, legacy).
+// 1 deuda → link single (reusa link vivo); varias → link 'multi' por el total. Acredita el webhook.
 router.post('/link-pago', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
-  const { origen, refId } = req.body || {}
+  const { items, jugadorId, origen, refId } = req.body || {}
   if (!(await mpConfigurado(clubId))) return res.status(503).json({ error: 'mp_no_configurado', message: 'Mercado Pago no está configurado todavía.' })
-  if (!refId || !['cargo', 'reserva'].includes(origen)) return res.status(400).json({ error: 'datos_incompletos', message: 'Falta la deuda a cobrar.' })
+  // Normalizar a lista: acepta items[] (nuevo) o {origen,refId} (compat con el single viejo).
+  const lista = Array.isArray(items) && items.length ? items : (refId ? [{ origen, refId }] : [])
+  if (lista.length === 0) return res.status(400).json({ error: 'datos_incompletos', message: 'Falta la deuda a cobrar.' })
   try {
-    const out = await crearLinkPagoDeuda({ clubId, origen, refId })
+    const out = lista.length === 1
+      ? await crearLinkPagoDeuda({ clubId, origen: lista[0].origen, refId: lista[0].refId })
+      : await crearLinkPagoMultiple({ clubId, jugadorId, deudas: lista })
     res.status(out.reusado ? 200 : 201).json(out)
   } catch (err) {
     const status = err.status || 500
     if (status >= 500) console.error('[link-pago]', err)
     res.status(status).json({ error: err.error || 'error', message: err.message || 'No se pudo generar el link de pago' })
+  }
+})
+
+// GET /api/pagos/links-vivos?jugadorId= — links de MP activos (iniciado/pending, no vencidos)
+// del club (o de un jugador). Sirve para mostrar "esperando pago" y poder recuperar/reenviar
+// el link. Devuelve, por link, las deudas que cubre (normalizado: single o multi → lista).
+router.get('/links-vivos', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+  const clubId = req.user.clubId
+  const { jugadorId } = req.query
+  try {
+    const rows = await prisma.pagoMP.findMany({
+      where: {
+        clubId,
+        jugadorId: jugadorId || undefined,
+        status: { in: ['iniciado', 'pending'] },
+        initPoint: { not: null },
+        OR: [{ expiraAt: null }, { expiraAt: { gt: new Date() } }],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
+    res.json(rows.map((r) => ({
+      id: r.id,
+      initPoint: r.initPoint,
+      monto: r.montoEsperado,
+      status: r.status,
+      createdAt: r.createdAt,
+      expiraAt: r.expiraAt,
+      deudas: r.origen === 'multi' ? (Array.isArray(r.items) ? r.items : []) : [{ origen: r.origen, refId: r.refId }],
+    })))
+  } catch (err) {
+    console.error('[links-vivos]', err)
+    res.status(500).json({ error: 'error', message: 'No se pudieron obtener los links de pago' })
+  }
+})
+
+// POST /api/pagos/link-pago/:id/cancelar — da de baja un link activo (el admin prefiere
+// cobrar de otra forma). NO frena a MP: si el jugador igual paga, el webhook lo acredita
+// (y si ya se cobró aparte, queda como sobrepago RN-75). Es una señal de la vista.
+router.post('/link-pago/:id/cancelar', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+  const clubId = req.user.clubId
+  const { id } = req.params
+  try {
+    const pm = await prisma.pagoMP.findUnique({ where: { id }, select: { clubId: true, status: true } })
+    if (!pm || pm.clubId !== clubId) return res.status(404).json({ error: 'no_encontrado', message: 'Link no encontrado' })
+    if (!['iniciado', 'pending'].includes(pm.status)) return res.status(409).json({ error: 'no_cancelable', message: 'Ese link ya no está activo.' })
+    await prisma.pagoMP.update({ where: { id }, data: { status: 'cancelled' } })
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[link-pago cancelar]', err)
+    res.status(500).json({ error: 'error', message: 'No se pudo cancelar el link' })
   }
 })
 

@@ -8,9 +8,30 @@ import { encryptToken, decryptToken } from './cripto.js'
 // El token NUNCA sale al frontend. Ver project_mp_oauth_diseno.
 const REFRESH_ANTES_MS = 15 * 24 * 60 * 60 * 1000 // refrescar si vence en <15 días
 
-// Renueva el access_token de una conexión (con su refresh_token). Si falla (el club
-// revocó el permiso en MP) → marca la conexión 'desconectado'. Devuelve el token o null.
-async function refrescarConexion(con) {
+// Un error del endpoint OAuth es PERMANENTE (el refresh_token ya no vale: el dueño revocó,
+// credenciales mal) cuando MP responde invalid_grant o 400/401. Un 5xx / fallo de red es
+// TRANSITORIO: no hay que desconectar al club por eso.
+const esErrorPermanenteOAuth = (e) =>
+  e?.mpError === 'invalid_grant' || e?.httpStatus === 400 || e?.httpStatus === 401
+
+// Locks en memoria por clubId: si ya hay un refresh en vuelo para ese club, los demás
+// callers esperan EL MISMO (coalescing) en vez de disparar otro refresh en paralelo. MP
+// rota el refresh_token en cada uso, así que dos refreshes concurrentes se pisarían y el
+// 2do fallaría con el token viejo. (Instancia única de Railway → un Map alcanza.)
+const refrescosEnVuelo = new Map()
+
+// Renueva el access_token de una conexión (con su refresh_token). Ante fallo PERMANENTE
+// marca la conexión 'desconectado'; ante fallo TRANSITORIO cae al access_token vigente
+// (sigue válido, faltan <15 días para vencer) para no cortarle el cobro a un club legítimo.
+function refrescarConexion(con) {
+  const enVuelo = refrescosEnVuelo.get(con.clubId)
+  if (enVuelo) return enVuelo
+  const p = _refrescarConexion(con).finally(() => refrescosEnVuelo.delete(con.clubId))
+  refrescosEnVuelo.set(con.clubId, p)
+  return p
+}
+
+async function _refrescarConexion(con) {
   try {
     const tok = await refrescarTokenOAuth(decryptToken(con.refreshTokenEnc))
     const expiresAt = new Date(Date.now() + (Number(tok.expires_in) || 15552000) * 1000)
@@ -19,9 +40,13 @@ async function refrescarConexion(con) {
       data: { accessTokenEnc: encryptToken(tok.access_token), refreshTokenEnc: encryptToken(tok.refresh_token), scope: tok.scope || con.scope, expiresAt },
     })
     return tok.access_token
-  } catch {
-    await prisma.mpConexion.update({ where: { id: con.id }, data: { estado: 'desconectado', desconectadoMotivo: 'refresh_failed' } }).catch(() => {})
-    return null
+  } catch (e) {
+    if (esErrorPermanenteOAuth(e)) {
+      await prisma.mpConexion.update({ where: { id: con.id }, data: { estado: 'desconectado', desconectadoMotivo: 'refresh_failed' } }).catch(() => {})
+      return null
+    }
+    // Transitorio: seguí con el token actual (todavía válido). Se reintentará en el próximo cobro.
+    try { return decryptToken(con.accessTokenEnc) } catch { return null }
   }
 }
 
@@ -91,7 +116,7 @@ async function oauthToken(body) {
     body: JSON.stringify({ client_id: process.env.MP_CLIENT_ID, client_secret: process.env.MP_CLIENT_SECRET, ...body }),
   })
   const d = await r.json().catch(() => ({}))
-  if (!r.ok) throw Object.assign(new Error(d.message || d.error || 'Error OAuth Mercado Pago'), { status: 502 })
+  if (!r.ok) throw Object.assign(new Error(d.message || d.error || 'Error OAuth Mercado Pago'), { status: 502, httpStatus: r.status, mpError: d.error })
   return d // { access_token, refresh_token, user_id, expires_in, scope }
 }
 

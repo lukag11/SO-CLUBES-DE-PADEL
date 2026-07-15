@@ -555,7 +555,8 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
       const r = await api.post('/pagos/link-pago', { items, jugadorId }, { Authorization: `Bearer ${token}` })
       const jug = jugadores.find((j) => j.id === jugadorId)
       const concepto = r.concepto || (deudaSel.length === 1 ? deudaSel[0].concepto : `${deudaSel.length} deudas`)
-      setMpLink({ initPoint: r.initPoint, concepto, monto: r.monto ?? totalDeudaSel, tel: jug?.telefono || jug?.tel || '' })
+      // qr: true → el panel muestra el QR (para cobrar presencial "en la cancha") + el link (WhatsApp/Copiar).
+      setMpLink({ initPoint: r.initPoint, concepto, monto: r.monto ?? totalDeudaSel, tel: jug?.telefono || jug?.tel || '', qr: true })
       await fetchLinksVivos(jugadorId) // que aparezca el estado "esperando pago"
     } catch (e) {
       showToast('error', e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el link'))
@@ -603,25 +604,28 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
           </div>
         )}
         {mpLink && (
-          <div className="absolute inset-0 z-10 bg-white flex flex-col items-center justify-center text-center gap-2.5 p-6">
-            <button onClick={() => { setMpLink(null); onClose() }} className="absolute top-4 right-4 text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
-            <div className="w-11 h-11 rounded-2xl bg-sky-50 flex items-center justify-center text-2xl">{mpLink.qr ? '📱' : '🔗'}</div>
-            <div>
-              <p className="text-slate-800 font-bold">{mpLink.qr ? 'Escaneá para pagar' : 'Link de pago generado'}</p>
-              <p className="text-slate-400 text-xs mt-0.5">{mpLink.concepto} · {money(mpLink.monto)}</p>
-            </div>
-            {mpLink.qr && (
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                <QRCodeSVG value={mpLink.initPoint} size={158} level="M" />
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => { setMpLink(null); onClose() }}>
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+            <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl flex flex-col items-center text-center gap-3 p-7 max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <button onClick={() => { setMpLink(null); onClose() }} className="absolute top-4 right-4 text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
+              <div className="w-11 h-11 rounded-2xl bg-sky-50 flex items-center justify-center text-2xl">{mpLink.qr ? '📱' : '🔗'}</div>
+              <div>
+                <p className="text-slate-800 font-bold">{mpLink.qr ? 'Escaneá para pagar' : 'Link de pago generado'}</p>
+                <p className="text-slate-400 text-xs mt-0.5">{mpLink.concepto} · {money(mpLink.monto)}</p>
               </div>
-            )}
-            <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[11px] text-slate-500 break-all">{mpLink.initPoint}</div>
-            <div className="flex gap-2 w-full">
-              <button onClick={() => { navigator.clipboard?.writeText(mpLink.initPoint); showToast('exito', 'Link copiado') }} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm">Copiar link</button>
-              <button onClick={() => enviarWhatsApp(`Hola! Podés pagar ${mpLink.concepto} (${money(mpLink.monto)}) con este link de Mercado Pago:\n${mpLink.initPoint}`, mpLink.tel)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#25D366] hover:brightness-95 text-white font-semibold text-sm">WhatsApp</button>
+              {mpLink.qr && (
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                  <QRCodeSVG value={mpLink.initPoint} size={188} level="M" />
+                </div>
+              )}
+              <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[11px] text-slate-500 break-all">{mpLink.initPoint}</div>
+              <div className="flex gap-2 w-full">
+                <button onClick={() => { navigator.clipboard?.writeText(mpLink.initPoint); showToast('exito', 'Link copiado') }} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm">Copiar link</button>
+                <button onClick={() => enviarWhatsApp(`Hola! Podés pagar ${mpLink.concepto} (${money(mpLink.monto)}) con este link de Mercado Pago:\n${mpLink.initPoint}`, mpLink.tel)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#25D366] hover:brightness-95 text-white font-semibold text-sm">WhatsApp</button>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-snug">Se marca pagado <b>solo</b> cuando el cliente pague (escaneando el QR o desde el link). Queda pendiente hasta entonces — no lo cobres aparte para no cobrar dos veces.</p>
+              <button onClick={() => { setMpLink(null); onClose() }} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
             </div>
-            <p className="text-[11px] text-slate-400 leading-snug">{mpLink.qr ? <>La venta se marca pagada <b>sola</b> cuando el jugador escanee y pague. Queda como deuda pendiente hasta entonces.</> : <>La deuda se marca pagada <b>sola</b> cuando el jugador pague. Mientras tanto, no la cobres en efectivo para no cobrar dos veces.</>}</p>
-            <button onClick={() => { setMpLink(null); onClose() }} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
           </div>
         )}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">

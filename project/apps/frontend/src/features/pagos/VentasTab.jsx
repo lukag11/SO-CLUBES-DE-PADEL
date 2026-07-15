@@ -232,7 +232,7 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
               <p className="text-slate-800 font-bold">Escaneá para pagar</p>
               <p className="text-slate-400 text-xs mt-0.5">{mesa.etiqueta} · {money(mpQR.monto)}</p>
             </div>
-            <div className="bg-white p-2.5 rounded-xl border border-slate-200"><QRCodeSVG value={mpQR.initPoint} size={158} level="M" /></div>
+            <div className="bg-white p-2.5 rounded-xl border border-slate-200"><QRCodeSVG value={mpQR.initPoint} size={188} level="M" /></div>
             <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[11px] text-slate-500 break-all">{mpQR.initPoint}</div>
             <div className="flex gap-2 w-full">
               <button onClick={() => { navigator.clipboard?.writeText(mpQR.initPoint); showToast('exito', 'Link copiado') }} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-sm">Copiar</button>

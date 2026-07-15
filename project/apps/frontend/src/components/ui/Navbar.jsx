@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bell, ChevronDown, Menu, Check, CheckCheck, LogOut, Repeat, CalendarDays, CalendarCheck, XCircle, GraduationCap, Trophy, Package, Clock } from 'lucide-react'
+import { Bell, ChevronDown, Menu, Check, CheckCheck, LogOut, Repeat, CalendarDays, CalendarCheck, XCircle, GraduationCap, Trophy, Package, Clock, Wallet } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
@@ -19,6 +19,7 @@ const NOTIF_META = {
   actualizacion_disponibilidad_profesor:{ Icon: Clock,         color: 'text-slate-500',   bg: 'bg-slate-100'  },
   inscripcion_torneo:                   { Icon: Trophy,        color: 'text-amber-600',   bg: 'bg-amber-50'   },
   stock_bajo:                           { Icon: Package,       color: 'text-red-600',     bg: 'bg-red-50'     },
+  pago_mp:                              { Icon: Wallet,        color: 'text-emerald-600', bg: 'bg-emerald-50' },
 }
 const notifMeta = (tipo) => NOTIF_META[tipo] || { Icon: Bell, color: 'text-brand-600', bg: 'bg-brand-50' }
 
@@ -54,6 +55,11 @@ const formatNotif = (n) => {
       return { title: 'Inscripción torneo', body: [n.jugador1, n.jugador2, n.torneoNombre].filter(Boolean).join(' · ') }
     case 'stock_bajo':
       return { title: 'Bajo stock', body: [n.nombre, n.stock != null ? `quedan ${n.stock}` : ''].filter(Boolean).join(' · ') }
+    case 'pago_mp': {
+      const quien = n.jugadorNombre ? `${n.jugadorNombre} pagó` : (n.detalle === 'Mesa' ? 'Mesa pagada' : 'Cobro recibido')
+      const extra = n.detalle && n.detalle !== 'Mesa' ? n.detalle : (n.count > 1 ? `${n.count} deudas` : '')
+      return { title: `${quien} por Mercado Pago`, body: [n.monto != null ? `$${(n.monto).toLocaleString('es-AR')}` : '', extra].filter(Boolean).join(' · ') }
+    }
     default:
       return { title: n.tipo?.replace(/_/g, ' ') ?? 'Notificación', body: '' }
   }

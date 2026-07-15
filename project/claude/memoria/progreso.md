@@ -1,6 +1,12 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-07-14 — **MP EN PUNTO DE VENTA: QR presencial (venta + venta rápida + mesa).** Los 3 flujos ya cobran con QR (antes marcaban pagado sin cobrar). Ver bloque abajo.
+**Última actualización:** 2026-07-15 — **MP: pago iniciado por el JUGADOR + notificación al dueño.** El jugador paga su saldo desde su dashboard; el dueño recibe aviso en la campana. HECHO, sin probar en vivo (Luca se fue). Ver bloque abajo.
+
+**MP PAGO DEL JUGADOR + NOTIF AL DUEÑO (2026-07-15). HECHO, SIN PROBAR EN VIVO.** Cierra el autoservicio de cobro. Ver [[project_mercadopago_fase2]].
+- **Backend jugador:** `POST /api/pagos/me/link-pago` (`requireRole('jugador')`). 🔒 `jugadorId=req.user.id` del TOKEN (nunca del body) → solo paga SUS deudas. Junta cargos pendientes + turnos impagos → link.
+- **Front jugador (`PlayerPagosPage`):** botón "Pagar con Mercado Pago · $saldo" → checkout → webhook salda solo.
+- **Notif al dueño (webhook):** `notificarPagoAdmin` crea `Notificacion` tipo `pago_mp` (admin) al acreditar CUALQUIER pago MP (jugador, Cobranzas, venta, mesa). Campana: `notificacionesStore` + `Navbar` (formatNotif + NOTIF_META Wallet). "Luca pagó por MP · $X · N deudas".
+- **Flujo redondo:** jugador paga solo → deudas salen de la cuenta corriente + Pago en caja (ya existía) → dueño recibe aviso (nuevo). **Pendiente: probar en vivo.**
 
 **MP QR PRESENCIAL en punto de venta (S1+S2+S3, 2026-07-14).** "Mercado Pago" en venta/venta-rápida/mesa antes marcaba pagado SIN cobrar (income fantasma); ahora genera un **QR** (checkout renderizado con `qrcode.react`) → cliente escanea → paga → webhook confirma. Reusa preferencia+webhook+PagoMP+anti-duplicado+auto-cancel. Ver [[project_mercadopago_fase2]].
 - **S1 venta a jugador** (`PagosPage`): "Generar QR de pago" → crea venta PENDIENTE (`/productos/venta` con `createManyAndReturn` devuelve `cargoIds`) → `/pagos/link-pago` → panel QR. Webhook imputa.

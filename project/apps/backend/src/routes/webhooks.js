@@ -46,6 +46,21 @@ const firmaValida = (req, paymentId) => {
   } catch { return false }
 }
 
+// Avisa al DUEÑO del club (Notificacion con jugadorId/profesorId null = admin) que entró un
+// pago por Mercado Pago. Best-effort: si falla, NO rompe el webhook (la plata ya se acreditó).
+async function notificarPagoAdmin(clubId, { jugadorId = null, monto, count = 1, detalle = null }) {
+  try {
+    let jugadorNombre = null
+    if (jugadorId) {
+      const j = await prisma.jugador.findUnique({ where: { id: jugadorId }, select: { nombre: true, apellido: true } })
+      if (j) jugadorNombre = `${j.nombre} ${j.apellido}`.trim()
+    }
+    await prisma.notificacion.create({ data: { clubId, tipo: 'pago_mp', data: { jugadorId, jugadorNombre, monto, count, detalle } } })
+  } catch (e) {
+    console.error('[webhook mp] no se pudo notificar al dueño:', e.message)
+  }
+}
+
 // Procesa el pago ya verificado contra la API de MP. Idempotente (RN-71). Corre las
 // transiciones de plata en Serializable (anti doble-cobro, RN-72/75). Reversión en
 // refund/contracargo (RN-74).
@@ -56,14 +71,16 @@ async function procesarPago(pagoMP, { paymentId, status, statusDetail, amount })
   // pagados + comanda cerrada), igual que el cierre por caja pero disparado por el webhook.
   if (pagoMP.origen === 'comanda') {
     if (nuevo === 'approved') {
-      await runSerializable(async (tx) => {
+      const creada = await runSerializable(async (tx) => {
         const actual = await tx.pagoMP.findUnique({ where: { id: pagoMP.id } })
-        if (actual && actual.status === 'approved') return // idempotente (RN-71)
+        if (actual && actual.status === 'approved') return null // idempotente (RN-71)
         const now = new Date()
         await tx.cargo.updateMany({ where: { comandaId: pagoMP.refId, estado: 'pendiente' }, data: { estado: 'pagado', metodoPago: 'mercadopago', pagadoAt: now } })
         await tx.comanda.update({ where: { id: pagoMP.refId }, data: { estado: 'cerrada', closedAt: now } }).catch(() => {})
         await tx.pagoMP.update({ where: { id: pagoMP.id }, data: { mpPaymentId: paymentId, status: 'approved', statusDetail: statusDetail || null } })
+        return true
       })
+      if (creada) await notificarPagoAdmin(pagoMP.clubId, { monto: pagoMP.montoEsperado, detalle: 'Mesa' })
     } else if (nuevo === 'refunded' || nuevo === 'charged_back') {
       await runSerializable(async (tx) => {
         const now = new Date()
@@ -79,14 +96,14 @@ async function procesarPago(pagoMP, { paymentId, status, statusDetail, amount })
   }
 
   if (nuevo === 'approved') {
-    await runSerializable(async (tx) => {
+    const resuImp = await runSerializable(async (tx) => {
       const actual = await tx.pagoMP.findUnique({ where: { id: pagoMP.id } })
       if (actual && actual.status === 'approved' && actual.pagoId) {
         // Ya acreditado → no-op. Si llega OTRO payment (doble pago del mismo link), avisar. RN-75.
         if (actual.mpPaymentId && actual.mpPaymentId !== paymentId) {
           console.warn(`[webhook mp] DOBLE PAGO: PagoMP ${pagoMP.id} ya acreditado con ${actual.mpPaymentId}; llega otro pago ${paymentId} ($${amount}) → revisar devolución. RN-75`)
         }
-        return
+        return null
       }
       // jugadorId: preferimos el guardado en el PagoMP (links nuevos); si no está (links
       // viejos), lo derivamos del ítem. En 'multi' las deudas van en `items`.
@@ -120,7 +137,10 @@ async function procesarPago(pagoMP, { paymentId, status, statusDetail, amount })
         },
       })
       if (sobrepago) console.warn(`[webhook mp] SOBREPAGO $${impu.excedente}: PagoMP ${pagoMP.id} pago ${paymentId} (pagó $${amount}, imputado $${impu.imputado}) → revisar devolución. RN-75`)
+      return { jugadorId, imputado: impu.imputado, count: items.length }
     })
+    // Aviso al dueño (campanita). Solo si se acreditó recién (resuImp no null → no idempotente).
+    if (resuImp) await notificarPagoAdmin(pagoMP.clubId, { jugadorId: resuImp.jugadorId, monto: resuImp.imputado, count: resuImp.count })
     return
   }
 

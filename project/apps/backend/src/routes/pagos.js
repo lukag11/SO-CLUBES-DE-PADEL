@@ -6,6 +6,7 @@ import { revertirPagoTx } from '../lib/pagos.js'
 import { runSerializable } from '../lib/serializable.js'
 import { mpConfigurado } from '../lib/mercadopago.js'
 import { crearLinkPagoDeuda, crearLinkPagoMultiple } from '../lib/cobrosMP.js'
+import { turnosImpagosDeuda } from '../lib/deudas.js'
 
 const router = Router()
 
@@ -72,6 +73,34 @@ router.post('/link-pago', requireAuth, requireRole('admin'), requireFeature('fin
   } catch (err) {
     const status = err.status || 500
     if (status >= 500) console.error('[link-pago]', err)
+    res.status(status).json({ error: err.error || 'error', message: err.message || 'No se pudo generar el link de pago' })
+  }
+})
+
+// POST /api/pagos/me/link-pago — el JUGADOR genera un link/QR para pagar TODO su saldo.
+// SEGURIDAD: el jugadorId sale del token (req.user.id), NUNCA del body → solo puede pagar
+// sus propias deudas. Junta sus cargos pendientes + turnos impagos y arma un link por el total.
+router.post('/me/link-pago', requireAuth, requireRole('jugador'), async (req, res) => {
+  const clubId = req.user.clubId
+  const jugadorId = req.user.id // ← del token, jamás del navegador
+  if (!(await mpConfigurado(clubId))) return res.status(503).json({ error: 'mp_no_configurado', message: 'El club no tiene Mercado Pago configurado todavía.' })
+  try {
+    const [cargos, turnos] = await Promise.all([
+      prisma.cargo.findMany({ where: { jugadorId, clubId, estado: 'pendiente', comandaId: null }, select: { id: true } }),
+      turnosImpagosDeuda(clubId, { jugadorId }),
+    ])
+    const deudas = [
+      ...cargos.map((c) => ({ origen: 'cargo', refId: c.id })),
+      ...turnos.map((t) => ({ origen: 'reserva', refId: t.refId })),
+    ]
+    if (deudas.length === 0) return res.status(409).json({ error: 'sin_deuda', message: 'No tenés pagos pendientes.' })
+    const out = deudas.length === 1
+      ? await crearLinkPagoDeuda({ clubId, origen: deudas[0].origen, refId: deudas[0].refId })
+      : await crearLinkPagoMultiple({ clubId, jugadorId, deudas })
+    res.status(out.reusado ? 200 : 201).json(out)
+  } catch (err) {
+    const status = err.status || 500
+    if (status >= 500) console.error('[me link-pago]', err)
     res.status(status).json({ error: err.error || 'error', message: err.message || 'No se pudo generar el link de pago' })
   }
 })

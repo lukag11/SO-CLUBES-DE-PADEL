@@ -40,6 +40,8 @@ const PlayerPagosPage = () => {
   const [periodo, setPeriodo] = useState('12m')
   const [rubro, setRubro] = useState(null) // null = todos
   const [metodoFiltro, setMetodoFiltro] = useState(null) // null = todos
+  const [pagando, setPagando] = useState(false)
+  const [pagoError, setPagoError] = useState('')
 
   useEffect(() => {
     if (!token) { setLoading(false); return }
@@ -52,6 +54,20 @@ const PlayerPagosPage = () => {
   const pendientes = cargos.filter((c) => c.estado === 'pendiente')
   const saldo = pendientes.reduce((s, c) => s + (c.monto ?? 0), 0)
   const hayVencido = pendientes.some((c) => c.vencido)
+
+  // El jugador paga TODO su saldo con Mercado Pago. El backend arma el link con SUS deudas
+  // (jugadorId del token) y lo mandamos al checkout. La deuda se salda sola por webhook.
+  const pagarConMP = async () => {
+    setPagando(true); setPagoError('')
+    try {
+      const r = await api.post('/pagos/me/link-pago', {}, { Authorization: `Bearer ${token}` })
+      if (r?.initPoint) { window.location.href = r.initPoint; return }
+      throw new Error('No se pudo generar el pago')
+    } catch (e) {
+      setPagoError(e?.status === 503 ? 'El club todavía no tiene Mercado Pago habilitado.' : (e?.message || 'No se pudo generar el pago'))
+      setPagando(false)
+    }
+  }
 
   // Consumo = cargos PAGADOS. El período filtra por la fecha de pago (o de creación como fallback).
   const enPeriodo = (item) => {
@@ -149,6 +165,14 @@ const PlayerPagosPage = () => {
             )}
           </div>
         </div>
+        {saldo > 0 && (
+          <div className="mt-5">
+            <button onClick={pagarConMP} disabled={pagando} className="w-full py-3 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-bold text-sm transition-all disabled:opacity-50">
+              {pagando ? 'Generando pago…' : `Pagar con Mercado Pago · ${money(saldo)}`}
+            </button>
+            {pagoError && <p className="text-red-400 text-xs mt-2 text-center">{pagoError}</p>}
+          </div>
+        )}
       </div>
 
       {/* Pendientes (siempre visibles, sin filtrar — es deuda) */}

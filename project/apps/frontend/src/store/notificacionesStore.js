@@ -45,6 +45,11 @@ const normBackend = (n) => ({
   // Campos de notificación de bajo stock
   nombre: n.data?.nombre ?? '',
   stock: n.data?.stock ?? null,
+  // Campos de notificación de pago por Mercado Pago
+  jugadorNombre: n.data?.jugadorNombre ?? '',
+  monto: n.data?.monto ?? null,
+  count: n.data?.count ?? 1,
+  detalle: n.data?.detalle ?? null,
   leida: n.leida,
   timestamp: n.createdAt,
   _fromBackend: true,

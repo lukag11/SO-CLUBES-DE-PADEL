@@ -1,6 +1,10 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-07-15 — **MP: pago iniciado por el JUGADOR + notificación al dueño.** El jugador paga su saldo desde su dashboard; el dueño recibe aviso en la campana. HECHO, sin probar en vivo (Luca se fue). Ver bloque abajo.
+**Última actualización:** 2026-07-15 — **MP jugador v2: "Pago en proceso" + QR en el dash del jugador.** El link del admin aparece en Mi consumo listo para pagar; el botón genera solo por el resto; modal con QR. Ver bloque abajo. **Pendiente: probar un pago en vivo (bloqueado por auto-pago de MP — Luca tiene 1 sola cuenta).**
+
+**MP JUGADOR v2 — "Pago en proceso" + QR (2026-07-15).** Sobre el pago del jugador: el link que genera el admin (o el jugador) ahora **aparece en "Mi consumo"** como tarjeta "Pago en proceso · [Pagar ahora]" (`GET /pagos/me/links-vivos`); el botón "Pagar con MP" **excluye lo ya linkeado** (`linksVivosDeDeudas`) → genera solo por el resto, nunca solapa ni bloquea con mensaje de admin. **QR** en el dash (`qrcode.react`) al pagar (modal). Ver [[project_mercadopago_fase2]].
+- **Testing bloqueado:** club conectado con la cuenta MP REAL de Luca (151451037) → MP no deja auto-pagarse y no tiene 2ª cuenta. Para probar: usuarios de prueba MP, o pagar como invitado con tarjeta, o que otro pague. **Pendiente prueba viva.**
+- **Bug transitorio (no de código):** "Error al cobrar la cuenta" en prod al cobrar 12 deudas en efectivo — mismo payload OK en localhost. Contención Serializable (6 reintentos). Fix pendiente: anti doble-click en el botón "Cobrar".
 
 **MP PAGO DEL JUGADOR + NOTIF AL DUEÑO (2026-07-15). HECHO, SIN PROBAR EN VIVO.** Cierra el autoservicio de cobro. Ver [[project_mercadopago_fase2]].
 - **Backend jugador:** `POST /api/pagos/me/link-pago` (`requireRole('jugador')`). 🔒 `jugadorId=req.user.id` del TOKEN (nunca del body) → solo paga SUS deudas. Junta cargos pendientes + turnos impagos → link.

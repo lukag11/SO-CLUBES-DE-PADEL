@@ -57,6 +57,23 @@ export async function cancelarLinksDeItems(clubId, items, motivo = 'cobrado_por_
   return aCancelar.length
 }
 
+// Dado un conjunto de deudas (`[{origen,refId}]`), devuelve los links de MP VIVOS que cubren
+// alguna de ellas (para MOSTRÁRSELOS al jugador y que las pague) + el set de claves ya cubiertas
+// (para no re-linkearlas y evitar solapes/doble-cobro). Usado por el flujo self-service del jugador.
+export async function linksVivosDeDeudas(clubId, deudas) {
+  const claves = new Set((deudas || []).map((d) => `${d.origen}:${d.refId}`))
+  if (claves.size === 0) return { links: [], cubiertas: new Set() }
+  const vivos = await _linksVivos(clubId)
+  const relevantes = vivos.filter((v) => [...v.claves].some((k) => claves.has(k)))
+  const cubiertas = new Set()
+  for (const v of relevantes) for (const k of v.claves) if (claves.has(k)) cubiertas.add(k)
+  const links = relevantes.map((v) => ({
+    id: v.row.id, initPoint: v.row.initPoint, monto: v.row.montoEsperado,
+    expiraAt: v.row.expiraAt, createdAt: v.row.createdAt,
+  }))
+  return { links, cubiertas }
+}
+
 // RN-77 (anti doble-cobro): dado el set de deudas de un link nuevo, si ya hay un link vivo
 // que cubre EXACTAMENTE ese set → lo reusa (devuelve). Si hay uno que se SOLAPA (comparte al
 // menos una deuda) → bloquea (hay que reenviar ese o cancelarlo). Si no toca ninguno → null.

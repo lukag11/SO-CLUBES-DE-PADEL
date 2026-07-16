@@ -5,8 +5,20 @@ import { inicioMesArg } from '../lib/tiempo.js'
 import { revertirPagoTx } from '../lib/pagos.js'
 import { runSerializable } from '../lib/serializable.js'
 import { mpConfigurado } from '../lib/mercadopago.js'
-import { crearLinkPagoDeuda, crearLinkPagoMultiple } from '../lib/cobrosMP.js'
+import { crearLinkPagoDeuda, crearLinkPagoMultiple, linksVivosDeDeudas } from '../lib/cobrosMP.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
+
+// Deudas pendientes de un jugador (cargos + turnos impagos), como [{origen,refId}].
+async function deudasDelJugador(clubId, jugadorId) {
+  const [cargos, turnos] = await Promise.all([
+    prisma.cargo.findMany({ where: { jugadorId, clubId, estado: 'pendiente', comandaId: null }, select: { id: true } }),
+    turnosImpagosDeuda(clubId, { jugadorId }),
+  ])
+  return [
+    ...cargos.map((c) => ({ origen: 'cargo', refId: c.id })),
+    ...turnos.map((t) => ({ origen: 'reserva', refId: t.refId })),
+  ]
+}
 
 const router = Router()
 
@@ -77,26 +89,36 @@ router.post('/link-pago', requireAuth, requireRole('admin'), requireFeature('fin
   }
 })
 
-// POST /api/pagos/me/link-pago — el JUGADOR genera un link/QR para pagar TODO su saldo.
-// SEGURIDAD: el jugadorId sale del token (req.user.id), NUNCA del body → solo puede pagar
-// sus propias deudas. Junta sus cargos pendientes + turnos impagos y arma un link por el total.
+// GET /api/pagos/me/links-vivos — links de MP activos que cubren deudas del JUGADOR (para que
+// los vea en "Mi consumo" y los pague sin depender del admin). jugadorId del token.
+router.get('/me/links-vivos', requireAuth, requireRole('jugador'), async (req, res) => {
+  try {
+    const deudas = await deudasDelJugador(req.user.clubId, req.user.id)
+    const { links } = await linksVivosDeDeudas(req.user.clubId, deudas)
+    res.json(links)
+  } catch (err) {
+    console.error('[me links-vivos]', err)
+    res.status(500).json({ error: 'error', message: 'No se pudieron obtener los pagos en proceso' })
+  }
+})
+
+// POST /api/pagos/me/link-pago — el JUGADOR genera un link para pagar lo que le falta.
+// SEGURIDAD: jugadorId del token (req.user.id), NUNCA del body → solo paga sus deudas.
+// EXCLUYE lo que ya está en un link vivo (esos los paga desde el cartel) → nunca solapa/duplica.
 router.post('/me/link-pago', requireAuth, requireRole('jugador'), async (req, res) => {
   const clubId = req.user.clubId
   const jugadorId = req.user.id // ← del token, jamás del navegador
   if (!(await mpConfigurado(clubId))) return res.status(503).json({ error: 'mp_no_configurado', message: 'El club no tiene Mercado Pago configurado todavía.' })
   try {
-    const [cargos, turnos] = await Promise.all([
-      prisma.cargo.findMany({ where: { jugadorId, clubId, estado: 'pendiente', comandaId: null }, select: { id: true } }),
-      turnosImpagosDeuda(clubId, { jugadorId }),
-    ])
-    const deudas = [
-      ...cargos.map((c) => ({ origen: 'cargo', refId: c.id })),
-      ...turnos.map((t) => ({ origen: 'reserva', refId: t.refId })),
-    ]
+    const deudas = await deudasDelJugador(clubId, jugadorId)
     if (deudas.length === 0) return res.status(409).json({ error: 'sin_deuda', message: 'No tenés pagos pendientes.' })
-    const out = deudas.length === 1
-      ? await crearLinkPagoDeuda({ clubId, origen: deudas[0].origen, refId: deudas[0].refId })
-      : await crearLinkPagoMultiple({ clubId, jugadorId, deudas })
+    // Excluir las deudas que YA tienen un link vivo (se pagan desde el cartel "Pago en proceso").
+    const { cubiertas } = await linksVivosDeDeudas(clubId, deudas)
+    const pendientes = deudas.filter((d) => !cubiertas.has(`${d.origen}:${d.refId}`))
+    if (pendientes.length === 0) return res.status(409).json({ error: 'ya_en_proceso', message: 'Ya tenés un pago en proceso por todo tu saldo. Pagalo desde arriba.' })
+    const out = pendientes.length === 1
+      ? await crearLinkPagoDeuda({ clubId, origen: pendientes[0].origen, refId: pendientes[0].refId })
+      : await crearLinkPagoMultiple({ clubId, jugadorId, deudas: pendientes })
     res.status(out.reusado ? 200 : 201).json(out)
   } catch (err) {
     const status = err.status || 500

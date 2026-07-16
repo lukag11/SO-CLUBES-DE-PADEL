@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Wallet, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import { Wallet, CheckCircle, Clock, AlertCircle, X } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import usePlayerStore from '../store/playerStore'
 import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
@@ -12,6 +13,11 @@ const fmtFecha = (s) => {
   if (!s) return ''
   const d = new Date(s)
   return `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`
+}
+const venceEn = (iso) => {
+  if (!iso) return ''
+  const dias = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000)
+  return dias <= 0 ? 'vence hoy' : dias === 1 ? 'vence mañana' : `vence en ${dias} días`
 }
 
 // Rubros de consumo (derivados del `tipo` de cada cargo). Los tipos desconocidos caen en "otros".
@@ -42,18 +48,27 @@ const PlayerPagosPage = () => {
   const [metodoFiltro, setMetodoFiltro] = useState(null) // null = todos
   const [pagando, setPagando] = useState(false)
   const [pagoError, setPagoError] = useState('')
+  const [linksVivos, setLinksVivos] = useState([]) // pagos de MP en proceso (generados por el admin o por mí)
+  const [mpModal, setMpModal] = useState(null) // { initPoint, monto } → modal con QR + pagar acá
 
   useEffect(() => {
     if (!token) { setLoading(false); return }
-    api.get('/cargos/me', { Authorization: `Bearer ${token}` })
+    const auth = { Authorization: `Bearer ${token}` }
+    api.get('/cargos/me', auth)
       .then((d) => setCargos(Array.isArray(d) ? d : []))
       .catch(() => {})
       .finally(() => setLoading(false))
+    api.get('/pagos/me/links-vivos', auth)
+      .then((d) => setLinksVivos(Array.isArray(d) ? d : []))
+      .catch(() => {})
   }, [token])
 
   const pendientes = cargos.filter((c) => c.estado === 'pendiente')
   const saldo = pendientes.reduce((s, c) => s + (c.monto ?? 0), 0)
   const hayVencido = pendientes.some((c) => c.vencido)
+  // Cuánto de la deuda ya tiene un link de MP en proceso, y cuánto falta linkear.
+  const montoEnProceso = linksVivos.reduce((s, l) => s + (l.monto ?? 0), 0)
+  const restante = Math.max(0, saldo - montoEnProceso)
 
   // El jugador paga TODO su saldo con Mercado Pago. El backend arma el link con SUS deudas
   // (jugadorId del token) y lo mandamos al checkout. La deuda se salda sola por webhook.
@@ -61,12 +76,12 @@ const PlayerPagosPage = () => {
     setPagando(true); setPagoError('')
     try {
       const r = await api.post('/pagos/me/link-pago', {}, { Authorization: `Bearer ${token}` })
-      if (r?.initPoint) { window.location.href = r.initPoint; return }
-      throw new Error('No se pudo generar el pago')
+      if (!r?.initPoint) throw new Error('No se pudo generar el pago')
+      setMpModal({ initPoint: r.initPoint, monto: r.monto ?? restante })
+      api.get('/pagos/me/links-vivos', { Authorization: `Bearer ${token}` }).then((d) => setLinksVivos(Array.isArray(d) ? d : [])).catch(() => {})
     } catch (e) {
       setPagoError(e?.status === 503 ? 'El club todavía no tiene Mercado Pago habilitado.' : (e?.message || 'No se pudo generar el pago'))
-      setPagando(false)
-    }
+    } finally { setPagando(false) }
   }
 
   // Consumo = cargos PAGADOS. El período filtra por la fecha de pago (o de creación como fallback).
@@ -155,7 +170,7 @@ const PlayerPagosPage = () => {
               <>
                 <p className="text-white/40 text-xs">Saldo pendiente</p>
                 <p className={`text-3xl font-black ${hayVencido ? 'text-red-400' : 'text-amber-400'}`}>{money(saldo)}</p>
-                <p className="text-white/35 text-xs mt-0.5">Acercate al club para regularizar tu cuenta.</p>
+                <p className="text-white/35 text-xs mt-0.5">Pagalo online con Mercado Pago acá abajo, o acercate al club.</p>
               </>
             ) : (
               <>
@@ -166,11 +181,24 @@ const PlayerPagosPage = () => {
           </div>
         </div>
         {saldo > 0 && (
-          <div className="mt-5">
-            <button onClick={pagarConMP} disabled={pagando} className="w-full py-3 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-bold text-sm transition-all disabled:opacity-50">
-              {pagando ? 'Generando pago…' : `Pagar con Mercado Pago · ${money(saldo)}`}
-            </button>
-            {pagoError && <p className="text-red-400 text-xs mt-2 text-center">{pagoError}</p>}
+          <div className="mt-5 space-y-2.5">
+            {/* Pagos en proceso (los generó el club o yo antes) → pagar directo, sin pedir nada a nadie */}
+            {linksVivos.map((l) => (
+              <div key={l.id} className="rounded-xl border border-[#009ee3]/30 bg-[#009ee3]/5 p-3 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-white text-sm font-semibold">Pago en proceso · {money(l.monto)}</p>
+                  <p className="text-white/40 text-[11px]">{venceEn(l.expiraAt)}</p>
+                </div>
+                <button onClick={() => setMpModal({ initPoint: l.initPoint, monto: l.monto })} className="shrink-0 px-4 py-2 rounded-lg bg-[#009ee3] hover:brightness-95 text-white font-bold text-xs">Pagar ahora</button>
+              </div>
+            ))}
+            {/* Lo que todavía NO está en un link (o todo el saldo si no hay ninguno) */}
+            {restante > 0 && (
+              <button onClick={pagarConMP} disabled={pagando} className="w-full py-3 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-bold text-sm transition-all disabled:opacity-50">
+                {pagando ? 'Generando pago…' : `Pagar ${linksVivos.length > 0 ? 'el resto ' : ''}con Mercado Pago · ${money(restante)}`}
+              </button>
+            )}
+            {pagoError && <p className="text-red-400 text-xs text-center">{pagoError}</p>}
           </div>
         )}
       </div>
@@ -325,6 +353,20 @@ const PlayerPagosPage = () => {
           Los pagos se gestionan en el club. Cuando abones, el club registra el cobro y se actualiza acá automáticamente.
         </p>
       </div>
+
+      {mpModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" onClick={() => setMpModal(null)}>
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div className="relative w-full max-w-xs bg-[#0d1117] border border-white/10 rounded-2xl p-6 flex flex-col items-center text-center gap-3" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setMpModal(null)} className="absolute top-3 right-3 text-white/40 hover:text-white"><X size={18} /></button>
+            <p className="text-white font-bold">Pagar {money(mpModal.monto)}</p>
+            <p className="text-white/40 text-xs -mt-2">Escaneá el QR o pagá en este teléfono</p>
+            <div className="bg-white p-2.5 rounded-xl"><QRCodeSVG value={mpModal.initPoint} size={180} level="M" /></div>
+            <a href={mpModal.initPoint} target="_blank" rel="noopener noreferrer" className="w-full py-3 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-bold text-sm">Pagar en este teléfono</a>
+            <button onClick={() => { navigator.clipboard?.writeText(mpModal.initPoint) }} className="text-white/40 text-xs hover:text-white/70">Copiar link</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

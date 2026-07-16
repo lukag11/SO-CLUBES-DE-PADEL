@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import usePlayerStore from '../store/playerStore'
 import useClubStore from '../store/clubStore'
 import { api } from '../lib/api'
+import { useToast } from '../components/ui/ToastProvider'
 import { MetodoBadge, METODO_MAP } from '../lib/metodosPago'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
@@ -37,6 +38,7 @@ const PERIODOS = [
 ]
 
 const PlayerPagosPage = () => {
+  const toast = useToast()
   const token = usePlayerStore((s) => s.token)
   // Flag del club (config): si el dueño apaga el resumen de consumo, el jugador ve solo
   // saldo + pendientes + historial (sin el número grande de "cuánto gastaste"). Default: ON.
@@ -363,7 +365,7 @@ const PlayerPagosPage = () => {
             <p className="text-white/40 text-xs -mt-2">Escaneá el QR o pagá en este teléfono</p>
             <div className="bg-white p-2.5 rounded-xl"><QRCodeSVG value={mpModal.initPoint} size={180} level="M" /></div>
             <a href={mpModal.initPoint} target="_blank" rel="noopener noreferrer" className="w-full py-3 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-bold text-sm">Pagar en este teléfono</a>
-            <button onClick={() => { navigator.clipboard?.writeText(mpModal.initPoint) }} className="text-white/40 text-xs hover:text-white/70">Copiar link</button>
+            <button onClick={() => { navigator.clipboard?.writeText(mpModal.initPoint); toast.success('Link copiado') }} className="text-white/40 text-xs hover:text-white/70">Copiar link</button>
           </div>
         </div>
       )}

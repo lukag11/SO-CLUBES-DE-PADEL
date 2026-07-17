@@ -53,17 +53,21 @@ const PlayerPagosPage = () => {
   const [linksVivos, setLinksVivos] = useState([]) // pagos de MP en proceso (generados por el admin o por mí)
   const [mpModal, setMpModal] = useState(null) // { initPoint, monto } → modal con QR + pagar acá
 
+  const refetchLinks = () => {
+    if (!token) return
+    api.get('/pagos/me/links-vivos', { Authorization: `Bearer ${token}` })
+      .then((d) => setLinksVivos(Array.isArray(d) ? d : []))
+      .catch(() => {})
+  }
+
   useEffect(() => {
     if (!token) { setLoading(false); return }
-    const auth = { Authorization: `Bearer ${token}` }
-    api.get('/cargos/me', auth)
+    api.get('/cargos/me', { Authorization: `Bearer ${token}` })
       .then((d) => setCargos(Array.isArray(d) ? d : []))
       .catch(() => {})
       .finally(() => setLoading(false))
-    api.get('/pagos/me/links-vivos', auth)
-      .then((d) => setLinksVivos(Array.isArray(d) ? d : []))
-      .catch(() => {})
-  }, [token])
+    refetchLinks()
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const pendientes = cargos.filter((c) => c.estado === 'pendiente')
   const saldo = pendientes.reduce((s, c) => s + (c.monto ?? 0), 0)
@@ -80,9 +84,12 @@ const PlayerPagosPage = () => {
       const r = await api.post('/pagos/me/link-pago', {}, { Authorization: `Bearer ${token}` })
       if (!r?.initPoint) throw new Error('No se pudo generar el pago')
       setMpModal({ initPoint: r.initPoint, monto: r.monto ?? restante })
-      api.get('/pagos/me/links-vivos', { Authorization: `Bearer ${token}` }).then((d) => setLinksVivos(Array.isArray(d) ? d : [])).catch(() => {})
+      refetchLinks()
     } catch (e) {
-      setPagoError(e?.status === 503 ? 'El club todavía no tiene Mercado Pago habilitado.' : (e?.message || 'No se pudo generar el pago'))
+      // Si ya hay un link cubriendo todo el saldo, no es un error: traemos el link y lo mostramos
+      // como tarjeta "Pago en proceso" para que lo pague desde ahí.
+      if (e?.code === 'ya_en_proceso') refetchLinks()
+      else setPagoError(e?.status === 503 ? 'El club todavía no tiene Mercado Pago habilitado.' : (e?.message || 'No se pudo generar el pago'))
     } finally { setPagando(false) }
   }
 

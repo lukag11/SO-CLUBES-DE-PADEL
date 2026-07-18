@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   DollarSign, AlertTriangle, TrendingUp, Search, Plus, X,
@@ -385,6 +385,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   const [metodo2, setMetodo2] = useState(metodos[1] ?? metodos[0] ?? 'transferencia')
   const [monto1, setMonto1] = useState('')              // cobro: monto del método 1 cuando hay split
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false) // candado SÍNCRONO anti doble-submit (setSaving es async → no frena el 2º click rápido)
   const [error, setError] = useState('')
 
   const auth = { Authorization: `Bearer ${token}` }
@@ -475,8 +476,10 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   // el QR se muestra en pantalla (cliente presente) y también sirve por WhatsApp. La venta se
   // salda sola cuando paga (webhook). NO cobra en el acto (nada de income fantasma).
   const generarQRVenta = async () => {
+    if (savingRef.current) return
     if (!mostrador && !jugadorId) { setError('Elegí un jugador o pasá a mostrador'); return }
     if (lineas.length === 0) { setError('Agregá al menos un producto'); return }
+    savingRef.current = true
     setSaving(true); setError('')
     try {
       const jid = mostrador ? null : jugadorId
@@ -489,23 +492,25 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
       setLineas([]); onRefresh()
     } catch (e) {
       showToast('error', e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el QR'))
-    } finally { setSaving(false) }
+    } finally { savingRef.current = false; setSaving(false) }
   }
 
   const anotarACuenta = async () => {
+    if (savingRef.current) return
     if (lineas.length === 0) return setError('Agregá al menos un consumo')
+    savingRef.current = true
     setSaving(true); setError('')
     try {
       await crearNuevas(false)
       showToast('exito', 'Anotado a la cuenta'); onRefresh()
       // En una VENTA, anotar a cuenta = operación terminada → se cierra el modal.
       // En modo COBRO se queda abierto (podés seguir gestionando la cuenta del jugador).
-      if (esVenta) { setSaving(false); onClose(); return }
+      if (esVenta) { savingRef.current = false; setSaving(false); onClose(); return }
       setLineas([]); await fetchDeudas(jugadorId)
-    } catch (e) { showToast('error', e?.message || 'No se pudo anotar') } finally { setSaving(false) }
+    } catch (e) { showToast('error', e?.message || 'No se pudo anotar') } finally { savingRef.current = false; setSaving(false) }
   }
   const cobrarTodo = async () => {
-    if (saving) return
+    if (savingRef.current) return
     if (lineas.length === 0 && deudaSel.length === 0) return setError('Agregá un consumo o seleccioná una deuda')
     // Validación del cobro de deuda (parcial + split)
     if (esCobro && deudaSel.length) {
@@ -517,6 +522,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     if (esCobro && deudaSel.length && deudaSelConLink) {
       if (!window.confirm('Ojo: hay un link de pago de Mercado Pago activo para alguna de estas deudas. Si cobrás ahora y el jugador también paga el link, va a quedar un pago de más para devolver. ¿Cobrar igual?')) return
     }
+    savingRef.current = true
     setSaving(true); setError('')
     try {
       if (lineas.length) await crearNuevas(true)
@@ -542,13 +548,15 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
         showToast('exito', esParcial ? `Cobrado ${money(montoCobrarNum)} · queda debiendo ${money(resto)}` : 'Cobro registrado')
         await fetchDeudas(jugadorId)
       }
-    } catch (e) { showToast('error', e?.message || 'No se pudo cobrar') } finally { setSaving(false) }
+    } catch (e) { showToast('error', e?.message || 'No se pudo cobrar') } finally { savingRef.current = false; setSaving(false) }
   }
 
   // Genera un link de pago de Mercado Pago para UNA o VARIAS deudas del jugador. Las deudas
   // se marcan pagadas solas cuando el jugador pague (webhook). No cobra en el acto.
   const generarLinkMP = async () => {
+    if (savingRef.current) return
     if (deudaSel.length === 0) { setError('Elegí al menos una deuda para el link de pago'); return }
+    savingRef.current = true
     setSaving(true); setError('')
     try {
       const items = deudaSel.map((d) => ({ origen: d.origen, refId: d.refId }))
@@ -560,7 +568,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
       await fetchLinksVivos(jugadorId) // que aparezca el estado "esperando pago"
     } catch (e) {
       showToast('error', e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el link'))
-    } finally { setSaving(false) }
+    } finally { savingRef.current = false; setSaving(false) }
   }
 
   // Días hasta el vencimiento del link, en criollo.

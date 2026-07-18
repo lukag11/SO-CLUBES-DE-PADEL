@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Minus, X, ShoppingCart, Clock, Trash2, Users, AlertTriangle, FileText } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { api } from '../../lib/api'
@@ -144,6 +144,7 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
   const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
   const [dividir, setDividir] = useState(1)
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false) // candado SÍNCRONO anti doble-submit
   const [error, setError] = useState('')
   const [mpQR, setMpQR] = useState(null) // { initPoint, monto } cuando se generó el QR de MP
   const total = items.reduce((s, c) => s + c.monto, 0)
@@ -169,7 +170,9 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
     catch (e) { setError(e?.message || 'No se pudo quitar') } finally { setSaving(false) }
   }
   const cerrar = async () => {
+    if (savingRef.current) return
     if (total <= 0) return setError('La mesa no tiene consumos')
+    savingRef.current = true
     setSaving(true); setError('')
     try {
       await api.post(`/comandas/${mesa.id}/cerrar`, { metodoPago }, auth)
@@ -177,8 +180,8 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
         etiqueta: mesa.etiqueta, total, metodoLabel: METODO_MAP[metodoPago]?.label ?? metodoPago, fecha: new Date(),
         items: items.map((c) => ({ nombre: nombreBase(c.concepto), cantidad: c.cantidad || 1, monto: c.monto })),
       }
-      showToast('exito', 'Mesa cobrada y cerrada'); setCerrada(ticket); setSaving(false)
-    } catch (e) { setError(e?.message || 'No se pudo cerrar'); setSaving(false) }
+      showToast('exito', 'Mesa cobrada y cerrada'); setCerrada(ticket)
+    } catch (e) { setError(e?.message || 'No se pudo cerrar') } finally { savingRef.current = false; setSaving(false) }
   }
   const eliminarMesa = async () => {
     setSaving(true)
@@ -188,14 +191,16 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
   // MP: genera un QR por el total de la mesa. La mesa queda ABIERTA hasta que el cliente pague
   // (el webhook la cierra sola). No cobra en el acto (nada de income fantasma).
   const generarQRMesa = async () => {
+    if (savingRef.current) return
     if (total <= 0) return setError('La mesa no tiene consumos')
+    savingRef.current = true
     setSaving(true); setError('')
     try {
       const r = await api.post(`/comandas/${mesa.id}/link-pago`, {}, auth)
       setMpQR({ initPoint: r.initPoint, monto: r.monto ?? total })
     } catch (e) {
       setError(e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el QR'))
-    } finally { setSaving(false) }
+    } finally { savingRef.current = false; setSaving(false) }
   }
 
   const porPersona = dividir > 1 ? Math.ceil(total / dividir) : 0

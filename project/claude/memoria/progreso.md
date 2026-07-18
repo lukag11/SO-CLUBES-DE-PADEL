@@ -1,6 +1,10 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-07-15 — **MP jugador v2: "Pago en proceso" + QR en el dash del jugador.** El link del admin aparece en Mi consumo listo para pagar; el botón genera solo por el resto; modal con QR. Ver bloque abajo. **Pendiente: probar un pago en vivo (bloqueado por auto-pago de MP — Luca tiene 1 sola cuenta).**
+**Última actualización:** 2026-07-18 — **Pago MP del jugador PROBADO EN VIVO ✅ + anti doble-click en Cobrar + TRANSFERENCIA (alias + aviso + confirmación manual).** Ver bloques abajo.
+
+**TRANSFERENCIA (2026-07-18).** El club carga su **alias + titular** (Config→Club, se guarda en config); el jugador ve "Pagar por transferencia" en Mi consumo (alias+copiar+"Ya transferí"); el aviso llega a la campana del dueño (`aviso_transferencia`), que cobra a mano con método transferencia. **NO se salda sola** (transferencia = sin verificación automática). **Privacidad:** el alias se strip-ea del `GET /:slug` público (landing) y se sirve solo al jugador logueado por `GET /api/pagos/me/transferencia`. Ver [[project_mercadopago_fase2]].
+
+**ANTI DOBLE-CLICK (2026-07-18):** `savingRef` (candado síncrono) en Cobrar cuenta / Anotar / link / QR (ModalCuentaJugador) + Cobrar-y-cerrar / QR mesa (VentasTab). El `if(saving)return` viejo no frenaba el doble-click rápido (setSaving async) → causaba el 500 por contención Serializable.
 
 **MP JUGADOR v2 — "Pago en proceso" + QR (2026-07-15).** Sobre el pago del jugador: el link que genera el admin (o el jugador) ahora **aparece en "Mi consumo"** como tarjeta "Pago en proceso · [Pagar ahora]" (`GET /pagos/me/links-vivos`); el botón "Pagar con MP" **excluye lo ya linkeado** (`linksVivosDeDeudas`) → genera solo por el resto, nunca solapa ni bloquea con mensaje de admin. **QR** en el dash (`qrcode.react`) al pagar (modal). Ver [[project_mercadopago_fase2]].
 - **✅ PRUEBA VIVA HECHA (2026-07-18):** el jugador pagó con OTRA cuenta → webhook acreditó → deuda saldada sola (verificado: saldo $0) → notificación al dueño creada ("Luca pagó por MP · $100"). **Circuito end-to-end confirmado con plata real en producción.**

@@ -89,6 +89,42 @@ router.post('/link-pago', requireAuth, requireRole('admin'), requireFeature('fin
   }
 })
 
+// GET /api/pagos/me/transferencia — datos de transferencia del club (alias + titular) SOLO para
+// jugadores logueados. NO están en la respuesta pública de la landing (son privados del club).
+router.get('/me/transferencia', requireAuth, requireRole('jugador'), async (req, res) => {
+  try {
+    const club = await prisma.club.findUnique({ where: { id: req.user.clubId }, select: { config: true } })
+    const cfg = club?.config || {}
+    res.json({ alias: cfg.aliasTransferencia || '', titular: cfg.titularTransferencia || '' })
+  } catch (err) {
+    console.error('[me transferencia]', err)
+    res.status(500).json({ error: 'error', message: 'No se pudieron obtener los datos de transferencia' })
+  }
+})
+
+// POST /api/pagos/me/aviso-transferencia — el JUGADOR avisa que ya transfirió. NO cobra ni salda
+// nada (la transferencia se confirma a mano): solo notifica al dueño para que la controle y cobre.
+router.post('/me/aviso-transferencia', requireAuth, requireRole('jugador'), async (req, res) => {
+  const clubId = req.user.clubId
+  const jugadorId = req.user.id
+  try {
+    const [cargos, turnos, jug] = await Promise.all([
+      prisma.cargo.findMany({ where: { jugadorId, clubId, estado: 'pendiente', comandaId: null }, select: { monto: true, saldoPagado: true } }),
+      turnosImpagosDeuda(clubId, { jugadorId }),
+      prisma.jugador.findUnique({ where: { id: jugadorId }, select: { nombre: true, apellido: true } }),
+    ])
+    const saldo = cargos.reduce((s, c) => s + (c.monto - (c.saldoPagado || 0)), 0) + turnos.reduce((s, t) => s + (t.monto || 0), 0)
+    if (saldo <= 0) return res.status(409).json({ error: 'sin_deuda', message: 'No tenés pagos pendientes.' })
+    await prisma.notificacion.create({
+      data: { clubId, tipo: 'aviso_transferencia', data: { jugadorId, jugadorNombre: jug ? `${jug.nombre} ${jug.apellido}`.trim() : '', monto: saldo } },
+    })
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[aviso-transferencia]', err)
+    res.status(500).json({ error: 'error', message: 'No se pudo enviar el aviso' })
+  }
+})
+
 // GET /api/pagos/me/links-vivos — links de MP activos que cubren deudas del JUGADOR (para que
 // los vea en "Mi consumo" y los pague sin depender del admin). jugadorId del token.
 router.get('/me/links-vivos', requireAuth, requireRole('jugador'), async (req, res) => {

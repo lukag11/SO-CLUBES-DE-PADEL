@@ -7,7 +7,7 @@ import {
   Images, Wrench, Users, HelpCircle, CalendarDays,
   Plus, Trash2, User, Check, X, AlertTriangle,
   ShowerHead, Car, GraduationCap, Coffee, Dumbbell,
-  Shield, Wind, Utensils, Music, Info,
+  Shield, Wind, Utensils, Music, Info, Landmark,
 } from 'lucide-react'
 import useClubStore from '../store/clubStore'
 import useProfesoresStore from '../store/profesoresStore'
@@ -298,6 +298,15 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
             {form.lat != null ? 'Ubicación marcada · editar en el mapa' : 'Marcar ubicación en el mapa'}
             {form.lat != null && <Check size={14} className="text-emerald-500" />}
           </button>
+        </div>
+      </SectionCard>
+
+      {/* Datos para transferencias — se le muestran al jugador cuando elige pagar por transferencia */}
+      <SectionCard title="Datos para transferencias">
+        <p className="text-slate-400 text-xs mb-3">Se le muestran al jugador para que te transfiera. Vos confirmás el cobro a mano cuando te entra la plata (la transferencia no se confirma sola).</p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Field label="Alias / CBU / CVU" name="aliasTransferencia" value={form.aliasTransferencia || ''} onChange={handleChange} placeholder="club.padel.mp" icon={Landmark} iconColor="text-sky-500" />
+          <Field label="Titular de la cuenta" name="titularTransferencia" value={form.titularTransferencia || ''} onChange={handleChange} placeholder="Juan Pérez" icon={User} iconColor="text-slate-500" />
         </div>
       </SectionCard>
 

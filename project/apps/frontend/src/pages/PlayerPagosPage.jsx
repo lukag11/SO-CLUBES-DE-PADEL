@@ -52,6 +52,10 @@ const PlayerPagosPage = () => {
   const [pagoError, setPagoError] = useState('')
   const [linksVivos, setLinksVivos] = useState([]) // pagos de MP en proceso (generados por el admin o por mí)
   const [mpModal, setMpModal] = useState(null) // { initPoint, monto } → modal con QR + pagar acá
+  const [transferOpen, setTransferOpen] = useState(false) // modal "Pagar por transferencia"
+  const [avisando, setAvisando] = useState(false)
+  const [transferData, setTransferData] = useState(null) // { alias, titular } — datos privados del club (endpoint autenticado)
+  const aliasTransfer = transferData?.alias?.trim()
 
   const refetchLinks = () => {
     if (!token) return
@@ -67,6 +71,9 @@ const PlayerPagosPage = () => {
       .catch(() => {})
       .finally(() => setLoading(false))
     refetchLinks()
+    api.get('/pagos/me/transferencia', { Authorization: `Bearer ${token}` })
+      .then((d) => setTransferData(d || null))
+      .catch(() => {})
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const pendientes = cargos.filter((c) => c.estado === 'pendiente')
@@ -91,6 +98,18 @@ const PlayerPagosPage = () => {
       if (e?.code === 'ya_en_proceso') refetchLinks()
       else setPagoError(e?.status === 503 ? 'El club todavía no tiene Mercado Pago habilitado.' : (e?.message || 'No se pudo generar el pago'))
     } finally { setPagando(false) }
+  }
+
+  // Avisa al club que ya transferí (no salda nada — el club confirma a mano).
+  const avisarTransferencia = async () => {
+    setAvisando(true)
+    try {
+      await api.post('/pagos/me/aviso-transferencia', {}, { Authorization: `Bearer ${token}` })
+      toast.success('¡Aviso enviado! El club va a confirmar tu pago.')
+      setTransferOpen(false)
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo enviar el aviso')
+    } finally { setAvisando(false) }
   }
 
   // Consumo = cargos PAGADOS. El período filtra por la fecha de pago (o de creación como fallback).
@@ -208,6 +227,11 @@ const PlayerPagosPage = () => {
               </button>
             )}
             {pagoError && <p className="text-red-400 text-xs text-center">{pagoError}</p>}
+            {aliasTransfer && (
+              <button onClick={() => setTransferOpen(true)} className="w-full py-3 rounded-xl border border-sky-500/25 bg-sky-500/5 text-sky-300 hover:bg-sky-500/10 font-semibold text-sm transition-colors">
+                Pagar por transferencia
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -373,6 +397,39 @@ const PlayerPagosPage = () => {
             <div className="bg-white p-2.5 rounded-xl"><QRCodeSVG value={mpModal.initPoint} size={180} level="M" /></div>
             <a href={mpModal.initPoint} target="_blank" rel="noopener noreferrer" className="w-full py-3 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-bold text-sm">Pagar en este teléfono</a>
             <button onClick={() => { navigator.clipboard?.writeText(mpModal.initPoint); toast.success('Link copiado') }} className="text-white/40 text-xs hover:text-white/70">Copiar link</button>
+          </div>
+        </div>
+      )}
+
+      {transferOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" onClick={() => setTransferOpen(false)}>
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div className="relative w-full max-w-xs bg-[#0d1117] border border-white/10 rounded-2xl p-6 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setTransferOpen(false)} className="absolute top-3 right-3 text-white/40 hover:text-white"><X size={18} /></button>
+            <div className="text-center">
+              <p className="text-white font-bold">Pagar por transferencia</p>
+              <p className="text-white/40 text-xs mt-0.5">Transferí a estos datos y avisá al club.</p>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wide">Alias / CBU</p>
+                  <p className="text-white font-semibold text-sm break-all">{aliasTransfer}</p>
+                </div>
+                <button onClick={() => { navigator.clipboard?.writeText(aliasTransfer); toast.success('Alias copiado') }} className="shrink-0 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-semibold">Copiar</button>
+              </div>
+              {transferData?.titular && (
+                <div className="border-t border-white/8 pt-2">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wide">Titular</p>
+                  <p className="text-white/80 text-sm">{transferData.titular}</p>
+                </div>
+              )}
+            </div>
+            <p className="text-amber-300/80 text-xs text-center">Importe a transferir: <b>{money(saldo)}</b></p>
+            <button onClick={avisarTransferencia} disabled={avisando} className="w-full py-3 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-bold text-sm disabled:opacity-50">
+              {avisando ? 'Enviando…' : 'Ya transferí'}
+            </button>
+            <p className="text-white/30 text-[10px] text-center">El club confirma tu pago cuando le entra la plata.</p>
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bell, ChevronDown, Menu, Check, CheckCheck, LogOut, Repeat, CalendarDays, CalendarCheck, XCircle, GraduationCap, Trophy, Package, Clock, Wallet } from 'lucide-react'
+import { Bell, ChevronDown, Menu, Check, CheckCheck, LogOut, Repeat, CalendarDays, CalendarCheck, XCircle, GraduationCap, Trophy, Package, Clock, Wallet, Landmark } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
@@ -20,6 +20,7 @@ const NOTIF_META = {
   inscripcion_torneo:                   { Icon: Trophy,        color: 'text-amber-600',   bg: 'bg-amber-50'   },
   stock_bajo:                           { Icon: Package,       color: 'text-red-600',     bg: 'bg-red-50'     },
   pago_mp:                              { Icon: Wallet,        color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  aviso_transferencia:                  { Icon: Landmark,      color: 'text-sky-600',     bg: 'bg-sky-50'     },
 }
 const notifMeta = (tipo) => NOTIF_META[tipo] || { Icon: Bell, color: 'text-brand-600', bg: 'bg-brand-50' }
 
@@ -60,6 +61,8 @@ const formatNotif = (n) => {
       const extra = n.detalle && n.detalle !== 'Mesa' ? n.detalle : (n.count > 1 ? `${n.count} deudas` : '')
       return { title: `${quien} por Mercado Pago`, body: [n.monto != null ? `$${(n.monto).toLocaleString('es-AR')}` : '', extra].filter(Boolean).join(' · ') }
     }
+    case 'aviso_transferencia':
+      return { title: `${n.jugadorNombre || 'Un jugador'} avisó que transfirió`, body: [n.monto != null ? `$${(n.monto).toLocaleString('es-AR')}` : '', 'confirmá en Cobranzas'].filter(Boolean).join(' · ') }
     default:
       return { title: n.tipo?.replace(/_/g, ' ') ?? 'Notificación', body: '' }
   }

@@ -654,7 +654,10 @@ router.get('/:slug', async (req, res) => {
       },
     })
     if (!club || !club.activo) return res.status(404).json({ error: 'Club no encontrado' })
-    res.json(club)
+    // Datos de transferencia = privados (solo para jugadores logueados, vía /pagos/me/transferencia).
+    // No van en la respuesta PÚBLICA de la landing.
+    const { aliasTransferencia, titularTransferencia, ...configPublica } = club.config || {}
+    res.json({ ...club, config: configPublica })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al obtener club' })

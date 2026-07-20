@@ -22,6 +22,7 @@ const NOTIF_META = {
   stock_bajo:                           { Icon: Package,       color: 'text-red-600',     bg: 'bg-red-50'     },
   pago_mp:                              { Icon: Wallet,        color: 'text-emerald-600', bg: 'bg-emerald-50' },
   aviso_transferencia:                  { Icon: Landmark,      color: 'text-sky-600',     bg: 'bg-sky-50'     },
+  transferencia_auto:                   { Icon: Landmark,      color: 'text-emerald-600', bg: 'bg-emerald-50' },
 }
 const notifMeta = (tipo) => NOTIF_META[tipo] || { Icon: Bell, color: 'text-brand-600', bg: 'bg-brand-50' }
 
@@ -66,6 +67,8 @@ const formatNotif = (n) => {
       const iaTxt = { coincide: '🤖 IA: coincide ✅', no_coincide: '🤖 IA: NO coincide ⚠️', dudoso: '🤖 IA: revisar', sin_comprobante: 'sin comprobante' }[n.iaVeredicto] || ''
       return { title: `${n.jugadorNombre || 'Un jugador'} avisó que transfirió`, body: [n.monto != null ? `$${(n.monto).toLocaleString('es-AR')}` : '', iaTxt].filter(Boolean).join(' · ') }
     }
+    case 'transferencia_auto':
+      return { title: `Transferencia de ${n.jugadorNombre || 'un jugador'} acreditada 🤖`, body: [n.monto != null ? `$${(n.monto).toLocaleString('es-AR')}` : '', 'la IA confirmó el comprobante'].filter(Boolean).join(' · ') }
     default:
       return { title: n.tipo?.replace(/_/g, ' ') ?? 'Notificación', body: '' }
   }

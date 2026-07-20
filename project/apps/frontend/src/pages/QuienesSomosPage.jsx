@@ -308,6 +308,16 @@ const TabInfo = ({ club, updateClub, saveClub }) => {
           <Field label="Alias / CBU / CVU" name="aliasTransferencia" value={form.aliasTransferencia || ''} onChange={handleChange} placeholder="club.padel.mp" icon={Landmark} iconColor="text-sky-500" />
           <Field label="Titular de la cuenta" name="titularTransferencia" value={form.titularTransferencia || ''} onChange={handleChange} placeholder="Juan Pérez" icon={User} iconColor="text-slate-500" />
         </div>
+        {/* Auto-saldar con IA: si el jugador sube un comprobante y la IA confirma que coincide, se salda solo */}
+        <button type="button" onClick={() => setForm((p) => ({ ...p, transferenciaAutoSaldar: !p.transferenciaAutoSaldar }))} className="mt-4 w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-left">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-700">🤖 Auto-saldar con IA</p>
+            <p className="text-xs text-slate-400 mt-0.5">Si el jugador sube un comprobante y la IA confirma que coincide, la deuda se salda sola (sin que confirmes). Igual te avisamos. <b>Rápido, pero un comprobante se puede falsificar.</b></p>
+          </div>
+          <span className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${form.transferenciaAutoSaldar ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${form.transferenciaAutoSaldar ? 'left-[22px]' : 'left-0.5'}`} />
+          </span>
+        </button>
       </SectionCard>
 
       {/* Redes sociales */}

@@ -1,6 +1,13 @@
 # Progreso del Proyecto
 
-**Última actualización:** 2026-07-18 — **Pago MP del jugador PROBADO EN VIVO ✅ + anti doble-click en Cobrar + TRANSFERENCIA (alias + aviso + confirmación manual).** Ver bloques abajo.
+**Última actualización:** 2026-07-18 — **COMPROBANTE INTELIGENTE con IA (transferencia).** Estado "en revisión" tipo banco + IA lee el comprobante y da veredicto + auto-saldar opcional. Ver bloque abajo. + Pago MP jugador probado en vivo ✅ + anti doble-click.
+
+**TRANSFERENCIA CON IA — "comprobante inteligente" (2026-07-18, 4 slices).** Upgrade del flujo simple. El club elige su nivel: MP (comisión, automático) / transferencia con IA (gratis, la IA verifica) / auto-saldar (gratis + automático, riesgo del comprobante asumido). Ver [[project_transferencia_ia]].
+- **Modelo `AvisoTransferencia`** + estado "en revisión" (la deuda NO se salda por la palabra del jugador; pasa por revisión).
+- **IA (`lib/ocrComprobante.js`, Claude vision):** lee el comprobante (monto/alias/fecha) → compara con la deuda + alias del club → veredicto coincide|no_coincide|dudoso. Reusa el patrón del OCR de gastos.
+- **Jugador:** "Ya transferí" + adjunta comprobante → "🕓 en revisión". **Admin:** notif con veredicto IA + "Ver comprobante" + Confirmar/Rechazar (1 click, salda con método transferencia).
+- **Auto-saldar (config del club):** si ON + IA coincide → se salda solo. Toggle con el trade-off explícito ("un comprobante se puede falsificar").
+- **Pendiente:** probar el OCR en vivo con un comprobante real.
 
 **TRANSFERENCIA (2026-07-18).** El club carga su **alias + titular** (Config→Club, se guarda en config); el jugador ve "Pagar por transferencia" en Mi consumo (alias+copiar+"Ya transferí"); el aviso llega a la campana del dueño (`aviso_transferencia`), que cobra a mano con método transferencia. **NO se salda sola** (transferencia = sin verificación automática). **Privacidad:** el alias se strip-ea del `GET /:slug` público (landing) y se sirve solo al jugador logueado por `GET /api/pagos/me/transferencia`. Ver [[project_mercadopago_fase2]].
 

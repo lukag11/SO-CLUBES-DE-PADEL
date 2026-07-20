@@ -149,8 +149,20 @@ router.get('/cobranzas', requireAuth, requireRole('admin'), requireFeature('fina
     const deudas = [...turnos, ...cargos.map(cargoADeuda)]
     const pendientes = deudas.filter((d) => d.estado === 'pendiente')
 
+    // Colgar el comprobante + lo que leyó la IA a las deudas pagadas por transferencia (evidencia
+    // en el filtro "Pagados"). Se resuelve por los avisos aprobados que cubrían cada deuda.
+    const avisos = await prisma.avisoTransferencia.findMany({
+      where: { clubId, estado: 'aprobado', comprobanteUrl: { not: null } },
+      select: { items: true, comprobanteUrl: true, iaMonto: true, iaAlias: true, iaFecha: true, iaResumen: true, iaVeredicto: true },
+    })
+    const compPorRef = {}
+    for (const a of avisos) for (const it of (Array.isArray(a.items) ? a.items : [])) {
+      compPorRef[`${it.origen}:${it.refId}`] = { comprobanteUrl: a.comprobanteUrl, iaMonto: a.iaMonto, iaAlias: a.iaAlias, iaFecha: a.iaFecha, iaResumen: a.iaResumen, iaVeredicto: a.iaVeredicto }
+    }
+    const deudasFinal = deudas.map((d) => compPorRef[`${d.origen}:${d.refId}`] ? { ...d, transferencia: compPorRef[`${d.origen}:${d.refId}`] } : d)
+
     res.json({
-      deudas,
+      deudas: deudasFinal,
       resumen: {
         adeudado: pendientes.reduce((s, d) => s + d.monto, 0),
         vencido: pendientes.filter((d) => d.vencido).reduce((s, d) => s + d.monto, 0),

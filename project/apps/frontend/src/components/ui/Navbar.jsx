@@ -84,6 +84,7 @@ const Navbar = ({ title, onMenuClick }) => {
   const marcarTodasLeidas = useNotificacionesStore((s) => s.marcarTodasLeidas)
   const fetchNotificaciones = useNotificacionesStore((s) => s.fetchNotificaciones)
   const [resolviendo, setResolviendo] = useState(null) // avisoId en curso (anti doble-click)
+  const [resueltos, setResueltos] = useState({}) // avisoId → 'confirmar'|'rechazar' (para ocultar botones ya resueltos)
 
   // Confirmar / rechazar un aviso de transferencia desde la campana (1 click).
   const resolverAviso = async (n, accion) => {
@@ -91,6 +92,7 @@ const Navbar = ({ title, onMenuClick }) => {
     setResolviendo(n.avisoId)
     try {
       await api.post(`/pagos/avisos-transferencia/${n.avisoId}/${accion}`, {}, { Authorization: `Bearer ${token}` })
+      setResueltos((p) => ({ ...p, [n.avisoId]: accion }))
       marcarLeida(n.id, token)
       fetchNotificaciones?.(token)
     } catch { /* el backend ya loguea; si falla queda el aviso sin resolver */ } finally { setResolviendo(null) }
@@ -201,17 +203,23 @@ const Navbar = ({ title, onMenuClick }) => {
                         {body && <p className="text-[11px] text-slate-400 truncate mt-0.5">{body}</p>}
                         {/* Aviso de transferencia → resolver en 1 click (salda o rechaza) */}
                         {n.tipo === 'aviso_transferencia' && n.avisoId && (
-                          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                            <button onClick={() => resolverAviso(n, 'confirmar')} disabled={resolviendo === n.avisoId} className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-semibold disabled:opacity-50">
-                              {resolviendo === n.avisoId ? '…' : 'Confirmar cobro'}
-                            </button>
-                            <button onClick={() => resolverAviso(n, 'rechazar')} disabled={resolviendo === n.avisoId} className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-[11px] font-semibold disabled:opacity-50">
-                              Rechazar
-                            </button>
-                            {n.comprobanteUrl && (
-                              <a href={n.comprobanteUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="px-2.5 py-1 rounded-lg text-sky-600 hover:bg-sky-50 text-[11px] font-semibold">Ver comprobante</a>
-                            )}
-                          </div>
+                          resueltos[n.avisoId] ? (
+                            <p className={`text-[11px] font-semibold mt-2 ${resueltos[n.avisoId] === 'confirmar' ? 'text-emerald-600' : 'text-slate-500'}`}>
+                              {resueltos[n.avisoId] === 'confirmar' ? '✓ Cobro confirmado' : 'Aviso rechazado'}
+                            </p>
+                          ) : (
+                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                              <button onClick={() => resolverAviso(n, 'confirmar')} disabled={resolviendo === n.avisoId} className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-semibold disabled:opacity-50">
+                                {resolviendo === n.avisoId ? '…' : 'Confirmar cobro'}
+                              </button>
+                              <button onClick={() => resolverAviso(n, 'rechazar')} disabled={resolviendo === n.avisoId} className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-[11px] font-semibold disabled:opacity-50">
+                                Rechazar
+                              </button>
+                              {n.comprobanteUrl && (
+                                <a href={n.comprobanteUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="px-2.5 py-1 rounded-lg text-sky-600 hover:bg-sky-50 text-[11px] font-semibold">Ver comprobante</a>
+                              )}
+                            </div>
+                          )
                         )}
                       </div>
 

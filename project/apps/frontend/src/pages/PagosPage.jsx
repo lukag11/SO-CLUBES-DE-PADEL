@@ -863,10 +863,13 @@ const PagosPage = () => {
   const [tipoFiltro, setTipoFiltro] = useState('todos')
   const [metodoFiltro, setMetodoFiltro] = useState('todos')
   const [search, setSearch] = useState('')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
   const [cobroPreset, setCobroPreset] = useState(null) // { jugadorId, deudaId } al cobrar desde una fila
   const [eliminando, setEliminando] = useState(null) // cargo a eliminar
   const [anulando, setAnulando] = useState(null)   // cobro pagado a revertir a pendiente
   const [cambiandoMetodo, setCambiandoMetodo] = useState(null) // cobro pagado al que se le corrige el método
+  const [compModal, setCompModal] = useState(null) // comprobante de transferencia a ver (imagen + datos IA)
   const navigate = useNavigate()
   const [modalModo, setModalModo] = useState(null)   // null | 'venta' | 'cobro'
   const [vinoDeResumen, setVinoDeResumen] = useState(false) // venta rápida disparada desde el Resumen
@@ -928,13 +931,21 @@ const PagosPage = () => {
       if (filtro === 'pagado' && c.estado !== 'pagado') return false
       if (tipoFiltro !== 'todos' && c.tipo !== tipoFiltro) return false
       if (metodoFiltro !== 'todos' && c.metodoPago !== metodoFiltro) return false
+      if (desde || hasta) {
+        // Pagados → por fecha de cobro; el resto → por fecha del cargo.
+        const ref = c.estado === 'pagado' ? (c.pagadoAt || c.fecha) : (c.fecha || c.vencimiento)
+        const dia = ref ? new Date(ref).toISOString().slice(0, 10) : null
+        if (!dia) return false
+        if (desde && dia < desde) return false
+        if (hasta && dia > hasta) return false
+      }
       if (q) {
         const nombre = `${c.jugador?.nombre ?? ''} ${c.jugador?.apellido ?? ''} ${c.jugador?.dni ?? ''}`.toLowerCase()
         if (!nombre.includes(q)) return false
       }
       return true
     })
-  }, [deudas, filtro, tipoFiltro, metodoFiltro, search])
+  }, [deudas, filtro, tipoFiltro, metodoFiltro, search, desde, hasta])
 
   // Deudores (jugadores con deuda pendiente) + su total, para el buscador de "Cobrar cuenta"
   const deudores = useMemo(() => {
@@ -1180,6 +1191,13 @@ const PagosPage = () => {
             className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400"
           />
         </div>
+        {/* Filtro por fecha (útil sobre todo en Pagados: cobros de tal a tal día) */}
+        <div className="flex items-center gap-1.5">
+          <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} title="Desde" className="bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-600 outline-none focus:border-brand-400" />
+          <span className="text-slate-300 text-xs">→</span>
+          <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} title="Hasta" className="bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-600 outline-none focus:border-brand-400" />
+          {(desde || hasta) && <button onClick={() => { setDesde(''); setHasta('') }} title="Limpiar fechas" className="text-slate-300 hover:text-rose-500 p-1"><X size={14} /></button>}
+        </div>
         <div className="flex items-center gap-2 ml-auto">
           <button
             onClick={() => generarReporteCobranzas(visibles, club, `${FILTROS.find((f) => f.id === filtro)?.label ?? ''}${tipoFiltro !== 'todos' ? ' · ' + (TIPOS_FILTRO.find((t) => t.id === tipoFiltro)?.label ?? '') : ''}`)}
@@ -1239,6 +1257,11 @@ const PagosPage = () => {
                     {c.concepto}
                     {c.vencimiento && ` · vence ${fmtFecha(c.vencimiento)}`}
                   </p>
+                  {c.transferencia?.comprobanteUrl && (
+                    <button onClick={() => setCompModal({ ...c.transferencia, concepto: c.concepto, jugador: c.jugador })} className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 mt-0.5">
+                      🤖 Ver comprobante{c.transferencia.iaVeredicto === 'coincide' ? ' · IA ✅' : c.transferencia.iaVeredicto === 'no_coincide' ? ' · IA ⚠️' : ''}
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0">
@@ -1290,6 +1313,40 @@ const PagosPage = () => {
       </div>
       </>)}
 
+      {compModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setCompModal(null)}>
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+          <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="min-w-0">
+                <p className="text-slate-800 font-bold text-sm">Comprobante de transferencia</p>
+                <p className="text-slate-400 text-xs truncate">{compModal.jugador ? `${compModal.jugador.nombre} ${compModal.jugador.apellido}` : ''} · {compModal.concepto}</p>
+              </div>
+              <button onClick={() => setCompModal(null)} className="text-slate-300 hover:text-slate-600 shrink-0"><X size={18} /></button>
+            </div>
+            <div className="overflow-y-auto p-5 flex flex-col gap-4">
+              {compModal.comprobanteUrl && (
+                <a href={compModal.comprobanteUrl} target="_blank" rel="noopener noreferrer">
+                  <img src={compModal.comprobanteUrl} alt="Comprobante" className="w-full rounded-xl border border-slate-200 hover:brightness-95" />
+                </a>
+              )}
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col gap-1.5 text-sm">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-semibold text-slate-500">🤖 Lo que leyó la IA</span>
+                  {compModal.iaVeredicto === 'coincide' && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">coincide ✅</span>}
+                  {compModal.iaVeredicto === 'no_coincide' && <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">no coincide ⚠️</span>}
+                  {compModal.iaVeredicto === 'dudoso' && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">revisar 🔎</span>}
+                </div>
+                {compModal.iaMonto != null && <p className="text-slate-600">💵 Monto: <b className="text-slate-800">{money(compModal.iaMonto)}</b></p>}
+                {compModal.iaAlias && <p className="text-slate-600">🏦 Alias destino: <b className="text-slate-800">{compModal.iaAlias}</b></p>}
+                {compModal.iaFecha && <p className="text-slate-600">📅 Fecha: <b className="text-slate-800">{compModal.iaFecha}</b></p>}
+                {compModal.iaResumen && <p className="text-slate-400 text-xs">{compModal.iaResumen}</p>}
+                {compModal.iaMonto == null && !compModal.iaAlias && <p className="text-slate-400 text-xs">La IA no pudo leer datos del comprobante (revisá la imagen).</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {cambiandoMetodo && <ModalCobro cargo={cambiandoMetodo} metodos={metodosHabilitados} onConfirm={cambiarMetodo} onClose={() => setCambiandoMetodo(null)} saving={saving} titulo="Cambiar método" />}
       {anulando && <ModalAnular cargo={anulando} onConfirm={anular} onClose={() => setAnulando(null)} saving={saving} />}
       {eliminando && <ModalEliminar cargo={eliminando} onConfirm={eliminar} onClose={() => setEliminando(null)} saving={saving} />}

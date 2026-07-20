@@ -29,9 +29,12 @@ const SEL_JUGADOR = { select: { id: true, nombre: true, apellido: true, dni: tru
 // GET /api/pagos — historial de pagos (libro de plata). ?jugadorId= &incluirAnulados=1
 // Por defecto: pagos del mes en curso, no anulados. Cada uno con sus líneas (split).
 router.get('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
-  const { jugadorId, incluirAnulados } = req.query
+  const { jugadorId, incluirAnulados, periodo } = req.query
   try {
-    const where = { clubId: req.user.clubId, pagadoAt: { gte: inicioMesArg() } }
+    const where = { clubId: req.user.clubId }
+    // Período: 'todo' = sin límite de fecha; 'hoy' = desde las 00 de hoy (Arg); default = mes en curso.
+    if (periodo === 'hoy') { const h = new Date(); h.setHours(0, 0, 0, 0); where.pagadoAt = { gte: h } }
+    else if (periodo !== 'todo') where.pagadoAt = { gte: inicioMesArg() }
     if (jugadorId) where.jugadorId = jugadorId
     if (incluirAnulados !== '1') where.anuladoAt = null
     const pagos = await prisma.pago.findMany({
@@ -40,7 +43,15 @@ router.get('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), r
       orderBy: { pagadoAt: 'desc' },
       take: 200,
     })
-    res.json(pagos)
+    // Colgar los datos de la transferencia (comprobante + lo que leyó la IA) a los pagos que
+    // vinieron de un aviso de transferencia → evidencia a mano en el historial ("por las dudas").
+    const ids = pagos.map((p) => p.id)
+    const avisos = ids.length ? await prisma.avisoTransferencia.findMany({
+      where: { pagoId: { in: ids } },
+      select: { pagoId: true, comprobanteUrl: true, iaMonto: true, iaAlias: true, iaFecha: true, iaResumen: true, iaVeredicto: true },
+    }) : []
+    const porPago = Object.fromEntries(avisos.map((a) => [a.pagoId, a]))
+    res.json(pagos.map((p) => ({ ...p, transferencia: porPago[p.id] || null })))
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al obtener los pagos' })

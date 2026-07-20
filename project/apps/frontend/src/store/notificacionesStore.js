@@ -50,8 +50,10 @@ const normBackend = (n) => ({
   monto: n.data?.monto ?? null,
   count: n.data?.count ?? 1,
   detalle: n.data?.detalle ?? null,
-  // Aviso de transferencia: id del AvisoTransferencia (para confirmar/rechazar desde la campana)
+  // Aviso de transferencia: id del AvisoTransferencia + veredicto IA + comprobante
   avisoId: n.data?.avisoId ?? null,
+  iaVeredicto: n.data?.iaVeredicto ?? null,
+  comprobanteUrl: n.data?.comprobanteUrl ?? null,
   leida: n.leida,
   timestamp: n.createdAt,
   _fromBackend: true,

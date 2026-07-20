@@ -72,6 +72,9 @@ app.use('/api/uploads', express.json({ limit: '15mb' }), uploadsRouter)
 // parser grande, montado ANTES del global para que el límite chico no la rechace.
 app.use('/api/gastos/extraer', express.json({ limit: '15mb' }))
 
+// El aviso de transferencia puede traer el comprobante en base64 (foto) → mismo parser grande.
+app.use('/api/pagos/me/aviso-transferencia', express.json({ limit: '15mb' }))
+
 // Tras migrar las imágenes a Storage los payloads quedan chicos; este límite
 // se puede bajar a ~2mb una vez confirmada la migración.
 app.use(express.json({ limit: '8mb' }))

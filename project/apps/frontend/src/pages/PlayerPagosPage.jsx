@@ -54,6 +54,7 @@ const PlayerPagosPage = () => {
   const [mpModal, setMpModal] = useState(null) // { initPoint, monto } → modal con QR + pagar acá
   const [transferOpen, setTransferOpen] = useState(false) // modal "Pagar por transferencia"
   const [avisando, setAvisando] = useState(false)
+  const [comprobante, setComprobante] = useState(null) // dataURL del comprobante de transferencia
   const [transferData, setTransferData] = useState(null) // { alias, titular } — datos privados del club (endpoint autenticado)
   const [avisosRevision, setAvisosRevision] = useState([]) // transferencias avisadas, esperando que el club confirme
   const aliasTransfer = transferData?.alias?.trim()
@@ -108,13 +109,23 @@ const PlayerPagosPage = () => {
     } finally { setPagando(false) }
   }
 
+  // Lee el comprobante elegido como dataURL (para mandarlo al backend → IA + Storage).
+  const onComprobante = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 10 * 1024 * 1024) { toast.error('La imagen es muy pesada (máx 10MB)'); return }
+    const reader = new FileReader()
+    reader.onload = () => setComprobante(reader.result)
+    reader.readAsDataURL(file)
+  }
+
   // Avisa al club que ya transferí → queda EN REVISIÓN (no salda nada; lo confirma el club).
   const avisarTransferencia = async () => {
     setAvisando(true)
     try {
-      await api.post('/pagos/me/aviso-transferencia', {}, { Authorization: `Bearer ${token}` })
+      await api.post('/pagos/me/aviso-transferencia', comprobante ? { comprobante } : {}, { Authorization: `Bearer ${token}` })
       toast.success('¡Aviso enviado! Tu pago quedó en revisión.')
-      setTransferOpen(false)
+      setTransferOpen(false); setComprobante(null)
       refetchAvisos()
     } catch (e) {
       // Si ya había un aviso en revisión, no es error: lo traemos y se muestra la tarjeta.
@@ -444,6 +455,11 @@ const PlayerPagosPage = () => {
               )}
             </div>
             <p className="text-amber-300/80 text-xs text-center">Importe a transferir: <b>{money(saldo)}</b></p>
+            {/* Comprobante (opcional): la IA lo lee y verifica para acelerar la confirmación */}
+            <label className={`w-full py-2.5 rounded-xl border border-dashed text-xs font-semibold text-center cursor-pointer transition-colors ${comprobante ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/5' : 'border-white/15 text-white/50 hover:bg-white/5'}`}>
+              {comprobante ? '✓ Comprobante adjunto' : '📎 Adjuntar comprobante (recomendado)'}
+              <input type="file" accept="image/*" className="hidden" onChange={onComprobante} />
+            </label>
             <button onClick={avisarTransferencia} disabled={avisando} className="w-full py-3 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-bold text-sm disabled:opacity-50">
               {avisando ? 'Enviando…' : 'Ya transferí'}
             </button>

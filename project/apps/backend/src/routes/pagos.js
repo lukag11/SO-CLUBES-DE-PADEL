@@ -7,6 +7,8 @@ import { runSerializable } from '../lib/serializable.js'
 import { mpConfigurado } from '../lib/mercadopago.js'
 import { crearLinkPagoDeuda, crearLinkPagoMultiple, linksVivosDeDeudas } from '../lib/cobrosMP.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
+import { extraerComprobanteTransferencia, veredictoTransferencia } from '../lib/ocrComprobante.js'
+import { uploadImage } from '../lib/imageUpload.js'
 
 // Deudas pendientes de un jugador (cargos + turnos impagos), como [{origen,refId}].
 async function deudasDelJugador(clubId, jugadorId) {
@@ -121,9 +123,29 @@ router.post('/me/aviso-transferencia', requireAuth, requireRole('jugador'), asyn
     ])
     const saldo = cargos.reduce((s, c) => s + (c.monto - (c.saldoPagado || 0)), 0) + turnos.reduce((s, t) => s + (t.monto || 0), 0)
     if (saldo <= 0) return res.status(409).json({ error: 'sin_deuda', message: 'No tenés pagos pendientes.' })
-    const aviso = await prisma.avisoTransferencia.create({ data: { clubId, jugadorId, items: deudas, montoDeclarado: saldo } })
+
+    // Comprobante (opcional): lo subimos a Storage y lo leemos con IA para comparar contra la deuda.
+    // Best-effort: si algo falla, el aviso se crea igual (veredicto 'sin_comprobante'/'dudoso').
+    const comprobante = req.body?.comprobante
+    let comprobanteUrl = null, iaMonto = null, iaAlias = null, iaFecha = null, iaResumen = null
+    let iaVeredicto = 'sin_comprobante'
+    if (comprobante && typeof comprobante === 'string') {
+      try { comprobanteUrl = (await uploadImage(comprobante, { profile: 'default', folder: `comprobantes/${clubId}` })).url } catch (e) { console.error('[aviso] upload comprobante', e.message) }
+      try {
+        const club = await prisma.club.findUnique({ where: { id: clubId }, select: { config: true } })
+        const aliasClub = club?.config?.aliasTransferencia || ''
+        const ia = await extraerComprobanteTransferencia(comprobante)
+        iaMonto = ia.monto; iaAlias = ia.aliasDestino; iaFecha = ia.fecha
+        iaResumen = [ia.origen ? `de ${ia.origen}` : null, ia.titularDestino ? `para ${ia.titularDestino}` : null].filter(Boolean).join(' · ') || null
+        iaVeredicto = veredictoTransferencia({ iaMonto: ia.monto, iaAlias: ia.aliasDestino, iaCbu: ia.cbuDestino, montoEsperado: saldo, aliasClub })
+      } catch (e) { console.error('[aviso] OCR comprobante', e.message); iaVeredicto = 'dudoso' }
+    }
+
+    const aviso = await prisma.avisoTransferencia.create({
+      data: { clubId, jugadorId, items: deudas, montoDeclarado: saldo, comprobanteUrl, iaMonto, iaAlias, iaFecha, iaResumen, iaVeredicto },
+    })
     await prisma.notificacion.create({
-      data: { clubId, tipo: 'aviso_transferencia', data: { jugadorId, jugadorNombre: jug ? `${jug.nombre} ${jug.apellido}`.trim() : '', monto: saldo, avisoId: aviso.id } },
+      data: { clubId, tipo: 'aviso_transferencia', data: { jugadorId, jugadorNombre: jug ? `${jug.nombre} ${jug.apellido}`.trim() : '', monto: saldo, avisoId: aviso.id, iaVeredicto, comprobanteUrl } },
     })
     res.json({ ok: true, avisoId: aviso.id })
   } catch (err) {

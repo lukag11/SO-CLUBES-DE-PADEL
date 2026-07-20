@@ -62,8 +62,10 @@ const formatNotif = (n) => {
       const extra = n.detalle && n.detalle !== 'Mesa' ? n.detalle : (n.count > 1 ? `${n.count} deudas` : '')
       return { title: `${quien} por Mercado Pago`, body: [n.monto != null ? `$${(n.monto).toLocaleString('es-AR')}` : '', extra].filter(Boolean).join(' · ') }
     }
-    case 'aviso_transferencia':
-      return { title: `${n.jugadorNombre || 'Un jugador'} avisó que transfirió`, body: [n.monto != null ? `$${(n.monto).toLocaleString('es-AR')}` : '', 'confirmá en Cobranzas'].filter(Boolean).join(' · ') }
+    case 'aviso_transferencia': {
+      const iaTxt = { coincide: '🤖 IA: coincide ✅', no_coincide: '🤖 IA: NO coincide ⚠️', dudoso: '🤖 IA: revisar', sin_comprobante: 'sin comprobante' }[n.iaVeredicto] || ''
+      return { title: `${n.jugadorNombre || 'Un jugador'} avisó que transfirió`, body: [n.monto != null ? `$${(n.monto).toLocaleString('es-AR')}` : '', iaTxt].filter(Boolean).join(' · ') }
+    }
     default:
       return { title: n.tipo?.replace(/_/g, ' ') ?? 'Notificación', body: '' }
   }
@@ -196,13 +198,16 @@ const Navbar = ({ title, onMenuClick }) => {
                         {body && <p className="text-[11px] text-slate-400 truncate mt-0.5">{body}</p>}
                         {/* Aviso de transferencia → resolver en 1 click (salda o rechaza) */}
                         {n.tipo === 'aviso_transferencia' && n.avisoId && (
-                          <div className="flex gap-1.5 mt-2">
+                          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                             <button onClick={() => resolverAviso(n, 'confirmar')} disabled={resolviendo === n.avisoId} className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-semibold disabled:opacity-50">
                               {resolviendo === n.avisoId ? '…' : 'Confirmar cobro'}
                             </button>
                             <button onClick={() => resolverAviso(n, 'rechazar')} disabled={resolviendo === n.avisoId} className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-[11px] font-semibold disabled:opacity-50">
                               Rechazar
                             </button>
+                            {n.comprobanteUrl && (
+                              <a href={n.comprobanteUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="px-2.5 py-1 rounded-lg text-sky-600 hover:bg-sky-50 text-[11px] font-semibold">Ver comprobante</a>
+                            )}
                           </div>
                         )}
                       </div>

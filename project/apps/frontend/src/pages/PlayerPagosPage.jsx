@@ -55,12 +55,19 @@ const PlayerPagosPage = () => {
   const [transferOpen, setTransferOpen] = useState(false) // modal "Pagar por transferencia"
   const [avisando, setAvisando] = useState(false)
   const [transferData, setTransferData] = useState(null) // { alias, titular } — datos privados del club (endpoint autenticado)
+  const [avisosRevision, setAvisosRevision] = useState([]) // transferencias avisadas, esperando que el club confirme
   const aliasTransfer = transferData?.alias?.trim()
 
   const refetchLinks = () => {
     if (!token) return
     api.get('/pagos/me/links-vivos', { Authorization: `Bearer ${token}` })
       .then((d) => setLinksVivos(Array.isArray(d) ? d : []))
+      .catch(() => {})
+  }
+  const refetchAvisos = () => {
+    if (!token) return
+    api.get('/pagos/me/avisos-transferencia', { Authorization: `Bearer ${token}` })
+      .then((d) => setAvisosRevision(Array.isArray(d) ? d : []))
       .catch(() => {})
   }
 
@@ -71,6 +78,7 @@ const PlayerPagosPage = () => {
       .catch(() => {})
       .finally(() => setLoading(false))
     refetchLinks()
+    refetchAvisos()
     api.get('/pagos/me/transferencia', { Authorization: `Bearer ${token}` })
       .then((d) => setTransferData(d || null))
       .catch(() => {})
@@ -100,15 +108,18 @@ const PlayerPagosPage = () => {
     } finally { setPagando(false) }
   }
 
-  // Avisa al club que ya transferí (no salda nada — el club confirma a mano).
+  // Avisa al club que ya transferí → queda EN REVISIÓN (no salda nada; lo confirma el club).
   const avisarTransferencia = async () => {
     setAvisando(true)
     try {
       await api.post('/pagos/me/aviso-transferencia', {}, { Authorization: `Bearer ${token}` })
-      toast.success('¡Aviso enviado! El club va a confirmar tu pago.')
+      toast.success('¡Aviso enviado! Tu pago quedó en revisión.')
       setTransferOpen(false)
+      refetchAvisos()
     } catch (e) {
-      toast.error(e?.message || 'No se pudo enviar el aviso')
+      // Si ya había un aviso en revisión, no es error: lo traemos y se muestra la tarjeta.
+      if (e?.code === 'ya_en_revision') { setTransferOpen(false); refetchAvisos(); toast.success('Ya tenías un pago en revisión.') }
+      else toast.error(e?.message || 'No se pudo enviar el aviso')
     } finally { setAvisando(false) }
   }
 
@@ -210,6 +221,13 @@ const PlayerPagosPage = () => {
         </div>
         {saldo > 0 && (
           <div className="mt-5 space-y-2.5">
+            {/* Transferencia avisada → EN REVISIÓN (el club la está confirmando) */}
+            {avisosRevision.map((a) => (
+              <div key={a.id} className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                <p className="text-amber-200 text-sm font-semibold">🕓 Transferencia en revisión · {money(a.monto)}</p>
+                <p className="text-white/40 text-[11px] mt-0.5">El club está confirmando tu pago. Te avisamos cuando lo acredite.</p>
+              </div>
+            ))}
             {/* Pagos en proceso (los generó el club o yo antes) → pagar directo, sin pedir nada a nadie */}
             {linksVivos.map((l) => (
               <div key={l.id} className="rounded-xl border border-[#009ee3]/30 bg-[#009ee3]/5 p-3 flex items-center justify-between gap-2">
@@ -227,7 +245,7 @@ const PlayerPagosPage = () => {
               </button>
             )}
             {pagoError && <p className="text-red-400 text-xs text-center">{pagoError}</p>}
-            {aliasTransfer && (
+            {aliasTransfer && avisosRevision.length === 0 && (
               <button onClick={() => setTransferOpen(true)} className="w-full py-3 rounded-xl border border-sky-500/25 bg-sky-500/5 text-sky-300 hover:bg-sky-500/10 font-semibold text-sm transition-colors">
                 Pagar por transferencia
               </button>

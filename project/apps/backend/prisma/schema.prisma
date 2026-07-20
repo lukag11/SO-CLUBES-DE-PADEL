@@ -625,6 +625,31 @@ model PagoMP {
   @@map("pagos_mp")
 }
 
+// Aviso de transferencia del jugador → estado "en revisión" (tipo banco). El club (o el
+// auto-saldar si la IA coincide) confirma y recién ahí se salda. La IA lee el comprobante.
+model AvisoTransferencia {
+  id             String    @id @default(cuid())
+  clubId         String
+  jugadorId      String
+  items          Json                                    // deudas que cubre: [{origen,refId}]
+  montoDeclarado Int                                     // saldo al momento del aviso (pesos)
+  comprobanteUrl String?                                 // imagen del comprobante (Storage)
+  iaMonto        Int?                                    // lo que leyó la IA del comprobante
+  iaAlias        String?
+  iaFecha        String?
+  iaVeredicto    String    @default("sin_comprobante")   // coincide | no_coincide | dudoso | sin_comprobante
+  iaResumen      String?                                 // nota corta de la IA (auditoría)
+  estado         String    @default("en_revision")       // en_revision | aprobado | rechazado
+  pagoId         String?                                 // Pago creado al aprobar (una sola vez)
+  resueltoAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([clubId, estado])
+  @@index([jugadorId])
+  @@map("avisos_transferencia")
+}
+
 model Notificacion {
   id         String   @id @default(cuid())
   clubId     String

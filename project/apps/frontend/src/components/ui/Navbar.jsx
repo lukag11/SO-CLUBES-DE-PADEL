@@ -3,6 +3,7 @@ import { Bell, ChevronDown, Menu, Check, CheckCheck, LogOut, Repeat, CalendarDay
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
+import { api } from '../../lib/api'
 
 // Icono + color por tipo de notificación (respeta la convención de la grilla: fijo=violeta, online=verde, etc.)
 const NOTIF_META = {
@@ -76,6 +77,19 @@ const Navbar = ({ title, onMenuClick }) => {
   const sinLeer          = useNotificacionesStore((s) => s.sinLeer())
   const marcarLeida      = useNotificacionesStore((s) => s.marcarLeida)
   const marcarTodasLeidas = useNotificacionesStore((s) => s.marcarTodasLeidas)
+  const fetchNotificaciones = useNotificacionesStore((s) => s.fetchNotificaciones)
+  const [resolviendo, setResolviendo] = useState(null) // avisoId en curso (anti doble-click)
+
+  // Confirmar / rechazar un aviso de transferencia desde la campana (1 click).
+  const resolverAviso = async (n, accion) => {
+    if (!n.avisoId || resolviendo) return
+    setResolviendo(n.avisoId)
+    try {
+      await api.post(`/pagos/avisos-transferencia/${n.avisoId}/${accion}`, {}, { Authorization: `Bearer ${token}` })
+      marcarLeida(n.id, token)
+      fetchNotificaciones?.(token)
+    } catch { /* el backend ya loguea; si falla queda el aviso sin resolver */ } finally { setResolviendo(null) }
+  }
   const navigate = useNavigate()
 
   const [bellOpen, setBellOpen] = useState(false)
@@ -180,6 +194,17 @@ const Navbar = ({ title, onMenuClick }) => {
                           <span className="text-[10px] text-slate-400 shrink-0">{haceTexto(n.timestamp)}</span>
                         </div>
                         {body && <p className="text-[11px] text-slate-400 truncate mt-0.5">{body}</p>}
+                        {/* Aviso de transferencia → resolver en 1 click (salda o rechaza) */}
+                        {n.tipo === 'aviso_transferencia' && n.avisoId && (
+                          <div className="flex gap-1.5 mt-2">
+                            <button onClick={() => resolverAviso(n, 'confirmar')} disabled={resolviendo === n.avisoId} className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-semibold disabled:opacity-50">
+                              {resolviendo === n.avisoId ? '…' : 'Confirmar cobro'}
+                            </button>
+                            <button onClick={() => resolverAviso(n, 'rechazar')} disabled={resolviendo === n.avisoId} className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-[11px] font-semibold disabled:opacity-50">
+                              Rechazar
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Marcar como leída — aparece al hover */}

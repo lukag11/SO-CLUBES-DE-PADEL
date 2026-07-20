@@ -2,7 +2,7 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireFeature, requirePermiso } from '../middleware/auth.js'
 import { inicioMesArg } from '../lib/tiempo.js'
-import { revertirPagoTx } from '../lib/pagos.js'
+import { revertirPagoTx, imputarPagoTx } from '../lib/pagos.js'
 import { runSerializable } from '../lib/serializable.js'
 import { mpConfigurado } from '../lib/mercadopago.js'
 import { crearLinkPagoDeuda, crearLinkPagoMultiple, linksVivosDeDeudas } from '../lib/cobrosMP.js'
@@ -102,12 +102,18 @@ router.get('/me/transferencia', requireAuth, requireRole('jugador'), async (req,
   }
 })
 
-// POST /api/pagos/me/aviso-transferencia — el JUGADOR avisa que ya transfirió. NO cobra ni salda
-// nada (la transferencia se confirma a mano): solo notifica al dueño para que la controle y cobre.
+// POST /api/pagos/me/aviso-transferencia — el JUGADOR avisa que ya transfirió → crea un
+// AvisoTransferencia en estado "en_revision". NO salda nada (lo confirma el club, o el
+// auto-saldar con IA). Notifica al dueño. jugadorId del token.
 router.post('/me/aviso-transferencia', requireAuth, requireRole('jugador'), async (req, res) => {
   const clubId = req.user.clubId
   const jugadorId = req.user.id
   try {
+    const deudas = await deudasDelJugador(clubId, jugadorId)
+    if (deudas.length === 0) return res.status(409).json({ error: 'sin_deuda', message: 'No tenés pagos pendientes.' })
+    // No duplicar: un aviso en revisión a la vez por jugador.
+    const yaHay = await prisma.avisoTransferencia.findFirst({ where: { clubId, jugadorId, estado: 'en_revision' } })
+    if (yaHay) return res.status(409).json({ error: 'ya_en_revision', message: 'Ya tenés un aviso de transferencia en revisión.' })
     const [cargos, turnos, jug] = await Promise.all([
       prisma.cargo.findMany({ where: { jugadorId, clubId, estado: 'pendiente', comandaId: null }, select: { monto: true, saldoPagado: true } }),
       turnosImpagosDeuda(clubId, { jugadorId }),
@@ -115,13 +121,73 @@ router.post('/me/aviso-transferencia', requireAuth, requireRole('jugador'), asyn
     ])
     const saldo = cargos.reduce((s, c) => s + (c.monto - (c.saldoPagado || 0)), 0) + turnos.reduce((s, t) => s + (t.monto || 0), 0)
     if (saldo <= 0) return res.status(409).json({ error: 'sin_deuda', message: 'No tenés pagos pendientes.' })
+    const aviso = await prisma.avisoTransferencia.create({ data: { clubId, jugadorId, items: deudas, montoDeclarado: saldo } })
     await prisma.notificacion.create({
-      data: { clubId, tipo: 'aviso_transferencia', data: { jugadorId, jugadorNombre: jug ? `${jug.nombre} ${jug.apellido}`.trim() : '', monto: saldo } },
+      data: { clubId, tipo: 'aviso_transferencia', data: { jugadorId, jugadorNombre: jug ? `${jug.nombre} ${jug.apellido}`.trim() : '', monto: saldo, avisoId: aviso.id } },
     })
-    res.json({ ok: true })
+    res.json({ ok: true, avisoId: aviso.id })
   } catch (err) {
     console.error('[aviso-transferencia]', err)
     res.status(500).json({ error: 'error', message: 'No se pudo enviar el aviso' })
+  }
+})
+
+// GET /api/pagos/me/avisos-transferencia — avisos EN REVISIÓN del jugador (para mostrar sus
+// deudas "en revisión" en Mi consumo). jugadorId del token.
+router.get('/me/avisos-transferencia', requireAuth, requireRole('jugador'), async (req, res) => {
+  try {
+    const avisos = await prisma.avisoTransferencia.findMany({
+      where: { clubId: req.user.clubId, jugadorId: req.user.id, estado: 'en_revision' },
+      orderBy: { createdAt: 'desc' },
+    })
+    res.json(avisos.map((a) => ({ id: a.id, monto: a.montoDeclarado, items: a.items, createdAt: a.createdAt })))
+  } catch (err) {
+    console.error('[me avisos-transferencia]', err)
+    res.status(500).json({ error: 'error' })
+  }
+})
+
+// POST /api/pagos/avisos-transferencia/:id/confirmar — el ADMIN confirma que la transferencia
+// entró → salda las deudas del aviso con método 'transferencia' y avisa al jugador.
+router.post('/avisos-transferencia/:id/confirmar', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+  const clubId = req.user.clubId
+  const { id } = req.params
+  try {
+    const aviso = await prisma.avisoTransferencia.findUnique({ where: { id } })
+    if (!aviso || aviso.clubId !== clubId) return res.status(404).json({ error: 'no_encontrado', message: 'Aviso no encontrado' })
+    if (aviso.estado !== 'en_revision') return res.status(409).json({ error: 'ya_resuelto', message: 'Ese aviso ya fue resuelto.' })
+    const items = Array.isArray(aviso.items) ? aviso.items : []
+    const imp = await runSerializable(async (tx) => {
+      const fresco = await tx.avisoTransferencia.findUnique({ where: { id }, select: { estado: true } })
+      if (fresco?.estado !== 'en_revision') return null // otra confirmación ganó
+      const impu = await imputarPagoTx(tx, { clubId, jugadorId: aviso.jugadorId, items, monto: aviso.montoDeclarado, lineas: [{ metodo: 'transferencia', monto: aviso.montoDeclarado }] })
+      await tx.avisoTransferencia.update({ where: { id }, data: { estado: 'aprobado', resueltoAt: new Date(), pagoId: impu.pagoId } })
+      return impu
+    })
+    // Aviso al JUGADOR: pago confirmado.
+    await prisma.notificacion.create({ data: { clubId, jugadorId: aviso.jugadorId, tipo: 'transferencia_confirmada', data: { monto: imp?.imputado ?? aviso.montoDeclarado } } }).catch(() => {})
+    res.json({ ok: true, imputado: imp?.imputado ?? 0 })
+  } catch (err) {
+    console.error('[aviso confirmar]', err)
+    res.status(500).json({ error: 'error', message: 'No se pudo confirmar' })
+  }
+})
+
+// POST /api/pagos/avisos-transferencia/:id/rechazar — el ADMIN rechaza el aviso (no entró la
+// plata / comprobante inválido). No salda nada. Avisa al jugador.
+router.post('/avisos-transferencia/:id/rechazar', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+  const clubId = req.user.clubId
+  const { id } = req.params
+  try {
+    const aviso = await prisma.avisoTransferencia.findUnique({ where: { id } })
+    if (!aviso || aviso.clubId !== clubId) return res.status(404).json({ error: 'no_encontrado', message: 'Aviso no encontrado' })
+    if (aviso.estado !== 'en_revision') return res.status(409).json({ error: 'ya_resuelto', message: 'Ese aviso ya fue resuelto.' })
+    await prisma.avisoTransferencia.update({ where: { id }, data: { estado: 'rechazado', resueltoAt: new Date() } })
+    await prisma.notificacion.create({ data: { clubId, jugadorId: aviso.jugadorId, tipo: 'transferencia_rechazada', data: { monto: aviso.montoDeclarado } } }).catch(() => {})
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[aviso rechazar]', err)
+    res.status(500).json({ error: 'error', message: 'No se pudo rechazar' })
   }
 })
 

@@ -55,6 +55,7 @@ const PlayerPagosPage = () => {
   const [transferOpen, setTransferOpen] = useState(false) // modal "Pagar por transferencia"
   const [avisando, setAvisando] = useState(false)
   const [comprobante, setComprobante] = useState(null) // dataURL del comprobante de transferencia
+  const [montoEntrega, setMontoEntrega] = useState('') // cuánto va a transferir (puede ser parcial, a cuenta)
   const [transferData, setTransferData] = useState(null) // { alias, titular } — datos privados del club (endpoint autenticado)
   const [avisosRevision, setAvisosRevision] = useState([]) // transferencias avisadas, esperando que el club confirme
   const aliasTransfer = transferData?.alias?.trim()
@@ -120,10 +121,13 @@ const PlayerPagosPage = () => {
   }
 
   // Avisa al club que ya transferí → queda EN REVISIÓN (no salda nada; lo confirma el club).
+  // Puede ser parcial (entrega a cuenta): manda el `monto` declarado.
   const avisarTransferencia = async () => {
+    const m = Math.round(Number(montoEntrega))
+    if (!(m > 0 && m <= saldo)) { toast.error(`El monto debe estar entre $1 y ${money(saldo)}`); return }
     setAvisando(true)
     try {
-      await api.post('/pagos/me/aviso-transferencia', comprobante ? { comprobante } : {}, { Authorization: `Bearer ${token}` })
+      await api.post('/pagos/me/aviso-transferencia', { monto: m, ...(comprobante ? { comprobante } : {}) }, { Authorization: `Bearer ${token}` })
       toast.success('¡Aviso enviado! Tu pago quedó en revisión.')
       setTransferOpen(false); setComprobante(null)
       refetchAvisos()
@@ -257,7 +261,7 @@ const PlayerPagosPage = () => {
             )}
             {pagoError && <p className="text-red-400 text-xs text-center">{pagoError}</p>}
             {aliasTransfer && avisosRevision.length === 0 && (
-              <button onClick={() => setTransferOpen(true)} className="w-full py-3 rounded-xl border border-sky-500/25 bg-sky-500/5 text-sky-300 hover:bg-sky-500/10 font-semibold text-sm transition-colors">
+              <button onClick={() => { setMontoEntrega(String(saldo)); setTransferOpen(true) }} className="w-full py-3 rounded-xl border border-sky-500/25 bg-sky-500/5 text-sky-300 hover:bg-sky-500/10 font-semibold text-sm transition-colors">
                 Pagar por transferencia
               </button>
             )}
@@ -454,13 +458,26 @@ const PlayerPagosPage = () => {
                 </div>
               )}
             </div>
-            <p className="text-amber-300/80 text-xs text-center">Importe a transferir: <b>{money(saldo)}</b></p>
-            {/* Comprobante (opcional): la IA lo lee y verifica para acelerar la confirmación */}
-            <label className={`w-full py-2.5 rounded-xl border border-dashed text-xs font-semibold text-center cursor-pointer transition-colors ${comprobante ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/5' : 'border-white/15 text-white/50 hover:bg-white/5'}`}>
-              {comprobante ? '✓ Comprobante adjunto' : '📎 Adjuntar comprobante (recomendado)'}
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-white/60 text-xs">¿Cuánto vas a transferir?</label>
+                {Number(montoEntrega) < saldo && <button onClick={() => setMontoEntrega(String(saldo))} className="text-sky-300/70 text-[11px] hover:text-sky-300">Todo ({money(saldo)})</button>}
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                <span className="text-white/40">$</span>
+                <input type="number" value={montoEntrega} onChange={(e) => setMontoEntrega(e.target.value)} max={saldo} min={1} className="flex-1 bg-transparent text-white font-semibold outline-none" />
+              </div>
+              {Number(montoEntrega) > 0 && Number(montoEntrega) < saldo && (
+                <p className="text-amber-300/70 text-[11px] mt-1">Entrega a cuenta · quedan {money(saldo - Math.round(Number(montoEntrega)))} pendientes</p>
+              )}
+            </div>
+            {/* Comprobante OBLIGATORIO: la IA lo lee y el club lo verifica */}
+            <label className={`w-full py-2.5 rounded-xl border border-dashed text-xs font-semibold text-center cursor-pointer transition-colors ${comprobante ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/5' : 'border-sky-500/30 text-sky-300 hover:bg-sky-500/5'}`}>
+              {comprobante ? '✓ Comprobante adjunto' : '📎 Adjuntar comprobante (obligatorio)'}
               <input type="file" accept="image/*" className="hidden" onChange={onComprobante} />
             </label>
-            <button onClick={avisarTransferencia} disabled={avisando} className="w-full py-3 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-bold text-sm disabled:opacity-50">
+            {!comprobante && <p className="text-white/30 text-[10px] text-center -mt-1">Necesitás adjuntar el comprobante para avisar.</p>}
+            <button onClick={avisarTransferencia} disabled={avisando || !comprobante} className="w-full py-3 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-bold text-sm disabled:opacity-50">
               {avisando ? 'Enviando…' : 'Ya transferí'}
             </button>
             <p className="text-white/30 text-[10px] text-center">El club confirma tu pago cuando le entra la plata.</p>

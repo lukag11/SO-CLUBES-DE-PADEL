@@ -150,6 +150,19 @@ router.post('/me/aviso-transferencia', requireAuth, requireRole('jugador'), asyn
     const saldo = cargos.reduce((s, c) => s + (c.monto - (c.saldoPagado || 0)), 0) + turnos.reduce((s, t) => s + (t.monto || 0), 0)
     if (saldo <= 0) return res.status(409).json({ error: 'sin_deuda', message: 'No tenés pagos pendientes.' })
 
+    // El comprobante es OBLIGATORIO en el aviso del jugador: es la evidencia que la IA verifica y
+    // que el dueño mira. Sin comprobante no hay nada que respalde el pago. (El dueño sí puede
+    // cobrar sin comprobante desde su lado, contra su banco.)
+    if (!req.body?.comprobante || typeof req.body.comprobante !== 'string') {
+      return res.status(400).json({ error: 'comprobante_requerido', message: 'Adjuntá el comprobante de la transferencia.' })
+    }
+
+    // Monto declarado: el jugador puede transferir MENOS que su saldo (entrega a cuenta / parcial).
+    // Default = saldo total; si manda `monto`, se capa a [1, saldo]. Al saldar, imputarPagoTx lo
+    // reparte FIFO y deja el resto pendiente.
+    const pedido = Number(req.body?.monto)
+    const montoDeclarado = (Number.isFinite(pedido) && pedido > 0) ? Math.min(Math.round(pedido), saldo) : saldo
+
     const club = await prisma.club.findUnique({ where: { id: clubId }, select: { config: true } })
     const aliasClub = club?.config?.aliasTransferencia || ''
     const autoSaldarOn = club?.config?.transferenciaAutoSaldar === true
@@ -165,12 +178,12 @@ router.post('/me/aviso-transferencia', requireAuth, requireRole('jugador'), asyn
         const ia = await extraerComprobanteTransferencia(comprobante)
         iaMonto = ia.monto; iaAlias = ia.aliasDestino; iaFecha = ia.fecha
         iaResumen = [ia.origen ? `de ${ia.origen}` : null, ia.titularDestino ? `para ${ia.titularDestino}` : null].filter(Boolean).join(' · ') || null
-        iaVeredicto = veredictoTransferencia({ iaMonto: ia.monto, iaAlias: ia.aliasDestino, iaCbu: ia.cbuDestino, montoEsperado: saldo, aliasClub })
+        iaVeredicto = veredictoTransferencia({ iaMonto: ia.monto, iaAlias: ia.aliasDestino, iaCbu: ia.cbuDestino, montoEsperado: montoDeclarado, aliasClub })
       } catch (e) { console.error('[aviso] OCR comprobante', e.message); iaVeredicto = 'dudoso' }
     }
 
     const aviso = await prisma.avisoTransferencia.create({
-      data: { clubId, jugadorId, items: deudas, montoDeclarado: saldo, comprobanteUrl, iaMonto, iaAlias, iaFecha, iaResumen, iaVeredicto },
+      data: { clubId, jugadorId, items: deudas, montoDeclarado, comprobanteUrl, iaMonto, iaAlias, iaFecha, iaResumen, iaVeredicto },
     })
     const jugadorNombre = jug ? `${jug.nombre} ${jug.apellido}`.trim() : ''
 
@@ -178,13 +191,13 @@ router.post('/me/aviso-transferencia', requireAuth, requireRole('jugador'), asyn
     // al admin), y al dueño le llega un aviso informativo (no de acción).
     if (autoSaldarOn && iaVeredicto === 'coincide') {
       await aprobarAvisoTransferencia(clubId, aviso)
-      await prisma.notificacion.create({ data: { clubId, tipo: 'transferencia_auto', data: { jugadorNombre, monto: saldo, comprobanteUrl } } }).catch(() => {})
+      await prisma.notificacion.create({ data: { clubId, tipo: 'transferencia_auto', data: { jugadorNombre, monto: montoDeclarado, comprobanteUrl } } }).catch(() => {})
       return res.json({ ok: true, avisoId: aviso.id, autoSaldado: true })
     }
 
     // Flujo normal: el dueño confirma/rechaza desde la campana.
     await prisma.notificacion.create({
-      data: { clubId, tipo: 'aviso_transferencia', data: { jugadorId, jugadorNombre, monto: saldo, avisoId: aviso.id, iaVeredicto, comprobanteUrl } },
+      data: { clubId, tipo: 'aviso_transferencia', data: { jugadorId, jugadorNombre, monto: montoDeclarado, avisoId: aviso.id, iaVeredicto, comprobanteUrl } },
     })
     res.json({ ok: true, avisoId: aviso.id })
   } catch (err) {

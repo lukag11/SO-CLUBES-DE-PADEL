@@ -54,6 +54,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   const ticketArriba = yaEnCuenta.filter((c) => c.tipo === 'reserva')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [qrPersona, setQrPersona] = useState(null) // QR de billetera de UNA persona: { pagoMpId, qrImage, monto, nombre, key }
   const [rosterPartido, setRosterPartido] = useState(null) // { jugadores:[{jugadorId,nombre,titular}] } si el turno es un partido abierto
   const [rosterCargado, setRosterCargado] = useState(false)
   const [rosterListo, setRosterListo] = useState(false) // evita pisar el armado guardado antes de leerlo
@@ -287,6 +288,48 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
     finally { setSaving(false) }
   }
 
+  // Cobro por QR de billetera de UNA persona: deja su parte (turno + consumos) PENDIENTE, genera
+  // el QR por su monto y lo muestra. El webhook la marca sola al pagar. La persona sale del split
+  // (sus cargos quedan en el ticket); si no paga, quedan "a cuenta" y se cobran desde el ticket.
+  const generarQRPersona = async (p) => {
+    if (!reserva._backendId || saving) return
+    if (p.tipo === 'casual') { setError('El QR de billetera es para jugadores con ficha. Un casual paga al contado.'); return }
+    setError(''); setSaving(true)
+    try {
+      // 1) Persistir la porción del turno como PENDIENTE (los consumos ya están persistidos).
+      if ((p.turnoMonto || 0) > 0) {
+        await api.post(`/reservas/${reserva._backendId}/cuenta`, { pagos: [{ jugadorId: p.jugadorId, metodoPago: null, turnoMonto: p.turnoMonto, consumos: [] }] }, auth)
+      }
+      // 2) Juntar TODOS los cargos pendientes de esta persona (turno + consumos).
+      const d = await api.get(`/reservas/${reserva._backendId}/cuenta`, auth)
+      const cargos = Array.isArray(d?.cargosCuenta) ? d.cargosCuenta : []
+      setCuenta(cargos)
+      const items = cargos.filter((c) => c.estado === 'pendiente' && c.jugadorId === p.jugadorId).map((c) => ({ origen: 'cargo', refId: c.id }))
+      if (!items.length) { setError('No se pudo preparar el cobro de esta persona'); setSaving(false); return }
+      // 3) Generar el QR por el total de esta persona.
+      const r = await api.post('/pagos/qr/cobrar', { items, jugadorId: p.jugadorId }, auth)
+      setQrPersona({ pagoMpId: r.pagoMpId, qrImage: r.qrImage, monto: r.monto, nombre: p.nombre, key: p.key })
+      setPersonas((prev) => prev.filter((x) => x.key !== p.key)) // sale del split; sus cargos quedan en el ticket
+    } catch (e) { setError(e?.message || 'No se pudo generar el QR') }
+    finally { setSaving(false) }
+  }
+
+  // Mientras el QR de una persona está en pantalla, preguntamos cada 3s si pagó. Al acreditar el
+  // webhook → cerramos el QR y refrescamos el ticket (sus cargos pasan a "cobrado").
+  useEffect(() => {
+    const pmId = qrPersona?.pagoMpId
+    if (!pmId) return
+    let vivo = true
+    const timer = setInterval(async () => {
+      try {
+        const r = await api.get(`/pagos/qr/${pmId}/estado`, auth)
+        if (!vivo) return
+        if (r?.pagado) { clearInterval(timer); setQrPersona(null); await refrescarCuenta() }
+      } catch { /* reintenta */ }
+    }, 3000)
+    return () => { vivo = false; clearInterval(timer) }
+  }, [qrPersona?.pagoMpId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Submit ──
   const submit = async () => {
     setError('')
@@ -325,6 +368,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
       <div className={`relative w-full ${personas.length > 1 ? 'max-w-4xl' : 'max-w-lg'} bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] transition-[max-width] duration-200`} onClick={(e) => e.stopPropagation()}>
@@ -384,7 +428,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
 
         {/* Flujo único: agregás quién paga. 1 persona → paga todo · varias → se reparte. */}
         <div className="overflow-y-auto px-6 py-3 flex flex-col gap-3">
-          <ModoSplit {...{ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token, persistirConsumo, saving, cuenta, eliminarLineaTicket, persistirCompartido, resolverPersona }} />
+          <ModoSplit {...{ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token, persistirConsumo, saving, cuenta, eliminarLineaTicket, persistirCompartido, resolverPersona, generarQRPersona }} />
 
           {error && <p className="text-rose-500 text-xs">{error}</p>}
         </div>
@@ -398,6 +442,26 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
         </div>
       </div>
     </div>
+    {qrPersona && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={() => setQrPersona(null)}>
+        <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+        <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl flex flex-col items-center text-center gap-3 p-7" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => setQrPersona(null)} className="absolute top-4 right-4 text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
+          <div className="w-11 h-11 rounded-2xl bg-violet-50 flex items-center justify-center text-2xl">📲</div>
+          <div>
+            <p className="text-slate-800 font-bold">{qrPersona.nombre} · {money(qrPersona.monto)}</p>
+            <p className="text-slate-400 text-xs mt-0.5">Escaneá con cualquier billetera</p>
+          </div>
+          <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+            <img src={qrPersona.qrImage} alt="QR de pago" width={200} height={200} className="w-[200px] h-[200px] object-contain" />
+          </div>
+          <p className="text-[11px] text-violet-500 font-semibold leading-snug">MODO, Ualá, Naranja X, tu banco o Mercado Pago.</p>
+          <p className="text-[11px] text-slate-400 leading-snug">Se marca cobrado <b>solo</b> cuando pague. Esperando el pago…</p>
+          <button onClick={() => setQrPersona(null)} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Cerrar</button>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
@@ -556,7 +620,7 @@ const ModoSimple = ({ saldoTurno, cobrarTurno, setCobrarTurno, lineas, setLineas
 )
 
 // ─── Modo split (cuenta por persona) ────────────────────────────────────────────
-const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token, persistirConsumo, saving, cuenta, eliminarLineaTicket, persistirCompartido, resolverPersona }) => {
+const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignado, activos, metodos, metodoDefault, dividirTurno, setAutoSplit, addProducto, addOtro, cambiarCant, quitarLinea, subtotalPersona, nuevaPersona, auth, token, persistirConsumo, saving, cuenta, eliminarLineaTicket, persistirCompartido, resolverPersona, generarQRPersona }) => {
   const [buscando, setBuscando] = useState(false)
   const [q, setQ] = useState('')
   const [resultados, setResultados] = useState([])
@@ -665,11 +729,19 @@ const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignad
                     {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
                   </select>
                 )}
-                {/* Cobro rápido: registra a esta persona (turno + sus consumos) al instante */}
-                <button onClick={() => resolverPersona(p)} disabled={saving || subPersona(p) <= 0}
-                  className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold disabled:opacity-40 whitespace-nowrap">
-                  {p.modo === 'cobrar' ? 'Cobrar' : 'A cuenta'} {money(subPersona(p))}
-                </button>
+                {/* Cobro rápido: registra a esta persona (turno + sus consumos) al instante.
+                    Si el método es Mercado Pago → en vez de marcar pagado, muestra el QR de billetera. */}
+                {p.modo === 'cobrar' && p.metodoPago === 'mercadopago' && p.tipo !== 'casual' ? (
+                  <button onClick={() => generarQRPersona(p)} disabled={saving || subPersona(p) <= 0}
+                    className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-violet-500 hover:bg-violet-600 text-white text-xs font-bold disabled:opacity-40 whitespace-nowrap">
+                    📲 QR {money(subPersona(p))}
+                  </button>
+                ) : (
+                  <button onClick={() => resolverPersona(p)} disabled={saving || subPersona(p) <= 0}
+                    className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold disabled:opacity-40 whitespace-nowrap">
+                    {p.modo === 'cobrar' ? 'Cobrar' : 'A cuenta'} {money(subPersona(p))}
+                  </button>
+                )}
               </div>
             </div>
           </div>

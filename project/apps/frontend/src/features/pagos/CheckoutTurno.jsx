@@ -296,6 +296,9 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
     if (p.tipo === 'casual') { setError('El QR de billetera es para jugadores con ficha. Un casual paga al contado.'); return }
     setError(''); setSaving(true)
     try {
+      // Snapshot de los cargos-turno pendientes de esta persona ANTES de persistir (para saber
+      // cuál creo yo y poder borrarlo si el admin cierra sin que pague).
+      const prevTurnoIds = new Set((cuenta || []).filter((c) => c.tipo === 'reserva' && c.jugadorId === p.jugadorId && c.estado === 'pendiente').map((c) => c.id))
       // 1) Persistir la porción del turno como PENDIENTE (los consumos ya están persistidos).
       if ((p.turnoMonto || 0) > 0) {
         await api.post(`/reservas/${reserva._backendId}/cuenta`, { pagos: [{ jugadorId: p.jugadorId, metodoPago: null, turnoMonto: p.turnoMonto, consumos: [] }] }, auth)
@@ -306,16 +309,41 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
       setCuenta(cargos)
       const items = cargos.filter((c) => c.estado === 'pendiente' && c.jugadorId === p.jugadorId).map((c) => ({ origen: 'cargo', refId: c.id }))
       if (!items.length) { setError('No se pudo preparar el cobro de esta persona'); setSaving(false); return }
+      // El cargo-turno que YO acabo de crear (para deshacer al cerrar sin pagar).
+      const turnoCargoId = (p.turnoMonto || 0) > 0
+        ? (cargos.find((c) => c.tipo === 'reserva' && c.jugadorId === p.jugadorId && c.estado === 'pendiente' && !prevTurnoIds.has(c.id))?.id || null)
+        : null
       // 3) Generar el QR por el total de esta persona.
       const r = await api.post('/pagos/qr/cobrar', { items, jugadorId: p.jugadorId }, auth)
-      setQrPersona({ pagoMpId: r.pagoMpId, qrImage: r.qrImage, monto: r.monto, nombre: p.nombre, key: p.key })
-      setPersonas((prev) => prev.filter((x) => x.key !== p.key)) // sale del split; sus cargos quedan en el ticket
+      setQrPersona({ pagoMpId: r.pagoMpId, qrImage: r.qrImage, monto: r.monto, nombre: p.nombre, persona: p, turnoCargoId })
+      setPersonas((prev) => prev.filter((x) => x.key !== p.key)) // sale del split mientras esperamos el pago
     } catch (e) { setError(e?.message || 'No se pudo generar el QR') }
     finally { setSaving(false) }
   }
 
+  // Cerrar el QR SIN que haya pagado = deshacer: cancela la orden en MP, borra la parte que quedó
+  // pendiente (el cargo-turno que creé) y devuelve la persona al split (para cambiarle el método).
+  // Los consumos ya estaban persistidos de antes → no se tocan (son a cuenta como siempre).
+  const cerrarQRPersona = async () => {
+    const q = qrPersona
+    setQrPersona(null)
+    if (!q) return
+    try {
+      await api.post(`/pagos/qr/${q.pagoMpId}/cancelar`, {}, auth).catch(() => {})
+      if (q.turnoCargoId) await api.delete(`/cargos/${q.turnoCargoId}`, auth).catch(() => {})
+      const d = await api.get(`/reservas/${reserva._backendId}/cuenta`, auth).catch(() => null)
+      const cargos = Array.isArray(d?.cargosCuenta) ? d.cargosCuenta : []
+      setCuenta(cargos)
+      // Si al borrar no quedó NINGÚN cargo del turno, el turno vuelve a representarse por la reserva.
+      if (q.turnoCargoId && cargos.every((c) => c.tipo !== 'reserva')) {
+        await api.patch(`/reservas/${reserva._backendId}/cobro-omitido`, { omitido: false }, auth).catch(() => {})
+      }
+      if (q.persona) setPersonas((prev) => prev.some((x) => x.key === q.persona.key) ? prev : [...prev, q.persona])
+    } catch { /* best-effort */ }
+  }
+
   // Mientras el QR de una persona está en pantalla, preguntamos cada 3s si pagó. Al acreditar el
-  // webhook → cerramos el QR y refrescamos el ticket (sus cargos pasan a "cobrado").
+  // webhook → cerramos el QR (sin deshacer: ya pagó) y refrescamos el ticket (pasa a "cobrado").
   useEffect(() => {
     const pmId = qrPersona?.pagoMpId
     if (!pmId) return
@@ -443,10 +471,10 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
       </div>
     </div>
     {qrPersona && (
-      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={() => setQrPersona(null)}>
+      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={cerrarQRPersona}>
         <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
         <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl flex flex-col items-center text-center gap-3 p-7" onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => setQrPersona(null)} className="absolute top-4 right-4 text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
+          <button onClick={cerrarQRPersona} className="absolute top-4 right-4 text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
           <div className="w-11 h-11 rounded-2xl bg-violet-50 flex items-center justify-center text-2xl">📲</div>
           <div>
             <p className="text-slate-800 font-bold">{qrPersona.nombre} · {money(qrPersona.monto)}</p>
@@ -456,8 +484,8 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
             <img src={qrPersona.qrImage} alt="QR de pago" width={200} height={200} className="w-[200px] h-[200px] object-contain" />
           </div>
           <p className="text-[11px] text-violet-500 font-semibold leading-snug">MODO, Ualá, Naranja X, tu banco o Mercado Pago.</p>
-          <p className="text-[11px] text-slate-400 leading-snug">Se marca cobrado <b>solo</b> cuando pague. Esperando el pago…</p>
-          <button onClick={() => setQrPersona(null)} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Cerrar</button>
+          <p className="text-[11px] text-slate-400 leading-snug">Se marca cobrado <b>solo</b> cuando pague. Si cerrás sin que pague, vuelve al split para cambiarle el método.</p>
+          <button onClick={cerrarQRPersona} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Cerrar</button>
         </div>
       </div>
     )}

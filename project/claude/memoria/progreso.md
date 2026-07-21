@@ -3145,3 +3145,23 @@ Deployado (commits de9918c, 3df037d, ecc08d4). Jugador pagó con otra billetera 
 
 ### ▶️ DESPUÉS: la lista de pendientes pre-deploy
 Config producción (vaciar MP_ACCESS_TOKEN Railway, firma webhook obligatoria, verif email signup, bajar body limit, proteger /api/dev), cobros futuros (diseño saldo a favor + limpieza comprobantes), post-deploy (re-subir imágenes, caché Storage, guía onboarding 2º club), roadmap (feature gating, WhatsApp, stats, features.md), bugs (categorías, matching caso 1, consolidar conflictos.js).
+
+## 2026-07-21 (cont.) — UNIFICACIÓN DE COBROS en las 4 superficies + comprobante admin
+
+Después del QR billetera (Cobranzas), se llevó **QR billetera + comprobante de transferencia** a TODAS las pantallas de cobro. Detalle técnico en memoria `project_qr_billetera_interoperable.md` y `project_comprobante_transferencia_admin.md`.
+
+| Superficie | Efectivo/split | Link MP | QR billetera | Comprobante transfer |
+|-----------|:---:|:---:|:---:|:---:|
+| Cobranzas | ✅ | ✅ | ✅ | ✅ |
+| Venta rápida | ✅ | ✅ | ✅ | ✅ (a jugador) |
+| Cobrar turno | ✅ | ✅ | ✅ **por persona** | ✅ **por persona** |
+| Mesa | ✅ | ✅ | ✅ | N/A (mostrador) |
+
+- **Comprobante admin:** el dueño adjunta la foto de la transferencia (opcional) al cobrar → Storage + IA lee monto → `AvisoTransferencia` aprobado `via:'admin'` → se ve en Pagados "Ver comprobante · 🏢 Registrado por el club". Helper reusable `lib/comprobanteTransfer.js` + `POST /pagos/comprobante-transferencia`. Campo `AvisoTransferencia.via` (jugador|admin).
+- **Turno POR PERSONA (el caso real del pádel):** cada jugador paga con su método en la misma pantalla (`CheckoutTurno.jsx`, sin tocar `ReservasPage`). Si elige MP → botón "📲 QR" por su monto; **cerrar sin pagar deshace** (vuelve al split para cambiar método). Comprobante por-persona en su tarjeta.
+- **Mesa:** `crearOrdenQRComanda` + `POST /comandas/:id/qr-cobrar`; el webhook (rama comanda) cierra la mesa sola al pagar.
+- **Autocierre:** `GET /pagos/qr/:id/estado` (polling 3s) en las 3 pantallas nuevas.
+- **Fix:** notificaciones de plata ya NO salen como avisos vacíos en el panel "Avisos de jugadores" de Reservas (se excluyen; viven en la campanita).
+- Commits: `8551ef9`, `4304c57`, `8c85293`, `378be34`, `a7a5518`, `59ea0b1`, `86671f5`, `d05d45d`.
+
+**PENDIENTE de probar en vivo:** turno por-persona (probado en montos chicos), venta rápida C+D, mesa QR, comprobante admin en cada una. **DESPUÉS: la lista de pendientes pre-deploy (arriba).**

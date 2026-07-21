@@ -417,6 +417,28 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   }
   useEffect(() => { if (esCobro) fetchDeudas(jugadorId) }, [jugadorId, esCobro]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Mientras el QR de billetera está en pantalla, preguntamos cada 3s si ya pagaron. Cuando el
+  // webhook acreditó (status approved) → cerramos el QR, avisamos "¡Cobrado!" y refrescamos.
+  useEffect(() => {
+    const id = walletQR?.pagoMpId
+    if (!id) return
+    let vivo = true
+    const timer = setInterval(async () => {
+      try {
+        const r = await api.get(`/pagos/qr/${id}/estado`, { Authorization: `Bearer ${token}` })
+        if (!vivo) return
+        if (r?.pagado) {
+          clearInterval(timer)
+          setWalletQR(null)
+          showToast('exito', `¡Cobrado! Se acreditó el pago de ${money(walletQR.monto)}`)
+          await fetchDeudas(jugadorId)
+          onRefresh?.()
+        }
+      } catch { /* reintenta en el próximo tick */ }
+    }, 3000)
+    return () => { vivo = false; clearInterval(timer) }
+  }, [walletQR?.pagoMpId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const agregarLinea = () => {
     if (sel === '__otro__') {
       if (!otroConcepto.trim() || !(Number(otroPrecio) > 0)) return setError('Completá concepto y monto')
@@ -584,7 +606,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
       const items = deudaSel.map((d) => ({ origen: d.origen, refId: d.refId }))
       const r = await api.post('/pagos/qr/cobrar', { items, jugadorId }, { Authorization: `Bearer ${token}` })
       const concepto = r.concepto || (deudaSel.length === 1 ? deudaSel[0].concepto : `${deudaSel.length} deudas`)
-      setWalletQR({ qrImage: r.qrImage, concepto, monto: r.monto ?? totalDeudaSel })
+      setWalletQR({ pagoMpId: r.pagoMpId, qrImage: r.qrImage, concepto, monto: r.monto ?? totalDeudaSel })
       await fetchLinksVivos(jugadorId)
     } catch (e) {
       showToast('error', e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el QR'))

@@ -121,6 +121,14 @@ router.post('/qr/cobrar', requireAuth, requireRole('admin'), requireFeature('fin
   }
 })
 
+// GET /api/pagos/qr/:id/estado — estado del intento de cobro QR (para que el modal haga polling
+// y se autocierre cuando el jugador paga). Liviano: solo el status del PagoMP.
+router.get('/qr/:id/estado', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+  const pm = await prisma.pagoMP.findFirst({ where: { id: req.params.id, clubId: req.user.clubId, tipo: 'qr' }, select: { status: true } })
+  if (!pm) return res.status(404).json({ error: 'no_encontrado' })
+  res.json({ status: pm.status, pagado: pm.status === 'approved' })
+})
+
 // POST /api/pagos/qr/:id/cancelar — libera la orden QR de la caja (el admin abandona el QR o
 // va a cobrar de otra forma). Borra la orden del POS + marca el intento cancelado.
 router.post('/qr/:id/cancelar', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {

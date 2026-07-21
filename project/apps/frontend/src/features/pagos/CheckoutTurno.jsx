@@ -267,6 +267,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
     if (!reserva._backendId || saving) return
     const esCobrar = p.modo === 'cobrar'
     if (p.tipo === 'casual' && !esCobrar) { setError('Un casual no puede quedar a cuenta'); return }
+    setAutoSplit(false) // desde que cobrás a alguien, los montos del resto quedan FIJOS (no se reparten solos)
     const metodo = esCobrar ? p.metodoPago : null
     const jid = p.tipo === 'casual' ? null : p.jugadorId
     setError(''); setSaving(true)
@@ -305,6 +306,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   const generarQRPersona = async (p) => {
     if (!reserva._backendId || saving) return
     if (p.tipo === 'casual') { setError('El QR de billetera es para jugadores con ficha. Un casual paga al contado.'); return }
+    setAutoSplit(false) // congela los montos del resto: no se reparten solos mientras esperamos este QR
     setError(''); setSaving(true)
     try {
       // Snapshot de los cargos-turno pendientes de esta persona ANTES de persistir (para saber

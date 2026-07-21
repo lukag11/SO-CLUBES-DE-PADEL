@@ -384,6 +384,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   const [linksVivos, setLinksVivos] = useState([])     // links de MP activos del jugador (esperando pago)
   const [usarSplit, setUsarSplit] = useState(false)     // cobro: pagó con 2 métodos
   const [metodo2, setMetodo2] = useState(metodos[1] ?? metodos[0] ?? 'transferencia')
+  const [comprobanteCobro, setComprobanteCobro] = useState(null) // cobro transferencia: foto adjunta (dataURL)
   const [monto1, setMonto1] = useState('')              // cobro: monto del método 1 cuando hay split
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false) // candado SÍNCRONO anti doble-submit (setSaving es async → no frena el 2º click rápido)
@@ -553,7 +554,11 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
         const body = { jugadorId, items: deudaSel.map((d) => ({ origen: d.origen, refId: d.refId })), monto: montoCobrarNum }
         if (usarSplit) body.lineas = [{ metodo: metodoPago, monto: monto1Num }, { metodo: metodo2, monto: monto2Num }]
         else body.metodoPago = metodoPago
+        // Si el cobro toca transferencia y el dueño adjuntó comprobante, lo mandamos (se guarda + IA lo lee).
+        const hayTransfer = usarSplit ? (metodoPago === 'transferencia' || metodo2 === 'transferencia') : metodoPago === 'transferencia'
+        if (comprobanteCobro && hayTransfer) body.comprobante = comprobanteCobro
         await api.post('/cargos/cobrar-cuenta', body, auth)
+        setComprobanteCobro(null)
       }
       onRefresh()
       // Venta cobrada → ofrecer ticket / WhatsApp
@@ -851,6 +856,24 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
                   <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400">
                     {metodos.map((id) => <option key={id} value={id}>{METODO_MAP[id]?.label ?? id}</option>)}
                   </select>
+                </div>
+              )}
+              {esCobro && deudaSel.length > 0 && (metodoPago === 'transferencia' || (usarSplit && metodo2 === 'transferencia')) && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-500 font-medium">Comprobante de transferencia <span className="text-slate-400">(opcional)</span></label>
+                  {comprobanteCobro ? (
+                    <div className="flex items-center gap-2">
+                      <img src={comprobanteCobro} alt="comprobante" className="w-12 h-12 rounded-lg object-cover border border-slate-200" />
+                      <span className="text-xs text-emerald-600 font-semibold">Adjuntado ✓</span>
+                      <button type="button" onClick={() => setComprobanteCobro(null)} className="text-xs text-rose-500 hover:underline ml-auto">Quitar</button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-slate-300 text-slate-500 text-xs cursor-pointer hover:bg-slate-50 transition-colors">
+                      📎 Adjuntar comprobante
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => setComprobanteCobro(rd.result); rd.readAsDataURL(f) }} />
+                    </label>
+                  )}
+                  <p className="text-[10px] text-slate-400 leading-snug">La IA lee el monto y queda guardado en Pagados. Si no lo tenés, cobrá igual.</p>
                 </div>
               )}
               {error && <p className="text-rose-500 text-xs">{error}</p>}

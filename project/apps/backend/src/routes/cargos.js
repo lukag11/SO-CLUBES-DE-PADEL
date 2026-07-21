@@ -10,6 +10,8 @@ import { reponerStock } from '../lib/stock.js'
 import { mpConfigurado } from '../lib/mercadopago.js'
 import { crearLinkPagoDeuda, cancelarLinksDeItems } from '../lib/cobrosMP.js'
 import { cancelarOrdenesQRDeItems } from '../lib/cobrosQR.js'
+import { extraerComprobanteTransferencia, veredictoTransferencia } from '../lib/ocrComprobante.js'
+import { uploadImage } from '../lib/imageUpload.js'
 
 const router = Router()
 
@@ -301,8 +303,34 @@ router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), requireFeature(
       // Imputación FIFO compartida con el webhook de MP (lib/pagos.js: imputarPagoTx).
       // La MISMA lógica dentro de esta TX Serializable → mostrador y webhook no se pisan.
       const impu = await imputarPagoTx(tx, { clubId, jugadorId, items, monto: montoACobrar, lineas: lineasIn })
-      return { pagoId: impu.pagoId, montoACobrar, totalRestante }
+      const montoTransfer = lineasIn.filter((l) => l.metodo === 'transferencia').reduce((s, l) => s + l.monto, 0)
+      return { pagoId: impu.pagoId, montoACobrar, totalRestante, montoTransfer }
     })
+
+    // Comprobante de transferencia (OPCIONAL, del lado admin): el dueño adjunta la foto que le
+    // mandaron. Se guarda en Storage + la IA lee el monto para cruzarlo, y se registra como un
+    // AvisoTransferencia YA aprobado (no re-imputa: la plata ya se cobró arriba) → aparece en
+    // Pagados ("Ver comprobante"), igual que el flujo del jugador. Best-effort: no rompe el cobro.
+    const comprobante = req.body?.comprobante
+    if (comprobante && typeof comprobante === 'string' && out.montoTransfer > 0) {
+      try {
+        const { url: comprobanteUrl } = await uploadImage(comprobante, { profile: 'default', folder: `comprobantes/${clubId}` })
+        if (comprobanteUrl) {
+          const club = await prisma.club.findUnique({ where: { id: clubId }, select: { config: true } })
+          const aliasClub = club?.config?.aliasTransferencia || ''
+          let iaMonto = null, iaAlias = null, iaFecha = null, iaResumen = null, iaVeredicto = 'sin_comprobante'
+          try {
+            const ia = await extraerComprobanteTransferencia(comprobante)
+            iaMonto = ia.monto; iaAlias = ia.aliasDestino; iaFecha = ia.fecha
+            iaResumen = [ia.origen ? `de ${ia.origen}` : null, ia.titularDestino ? `para ${ia.titularDestino}` : null].filter(Boolean).join(' · ') || null
+            iaVeredicto = veredictoTransferencia({ iaMonto: ia.monto, iaAlias: ia.aliasDestino, iaCbu: ia.cbuDestino, montoEsperado: out.montoTransfer, aliasClub })
+          } catch (e) { console.error('[cobrar-cuenta] OCR comprobante', e.message); iaVeredicto = 'dudoso' }
+          await prisma.avisoTransferencia.create({
+            data: { clubId, jugadorId, items, montoDeclarado: out.montoTransfer, comprobanteUrl, iaMonto, iaAlias, iaFecha, iaResumen, iaVeredicto, estado: 'aprobado', pagoId: out.pagoId, resueltoAt: new Date() },
+          })
+        }
+      } catch (e) { console.error('[cobrar-cuenta] comprobante', e.message) }
+    }
 
     // Se cobró por otro medio → si estas deudas tenían un link de MP o un QR de billetera vivo,
     // cancelarlo (evita fantasma y sobrepago si el jugador igual lo paga). Cleanup, no rompe el cobro.

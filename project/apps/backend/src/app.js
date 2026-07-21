@@ -74,6 +74,8 @@ app.use('/api/gastos/extraer', express.json({ limit: '15mb' }))
 
 // El aviso de transferencia puede traer el comprobante en base64 (foto) → mismo parser grande.
 app.use('/api/pagos/me/aviso-transferencia', express.json({ limit: '15mb' }))
+// Cobrar cuenta (admin) puede adjuntar el comprobante de transferencia en base64 → parser grande.
+app.use('/api/cargos/cobrar-cuenta', express.json({ limit: '15mb' }))
 
 // Tras migrar las imágenes a Storage los payloads quedan chicos; este límite
 // se puede bajar a ~2mb una vez confirmada la migración.

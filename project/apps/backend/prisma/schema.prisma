@@ -649,6 +649,7 @@ model AvisoTransferencia {
   iaVeredicto    String    @default("sin_comprobante")   // coincide | no_coincide | dudoso | sin_comprobante
   iaResumen      String?                                 // nota corta de la IA (auditoría)
   estado         String    @default("en_revision")       // en_revision | aprobado | rechazado
+  via            String    @default("jugador")           // jugador (lo declaró en su dash) | admin (lo registró el club en Cobrar cuenta)
   pagoId         String?                                 // Pago creado al aprobar (una sola vez)
   resueltoAt     DateTime?
   createdAt      DateTime  @default(now())

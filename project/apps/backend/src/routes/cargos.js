@@ -156,11 +156,11 @@ router.get('/cobranzas', requireAuth, requireRole('admin'), requireFeature('fina
     // en el filtro "Pagados"). Se resuelve por los avisos aprobados que cubrían cada deuda.
     const avisos = await prisma.avisoTransferencia.findMany({
       where: { clubId, estado: 'aprobado', comprobanteUrl: { not: null } },
-      select: { items: true, comprobanteUrl: true, iaMonto: true, iaAlias: true, iaFecha: true, iaResumen: true, iaVeredicto: true },
+      select: { items: true, comprobanteUrl: true, iaMonto: true, iaAlias: true, iaFecha: true, iaResumen: true, iaVeredicto: true, via: true },
     })
     const compPorRef = {}
     for (const a of avisos) for (const it of (Array.isArray(a.items) ? a.items : [])) {
-      compPorRef[`${it.origen}:${it.refId}`] = { comprobanteUrl: a.comprobanteUrl, iaMonto: a.iaMonto, iaAlias: a.iaAlias, iaFecha: a.iaFecha, iaResumen: a.iaResumen, iaVeredicto: a.iaVeredicto }
+      compPorRef[`${it.origen}:${it.refId}`] = { comprobanteUrl: a.comprobanteUrl, iaMonto: a.iaMonto, iaAlias: a.iaAlias, iaFecha: a.iaFecha, iaResumen: a.iaResumen, iaVeredicto: a.iaVeredicto, via: a.via }
     }
 
     // Distinguir, en los pagos de Mercado Pago ya acreditados, si fueron por QR de billetera
@@ -326,7 +326,7 @@ router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), requireFeature(
             iaVeredicto = veredictoTransferencia({ iaMonto: ia.monto, iaAlias: ia.aliasDestino, iaCbu: ia.cbuDestino, montoEsperado: out.montoTransfer, aliasClub })
           } catch (e) { console.error('[cobrar-cuenta] OCR comprobante', e.message); iaVeredicto = 'dudoso' }
           await prisma.avisoTransferencia.create({
-            data: { clubId, jugadorId, items, montoDeclarado: out.montoTransfer, comprobanteUrl, iaMonto, iaAlias, iaFecha, iaResumen, iaVeredicto, estado: 'aprobado', pagoId: out.pagoId, resueltoAt: new Date() },
+            data: { clubId, jugadorId, items, montoDeclarado: out.montoTransfer, comprobanteUrl, iaMonto, iaAlias, iaFecha, iaResumen, iaVeredicto, estado: 'aprobado', via: 'admin', pagoId: out.pagoId, resueltoAt: new Date() },
           })
         }
       } catch (e) { console.error('[cobrar-cuenta] comprobante', e.message) }

@@ -1415,6 +1415,9 @@ const PagosPage = () => {
               <div className="min-w-0">
                 <p className="text-slate-800 font-bold text-sm">Comprobante de transferencia</p>
                 <p className="text-slate-400 text-xs truncate">{compModal.jugador ? `${compModal.jugador.nombre} ${compModal.jugador.apellido}` : ''} · {compModal.concepto}</p>
+                <span className={`inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${compModal.via === 'admin' ? 'text-slate-600 bg-slate-100' : 'text-violet-600 bg-violet-50'}`}>
+                  {compModal.via === 'admin' ? '🏢 Registrado por el club' : '🧑 Declarado por el jugador'}
+                </span>
               </div>
               <button onClick={() => setCompModal(null)} className="text-slate-300 hover:text-slate-600 shrink-0"><X size={18} /></button>
             </div>

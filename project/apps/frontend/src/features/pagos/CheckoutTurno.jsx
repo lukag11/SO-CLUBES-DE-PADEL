@@ -283,6 +283,17 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
         }
       }
       await refrescarCuenta()
+      // Comprobante de transferencia de ESTA persona (opcional): se guarda + la IA lee el monto y
+      // queda en Pagados ("Ver comprobante"), igual que en Cobranzas. Reusa el endpoint del admin.
+      if (esCobrar && metodo === 'transferencia' && p.comprobante && jid) {
+        try {
+          const d = await api.get(`/reservas/${reserva._backendId}/cuenta`, auth)
+          const suyos = (Array.isArray(d?.cargosCuenta) ? d.cargosCuenta : []).filter((c) => c.jugadorId === jid && c.estado === 'pagado' && c.metodoPago === 'transferencia')
+          const items = suyos.map((c) => ({ origen: 'cargo', refId: c.id }))
+          const monto = suyos.reduce((s, c) => s + c.monto, 0)
+          if (items.length) await api.post('/pagos/comprobante-transferencia', { items, jugadorId: jid, monto, comprobante: p.comprobante }, auth)
+        } catch { /* best-effort: el cobro ya quedó registrado */ }
+      }
       setPersonas((prev) => prev.filter((x) => x.key !== p.key)) // ya quedó registrada
     } catch (e) { setError(e?.message || 'No se pudo cobrar a esta persona') }
     finally { setSaving(false) }
@@ -771,6 +782,20 @@ const ModoSplit = ({ personas, setPersonas, saldoTurno, restoTurno, turnoAsignad
                   </button>
                 )}
               </div>
+              {/* Comprobante de transferencia de esta persona (opcional) */}
+              {p.modo === 'cobrar' && p.metodoPago === 'transferencia' && p.tipo !== 'casual' && (
+                p.comprobante ? (
+                  <div className="flex items-center gap-1.5 text-[11px]">
+                    <span className="text-emerald-600 font-semibold">📎 Comprobante ✓</span>
+                    <button onClick={() => setPersona(p.key, { comprobante: null })} className="text-rose-500 hover:underline ml-auto">Quitar</button>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-1 py-1 rounded-lg border border-dashed border-slate-300 text-slate-500 text-[11px] cursor-pointer hover:bg-slate-50 transition-colors">
+                    📎 Comprobante (opcional)
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => setPersona(p.key, { comprobante: rd.result }); rd.readAsDataURL(f) }} />
+                  </label>
+                )
+              )}
             </div>
           </div>
         ))}

@@ -160,7 +160,20 @@ router.get('/cobranzas', requireAuth, requireRole('admin'), requireFeature('fina
     for (const a of avisos) for (const it of (Array.isArray(a.items) ? a.items : [])) {
       compPorRef[`${it.origen}:${it.refId}`] = { comprobanteUrl: a.comprobanteUrl, iaMonto: a.iaMonto, iaAlias: a.iaAlias, iaFecha: a.iaFecha, iaResumen: a.iaResumen, iaVeredicto: a.iaVeredicto }
     }
-    const deudasFinal = deudas.map((d) => compPorRef[`${d.origen}:${d.refId}`] ? { ...d, transferencia: compPorRef[`${d.origen}:${d.refId}`] } : d)
+
+    // Distinguir, en los pagos de Mercado Pago ya acreditados, si fueron por QR de billetera
+    // (presencial) o por link de Checkout Pro. Se resuelve por el PagoMP approved que cubría cada deuda.
+    const pagosMp = await prisma.pagoMP.findMany({ where: { clubId, status: 'approved' }, select: { origen: true, refId: true, items: true, tipo: true } })
+    const mpTipoPorRef = {}
+    for (const p of pagosMp) {
+      const its = p.origen === 'multi' ? (Array.isArray(p.items) ? p.items : []) : [{ origen: p.origen, refId: p.refId }]
+      for (const it of its) mpTipoPorRef[`${it.origen}:${it.refId}`] = p.tipo || 'checkout'
+    }
+
+    const deudasFinal = deudas.map((d) => {
+      const k = `${d.origen}:${d.refId}`
+      return { ...d, ...(compPorRef[k] ? { transferencia: compPorRef[k] } : {}), ...(mpTipoPorRef[k] ? { mpTipo: mpTipoPorRef[k] } : {}) }
+    })
 
     res.json({
       deudas: deudasFinal,

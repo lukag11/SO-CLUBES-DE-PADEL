@@ -1356,6 +1356,11 @@ const PagosPage = () => {
                       <button onClick={() => setCambiandoMetodo(c)} title="Cambiar método" className="hover:opacity-70 transition-opacity">
                         <MetodoBadge metodo={c.metodoPago} />
                       </button>
+                      {c.metodoPago === 'mercadopago' && c.mpTipo && (
+                        <span title={c.mpTipo === 'qr' ? 'Cobrado con QR de billetera (presencial)' : 'Cobrado con link de Checkout Pro'} className="text-[10px] font-bold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded">
+                          {c.mpTipo === 'qr' ? 'QR' : 'Link'}
+                        </span>
+                      )}
                       <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
                         <CheckCircle size={12} /> Pagado
                       </span>

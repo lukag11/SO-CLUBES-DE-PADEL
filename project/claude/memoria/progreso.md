@@ -3116,3 +3116,32 @@ El backend corría con código viejo (proceso Node.js iniciado antes de aplicar 
 1. Relanzar agente QA de concurrencia → sumar escenarios faltantes a la suite + **consolidar reserva/clase/convocatoria a `conflictos.js`** (cierre total del bloque reservas).
 2. **Deuda #2**: alinear formato de categorías (chips ↔ base).
 3. Matching caso 1 (botón landing "no tengo con quién jugar" → convocatorias abiertas de mi categoría). Borrar data de prueba.
+
+## 2026-07-20 — QR de billetera interoperable: FACTIBILIDAD CONFIRMADA (spike S0)
+
+Cerró un maratón (cobros MP completos: link multi-deuda, QR presencial venta/mesa, pago iniciado por el jugador probado en vivo, anti-doble-click, transferencia con IA/comprobante inteligente + parcial + obligatorio, historial unificado en Cobranzas con filtro por fecha).
+
+**Nuevo hallazgo (spike S0):** el **QR de billetera interoperable** (cualquier billetera, no solo MP — Transferencias 3.0) **ES VIABLE**. El riesgo era el rubro (MCC) al crear la caja/POS → **resuelto: sin `category` = rubro genérico, MP lo acepta**. Store + POS creados OK contra la cuenta real (con `qr.image`). Detalle completo + payloads que funcionan + plan de slices en memoria: `project_qr_billetera_interoperable.md`. Archivo de referencia: `project/apps/backend/spike-qr.mjs` (temp, untracked).
+
+### ▶️ MAÑANA (pedido explícito de Luca): arrancar **QR billetera GUIADO paso a paso**
+- **S1** crear/asegurar caja del club idempotente (guardar posId) → **S2** orden con monto (qr_data) → **S3** front (QR al lado del de Checkout Pro) → **S4** webhook topic `order` → **S5** ciclo de vida + prueba en vivo.
+- **Después del QR billetera:** la lista de pendientes pre-deploy (config producción, cobros futuros diseño, post-deploy, roadmap, bugs).
+- Limpieza: borrar store/POS "Spike" (ids 85025878 / 135593781) de la cuenta MP al armar las definitivas.
+
+## 2026-07-21 — QR de billetera interoperable: IMPLEMENTADO (S1-S5)
+
+Bloque completo, guiado slice por slice con Luca. Cobrar a un jugador mostrándole un QR que paga con **cualquier billetera** (MODO, Ualá, Naranja X, banco, MP) — no solo la app de Mercado Pago. Independiente de Checkout Pro (que sigue igual). Detalle técnico completo (archivos, endpoints, payloads, aprendizajes) en memoria `project_qr_billetera_interoperable.md`.
+
+- **S1** `lib/cobrosQR.js` `asegurarCajaQR` (store+POS idempotente por club, campos en `MpConexion`). Probado vivo.
+- **S2** `crearOrdenQR` + `PagoMP.tipo='qr'` + `POST /pagos/qr/cobrar`. Orden dinámica sobre el POS (`PUT /instore/qr/.../orders`). Probado vivo.
+- **S3** `PagosPage.jsx`: botón violeta "QR billetera" + modal con el QR (PNG de MP, logo Transferencias 3.0). Visto andando.
+- **S4** `webhooks.js`: rama `merchant_order` → reusa `procesarPago` (idempotencia, Serializable, avisa al dueño). `obtenerMerchantOrder` en mercadopago.js.
+- **S5** anti-doble-cobro: una orden viva por caja (supersede), `POST /pagos/qr/:id/cancelar`, y `cancelarOrdenesQRDeItems` enganchado en cargos.js (si se cobra en efectivo, el QR se mata). Probado vivo.
+
+**Clave técnica:** POS SIN category = rubro genérico (resolvió `pos_unknown_mcc`); external_id del POS alfanumérico; orden va a `/instore/qr/.../orders`. La caja se crea SOLA (lazy) al primer cobro QR — el dueño solo necesita MP conectado (OAuth). Cero pasos extra en el panel de MP.
+
+### ▶️ FALTA para cerrar el QR billetera: **prueba viva post-deploy**
+El webhook `merchant_order` tiene que estar en Railway (MP no alcanza localhost). Deploy → generar QR desde Cobranzas → pagar con otra billetera → ver deuda saldada sola + campanita del dueño + revisar logs Railway.
+
+### ▶️ DESPUÉS: la lista de pendientes pre-deploy
+Config producción (vaciar MP_ACCESS_TOKEN Railway, firma webhook obligatoria, verif email signup, bajar body limit, proteger /api/dev), cobros futuros (diseño saldo a favor + limpieza comprobantes), post-deploy (re-subir imágenes, caché Storage, guía onboarding 2º club), roadmap (feature gating, WhatsApp, stats, features.md), bugs (categorías, matching caso 1, consolidar conflictos.js).

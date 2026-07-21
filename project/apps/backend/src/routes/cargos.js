@@ -9,6 +9,7 @@ import { runSerializable } from '../lib/serializable.js'
 import { reponerStock } from '../lib/stock.js'
 import { mpConfigurado } from '../lib/mercadopago.js'
 import { crearLinkPagoDeuda, cancelarLinksDeItems } from '../lib/cobrosMP.js'
+import { cancelarOrdenesQRDeItems } from '../lib/cobrosQR.js'
 
 const router = Router()
 
@@ -290,9 +291,10 @@ router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), requireFeature(
       return { pagoId: impu.pagoId, montoACobrar, totalRestante }
     })
 
-    // Se cobró por otro medio → si estas deudas tenían un link de MP vivo, cancelarlo (evita
-    // link fantasma y sobrepago si el jugador igual lo paga). Cleanup, no rompe el cobro.
+    // Se cobró por otro medio → si estas deudas tenían un link de MP o un QR de billetera vivo,
+    // cancelarlo (evita fantasma y sobrepago si el jugador igual lo paga). Cleanup, no rompe el cobro.
     await cancelarLinksDeItems(clubId, items).catch(() => {})
+    await cancelarOrdenesQRDeItems(clubId, items).catch(() => {})
 
     res.json({ ok: true, pagoId: out.pagoId, cobrado: out.montoACobrar, parcial: out.montoACobrar < out.totalRestante, restante: out.totalRestante - out.montoACobrar })
   } catch (err) {
@@ -344,8 +346,9 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), requireFeature('f
       // Con cobro en el libro de plata: completar/anular va por "Cobrar cuenta" (caja exacta).
       if (saldo > 0) return res.status(409).json({ error: 'en_libro_plata', message: 'Este cargo ya tiene un cobro registrado. Completá o anulá desde Cobrar cuenta.' })
       const updated = await prisma.cargo.update({ where: { id }, data: { estado, pagadoAt: new Date(), metodoPago: normalizarMetodo(metodoPago) }, include: incl })
-      // Se cobró por otro medio → cancelar su link de MP vivo (evita fantasma/sobrepago).
+      // Se cobró por otro medio → cancelar su link de MP y su QR de billetera vivos (evita fantasma/sobrepago).
       await cancelarLinksDeItems(cargo.clubId, [{ origen: 'cargo', refId: id }]).catch(() => {})
+      await cancelarOrdenesQRDeItems(cargo.clubId, [{ origen: 'cargo', refId: id }]).catch(() => {})
       return res.json(conVencido(updated))
     }
 

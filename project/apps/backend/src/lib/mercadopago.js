@@ -106,6 +106,18 @@ export async function obtenerPago(clubId, paymentId) {
   return payment.get({ id: paymentId })
 }
 
+// Consulta una merchant_order por id (el aviso del QR de billetera llega como topic
+// 'merchant_order'; la orden trae adentro external_reference + la lista de payments).
+// Re-consulta con el token del club (RN-70). Devuelve el objeto crudo de MP.
+export async function obtenerMerchantOrder(clubId, orderId) {
+  const token = await resolveMpToken(clubId)
+  if (!token) throw Object.assign(new Error('Mercado Pago no está configurado en este club'), { status: 503 })
+  const r = await fetch(`https://api.mercadopago.com/merchant_orders/${orderId}`, { headers: { Authorization: `Bearer ${token}` } })
+  const d = await r.json().catch(() => null)
+  if (!r.ok) throw Object.assign(new Error(d?.message || 'Error al consultar la orden'), { httpStatus: r.status })
+  return d
+}
+
 // ── OAuth (conectar la cuenta MP de cada club) ────────────────────────────────
 export const mpOAuthConfigurado = () => !!(process.env.MP_CLIENT_ID && process.env.MP_CLIENT_SECRET)
 

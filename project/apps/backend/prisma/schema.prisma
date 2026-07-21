@@ -67,6 +67,13 @@ model MpConexion {
   conectadoAt        DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  // Caja QR de billetera interoperable (Transferencias 3.0). Se crea 1 vez por club
+  // (idempotente, lib/cobrosQR.js). NUNCA sale al frontend. Ver project_qr_billetera_interoperable.
+  qrStoreId          String?                            // id de la sucursal (store) en MP
+  qrPosId            String?                            // id de la caja (POS) en MP
+  qrPosExternalId    String?                            // external_id alfanumérico de la caja (para órdenes)
+  qrImage            String?                            // URL del PNG del QR de la caja
+
   @@map("mp_conexiones")
 }
 
@@ -611,8 +618,10 @@ model PagoMP {
   jugadorId     String?                                 // dueño de la(s) deuda(s); se completa al generar (para imputar sin re-derivar)
   items         Json?                                   // solo 'multi': [{origen,refId}] de las deudas que cubre el link
   montoEsperado Int                                     // restante de la(s) deuda(s) al generar el link (pesos)
+  tipo          String    @default("checkout")          // checkout (Checkout Pro) | qr (QR de billetera interoperable)
+  qrPosExtId    String?                                 // solo tipo=qr: external_pos_id de la caja donde vive la orden (para limpiarla)
   preferenceId  String?                                 // id de la preferencia de Checkout Pro
-  initPoint     String?                                 // URL de pago (init_point) para mandar por WhatsApp
+  initPoint     String?                                 // URL de pago (init_point) o, en tipo=qr, la URL del PNG del QR
   mpPaymentId   String?   @unique                       // id del payment de MP → idempotencia (llega en el webhook)
   status        String    @default("iniciado")          // iniciado | pending | approved | rejected | refunded | charged_back | cancelled
   statusDetail  String?                                 // status_detail crudo de MP (auditoría)

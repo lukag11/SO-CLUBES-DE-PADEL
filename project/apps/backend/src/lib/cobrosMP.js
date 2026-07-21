@@ -9,7 +9,7 @@ const frontBase = () => (process.env.APP_PUBLIC_URL && process.env.APP_PUBLIC_UR
 
 // Lee UNA deuda (cargo o reserva/turno) y devuelve su restante real, concepto y jugador dueño.
 // Fuente única para el link single y el multi. Lanza err(4xx) si no existe / ya está saldada.
-async function _resolverDeuda(clubId, origen, refId) {
+export async function _resolverDeuda(clubId, origen, refId) {
   if (origen === 'cargo') {
     const c = await prisma.cargo.findFirst({ where: { id: refId, clubId }, select: { concepto: true, monto: true, saldoPagado: true, estado: true, jugadorId: true } })
     if (!c) throw err(404, 'no_encontrado', 'Deuda no encontrada')
@@ -33,7 +33,7 @@ async function _resolverDeuda(clubId, origen, refId) {
 // a claves 'origen:refId'. Base para reusar el idéntico y bloquear el que se solapa (RN-77).
 async function _linksVivos(clubId) {
   const rows = await prisma.pagoMP.findMany({
-    where: { clubId, status: { in: ['iniciado', 'pending'] }, initPoint: { not: null }, OR: [{ expiraAt: null }, { expiraAt: { gt: new Date() } }] },
+    where: { clubId, tipo: 'checkout', status: { in: ['iniciado', 'pending'] }, initPoint: { not: null }, OR: [{ expiraAt: null }, { expiraAt: { gt: new Date() } }] },
     orderBy: { createdAt: 'desc' },
   })
   return rows.map((r) => ({

@@ -380,6 +380,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   const [metodoPago, setMetodoPago] = useState(metodos[0] ?? 'efectivo')
   const [montoCobrar, setMontoCobrar] = useState('')   // cobro: monto a cobrar (editable → entrega parcial)
   const [mpLink, setMpLink] = useState(null)           // link de pago MP generado { initPoint, concepto, monto, tel }
+  const [walletQR, setWalletQR] = useState(null)       // QR de billetera interoperable { qrImage, concepto, monto }
   const [linksVivos, setLinksVivos] = useState([])     // links de MP activos del jugador (esperando pago)
   const [usarSplit, setUsarSplit] = useState(false)     // cobro: pagó con 2 métodos
   const [metodo2, setMetodo2] = useState(metodos[1] ?? metodos[0] ?? 'transferencia')
@@ -571,6 +572,25 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     } finally { savingRef.current = false; setSaving(false) }
   }
 
+  // Genera el QR de billetera INTEROPERABLE (Transferencias 3.0) para la(s) deuda(s) del jugador.
+  // Se muestra en pantalla y el jugador lo escanea con CUALQUIER billetera (MODO, Ualá, banco, MP…).
+  // Se marca pagada sola cuando pagan (webhook). Presencial (no se manda por WhatsApp).
+  const generarQRBilletera = async () => {
+    if (savingRef.current) return
+    if (deudaSel.length === 0) { setError('Elegí al menos una deuda para el QR'); return }
+    savingRef.current = true
+    setSaving(true); setError('')
+    try {
+      const items = deudaSel.map((d) => ({ origen: d.origen, refId: d.refId }))
+      const r = await api.post('/pagos/qr/cobrar', { items, jugadorId }, { Authorization: `Bearer ${token}` })
+      const concepto = r.concepto || (deudaSel.length === 1 ? deudaSel[0].concepto : `${deudaSel.length} deudas`)
+      setWalletQR({ qrImage: r.qrImage, concepto, monto: r.monto ?? totalDeudaSel })
+      await fetchLinksVivos(jugadorId)
+    } catch (e) {
+      showToast('error', e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el QR'))
+    } finally { savingRef.current = false; setSaving(false) }
+  }
+
   // Días hasta el vencimiento del link, en criollo.
   const venceEn = (iso) => {
     const dias = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000)
@@ -609,6 +629,25 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
               <button onClick={() => enviarWhatsApp(ticketTexto(ticketVenta, club), ticketVenta.tel)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#25D366] hover:brightness-95 text-white font-semibold text-sm">WhatsApp</button>
             </div>
             <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
+          </div>
+        )}
+        {walletQR && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => { setWalletQR(null); onClose() }}>
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+            <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl flex flex-col items-center text-center gap-3 p-7 max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <button onClick={() => { setWalletQR(null); onClose() }} className="absolute top-4 right-4 text-slate-300 hover:text-slate-600 transition-colors"><X size={18} /></button>
+              <div className="w-11 h-11 rounded-2xl bg-violet-50 flex items-center justify-center text-2xl">📲</div>
+              <div>
+                <p className="text-slate-800 font-bold">Escaneá para pagar</p>
+                <p className="text-slate-400 text-xs mt-0.5">{walletQR.concepto} · {money(walletQR.monto)}</p>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                <img src={walletQR.qrImage} alt="QR de pago" width={200} height={200} className="w-[200px] h-[200px] object-contain" />
+              </div>
+              <p className="text-[11px] text-violet-500 font-semibold leading-snug">Sirve con cualquier billetera: MODO, Ualá, Naranja X, tu banco o Mercado Pago.</p>
+              <p className="text-[11px] text-slate-400 leading-snug">Se marca pagado <b>solo</b> cuando el cliente pague. Queda pendiente hasta entonces — no lo cobres aparte para no cobrar dos veces.</p>
+              <button onClick={() => { setWalletQR(null); onClose() }} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
+            </div>
           </div>
         )}
         {mpLink && (
@@ -802,6 +841,11 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
                 {esCobro && metodoPago === 'mercadopago' && (
                   <button onClick={generarLinkMP} disabled={saving || deudaSel.length < 1 || deudaSelConLink} title={deudaSelConLink ? 'Estas deudas ya tienen un link activo: reenvialo o cancelalo desde el cartel de arriba' : 'Genera un link de Mercado Pago para enviar por WhatsApp (una o varias deudas juntas; se marcan solas al pagar)'} className="flex-1 py-2.5 rounded-xl border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 font-semibold text-sm transition-colors disabled:opacity-40">
                     {deudaSelConLink ? 'Link activo ↑' : `Link de pago${deudaSel.length > 1 ? ` (${deudaSel.length})` : ''}`}
+                  </button>
+                )}
+                {esCobro && metodoPago === 'mercadopago' && (
+                  <button onClick={generarQRBilletera} disabled={saving || deudaSel.length < 1} title="Muestra un QR que el jugador escanea con CUALQUIER billetera (MODO, Ualá, banco, Mercado Pago…). Se salda solo al pagar." className="flex-1 py-2.5 rounded-xl border border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100 font-semibold text-sm transition-colors disabled:opacity-40">
+                    QR billetera{deudaSel.length > 1 ? ` (${deudaSel.length})` : ''}
                   </button>
                 )}
                 {esVenta && metodoPago === 'mercadopago' && (

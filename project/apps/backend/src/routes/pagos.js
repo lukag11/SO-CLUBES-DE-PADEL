@@ -6,6 +6,7 @@ import { revertirPagoTx, imputarPagoTx } from '../lib/pagos.js'
 import { runSerializable } from '../lib/serializable.js'
 import { mpConfigurado } from '../lib/mercadopago.js'
 import { crearLinkPagoDeuda, crearLinkPagoMultiple, linksVivosDeDeudas } from '../lib/cobrosMP.js'
+import { crearOrdenQR, cancelarOrdenQR } from '../lib/cobrosQR.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
 import { extraerComprobanteTransferencia, veredictoTransferencia } from '../lib/ocrComprobante.js'
 import { uploadImage } from '../lib/imageUpload.js'
@@ -99,6 +100,35 @@ router.post('/link-pago', requireAuth, requireRole('admin'), requireFeature('fin
     const status = err.status || 500
     if (status >= 500) console.error('[link-pago]', err)
     res.status(status).json({ error: err.error || 'error', message: err.message || 'No se pudo generar el link de pago' })
+  }
+})
+
+// POST /api/pagos/qr/cobrar — S2: genera el QR de billetera interoperable para una deuda (o
+// varias del mismo jugador). Carga el monto en la caja del club y devuelve la imagen del QR.
+// El jugador lo escanea con CUALQUIER billetera. La acreditación real llega por el webhook.
+router.post('/qr/cobrar', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+  const clubId = req.user.clubId
+  const { items, jugadorId, origen, refId } = req.body || {}
+  const lista = Array.isArray(items) && items.length ? items : (refId ? [{ origen, refId }] : [])
+  if (lista.length === 0) return res.status(400).json({ error: 'datos_incompletos', message: 'Falta la deuda a cobrar.' })
+  try {
+    const out = await crearOrdenQR({ clubId, jugadorId: jugadorId || null, deudas: lista })
+    res.status(201).json(out)
+  } catch (err) {
+    const status = err.status || 500
+    if (status >= 500) console.error('[qr/cobrar]', err)
+    res.status(status).json({ error: err.error || 'error', message: err.message || 'No se pudo generar el QR de cobro' })
+  }
+})
+
+// POST /api/pagos/qr/:id/cancelar — libera la orden QR de la caja (el admin abandona el QR o
+// va a cobrar de otra forma). Borra la orden del POS + marca el intento cancelado.
+router.post('/qr/:id/cancelar', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+  try {
+    const out = await cancelarOrdenQR(req.user.clubId, req.params.id)
+    res.json(out)
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.error || 'error', message: err.message || 'No se pudo cancelar el QR' })
   }
 })
 

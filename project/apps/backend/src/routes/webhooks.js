@@ -3,7 +3,7 @@ import crypto from 'crypto'
 import prisma from '../lib/prisma.js'
 import { runSerializable } from '../lib/serializable.js'
 import { imputarPagoTx, revertirPagoTx } from '../lib/pagos.js'
-import { obtenerPago } from '../lib/mercadopago.js'
+import { obtenerPago, obtenerMerchantOrder } from '../lib/mercadopago.js'
 
 const router = Router()
 
@@ -27,6 +27,14 @@ const extractPaymentId = (req) => {
   const q = req.query || {}
   const b = req.body || {}
   return q['data.id'] || q.id || b?.data?.id || (b?.type === 'payment' ? b?.data?.id : null) || null
+}
+
+// Extrae el merchant_order id (aviso del QR de billetera). Llega como ?topic=merchant_order&id=…
+// (IPN), o {type:'merchant_order',data:{id}} (webhook v2), o con `resource` = URL de la orden.
+const extractMerchantOrderId = (req) => {
+  const q = req.query || {}, b = req.body || {}
+  const desdeResource = (r) => { const m = String(r || '').match(/merchant_orders\/(\d+)/); return m ? m[1] : null }
+  return q.id || q['data.id'] || b?.data?.id || desdeResource(b?.resource) || desdeResource(q.resource) || null
 }
 
 // Valida la firma x-signature de MP (HMAC). Soft: si falla loguea pero NO bloquea,
@@ -162,12 +170,64 @@ async function procesarPago(pagoMP, { paymentId, status, statusDetail, amount })
   await prisma.pagoMP.update({ where: { id: pagoMP.id }, data: { mpPaymentId: paymentId, status: nuevo, statusDetail: statusDetail || null } })
 }
 
+// Rama del QR de billetera: el aviso llega como topic 'merchant_order'. Re-consultamos la
+// orden con el token del club (RN-70); trae external_reference (→ nuestro PagoMP) y la lista
+// de payments. Elegimos el pago aprobado (si hay) y lo procesamos con el MISMO motor que
+// Checkout Pro (procesarPago: idempotente, Serializable, notifica al dueño).
+async function manejarMerchantOrder(req, res, clubIdPath) {
+  const moId = extractMerchantOrderId(req)
+  if (!moId) return res.status(200).json({ ignored: 'sin_merchant_order_id' })
+
+  let mo
+  try {
+    mo = await obtenerMerchantOrder(clubIdPath || null, moId)
+  } catch (e) {
+    console.error('[webhook mp] no se pudo consultar merchant_order', moId, e.message)
+    return res.status(500).json({ error: 'fetch_failed' }) // MP reintenta
+  }
+
+  const extRef = mo?.external_reference
+  if (!extRef) return res.status(200).json({ ignored: 'sin_external_reference' })
+
+  const pagoMP = await prisma.pagoMP.findUnique({ where: { id: extRef } })
+  if (!pagoMP) return res.status(200).json({ ignored: 'pagomp_no_encontrado' })
+
+  // R1 anti cross-tenant: la orden tiene que ser del club de la URL.
+  if (clubIdPath && pagoMP.clubId !== clubIdPath) {
+    console.warn(`[webhook mp] cross-tenant (order): pago del club ${pagoMP.clubId} llegó por la URL de ${clubIdPath} → ignorado`)
+    return res.status(200).json({ ignored: 'cross_tenant' })
+  }
+
+  const pagos = Array.isArray(mo.payments) ? mo.payments : []
+  const elegido = pagos.find((p) => p.status === 'approved') || pagos[pagos.length - 1]
+  if (!elegido) return res.status(200).json({ ok: true, sin_pagos: true }) // orden creada, nadie pagó todavía
+
+  // Idempotencia (RN-71): mismo pago + mismo estado ya persistido → no-op.
+  if (pagoMP.mpPaymentId === String(elegido.id) && pagoMP.status === mapStatus(elegido.status)) {
+    return res.status(200).json({ ok: true, idempotente: true })
+  }
+
+  await procesarPago(pagoMP, {
+    paymentId: String(elegido.id),
+    status: elegido.status,
+    statusDetail: elegido.status_detail,
+    amount: Math.round(elegido.transaction_amount || elegido.total_paid_amount || 0),
+  })
+  return res.status(200).json({ ok: true })
+}
+
 // Handler compartido. `clubIdPath` = club dueño del pago (viene en la URL, multi-tenant).
 // Respondemos 200 rápido. NUNCA acreditamos por el body: re-consultamos el pago a la API
 // CON EL TOKEN DEL CLUB (RN-70). R1: verificamos que el pago sea de ESE club (anti cross-tenant).
 async function manejarWebhook(req, res, clubIdPath) {
   try {
     const topic = req.query.type || req.query.topic || req.body?.type || req.body?.topic
+
+    // QR de billetera → merchant_order (trae los pagos adentro). Rama aparte.
+    if (topic === 'merchant_order' || /merchant_orders\//.test(String(req.body?.resource || req.query?.resource || ''))) {
+      return await manejarMerchantOrder(req, res, clubIdPath)
+    }
+
     const paymentId = extractPaymentId(req)
     if (!paymentId || (topic && topic !== 'payment')) return res.status(200).json({ ignored: true })
 

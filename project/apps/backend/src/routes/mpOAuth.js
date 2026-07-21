@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireOwner } from '../middleware/auth.js'
 import { intercambiarCodeOAuth, mpOAuthConfigurado } from '../lib/mercadopago.js'
+import { asegurarCajaQR } from '../lib/cobrosQR.js'
 import { encryptToken } from '../lib/cripto.js'
 
 const router = Router()
@@ -76,6 +77,18 @@ router.get('/estado', requireAuth, requireRole('admin'), async (req, res) => {
     conectado: !!con && con.estado === 'conectado',
     ...(con ? { mpUserId: con.mpUserId, estado: con.estado, expiraAt: con.expiresAt, desconectadoMotivo: con.desconectadoMotivo, conectadoAt: con.conectadoAt } : {}),
   })
+})
+
+// POST /api/mp/qr/asegurar-caja — S1: crea (1 vez, idempotente) o reusa la caja QR de
+// billetera del club en su cuenta MP. Devuelve el posId + la imagen del QR. NUNCA el token.
+router.post('/qr/asegurar-caja', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  try {
+    const caja = await asegurarCajaQR(req.user.clubId)
+    res.json({ ok: true, ...caja })
+  } catch (e) {
+    console.error('[mp qr asegurar-caja]', e.message)
+    res.status(e.status || 500).json({ error: e.error || 'error', message: e.message })
+  }
 })
 
 // POST /api/mp/disconnect — el DUEÑO desconecta la cuenta de MP del club.

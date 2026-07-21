@@ -3140,8 +3140,8 @@ Bloque completo, guiado slice por slice con Luca. Cobrar a un jugador mostrándo
 
 **Clave técnica:** POS SIN category = rubro genérico (resolvió `pos_unknown_mcc`); external_id del POS alfanumérico; orden va a `/instore/qr/.../orders`. La caja se crea SOLA (lazy) al primer cobro QR — el dueño solo necesita MP conectado (OAuth). Cero pasos extra en el panel de MP.
 
-### ▶️ FALTA para cerrar el QR billetera: **prueba viva post-deploy**
-El webhook `merchant_order` tiene que estar en Railway (MP no alcanza localhost). Deploy → generar QR desde Cobranzas → pagar con otra billetera → ver deuda saldada sola + campanita del dueño + revisar logs Railway.
+### ✅ PROBADO EN VIVO EN PRODUCCIÓN (2026-07-21)
+Deployado (commits de9918c, 3df037d, ecc08d4). Jugador pagó con otra billetera → webhook `merchant_order` acreditó → deuda saldada sola → **modal autocerró** con "¡Cobrado!" → aparece **"Mercado Pago · QR"** en Pagados. Bloque de cobros MP **100% cerrado**. (Autocierre por polling `GET /pagos/qr/:id/estado` cada 3s; tag QR/Link colgado por `/cargos/cobranzas`.) Nota: pagar con billetera del MISMO titular tira "no podés usarlo para pagos propios" — regla anti self-payment, no bug.
 
 ### ▶️ DESPUÉS: la lista de pendientes pre-deploy
 Config producción (vaciar MP_ACCESS_TOKEN Railway, firma webhook obligatoria, verif email signup, bajar body limit, proteger /api/dev), cobros futuros (diseño saldo a favor + limpieza comprobantes), post-deploy (re-subir imágenes, caché Storage, guía onboarding 2º club), roadmap (feature gating, WhatsApp, stats, features.md), bugs (categorías, matching caso 1, consolidar conflictos.js).

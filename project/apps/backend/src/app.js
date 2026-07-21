@@ -19,7 +19,6 @@ import cajaRouter from './routes/caja.js'
 import profesoresRouter from './routes/profesores.js'
 import sponsorsRouter from './routes/sponsors.js'
 import uploadsRouter from './routes/uploads.js'
-import devResetRouter from './routes/dev-reset.js'
 import platformRouter from './routes/platform.js'
 import empleadosRouter from './routes/empleados.js'
 import convocatoriasRouter from './routes/convocatorias.js'
@@ -102,7 +101,6 @@ app.use('/api/comandas', requireAuth, requireRole('admin'), requireFeature('fina
 app.use('/api/caja', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('caja'), cajaRouter)
 app.use('/api/profesores', requireAuth, requireRole('admin'), requireFeature('profesores'), requirePermiso('clases'), profesoresRouter)
 app.use('/api/sponsors', requireAuth, requireRole('admin'), requireFeature('sponsors'), requirePermiso('sponsors'), sponsorsRouter)
-app.use('/api/dev', devResetRouter)
 app.use('/api/platform', platformRouter)
 app.use('/api/empleados', empleadosRouter)
 app.use('/api/convocatorias/publica', convocatoriasPublicasRouter) // público (sin auth) — debe ir ANTES del router autenticado

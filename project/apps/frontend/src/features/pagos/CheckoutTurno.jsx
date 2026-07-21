@@ -5,6 +5,7 @@ import { METODO_MAP, metodosDelClub } from '../../lib/metodosPago'
 import useClubStore from '../../store/clubStore'
 import ModalBusquedaJugadores from '../../components/jugadores/ModalBusquedaJugadores'
 import { useConfirm } from '../../components/ui/ConfirmProvider'
+import QRGenerando from './QRGenerando'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 
@@ -55,6 +56,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [qrPersona, setQrPersona] = useState(null) // QR de billetera de UNA persona: { pagoMpId, qrImage, monto, nombre, key }
+  const [qrLoading, setQrLoading] = useState(false) // overlay "Generando QR…" mientras se crea la orden
   const [rosterPartido, setRosterPartido] = useState(null) // { jugadores:[{jugadorId,nombre,titular}] } si el turno es un partido abierto
   const [rosterCargado, setRosterCargado] = useState(false)
   const [rosterListo, setRosterListo] = useState(false) // evita pisar el armado guardado antes de leerlo
@@ -307,7 +309,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
     if (!reserva._backendId || saving) return
     if (p.tipo === 'casual') { setError('El QR de billetera es para jugadores con ficha. Un casual paga al contado.'); return }
     setAutoSplit(false) // congela los montos del resto: no se reparten solos mientras esperamos este QR
-    setError(''); setSaving(true)
+    setError(''); setSaving(true); setQrLoading(true)
     try {
       // Snapshot de los cargos-turno pendientes de esta persona ANTES de persistir (para saber
       // cuál creo yo y poder borrarlo si el admin cierra sin que pague).
@@ -331,7 +333,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
       setQrPersona({ pagoMpId: r.pagoMpId, qrImage: r.qrImage, monto: r.monto, nombre: p.nombre, persona: p, turnoCargoId })
       setPersonas((prev) => prev.filter((x) => x.key !== p.key)) // sale del split mientras esperamos el pago
     } catch (e) { setError(e?.message || 'No se pudo generar el QR') }
-    finally { setSaving(false) }
+    finally { setSaving(false); setQrLoading(false) }
   }
 
   // Cerrar el QR SIN que haya pagado = deshacer: cancela la orden en MP, borra la parte que quedó
@@ -502,6 +504,7 @@ const CheckoutTurno = ({ reserva, token, onClose, onDone }) => {
         </div>
       </div>
     )}
+    <QRGenerando show={qrLoading} />
     </>
   )
 }

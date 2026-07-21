@@ -5,6 +5,7 @@ import { api } from '../../lib/api'
 import { METODO_MAP } from '../../lib/metodosPago'
 import { imprimirTicket, ticketTexto, enviarWhatsApp } from './comprobantes'
 import useClubStore from '../../store/clubStore'
+import QRGenerando from './QRGenerando'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
 const inputCls = 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-brand-400'
@@ -148,6 +149,7 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
   const [error, setError] = useState('')
   const [mpQR, setMpQR] = useState(null) // { initPoint, monto } cuando se generó el QR de MP (link)
   const [walletQR, setWalletQR] = useState(null) // { pagoMpId, qrImage, monto } QR de billetera interoperable
+  const [qrLoading, setQrLoading] = useState(false) // overlay "Generando QR…" mientras se crea la orden
   const total = items.reduce((s, c) => s + c.monto, 0)
 
   const refetch = async () => {
@@ -210,13 +212,13 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
     if (savingRef.current) return
     if (total <= 0) return setError('La mesa no tiene consumos')
     savingRef.current = true
-    setSaving(true); setError('')
+    setSaving(true); setError(''); setQrLoading(true)
     try {
       const r = await api.post(`/comandas/${mesa.id}/qr-cobrar`, {}, auth)
       setWalletQR({ pagoMpId: r.pagoMpId, qrImage: r.qrImage, monto: r.monto ?? total })
     } catch (e) {
       setError(e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el QR'))
-    } finally { savingRef.current = false; setSaving(false) }
+    } finally { savingRef.current = false; setSaving(false); setQrLoading(false) }
   }
 
   // Mientras el QR de billetera está en pantalla, preguntamos cada 3s si pagaron. Al acreditar, el
@@ -245,6 +247,7 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      <QRGenerando show={qrLoading} />
       <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>

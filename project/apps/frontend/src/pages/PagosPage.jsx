@@ -8,6 +8,7 @@ import useAuthStore from '../store/authStore'
 import useClubStore from '../store/clubStore'
 import useWiarkyGastoStore from '../store/wiarkyGastoStore'
 import { QRCodeSVG } from 'qrcode.react'
+import QRGenerando from '../features/pagos/QRGenerando'
 import { api } from '../lib/api'
 import { useToast } from '../components/ui/ToastProvider'
 import { METODOS_CATALOGO, METODO_MAP, metodosDelClub, MetodoBadge } from '../lib/metodosPago'
@@ -381,6 +382,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
   const [montoCobrar, setMontoCobrar] = useState('')   // cobro: monto a cobrar (editable → entrega parcial)
   const [mpLink, setMpLink] = useState(null)           // link de pago MP generado { initPoint, concepto, monto, tel }
   const [walletQR, setWalletQR] = useState(null)       // QR de billetera interoperable { qrImage, concepto, monto }
+  const [qrLoading, setQrLoading] = useState(false)     // overlay "Generando QR…" mientras se crea la orden
   const [linksVivos, setLinksVivos] = useState([])     // links de MP activos del jugador (esperando pago)
   const [usarSplit, setUsarSplit] = useState(false)     // cobro: pagó con 2 métodos
   const [metodo2, setMetodo2] = useState(metodos[1] ?? metodos[0] ?? 'transferencia')
@@ -525,7 +527,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     if (!mostrador && !jugadorId) { setError('Elegí un jugador o pasá a mostrador'); return }
     if (lineas.length === 0) { setError('Agregá al menos un producto'); return }
     savingRef.current = true
-    setSaving(true); setError('')
+    setSaving(true); setError(''); setQrLoading(true)
     try {
       const jid = mostrador ? null : jugadorId
       const ids = await crearNuevas(false) // venta PENDIENTE (no cobra)
@@ -536,7 +538,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
       setLineas([]); onRefresh()
     } catch (e) {
       showToast('error', e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el QR'))
-    } finally { savingRef.current = false; setSaving(false) }
+    } finally { savingRef.current = false; setSaving(false); setQrLoading(false) }
   }
 
   const anotarACuenta = async () => {
@@ -633,7 +635,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     if (savingRef.current) return
     if (deudaSel.length === 0) { setError('Elegí al menos una deuda para el QR'); return }
     savingRef.current = true
-    setSaving(true); setError('')
+    setSaving(true); setError(''); setQrLoading(true)
     try {
       const items = deudaSel.map((d) => ({ origen: d.origen, refId: d.refId }))
       const r = await api.post('/pagos/qr/cobrar', { items, jugadorId }, { Authorization: `Bearer ${token}` })
@@ -642,7 +644,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
       await fetchLinksVivos(jugadorId)
     } catch (e) {
       showToast('error', e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el QR'))
-    } finally { savingRef.current = false; setSaving(false) }
+    } finally { savingRef.current = false; setSaving(false); setQrLoading(false) }
   }
 
   // Días hasta el vencimiento del link, en criollo.
@@ -685,6 +687,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
             <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
           </div>
         )}
+        <QRGenerando show={qrLoading} />
         {walletQR && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => { setWalletQR(null); onClose() }}>
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />

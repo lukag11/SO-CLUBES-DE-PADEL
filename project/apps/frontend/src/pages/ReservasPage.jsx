@@ -1999,10 +1999,12 @@ const PanelAlertas = ({
 
   // Notificaciones que NO son reservas normales (esas las manejamos directo desde backend).
   // `stock_bajo` es un aviso de inventario (no de jugadores): va a la campana del Navbar, no a este panel.
-  const notifFiltradas = notificaciones.filter((n) =>
-    n.tipo !== 'nueva_reserva' && n.tipo !== 'inscripcion_torneo' && n.tipo !== 'baja_torneo' && n.tipo !== 'actualizacion_torneo' && n.tipo !== 'stock_bajo'
-  )
-  const sinLeer = notificaciones.filter((n) => !n.leida && n.tipo !== 'nueva_reserva' && n.tipo !== 'stock_bajo').length
+  // Este panel es SOLO para avisos de jugadores (reservas, turnos fijos, clases, cancelaciones).
+  // Las notificaciones de PLATA (pagos MP/QR, avisos de transferencia) viven en la campanita del
+  // Navbar, no acá — si se cuelan, este panel no las sabe dibujar y salen como fila vacía.
+  const TIPOS_OCULTOS = ['nueva_reserva', 'inscripcion_torneo', 'baja_torneo', 'actualizacion_torneo', 'stock_bajo', 'pago_mp', 'aviso_transferencia', 'transferencia_auto', 'transferencia_confirmada', 'transferencia_rechazada']
+  const notifFiltradas = notificaciones.filter((n) => !TIPOS_OCULTOS.includes(n.tipo))
+  const sinLeer = notifFiltradas.filter((n) => !n.leida).length
 
   const hayContenido = reservasPendientes.length > 0 || notifFiltradas.length > 0
   if (!hayContenido) return null

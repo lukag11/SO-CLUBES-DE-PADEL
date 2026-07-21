@@ -77,9 +77,11 @@ app.use('/api/pagos/me/aviso-transferencia', express.json({ limit: '15mb' }))
 app.use('/api/cargos/cobrar-cuenta', express.json({ limit: '15mb' }))
 app.use('/api/pagos/comprobante-transferencia', express.json({ limit: '15mb' }))
 
-// Tras migrar las imágenes a Storage los payloads quedan chicos; este límite
-// se puede bajar a ~2mb una vez confirmada la migración.
-app.use(express.json({ limit: '8mb' }))
+// Límite global: las imágenes/comprobantes van por rutas dedicadas de 15mb (arriba: /uploads,
+// /gastos/extraer, aviso/comprobante de transferencia). El resto de la API son JSON chicos (KB),
+// así que 2mb es holgado y reduce la superficie de abuso (payloads gigantes). Verificado: ninguna
+// otra ruta recibe base64 por el body (todas las fotos suben por uploadImage → /uploads).
+app.use(express.json({ limit: '2mb' }))
 
 app.use('/api', healthRouter)
 app.use('/api/auth', authRouter)

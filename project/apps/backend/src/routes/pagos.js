@@ -7,6 +7,7 @@ import { runSerializable } from '../lib/serializable.js'
 import { mpConfigurado } from '../lib/mercadopago.js'
 import { crearLinkPagoDeuda, crearLinkPagoMultiple, linksVivosDeDeudas } from '../lib/cobrosMP.js'
 import { crearOrdenQR, cancelarOrdenQR } from '../lib/cobrosQR.js'
+import { registrarComprobanteAdmin } from '../lib/comprobanteTransfer.js'
 import { turnosImpagosDeuda } from '../lib/deudas.js'
 import { extraerComprobanteTransferencia, veredictoTransferencia } from '../lib/ocrComprobante.js'
 import { uploadImage } from '../lib/imageUpload.js'
@@ -118,6 +119,23 @@ router.post('/qr/cobrar', requireAuth, requireRole('admin'), requireFeature('fin
     const status = err.status || 500
     if (status >= 500) console.error('[qr/cobrar]', err)
     res.status(status).json({ error: err.error || 'error', message: err.message || 'No se pudo generar el QR de cobro' })
+  }
+})
+
+// POST /api/pagos/comprobante-transferencia — adjunta (del lado admin) el comprobante de una
+// transferencia YA cobrada a un conjunto de deudas/ítems (ej: una venta recién cobrada). Sube la
+// foto + IA lee el monto + queda en Pagados. No cobra ni imputa. Reusa registrarComprobanteAdmin.
+router.post('/comprobante-transferencia', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+  const { items, jugadorId, monto, comprobante } = req.body || {}
+  if (!Array.isArray(items) || items.length === 0 || !jugadorId || !comprobante) {
+    return res.status(400).json({ error: 'datos_incompletos', message: 'Faltan datos para guardar el comprobante.' })
+  }
+  try {
+    const aviso = await registrarComprobanteAdmin({ clubId: req.user.clubId, jugadorId, items, monto: Math.round(Number(monto) || 0), comprobante })
+    res.json({ ok: !!aviso })
+  } catch (e) {
+    console.error('[comprobante-transferencia]', e.message)
+    res.status(500).json({ error: 'error', message: 'No se pudo guardar el comprobante' })
   }
 })
 

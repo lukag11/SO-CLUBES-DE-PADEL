@@ -519,6 +519,26 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     } finally { savingRef.current = false; setSaving(false) }
   }
 
+  // Igual que generarQRVenta pero con el QR de billetera interoperable (cualquier billetera).
+  const generarQRVentaBilletera = async () => {
+    if (savingRef.current) return
+    if (!mostrador && !jugadorId) { setError('Elegí un jugador o pasá a mostrador'); return }
+    if (lineas.length === 0) { setError('Agregá al menos un producto'); return }
+    savingRef.current = true
+    setSaving(true); setError('')
+    try {
+      const jid = mostrador ? null : jugadorId
+      const ids = await crearNuevas(false) // venta PENDIENTE (no cobra)
+      if (!ids.length) throw new Error('No se pudo crear la venta')
+      const items = ids.map((id) => ({ origen: 'cargo', refId: id }))
+      const r = await api.post('/pagos/qr/cobrar', { items, jugadorId: jid }, auth)
+      setWalletQR({ pagoMpId: r.pagoMpId, qrImage: r.qrImage, concepto: r.concepto || 'Venta', monto: r.monto ?? totalNuevo })
+      setLineas([]); onRefresh()
+    } catch (e) {
+      showToast('error', e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el QR'))
+    } finally { savingRef.current = false; setSaving(false) }
+  }
+
   const anotarACuenta = async () => {
     if (savingRef.current) return
     if (lineas.length === 0) return setError('Agregá al menos un consumo')
@@ -549,7 +569,14 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
     savingRef.current = true
     setSaving(true); setError('')
     try {
-      if (lineas.length) await crearNuevas(true)
+      if (lineas.length) {
+        const ids = await crearNuevas(true)
+        // Venta a jugador con transferencia + comprobante adjunto → lo guardamos (IA lee el monto).
+        if (comprobanteCobro && esVenta && !mostrador && jugadorId && metodoPago === 'transferencia' && ids?.length) {
+          await api.post('/pagos/comprobante-transferencia', { items: ids.map((id) => ({ origen: 'cargo', refId: id })), jugadorId, monto: totalNuevo, comprobante: comprobanteCobro }, auth).catch(() => {})
+          setComprobanteCobro(null)
+        }
+      }
       if (deudaSel.length) {
         const body = { jugadorId, items: deudaSel.map((d) => ({ origen: d.origen, refId: d.refId })), monto: montoCobrarNum }
         if (usarSplit) body.lineas = [{ metodo: metodoPago, monto: monto1Num }, { metodo: metodo2, monto: monto2Num }]
@@ -858,7 +885,7 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
                   </select>
                 </div>
               )}
-              {esCobro && deudaSel.length > 0 && (metodoPago === 'transferencia' || (usarSplit && metodo2 === 'transferencia')) && (
+              {((esCobro && deudaSel.length > 0 && (metodoPago === 'transferencia' || (usarSplit && metodo2 === 'transferencia'))) || (esVenta && !mostrador && jugadorId && metodoPago === 'transferencia')) && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-slate-500 font-medium">Comprobante de transferencia <span className="text-slate-400">(opcional)</span></label>
                   {comprobanteCobro ? (
@@ -894,8 +921,13 @@ const ModalCuentaJugador = ({ jugadores, deudores = [], productos, metodos, toke
                   </button>
                 )}
                 {esVenta && metodoPago === 'mercadopago' && (
-                  <button onClick={generarQRVenta} disabled={saving || lineas.length === 0} title="Crea la venta pendiente y muestra un QR de Mercado Pago para que el cliente lo escane y pague (se salda sola al pagar)" className="flex-1 py-2.5 rounded-xl border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 font-semibold text-sm transition-colors disabled:opacity-40">
-                    Generar QR de pago
+                  <button onClick={generarQRVenta} disabled={saving || lineas.length === 0} title="Crea la venta pendiente y muestra el QR/link de Checkout Pro de Mercado Pago (se salda sola al pagar)" className="flex-1 py-2.5 rounded-xl border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 font-semibold text-sm transition-colors disabled:opacity-40">
+                    Link de pago
+                  </button>
+                )}
+                {esVenta && metodoPago === 'mercadopago' && (
+                  <button onClick={generarQRVentaBilletera} disabled={saving || lineas.length === 0} title="Crea la venta y muestra un QR que el cliente escanea con CUALQUIER billetera (MODO, Ualá, banco, Mercado Pago…). Se salda sola al pagar." className="flex-1 py-2.5 rounded-xl border border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100 font-semibold text-sm transition-colors disabled:opacity-40">
+                    QR billetera
                   </button>
                 )}
                 {!(esVenta && metodoPago === 'mercadopago') && (

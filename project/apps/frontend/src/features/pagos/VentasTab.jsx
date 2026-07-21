@@ -146,7 +146,8 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false) // candado SÍNCRONO anti doble-submit
   const [error, setError] = useState('')
-  const [mpQR, setMpQR] = useState(null) // { initPoint, monto } cuando se generó el QR de MP
+  const [mpQR, setMpQR] = useState(null) // { initPoint, monto } cuando se generó el QR de MP (link)
+  const [walletQR, setWalletQR] = useState(null) // { pagoMpId, qrImage, monto } QR de billetera interoperable
   const total = items.reduce((s, c) => s + c.monto, 0)
 
   const refetch = async () => {
@@ -203,6 +204,42 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
     } finally { savingRef.current = false; setSaving(false) }
   }
 
+  // QR de billetera interoperable por el total de la mesa (cualquier billetera). La mesa se cierra
+  // sola cuando el webhook acredita. Distinto del link de Checkout Pro (generarQRMesa).
+  const generarQRBilleteraMesa = async () => {
+    if (savingRef.current) return
+    if (total <= 0) return setError('La mesa no tiene consumos')
+    savingRef.current = true
+    setSaving(true); setError('')
+    try {
+      const r = await api.post(`/comandas/${mesa.id}/qr-cobrar`, {}, auth)
+      setWalletQR({ pagoMpId: r.pagoMpId, qrImage: r.qrImage, monto: r.monto ?? total })
+    } catch (e) {
+      setError(e?.status === 503 ? 'Mercado Pago no está configurado todavía' : (e?.message || 'No se pudo generar el QR'))
+    } finally { savingRef.current = false; setSaving(false) }
+  }
+
+  // Mientras el QR de billetera está en pantalla, preguntamos cada 3s si pagaron. Al acreditar, el
+  // webhook ya cerró la mesa → mostramos el ticket de cobrada.
+  useEffect(() => {
+    const id = walletQR?.pagoMpId
+    if (!id) return
+    let vivo = true
+    const timer = setInterval(async () => {
+      try {
+        const r = await api.get(`/pagos/qr/${id}/estado`, auth)
+        if (!vivo) return
+        if (r?.pagado) {
+          clearInterval(timer)
+          setWalletQR(null)
+          const ticket = { etiqueta: mesa.etiqueta, total, metodoLabel: 'QR de billetera', fecha: new Date(), items: items.map((c) => ({ nombre: nombreBase(c.concepto), cantidad: c.cantidad || 1, monto: c.monto })) }
+          showToast('exito', 'Mesa cobrada y cerrada'); onChange?.(); setCerrada(ticket)
+        }
+      } catch { /* reintenta */ }
+    }, 3000)
+    return () => { vivo = false; clearInterval(timer) }
+  }, [walletQR?.pagoMpId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const porPersona = dividir > 1 ? Math.ceil(total / dividir) : 0
 
   return (
@@ -229,6 +266,18 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
               <button onClick={() => enviarWhatsApp(ticketTexto(cerrada, club))} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#25D366] hover:brightness-95 text-white font-semibold text-sm">WhatsApp</button>
             </div>
             <button onClick={onCerrada} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Listo</button>
+          </div>
+        ) : walletQR ? (
+          <div className="p-6 flex flex-col items-center text-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-violet-50 flex items-center justify-center text-2xl">📲</div>
+            <div>
+              <p className="text-slate-800 font-bold">Escaneá para pagar</p>
+              <p className="text-slate-400 text-xs mt-0.5">{mesa.etiqueta} · {money(walletQR.monto)}</p>
+            </div>
+            <div className="bg-white p-2.5 rounded-xl border border-slate-200"><img src={walletQR.qrImage} alt="QR de pago" width={188} height={188} className="w-[188px] h-[188px] object-contain" /></div>
+            <p className="text-[11px] text-violet-500 font-semibold leading-snug">MODO, Ualá, Naranja X, tu banco o Mercado Pago.</p>
+            <p className="text-[11px] text-slate-400 leading-snug">La mesa se cierra <b>sola</b> cuando el cliente pague. Esperando el pago…</p>
+            <button onClick={() => setWalletQR(null)} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm">Cerrar</button>
           </div>
         ) : mpQR ? (
           <div className="p-6 flex flex-col items-center text-center gap-3">
@@ -304,9 +353,14 @@ const ModalMesa = ({ mesa, productos, metodos, token, showToast, onClose, onCerr
           <div className="flex gap-2">
             <button onClick={eliminarMesa} disabled={saving} title="Descartar la mesa (no cobra nada)" className="px-3 py-2.5 rounded-xl border border-slate-200 text-slate-400 hover:text-rose-500 hover:bg-rose-50 text-sm font-medium transition-colors disabled:opacity-40"><Trash2 size={15} /></button>
             {metodoPago === 'mercadopago' ? (
-              <button onClick={generarQRMesa} disabled={saving || total <= 0} title="Genera un QR de Mercado Pago; la mesa se cierra sola cuando el cliente paga" className="flex-1 py-2.5 rounded-xl border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 font-semibold text-sm transition-colors disabled:opacity-40">
-                {saving ? 'Generando…' : `Generar QR de pago ${money(total)}`}
-              </button>
+              <>
+                <button onClick={generarQRMesa} disabled={saving || total <= 0} title="Link/QR de Checkout Pro de Mercado Pago; la mesa se cierra sola cuando el cliente paga" className="flex-1 min-w-0 py-2.5 rounded-xl border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 font-semibold text-sm transition-colors disabled:opacity-40">
+                  {saving ? '…' : 'Link de pago'}
+                </button>
+                <button onClick={generarQRBilleteraMesa} disabled={saving || total <= 0} title="QR que el cliente escanea con CUALQUIER billetera (MODO, Ualá, banco, Mercado Pago…). La mesa se cierra sola al pagar." className="flex-1 min-w-0 py-2.5 rounded-xl border border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100 font-semibold text-sm transition-colors disabled:opacity-40">
+                  {saving ? '…' : 'QR billetera'}
+                </button>
+              </>
             ) : (
               <button onClick={cerrar} disabled={saving || total <= 0} className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors disabled:opacity-50">
                 {saving ? 'Procesando…' : `Cobrar y cerrar ${money(total)}`}

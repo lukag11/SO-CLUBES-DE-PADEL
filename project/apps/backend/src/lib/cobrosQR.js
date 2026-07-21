@@ -174,6 +174,49 @@ export async function crearOrdenQR({ clubId, jugadorId = null, deudas }) {
   return { pagoMpId: upd.id, qrImage: caja.qrImage, monto: total, concepto, expiraAt: upd.expiraAt }
 }
 
+// QR de billetera para una MESA (comanda) abierta. Suma sus consumos pendientes y crea un PagoMP
+// tipo='qr' origen='comanda' (refId=comandaId). Al acreditar, el webhook (rama origen 'comanda')
+// CIERRA la mesa sola. Mostrador → sin jugadorId. Espejo de crearLinkPagoComanda pero con QR.
+export async function crearOrdenQRComanda({ clubId, comandaId }) {
+  const comanda = await prisma.comanda.findFirst({
+    where: { id: comandaId, clubId },
+    select: { id: true, estado: true, cargos: { where: { estado: 'pendiente' }, select: { monto: true } } },
+  })
+  if (!comanda) throw err(404, 'no_encontrado', 'Mesa no encontrada.')
+  if (comanda.estado !== 'abierta') throw err(409, 'sin_deuda', 'La mesa ya está cerrada.')
+  const total = comanda.cargos.reduce((s, c) => s + (c.monto || 0), 0)
+  if (total <= 0) throw err(409, 'sin_deuda', 'La mesa no tiene consumos.')
+
+  const caja = await asegurarCajaQR(clubId)
+  const con = await prisma.mpConexion.findUnique({ where: { clubId }, select: { mpUserId: true } })
+  const userId = con?.mpUserId
+  if (!userId || !caja.posExternalId) throw err(502, 'mp_error', 'No se pudo resolver la caja QR del club.')
+
+  const expiraAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  const pagoMP = await prisma.pagoMP.create({
+    data: { clubId, tipo: 'qr', origen: 'comanda', refId: comandaId, montoEsperado: total, status: 'iniciado', qrPosExtId: caja.posExternalId, expiraAt },
+  })
+
+  const token = await resolveMpToken(clubId)
+  const body = {
+    external_reference: pagoMP.id, title: 'Mesa', description: 'Mesa',
+    notification_url: `${backendBase()}/api/webhooks/mercadopago/${clubId}`,
+    total_amount: total, items: [{ title: 'Mesa', unit_price: total, quantity: 1, unit_measure: 'unit', total_amount: total }],
+  }
+  const r = await mpFetch(token, 'PUT', `/instore/qr/seller/collectors/${userId}/pos/${caja.posExternalId}/orders`, body)
+  if (!r.ok) {
+    await prisma.pagoMP.update({ where: { id: pagoMP.id }, data: { status: 'error', statusDetail: JSON.stringify(r.data).slice(0, 200) } }).catch(() => {})
+    throw err(502, 'mp_orden_error', `No se pudo crear la orden QR en MP: ${JSON.stringify(r.data)}`)
+  }
+  await prisma.pagoMP.updateMany({
+    where: { clubId, tipo: 'qr', status: { in: ['iniciado', 'pending'] }, id: { not: pagoMP.id } },
+    data: { status: 'cancelled', statusDetail: 'reemplazada_por_nueva_orden' },
+  }).catch(() => {})
+
+  const upd = await prisma.pagoMP.update({ where: { id: pagoMP.id }, data: { initPoint: caja.qrImage } })
+  return { pagoMpId: upd.id, qrImage: caja.qrImage, monto: total }
+}
+
 // Borra la orden pendiente que esté cargada en el POS del club (best-effort). Libera el QR:
 // después de esto, escanear la caja no cobra nada hasta que se cargue una orden nueva.
 async function _borrarOrdenEnPOS(clubId) {

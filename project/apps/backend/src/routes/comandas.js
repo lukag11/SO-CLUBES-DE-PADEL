@@ -6,6 +6,7 @@ import { snapshotProductos } from '../lib/productos.js'
 import { descontarStock, reponerStock } from '../lib/stock.js'
 import { mpConfigurado } from '../lib/mercadopago.js'
 import { crearLinkPagoComanda, cancelarLinksDeItems } from '../lib/cobrosMP.js'
+import { crearOrdenQRComanda } from '../lib/cobrosQR.js'
 
 const router = Router()
 
@@ -201,6 +202,21 @@ router.post('/:id/link-pago', requireAuth, requireRole('admin'), async (req, res
     const status = err.status || 500
     if (status >= 500) console.error('[comanda link-pago]', err)
     res.status(status).json({ error: err.error || 'error', message: err.message || 'No se pudo generar el link de pago' })
+  }
+})
+
+// POST /api/comandas/:id/qr-cobrar — QR de billetera interoperable por el total de la mesa. La
+// mesa queda ABIERTA hasta que el webhook (rama origen 'comanda') confirma el pago → se cierra sola.
+router.post('/:id/qr-cobrar', requireAuth, requireRole('admin'), async (req, res) => {
+  const clubId = req.user.clubId
+  if (!(await mpConfigurado(clubId))) return res.status(503).json({ error: 'mp_no_configurado', message: 'Mercado Pago no está configurado todavía.' })
+  try {
+    const out = await crearOrdenQRComanda({ clubId, comandaId: req.params.id })
+    res.status(201).json(out)
+  } catch (err) {
+    const status = err.status || 500
+    if (status >= 500) console.error('[comanda qr-cobrar]', err)
+    res.status(status).json({ error: err.error || 'error', message: err.message || 'No se pudo generar el QR' })
   }
 })
 

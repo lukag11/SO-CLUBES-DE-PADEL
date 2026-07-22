@@ -3164,4 +3164,19 @@ Después del QR billetera (Cobranzas), se llevó **QR billetera + comprobante de
 - **Fix:** notificaciones de plata ya NO salen como avisos vacíos en el panel "Avisos de jugadores" de Reservas (se excluyen; viven en la campanita).
 - Commits: `8551ef9`, `4304c57`, `8c85293`, `378be34`, `a7a5518`, `59ea0b1`, `86671f5`, `d05d45d`.
 
-**PENDIENTE de probar en vivo:** turno por-persona (probado en montos chicos), venta rápida C+D, mesa QR, comprobante admin en cada una. **DESPUÉS: la lista de pendientes pre-deploy (arriba).**
+**PENDIENTE de probar en vivo:** turno por-persona (probado en montos chicos), venta rápida C+D, mesa QR, comprobante admin en cada una.
+
+## 2026-07-21 (cont.) — Auditoría de plata + Seguridad pre-cliente + Instructivo MP
+
+- **Fix UX plata:** el split del turno se CONGELA al empezar a cobrar (`setAutoSplit(false)`) → los montos no se reparten solos (era engañoso). Commit `ce2f092`. + **overlay "Generando QR…"** (componente `QRGenerando`) en las 4 pantallas mientras se crea la orden (mejor UX + tapa los montos en transición). Commit `d2e4c31`.
+- **Auditoría de integridad de montos (subagente):** SIN huecos rojos. Todos los endpoints de cobro tienen candado anti-sobrecobro (rechazo/cap en Serializable); el único reshuffle que alimentaba un cobro (turno) ya está congelado. Amarillas: sobrepago MP solo se loguea (saldo a favor = feature futura), firma webhook soft.
+- **Seguridad P1 (pre-cliente real):**
+  - ✅ **`/api/dev/reset` ELIMINADA** (`feeaca1`) — hacía borrado masivo sin scope de club sobre la MISMA base que prod. Bomba desactivada.
+  - ✅ **body limit global 8mb→2mb** (`18ff8a6`) — fotos por rutas dedicadas de 15mb.
+  - ⛔ **firma webhook `MP_WEBHOOK_SECRET`: NO aplica** — multi-tenant usa notification_url por-club; protegido por re-consulta a la API (RN-70). Ver `project_deploy_pendiente.md`.
+  - ⏳ Falta solo: verif. email del signup público (cuando se abra self-service).
+- **Onboarding MP de un club nuevo:** el dueño toca "Conectar Mercado Pago" (Config → sección MP) → MP lo guía (OAuth, autoriza con SU cuenta) → la plata va directo a su cuenta. La caja QR se crea sola al primer cobro. Se agregó un **instructivo in-app** (¿qué es? + 3 pasos + 🔒) cuando no está conectado. Commit `d6b53e5`.
+
+### ▶️ PLAN DE CIERRE (acordado con Luca)
+1. **Corregir bugs chicos:** categorías `"4ta"` vs `"4ta Categoría"` (busco-jugador + convocatorias); matching caso 1 (landing "no tengo con quién jugar"); consolidar reserva/clase/convocatoria a `conflictos.js`.
+2. **Documentación de la app (cierre):** instructivos in-app por área + base de conocimiento WIarky + manual del equipo. Estrategia en memoria `project_documentacion_estrategia.md`.

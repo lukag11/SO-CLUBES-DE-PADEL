@@ -77,15 +77,23 @@ router.get('/abiertas', requireRole('jugador'), async (req, res) => {
   const jugadorId = req.user.id
   try {
     const yo = await prisma.jugador.findUnique({ where: { id: jugadorId }, select: { categoria: true } })
-    const sols = await prisma.solicitudJugador.findMany({
+    const miCat = normalizarCategoria(yo?.categoria) // canónico ("4ta Categoría") ante cualquier formato guardado
+    const solsRaw = await prisma.solicitudJugador.findMany({
       where: {
         clubId, estado: 'abierta', solicitanteId: { not: jugadorId }, fecha: { gte: hoyArgStr() },
         visibilidad: 'publica', // las privadas son solo por link, no se listan en el feed
         participantes: { none: { jugadorId } }, // si ya pedí (pendiente) o estoy (aceptado), no la muestra
-        ...(yo?.categoria ? { categorias: { has: yo.categoria } } : {}), // el partido incluye mi categoría en su rango
       },
       orderBy: [{ fecha: 'asc' }, { createdAt: 'desc' }],
       include: { solicitante: { select: { nombre: true, apellido: true } }, participantes: { select: { estado: true } } },
+    })
+    // Filtro de categoría NORMALIZADO en JS (no `has` exacto en la query): mi categoría debe estar en
+    // el rango de la solicitud, matcheando aunque el jugador o la solicitud tengan una forma vieja/corta
+    // ("4ta" vs "4ta Categoría"). Mismo criterio robusto que las convocatorias. Sin categoría → veo todas.
+    const sols = !miCat ? solsRaw : solsRaw.filter((s) => {
+      const rango = (s.categorias?.length ? s.categorias : (s.categoria ? [s.categoria] : []))
+        .map(normalizarCategoria).filter(Boolean)
+      return rango.length === 0 || rango.includes(miCat)
     })
     res.json(sols.map((s) => {
       const yaVan = s.participantes.filter((p) => p.estado === 'aceptado').length

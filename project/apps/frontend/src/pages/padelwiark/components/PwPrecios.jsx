@@ -79,7 +79,7 @@ const PwPrecios = () => {
             <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-[#afca0b] transition-transform duration-300 ${anual ? 'translate-x-7' : ''}`} />
           </button>
           <span className={`text-sm transition-colors ${anual ? 'text-[#f4f5ef]' : 'text-[#9ba89f]'}`}>
-            Anual <span className="pw-mono text-[11px] text-[#d4ff3f]">· 2 meses gratis</span>
+            Anual <span className="pw-mono text-[11px] text-[#d4ff3f]">· 2 meses de descuento</span>
           </span>
         </div>
 

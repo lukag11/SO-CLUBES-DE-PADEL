@@ -9,6 +9,7 @@ import useClubStore from '../store/clubStore'
 import useWiarkyGastoStore from '../store/wiarkyGastoStore'
 import { QRCodeSVG } from 'qrcode.react'
 import QRGenerando from '../features/pagos/QRGenerando'
+import { useFeatures } from '../hooks/useFeature'
 import { api } from '../lib/api'
 import { useToast } from '../components/ui/ToastProvider'
 import { METODOS_CATALOGO, METODO_MAP, metodosDelClub, MetodoBadge } from '../lib/metodosPago'
@@ -959,7 +960,12 @@ const PagosPage = () => {
   const permisos = useAuthStore((s) => s.user?.permisos)
   const esDueno = useAuthStore((s) => s.user?.rol) !== 'staff'
   const TAB_PERMISO = { ventas: 'ventas', stock: 'ventas', cobranzas: 'ventas', gastos: 'caja', caja: 'caja' }
-  const puedeTab = (id) => esDueno || !!permisos?.includes(TAB_PERMISO[id])
+  // Feature del PLAN por pestaña: Cobranzas=cobros (T1), Caja=caja_light (T1); Ventas/Stock/Gastos
+  // son finanzas completa (T2+). Aplica a TODOS (hasta el dueño): el plan no incluye = no se ve.
+  const TAB_FEATURE = { ventas: 'finanzas', stock: 'finanzas', cobranzas: 'cobros', gastos: 'finanzas', caja: 'caja_light' }
+  const features = useFeatures()
+  const tieneFeature = (f) => !features || features.includes(f) // sin datos → no romper (el back igual gatea)
+  const puedeTab = (id) => (esDueno || !!permisos?.includes(TAB_PERMISO[id])) && tieneFeature(TAB_FEATURE[id])
 
   // Tab inicial: la del query param (?tab=cobranzas), si es válida; si no, ventas.
   // (El efecto de permisos de abajo la corrige si el empleado no puede verla.)

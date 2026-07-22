@@ -5,6 +5,7 @@ import useAuthStore from '../../store/authStore'
 import useNotificacionesStore from '../../store/notificacionesStore'
 import useClubStore from '../../store/clubStore'
 import { useFeatures } from '../../hooks/useFeature'
+import ModalMejorarPlan from './ModalMejorarPlan'
 
 // Estilo del badge de plan (vinculado a club.plan que ya provee el gating)
 const PLAN_INFO = {
@@ -39,6 +40,7 @@ export const puedeVerItem = (i, esDueno, permisos) => {
 
 const Sidebar = ({ mobileOpen, onMobileClose }) => {
   const [hovered, setHovered] = useState(false)
+  const [mejorarOpen, setMejorarOpen] = useState(false)
   const navigate   = useNavigate()
   const logout     = useAuthStore((state) => state.logout)
   // Badge de "Reservas": SOLO notificaciones de agenda (reservas/turnos/clases), NO stock ni
@@ -118,14 +120,12 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
               </div>
             </div>
             {plan !== 'premium' ? (
-              <a
-                href="/padelwiark#precios"
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 flex items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-brand-500 to-brand-400 text-dark-900 text-xs font-bold py-2 hover:opacity-90 transition-opacity"
+              <button
+                onClick={() => setMejorarOpen(true)}
+                className="mt-3 w-full flex items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-brand-500 to-brand-400 text-dark-900 text-xs font-bold py-2 hover:opacity-90 transition-opacity"
               >
                 Mejorar plan <ArrowUpRight size={13} />
-              </a>
+              </button>
             ) : (
               <p className="mt-2.5 text-[10px] text-white/40 flex items-center gap-1">
                 <Crown size={11} className="text-amber-300" /> Acceso completo
@@ -134,6 +134,8 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
           </div>
         </div>
       )}
+
+      {mejorarOpen && <ModalMejorarPlan plan={plan} clubNombre={clubNombre} onClose={() => setMejorarOpen(false)} />}
 
       {/* Navegación */}
       <nav className="flex-1 px-2 py-4 flex flex-col gap-1">

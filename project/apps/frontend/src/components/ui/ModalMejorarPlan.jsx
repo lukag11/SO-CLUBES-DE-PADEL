@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { X, Check, Crown, ArrowUpRight } from 'lucide-react'
 import { PLANES_INFO, ORDEN_PLAN, money } from '../../constants/planesInfo'
 
@@ -15,7 +16,9 @@ const ModalMejorarPlan = ({ plan = 'basico', clubNombre = '', onClose }) => {
     window.open(`https://wa.me/${WHATSAPP_PADELWIARK}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener')
   }
 
-  return (
+  // Portal a document.body: el Sidebar usa transform (animación), que atraparía un position:fixed
+  // adentro. Renderizando en el body, el modal cubre TODA la pantalla con el fondo difuminado.
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
       <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -60,7 +63,8 @@ const ModalMejorarPlan = ({ plan = 'basico', clubNombre = '', onClose }) => {
         </div>
         <p className="px-6 pb-6 text-center text-[11px] text-slate-400">Nos escribís por WhatsApp y activamos tu plan al toque. 🎾</p>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

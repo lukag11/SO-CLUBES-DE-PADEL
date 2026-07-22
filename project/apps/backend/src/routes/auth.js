@@ -14,7 +14,9 @@ import { normalizarCategoria } from '../lib/categorias.js'
 const mensajeBloqueo = (motivo) =>
   motivo === 'prueba_vencida'
     ? 'La prueba gratuita del club venció. Contactá para activar un plan.'
-    : 'El club está suspendido. Contactá al soporte.'
+    : motivo === 'licencia_vencida'
+      ? 'La suscripción venció. Regularizá el pago para reactivar el club.'
+      : 'El club está suspendido. Contactá al soporte.'
 
 const router = Router()
 

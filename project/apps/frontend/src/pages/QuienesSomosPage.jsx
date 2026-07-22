@@ -187,11 +187,28 @@ const MercadoPagoConexion = () => {
           {esDueno && <button onClick={desconectar} disabled={busy} className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold text-sm disabled:opacity-50">Desconectar</button>}
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-sm text-slate-500">{estado?.estado === 'desconectado' ? 'La conexión se cayó. Reconectá para seguir cobrando.' : 'Todavía no conectaste Mercado Pago.'}</p>
-          {esDueno
-            ? <button onClick={conectar} disabled={busy} className="px-4 py-2 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-semibold text-sm disabled:opacity-50">{busy ? 'Abriendo…' : 'Conectar Mercado Pago'}</button>
-            : <p className="text-xs text-slate-400">Solo el dueño puede conectar.</p>}
+        <div className="flex flex-col gap-3">
+          {/* Instructivo: qué es y cómo se conecta (guía al dueño; MP hace el resto) */}
+          <div className="rounded-xl bg-sky-50 border border-sky-100 p-3.5 flex flex-col gap-2">
+            <p className="text-sm font-semibold text-slate-700">¿Qué es y para qué sirve?</p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Conectás <b>tu cuenta de Mercado Pago</b> para cobrarles a los jugadores con <b>link de pago</b> o <b>QR</b>
+              (lo escanean con cualquier billetera: MODO, Ualá, Naranja X, el banco o Mercado Pago).
+              <b> La plata entra directo a tu cuenta de Mercado Pago</b> — nosotros no la tocamos.
+            </p>
+            <div className="text-xs text-slate-600 flex flex-col gap-1 mt-0.5">
+              <span><b>1.</b> Tocá <b>"Conectar Mercado Pago"</b> acá abajo.</span>
+              <span><b>2.</b> Iniciá sesión con tu cuenta de Mercado Pago y tocá <b>Autorizar</b>.</span>
+              <span><b>3.</b> ¡Listo! Ya podés cobrar. El QR de tu caja se arma solo la primera vez.</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">🔒 Nunca vemos tu contraseña ni movemos tu dinero. Podés desconectar cuando quieras.</p>
+          </div>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm text-slate-500">{estado?.estado === 'desconectado' ? 'La conexión se cayó. Reconectá para seguir cobrando.' : 'Todavía no conectaste Mercado Pago.'}</p>
+            {esDueno
+              ? <button onClick={conectar} disabled={busy} className="px-4 py-2 rounded-xl bg-[#009ee3] hover:brightness-95 text-white font-semibold text-sm disabled:opacity-50">{busy ? 'Abriendo…' : 'Conectar Mercado Pago'}</button>
+              : <p className="text-xs text-slate-400">Solo el dueño puede conectar.</p>}
+          </div>
         </div>
       )}
     </SectionCard>

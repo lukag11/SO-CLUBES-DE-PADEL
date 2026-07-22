@@ -4,6 +4,7 @@ import { generarConvocatoriaWhatsapp } from './insight.js'
 import { hoyArgStr, ahoraArgHHMM } from './tiempo.js'
 import { normalizarCategoria } from './categorias.js'
 import { tarifaListaSnapshot } from './finanzas.js'
+import { conflictoEnFecha } from './conflictos.js'
 
 // Lleva las categorías al formato canónico ("4ta Categoría") sin importar por qué camino
 // llegaron (REST, WIarky, Fase B jugador). Punto único: garantiza que lo guardado y lo
@@ -11,18 +12,10 @@ import { tarifaListaSnapshot } from './finanzas.js'
 const normalizarCategorias = (arr) =>
   Array.isArray(arr) ? arr.map((c) => normalizarCategoria(c)).filter(Boolean) : []
 
-// Helpers de horario (cross-midnight aware), autocontenidos para no tocar reservas.js.
+// Único helper propio de la convocatoria: la duración fija de +90'. Los solapes/conflictos de
+// cancha se delegan a la fuente única lib/conflictos.js (conflictoEnFecha) — no se duplica la lógica.
 const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
-const rangoMin = (inicio, fin) => { const i = toMin(inicio); let f = toMin(fin); if (f <= i) f += 1440; return { i, f } }
-const overlaps = (aIni, aFin, bIni, bFin) => {
-  const a = rangoMin(aIni, aFin), b = rangoMin(bIni, bFin)
-  if (a.i < b.f && a.f > b.i) return true
-  if (a.i < b.f + 1440 && a.f > b.i + 1440) return true
-  if (a.i + 1440 < b.f && a.f + 1440 > b.i) return true
-  return false
-}
 const sumar90 = (hhmm) => { const t = (toMin(hhmm) + 90) % 1440; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}` }
-const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
 
 // Organiza una convocatoria: reserva N canchas a nombre del jugador organizador (mismas
 // reglas que una reserva normal) + crea la convocatoria, todo ATÓMICO bajo Serializable
@@ -36,20 +29,16 @@ export async function organizarConvocatoria({ clubId, organizadorJugadorId, moda
     throw Object.assign(new Error(`No se puede organizar en un horario que ya pasó (${fecha} ${horaInicio}).`), { status: 400 })
   }
   const horaFin = sumar90(horaInicio)
-  const [fy, fm, fd] = fecha.split('-').map(Number)
-  const diaKey = DIAS[new Date(fy, fm - 1, fd).getDay()]
 
   return runSerializable(async (tx) => {
     const canchasClub = await tx.cancha.findMany({ where: { clubId, activo: true }, orderBy: { nombre: 'asc' }, select: { id: true, nombre: true } })
-    const reservas = await tx.reserva.findMany({ where: { clubId, fecha, estado: { in: ['pendiente', 'confirmada'] } }, select: { canchaId: true, horaInicio: true, horaFin: true } })
-    const tfs = await tx.turnoFijo.findMany({ where: { clubId, dia: diaKey, estado: 'confirmado' }, select: { canchaId: true, horaInicio: true, horaFin: true, diasAusentes: true, desde: true } })
-
-    const ocupada = (canchaId) => {
-      if (reservas.some((r) => r.canchaId === canchaId && overlaps(r.horaInicio, r.horaFin, horaInicio, horaFin))) return true
-      if (tfs.some((t) => t.canchaId === canchaId && overlaps(t.horaInicio, t.horaFin, horaInicio, horaFin) && !t.diasAusentes.includes(fecha) && (!t.desde || t.desde <= fecha))) return true
-      return false
+    // Fuente única de conflictos: conflictoEnFecha chequea reservas+clases del día y TF activos
+    // (ausencias/desde), cross-midnight. Antes había una copia local de la lógica de solape → migrado.
+    const libres = []
+    for (const c of canchasClub) {
+      if (!(await conflictoEnFecha(tx, { clubId, canchaId: c.id, fecha, horaInicio, horaFin }))) libres.push(c)
+      if (libres.length >= canchas) break
     }
-    const libres = canchasClub.filter((c) => !ocupada(c.id)).slice(0, canchas)
     if (libres.length < canchas) {
       throw Object.assign(new Error(`No hay ${canchas} canchas libres el ${fecha} a las ${horaInicio} (hay ${libres.length}).`), { status: 409 })
     }

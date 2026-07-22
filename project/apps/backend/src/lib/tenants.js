@@ -25,7 +25,7 @@ export const crearClub = async ({
   adminNombre,
   adminEmail,
   adminPassword,
-  trialDias = 14,
+  trialDias = 21,
 }) => {
   if (!clubNombre || !adminEmail || !adminPassword) {
     throw Object.assign(new Error('Faltan datos: nombre del club, email y contraseña del administrador'), { status: 400 })

@@ -21,7 +21,7 @@ const PwCTA = () => (
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <a href="/padelwiark/registro" className="pw-btn-lime inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 font-semibold text-sm">
-            Probar gratis 14 días <ArrowRight size={17} />
+            Probar gratis 21 días <ArrowRight size={17} />
           </a>
           <a
             href="#features"

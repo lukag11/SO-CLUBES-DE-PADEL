@@ -1,48 +1,49 @@
 import { useState } from 'react'
 import { Check, ArrowRight } from 'lucide-react'
 
-// Precios de REFERENCIA en ARS (placeholder, ajustables). Anual = 2 meses gratis (×10/12).
+// Precios de REFERENCIA en ARS (ajustables). Anual = 2 meses gratis (×10/12).
+// ids internos = basico/pro/premium (no tocar: los usa el backend). Nombres comerciales abajo.
 const PLANES = [
   {
     id: 'basico',
-    nombre: 'Básico',
-    desc: 'Para arrancar a ordenar las reservas.',
-    precio: 29900,
+    nombre: 'Cancha',
+    desc: 'Para el club que quiere ordenar sus reservas y cobrar.',
+    precio: 42900,
     destacado: false,
     features: [
       'Grilla de reservas en tiempo real',
-      'Hasta 3 canchas',
-      'Turnos fijos y bloqueos',
-      'App para tus jugadores',
-      '1 usuario administrador',
+      'Cobrá por link, QR o transferencia — sin comisión nuestra',
+      'Caja del día: mirá cuánta plata entró',
+      'Turnos fijos + app para tus jugadores',
+      'Hasta 4 canchas · 2 usuarios',
     ],
   },
   {
     id: 'pro',
-    nombre: 'Pro',
-    desc: 'El club completo, gestionado de punta a punta.',
-    precio: 49900,
+    nombre: 'Club',
+    desc: 'Tu club completo: bar, torneos y profesores.',
+    precio: 74900,
     destacado: true,
     features: [
-      'Todo lo de Básico, sin límite de canchas',
-      'Finanzas: cobranzas, caja y stock',
-      'Torneos con fixture y bracket',
-      'Portal para profesores y clases',
-      'Estadísticas e informes',
+      'Todo lo de Cancha, con canchas ilimitadas',
+      'Finanzas completas: caja, stock, bar/mesas y gastos',
+      'Torneos con fixture, grupos y bracket',
+      'Portal de profesores y clases + estadísticas',
+      'Hasta 5 usuarios con permisos',
     ],
   },
   {
     id: 'premium',
-    nombre: 'Premium',
-    desc: 'Para cadenas y clubes que quieren todo.',
-    precio: 79900,
+    nombre: 'Cadena',
+    desc: 'Inteligencia de negocio, IA y soporte prioritario.',
+    precio: 119900,
     destacado: false,
     features: [
-      'Todo lo de Pro',
-      'Asistente con IA (carga de facturas)',
-      'Varias sedes y administradores',
-      'Personalización avanzada de marca',
-      'Soporte prioritario',
+      'Todo lo de Club',
+      'Dirección: tu punto de equilibrio y el costo de la hora vacía',
+      'WIarky: el asistente con IA que hace tus tareas hablándole',
+      'Usuarios ilimitados + soporte prioritario',
+      'Multi-sede — próximamente',
     ],
   },
 ]
@@ -63,7 +64,7 @@ const PwPrecios = () => {
             Planes simples, sin sorpresas.
           </h2>
           <p className="text-[#9ba89f] mt-4 text-base sm:text-lg leading-relaxed">
-            Sin permanencia. Cancelás cuando quieras. Probá 14 días gratis, sin tarjeta.
+            Sin permanencia. Cancelás cuando quieras. Probá 21 días gratis, sin tarjeta.
           </p>
         </div>
 

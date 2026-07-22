@@ -84,7 +84,7 @@ const PwModalCrearClub = ({ onClose, onCreated }) => {
         <button type="submit" disabled={submitting} className="pw-btn-lime w-full rounded-full px-5 py-3 font-semibold text-sm disabled:opacity-50">
           {submitting ? 'Creando…' : 'Crear club'}
         </button>
-        <p className="text-[11px] text-[#9ba89f]/60 text-center mt-3">Arranca en prueba (14 días). Pasale el email y la contraseña al dueño del club.</p>
+        <p className="text-[11px] text-[#9ba89f]/60 text-center mt-3">Arranca en prueba (21 días). Pasale el email y la contraseña al dueño del club.</p>
       </form>
     </div>
   )

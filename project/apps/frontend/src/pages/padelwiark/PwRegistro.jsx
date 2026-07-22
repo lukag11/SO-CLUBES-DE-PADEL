@@ -50,7 +50,7 @@ const PwRegistro = () => {
               <CheckCircle2 size={26} className="text-[#d4ff3f]" />
             </div>
             <h1 className="pw-display text-2xl font-semibold text-[#f4f5ef] mb-2">¡Tu club está listo! 🎉</h1>
-            <p className="text-sm text-[#9ba89f] mb-1">Arrancaste tu prueba gratis de 14 días con acceso completo.</p>
+            <p className="text-sm text-[#9ba89f] mb-1">Arrancaste tu prueba gratis de 21 días con acceso completo.</p>
             <p className="text-sm text-[#9ba89f] mb-7">Entrá con <b className="text-[#f4f5ef]">{ok.adminEmail}</b> y la contraseña que elegiste.</p>
             <a href="/login" className="pw-btn-lime inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 font-semibold text-sm">
               Entrar a mi club <ArrowRight size={16} />
@@ -60,7 +60,7 @@ const PwRegistro = () => {
           <form onSubmit={submit} className="rounded-3xl border border-white/8 bg-[#141c18]/80 backdrop-blur-xl p-7">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#afca0b]/30 bg-[#afca0b]/10 px-3 py-1 mb-4">
               <Sparkles size={12} className="text-[#d4ff3f]" />
-              <span className="pw-mono text-[10px] uppercase tracking-wide text-[#d4ff3f]">14 días gratis · sin tarjeta</span>
+              <span className="pw-mono text-[10px] uppercase tracking-wide text-[#d4ff3f]">21 días gratis · sin tarjeta</span>
             </div>
             <h1 className="pw-display text-xl font-semibold text-[#f4f5ef] mb-1">Creá tu club</h1>
             <p className="text-sm text-[#9ba89f] mb-6">En un minuto tenés tu club andando.</p>

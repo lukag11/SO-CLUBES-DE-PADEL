@@ -20,7 +20,7 @@ const FAQS = [
   },
   {
     q: '¿Hay permanencia o contrato?',
-    a: 'No. Pagás mes a mes y cancelás cuando quieras. Empezás con 14 días gratis, sin tarjeta.',
+    a: 'No. Pagás mes a mes y cancelás cuando quieras. Empezás con 21 días gratis, sin tarjeta.',
   },
   {
     q: '¿Y si tengo más de una sede?',

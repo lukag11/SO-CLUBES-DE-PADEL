@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireRole, requireOwner } from '../middleware/auth.js'
 import { PERMISOS, PERMISO_IDS } from '../lib/permisos.js'
+import { limiteDelPlan } from '../lib/planes.js'
 
 const router = Router()
 
@@ -48,6 +49,16 @@ router.post('/', ...guard, async (req, res) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'El email no parece válido' })
   if (String(password).length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' })
   try {
+    // Límite de usuarios admin por plan (Fase 2): total = dueño + empleados. Trial = premium (sin límite).
+    const clubPlan = await prisma.club.findUnique({ where: { id: req.user.clubId }, select: { plan: true, estado: true } })
+    const maxAdmins = limiteDelPlan(clubPlan).admins
+    const actuales = await prisma.admin.count({ where: { clubId: req.user.clubId } })
+    if (actuales >= maxAdmins) {
+      return res.status(403).json({
+        error: 'limite_plan', recurso: 'admins', limite: maxAdmins,
+        message: `Tu plan permite hasta ${maxAdmins} usuario${maxAdmins === 1 ? '' : 's'} administrador${maxAdmins === 1 ? '' : 'es'}. Subí de plan para sumar más.`,
+      })
+    }
     const existe = await prisma.admin.findUnique({ where: { email }, select: { id: true } })
     if (existe) return res.status(409).json({ error: 'Ya existe un usuario con ese email' })
     const emp = await prisma.admin.create({

@@ -9,6 +9,7 @@ import { calcularRetencionTF } from '../lib/finanzas.js'
 import { organizarConvocatoria, crearConvocatoriaCompleta } from '../lib/convocatorias.js'
 import { normalizarCategoria } from '../lib/categorias.js'
 import { nivelDeCategoria, catCorta, registrarCambioCategoria } from '../lib/ascenso.js'
+import { limiteDelPlan } from '../lib/planes.js'
 
 const router = Router()
 
@@ -530,6 +531,18 @@ router.patch('/me/canchas', requireAuth, requireRole('admin'), requireOwner, asy
   const clubId = req.user.clubId
 
   try {
+    // Límite de canchas por plan (Fase 2). La lista entrante = las canchas ACTIVAS deseadas.
+    // Trial = premium (sin límite). Bloquea agregar por encima del plan (y downgrade con exceso).
+    const clubPlan = await prisma.club.findUnique({ where: { id: clubId }, select: { plan: true, estado: true } })
+    const maxCanchas = limiteDelPlan(clubPlan).canchas
+    const activasEntrantes = canchas.filter((c) => c.activo !== false).length
+    if (activasEntrantes > maxCanchas) {
+      return res.status(403).json({
+        error: 'limite_plan', recurso: 'canchas', limite: maxCanchas,
+        message: `Tu plan permite hasta ${maxCanchas} cancha${maxCanchas === 1 ? '' : 's'}. Subí de plan para agregar más.`,
+      })
+    }
+
     // IDs actuales en la DB
     const dbCanchas = await prisma.cancha.findMany({ where: { clubId }, select: { id: true } })
     const dbIds = new Set(dbCanchas.map((c) => c.id))

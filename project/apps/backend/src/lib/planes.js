@@ -38,6 +38,22 @@ export const DEFAULT_MATRIZ = {
   premium: ['reservas', 'jugadores', 'turnos_fijos', 'cobros', 'caja_light', 'finanzas', 'torneos', 'profesores', 'estadisticas', 'sponsors', 'ia', 'multisede', 'branding', 'direccion'],
 }
 
+// Límites de CANTIDAD por plan (Fase 2). Infinity = sin límite. Los únicos 3 límites numéricos
+// (canchas/admins/sedes) — no agregar más (evita ansiedad y tickets). `admins` = total (dueño +
+// empleados). El gating de MÓDULOS (arriba) es on/off; esto es cantidad.
+export const LIMITES = {
+  basico:  { canchas: 4, admins: 2, sedes: 1 },
+  pro:     { canchas: Infinity, admins: 5, sedes: 1 },
+  premium: { canchas: Infinity, admins: Infinity, sedes: Infinity },
+}
+
+// Límite efectivo de un club. En PRUEBA (trial) = premium (sin límites), igual criterio que
+// featuresEfectivas (que pruebe todo). Suspendido/vencido ya lo frena requireClubActivo antes.
+export const limiteDelPlan = (club) => {
+  const plan = club?.estado === 'prueba' ? 'premium' : (club?.plan || 'basico')
+  return LIMITES[plan] || LIMITES.basico
+}
+
 // ¿El club tiene el acceso cortado por completo? (suspendido o prueba vencida)
 export const accesoBloqueado = (club) => {
   if (!club) return true

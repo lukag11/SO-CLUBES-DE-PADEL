@@ -7,8 +7,12 @@ import { loginLimiter, signupLimiter } from '../middleware/rateLimit.js'
 import { crearClub, PLANES_VALIDOS } from '../lib/tenants.js'
 import { FEATURES, FEATURE_IDS, CORE_FEATURES } from '../lib/planes.js'
 import { getMatriz, setMatriz } from '../lib/planesConfig.js'
+import { inicioMesArg } from '../lib/tiempo.js'
 
 const router = Router()
+
+// Suma `n` meses a una fecha (para extender la licencia de suscripción).
+const addMeses = (date, n) => { const d = new Date(date); d.setMonth(d.getMonth() + n); return d }
 
 const ESTADOS_VALIDOS = ['prueba', 'activo', 'suspendido']
 
@@ -182,6 +186,80 @@ router.patch('/planes', requireAuth, requireRole('platform'), async (req, res) =
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al guardar los planes' })
+  }
+})
+
+// ---- GET /api/platform/suscripciones — panel de TU cobro (la suscripción de cada club) ----
+router.get('/suscripciones', requireAuth, requireRole('platform'), async (req, res) => {
+  try {
+    const clubs = await prisma.club.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, nombre: true, slug: true, plan: true, estado: true, trialHasta: true, licenciaHasta: true, precioMensual: true },
+    })
+    const now = Date.now()
+    const en7 = now + 7 * 24 * 60 * 60 * 1000
+    const conEstado = clubs.map((c) => {
+      let pago = 'sin_dato'
+      if (c.estado === 'suspendido') pago = 'suspendido'
+      else if (c.estado === 'prueba') pago = 'prueba'
+      else if (c.estado === 'activo') {
+        const t = c.licenciaHasta ? new Date(c.licenciaHasta).getTime() : null
+        pago = t == null ? 'sin_licencia' : t < now ? 'vencido' : t < en7 ? 'por_vencer' : 'al_dia'
+      }
+      return { ...c, pago }
+    })
+    // Tu caja del mes: suma de pagos de suscripción registrados en el mes en curso.
+    const agg = await prisma.suscripcionPago.aggregate({ where: { createdAt: { gte: inicioMesArg() } }, _sum: { monto: true }, _count: true })
+    // MRR aprox = suma de precioMensual de los clubes al día.
+    const mrr = conEstado.filter((c) => c.pago === 'al_dia' || c.pago === 'por_vencer').reduce((s, c) => s + (c.precioMensual || 0), 0)
+    res.json({ clubs: conEstado, cajaMes: agg._sum.monto || 0, pagosMes: agg._count, mrr })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener las suscripciones' })
+  }
+})
+
+// ---- POST /api/platform/clubs/:id/pago — registrar un pago de suscripción + extender licencia ----
+// El PlatformAdmin lo carga cuando el club paga (transferencia / MP / efectivo). Activa el club
+// y le corre la licencia N meses desde HOY (o desde su vencimiento futuro si ya está al día).
+router.post('/clubs/:id/pago', requireAuth, requireRole('platform'), async (req, res) => {
+  const { id } = req.params
+  const { monto, metodo = 'transferencia', meses = 1, comprobanteUrl, nota } = req.body
+  const montoInt = Math.round(Number(monto) || 0)
+  const mesesInt = Math.max(1, Math.round(Number(meses) || 1))
+  if (montoInt <= 0) return res.status(400).json({ error: 'El monto debe ser mayor a cero' })
+  try {
+    const club = await prisma.club.findUnique({ where: { id }, select: { id: true, licenciaHasta: true } })
+    if (!club) return res.status(404).json({ error: 'Club no encontrado' })
+    const now = new Date()
+    // Si ya está pago hacia adelante, apilamos los meses; si venció / nunca pagó, corre desde hoy.
+    const base = club.licenciaHasta && new Date(club.licenciaHasta) > now ? new Date(club.licenciaHasta) : now
+    const cubreHasta = addMeses(base, mesesInt)
+    const [pago, updated] = await prisma.$transaction([
+      prisma.suscripcionPago.create({
+        data: { clubId: id, monto: montoInt, metodo, meses: mesesInt, cubreDesde: base, cubreHasta, comprobanteUrl: comprobanteUrl || null, nota: nota || null, registradoPor: req.user.id },
+      }),
+      prisma.club.update({
+        where: { id },
+        data: { estado: 'activo', activo: true, licenciaHasta: cubreHasta, precioMensual: Math.round(montoInt / mesesInt) },
+        select: { id: true, nombre: true, estado: true, licenciaHasta: true, precioMensual: true },
+      }),
+    ])
+    res.status(201).json({ ok: true, pago, club: updated })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al registrar el pago' })
+  }
+})
+
+// ---- GET /api/platform/clubs/:id/pagos — historial de pagos de suscripción de un club ----
+router.get('/clubs/:id/pagos', requireAuth, requireRole('platform'), async (req, res) => {
+  try {
+    const pagos = await prisma.suscripcionPago.findMany({ where: { clubId: req.params.id }, orderBy: { createdAt: 'desc' } })
+    res.json(pagos)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener el historial' })
   }
 })
 

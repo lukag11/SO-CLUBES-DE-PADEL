@@ -16,7 +16,9 @@ model Club {
   activo      Boolean  @default(true)
   plan         String   @default("basico") // basico | pro | premium — define el feature gating
   estado       String   @default("prueba") // prueba | activo | suspendido
-  trialHasta   DateTime?                    // fin del período de prueba (14 días). null = sin trial
+  trialHasta   DateTime?                    // fin del período de prueba (21 días). null = sin trial
+  licenciaHasta DateTime?                   // suscripción paga hasta esta fecha (clubes 'activo'). null = sin licencia paga → si activo y vencido, se bloquea. Ver lib/planes.js accesoBloqueado.
+  precioMensual Int?                        // lo que el club le paga a PadelwIArk por mes (ARS). Referencia del plan si null.
   featuresExtra String[]                    // "regalitos": features extra fuera del plan
   config      Json?
   createdAt   DateTime @default(now())
@@ -44,8 +46,29 @@ model Club {
   arqueosCaja    ArqueoCaja[]
   pagos          Pago[]
   mpConexion     MpConexion?   // conexión OAuth de Mercado Pago (NUNCA incluir en lecturas del club)
+  suscripcionPagos SuscripcionPago[] // pagos de la SUSCRIPCIÓN del club a PadelwIArk (plata propia)
 
   @@map("clubs")
+}
+
+// Pago de la SUSCRIPCIÓN de un club a PadelwIArk (NUESTRA plata, no la del club→jugador).
+// Lo registra el PlatformAdmin cuando el club paga (transferencia o link MP). Extiende Club.licenciaHasta.
+model SuscripcionPago {
+  id            String    @id @default(cuid())
+  clubId        String
+  club          Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  monto         Int                                     // ARS cobrados
+  metodo        String                                  // transferencia | mp | efectivo | otro
+  meses         Int       @default(1)                   // meses que cubre este pago
+  cubreDesde    DateTime                                // desde qué fecha corre la licencia
+  cubreHasta    DateTime                                // hasta qué fecha (= nuevo licenciaHasta)
+  comprobanteUrl String?                                // opcional (foto de la transferencia)
+  nota          String?
+  registradoPor String?                                 // platformAdminId que lo cargó
+  createdAt     DateTime  @default(now())
+
+  @@index([clubId, createdAt])
+  @@map("suscripcion_pagos")
 }
 
 // Conexión OAuth de Mercado Pago de un club (el club conectó SU cuenta). Los tokens van

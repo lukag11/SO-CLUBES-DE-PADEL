@@ -34,16 +34,19 @@ export const requireClubActivo = async (req, res, next) => {
     if (!clubId) return next() // platform u otros sin club → no aplica
     const club = await prisma.club.findUnique({
       where: { id: clubId },
-      select: { estado: true, trialHasta: true },
+      select: { estado: true, trialHasta: true, licenciaHasta: true },
     })
     const bloqueo = accesoBloqueado(club)
     if (bloqueo) {
+      const mensajes = {
+        prueba_vencida: 'La prueba gratuita venció. Contactá para activar tu plan.',
+        licencia_vencida: 'La suscripción venció. Regularizá el pago para reactivar el club.',
+        suspendido: 'El club está suspendido. Contactá al soporte.',
+      }
       return res.status(403).json({
         error: 'club_bloqueado',
-        motivo: bloqueo, // 'suspendido' | 'prueba_vencida'
-        message: bloqueo === 'prueba_vencida'
-          ? 'La prueba gratuita venció. Contactá para activar tu plan.'
-          : 'El club está suspendido. Contactá al soporte.',
+        motivo: bloqueo, // 'suspendido' | 'prueba_vencida' | 'licencia_vencida'
+        message: mensajes[bloqueo] || mensajes.suspendido,
       })
     }
     next()
@@ -61,7 +64,7 @@ export const requireFeature = (featureId) => async (req, res, next) => {
     if (!clubId) return res.status(403).json({ error: 'Sin club asociado' })
     const club = await prisma.club.findUnique({
       where: { id: clubId },
-      select: { plan: true, estado: true, trialHasta: true, featuresExtra: true },
+      select: { plan: true, estado: true, trialHasta: true, licenciaHasta: true, featuresExtra: true },
     })
     if (accesoBloqueado(club)) {
       return res.status(403).json({ error: 'club_bloqueado', message: 'El acceso del club está bloqueado.' })

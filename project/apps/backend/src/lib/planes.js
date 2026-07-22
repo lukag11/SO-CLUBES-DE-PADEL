@@ -54,12 +54,17 @@ export const limiteDelPlan = (club) => {
   return LIMITES[plan] || LIMITES.basico
 }
 
-// ¿El club tiene el acceso cortado por completo? (suspendido o prueba vencida)
+// ¿El club tiene el acceso cortado por completo? (suspendido, prueba vencida o suscripción vencida)
 export const accesoBloqueado = (club) => {
   if (!club) return true
   if (club.estado === 'suspendido') return 'suspendido'
   if (club.estado === 'prueba' && club.trialHasta && new Date(club.trialHasta).getTime() < Date.now()) {
     return 'prueba_vencida'
+  }
+  // Club pago ('activo') con licencia vencida → cortar hasta que renueve. Sin licenciaHasta (null)
+  // = no se controla por fecha (alta manual / grandfathering) → no bloquea.
+  if (club.estado === 'activo' && club.licenciaHasta && new Date(club.licenciaHasta).getTime() < Date.now()) {
+    return 'licencia_vencida'
   }
   return false
 }

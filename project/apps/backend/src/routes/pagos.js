@@ -30,7 +30,7 @@ const SEL_JUGADOR = { select: { id: true, nombre: true, apellido: true, dni: tru
 
 // GET /api/pagos — historial de pagos (libro de plata). ?jugadorId= &incluirAnulados=1
 // Por defecto: pagos del mes en curso, no anulados. Cada uno con sus líneas (split).
-router.get('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.get('/', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const { jugadorId, incluirAnulados, periodo } = req.query
   try {
     const where = { clubId: req.user.clubId }
@@ -62,7 +62,7 @@ router.get('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), r
 
 // POST /api/pagos/:id/anular — revierte un pago: descuenta el saldo imputado a cada ítem,
 // reabre los que queden impagos, y marca el pago anulado (no lo borra: queda auditoría).
-router.post('/:id/anular', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.post('/:id/anular', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const { id } = req.params
   try {
     const pago = await prisma.pago.findUnique({ where: { id }, select: { id: true, clubId: true, imputaciones: true, anuladoAt: true } })
@@ -85,7 +85,7 @@ router.post('/:id/anular', requireAuth, requireRole('admin'), requireFeature('fi
 // POST /api/pagos/link-pago — link de Mercado Pago para una o varias deudas de un jugador.
 // Body: { items: [{origen,refId}], jugadorId } (varias) o { origen, refId } (una, legacy).
 // 1 deuda → link single (reusa link vivo); varias → link 'multi' por el total. Acredita el webhook.
-router.post('/link-pago', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.post('/link-pago', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
   const { items, jugadorId, origen, refId } = req.body || {}
   if (!(await mpConfigurado(clubId))) return res.status(503).json({ error: 'mp_no_configurado', message: 'Mercado Pago no está configurado todavía.' })
@@ -107,7 +107,7 @@ router.post('/link-pago', requireAuth, requireRole('admin'), requireFeature('fin
 // POST /api/pagos/qr/cobrar — S2: genera el QR de billetera interoperable para una deuda (o
 // varias del mismo jugador). Carga el monto en la caja del club y devuelve la imagen del QR.
 // El jugador lo escanea con CUALQUIER billetera. La acreditación real llega por el webhook.
-router.post('/qr/cobrar', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.post('/qr/cobrar', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
   const { items, jugadorId, origen, refId } = req.body || {}
   const lista = Array.isArray(items) && items.length ? items : (refId ? [{ origen, refId }] : [])
@@ -125,7 +125,7 @@ router.post('/qr/cobrar', requireAuth, requireRole('admin'), requireFeature('fin
 // POST /api/pagos/comprobante-transferencia — adjunta (del lado admin) el comprobante de una
 // transferencia YA cobrada a un conjunto de deudas/ítems (ej: una venta recién cobrada). Sube la
 // foto + IA lee el monto + queda en Pagados. No cobra ni imputa. Reusa registrarComprobanteAdmin.
-router.post('/comprobante-transferencia', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.post('/comprobante-transferencia', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const { items, jugadorId, monto, comprobante } = req.body || {}
   if (!Array.isArray(items) || items.length === 0 || !jugadorId || !comprobante) {
     return res.status(400).json({ error: 'datos_incompletos', message: 'Faltan datos para guardar el comprobante.' })
@@ -141,7 +141,7 @@ router.post('/comprobante-transferencia', requireAuth, requireRole('admin'), req
 
 // GET /api/pagos/qr/:id/estado — estado del intento de cobro QR (para que el modal haga polling
 // y se autocierre cuando el jugador paga). Liviano: solo el status del PagoMP.
-router.get('/qr/:id/estado', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.get('/qr/:id/estado', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const pm = await prisma.pagoMP.findFirst({ where: { id: req.params.id, clubId: req.user.clubId, tipo: 'qr' }, select: { status: true } })
   if (!pm) return res.status(404).json({ error: 'no_encontrado' })
   res.json({ status: pm.status, pagado: pm.status === 'approved' })
@@ -149,7 +149,7 @@ router.get('/qr/:id/estado', requireAuth, requireRole('admin'), requireFeature('
 
 // POST /api/pagos/qr/:id/cancelar — libera la orden QR de la caja (el admin abandona el QR o
 // va a cobrar de otra forma). Borra la orden del POS + marca el intento cancelado.
-router.post('/qr/:id/cancelar', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.post('/qr/:id/cancelar', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   try {
     const out = await cancelarOrdenQR(req.user.clubId, req.params.id)
     res.json(out)
@@ -279,7 +279,7 @@ router.get('/me/avisos-transferencia', requireAuth, requireRole('jugador'), asyn
 
 // POST /api/pagos/avisos-transferencia/:id/confirmar — el ADMIN confirma que la transferencia
 // entró → salda las deudas del aviso con método 'transferencia' y avisa al jugador.
-router.post('/avisos-transferencia/:id/confirmar', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.post('/avisos-transferencia/:id/confirmar', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
   const { id } = req.params
   try {
@@ -296,7 +296,7 @@ router.post('/avisos-transferencia/:id/confirmar', requireAuth, requireRole('adm
 
 // POST /api/pagos/avisos-transferencia/:id/rechazar — el ADMIN rechaza el aviso (no entró la
 // plata / comprobante inválido). No salda nada. Avisa al jugador.
-router.post('/avisos-transferencia/:id/rechazar', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.post('/avisos-transferencia/:id/rechazar', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
   const { id } = req.params
   try {
@@ -353,7 +353,7 @@ router.post('/me/link-pago', requireAuth, requireRole('jugador'), async (req, re
 // GET /api/pagos/links-vivos?jugadorId= — links de MP activos (iniciado/pending, no vencidos)
 // del club (o de un jugador). Sirve para mostrar "esperando pago" y poder recuperar/reenviar
 // el link. Devuelve, por link, las deudas que cubre (normalizado: single o multi → lista).
-router.get('/links-vivos', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.get('/links-vivos', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
   const { jugadorId } = req.query
   try {
@@ -386,7 +386,7 @@ router.get('/links-vivos', requireAuth, requireRole('admin'), requireFeature('fi
 // POST /api/pagos/link-pago/:id/cancelar — da de baja un link activo (el admin prefiere
 // cobrar de otra forma). NO frena a MP: si el jugador igual paga, el webhook lo acredita
 // (y si ya se cobró aparte, queda como sobrepago RN-75). Es una señal de la vista.
-router.post('/link-pago/:id/cancelar', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.post('/link-pago/:id/cancelar', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
   const { id } = req.params
   try {

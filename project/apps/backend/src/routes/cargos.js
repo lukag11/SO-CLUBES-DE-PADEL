@@ -74,7 +74,7 @@ router.get('/me', requireAuth, requireRole('jugador'), requireActive, async (req
 
 // GET /api/cargos — admin lista cargos del club, con filtros opcionales
 // ?estado=pendiente|pagado|condonado|vencido  &jugadorId=
-router.get('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.get('/', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const { estado, jugadorId } = req.query
   try {
     // comandaId: null → excluye ítems de comandas/mesas del bar (no son deudas de jugadores)
@@ -100,7 +100,7 @@ router.get('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), r
 })
 
 // GET /api/cargos/resumen — totales para las tarjetas de cobranzas
-router.get('/resumen', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.get('/resumen', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
   try {
     const pendientes = await prisma.cargo.findMany({
@@ -135,7 +135,7 @@ router.get('/resumen', requireAuth, requireRole('admin'), requireFeature('finanz
 // GET /api/cargos/cobranzas — vista unificada: cargos + turnos impagos pasados
 // ?jugadorId=  → scopea a un jugador (para la ficha del drawer)
 // Devuelve { deudas, resumen }. Cada deuda lleva origen: 'cargo' | 'reserva'.
-router.get('/cobranzas', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.get('/cobranzas', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
   const { jugadorId } = req.query
   const filtroJ = jugadorId ? { jugadorId } : {}
@@ -195,7 +195,7 @@ router.get('/cobranzas', requireAuth, requireRole('admin'), requireFeature('fina
 })
 
 // POST /api/cargos — admin crea un cargo manual
-router.post('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.post('/', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const { jugadorId = null, concepto, monto, vencimiento, cobrar, metodoPago } = req.body
   const clubId = req.user.clubId
 
@@ -250,7 +250,7 @@ router.post('/', requireAuth, requireRole('admin'), requireFeature('finanzas'), 
 // se marcan pagados sólo cuando saldoPagado alcanza el monto. La caja lee las líneas.
 // Body: { jugadorId, items: [{ origen:'cargo'|'reserva', refId }], monto?, lineas?, metodoPago? }
 // Compat: sin `monto` ni `lineas` → cobra todo lo seleccionado con `metodoPago` (comportamiento previo).
-router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const { jugadorId, items, monto, lineas, metodoPago } = req.body
   const clubId = req.user.clubId
   if (!jugadorId || !Array.isArray(items) || items.length === 0) {
@@ -326,7 +326,7 @@ router.post('/cobrar-cuenta', requireAuth, requireRole('admin'), requireFeature(
 })
 
 // DELETE /api/cargos/:id — admin elimina un cargo (ej: decide no cobrar una multa)
-router.delete('/:id', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.delete('/:id', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const { id } = req.params
   try {
     const cargo = await prisma.cargo.findUnique({ where: { id } })
@@ -348,7 +348,7 @@ router.delete('/:id', requireAuth, requireRole('admin'), requireFeature('finanza
 })
 
 // PATCH /api/cargos/:id/estado — admin marca pagado (con método) o condona
-router.patch('/:id/estado', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.patch('/:id/estado', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const { id } = req.params
   const { estado, metodoPago } = req.body
 
@@ -399,7 +399,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), requireFeature('f
 // POST /api/cargos/:id/link-pago — link de Mercado Pago para una deuda (cargo).
 // Delega en crearLinkPagoDeuda (lib/cobrosMP.js). El unificado (cargo o turno) es
 // POST /api/pagos/link-pago. RN-70/76/77.
-router.post('/:id/link-pago', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), async (req, res) => {
+router.post('/:id/link-pago', requireAuth, requireRole('admin'), requireFeature('cobros'), requirePermiso('ventas'), async (req, res) => {
   const clubId = req.user.clubId
   if (!(await mpConfigurado(clubId))) return res.status(503).json({ error: 'mp_no_configurado', message: 'Mercado Pago no está configurado todavía.' })
   try {

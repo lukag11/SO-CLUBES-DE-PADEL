@@ -100,7 +100,7 @@ app.use('/api/gastos', requireAuth, requireRole('admin'), requireFeature('finanz
 app.use('/api/costos', requireAuth, requireRole('admin'), requireFeature('direccion'), requirePermiso('caja'), costosRouter)
 app.use('/api/finanzas', requireAuth, requireRole('admin'), requireFeature('direccion'), requirePermiso('caja'), finanzasRouter)
 app.use('/api/comandas', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('ventas'), comandasRouter)
-app.use('/api/caja', requireAuth, requireRole('admin'), requireFeature('finanzas'), requirePermiso('caja'), cajaRouter)
+app.use('/api/caja', requireAuth, requireRole('admin'), requireFeature('caja_light'), requirePermiso('caja'), cajaRouter)
 app.use('/api/profesores', requireAuth, requireRole('admin'), requireFeature('profesores'), requirePermiso('clases'), profesoresRouter)
 app.use('/api/sponsors', requireAuth, requireRole('admin'), requireFeature('sponsors'), requirePermiso('sponsors'), sponsorsRouter)
 app.use('/api/platform', platformRouter)

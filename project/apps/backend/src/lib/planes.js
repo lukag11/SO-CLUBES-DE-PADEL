@@ -6,17 +6,20 @@
 // ============================================================
 
 // Catálogo de módulos "gateables". core:true = siempre habilitado (todos los planes).
+// Tiers comerciales (2026-07-22): T1 "Cancha" (basico) · T2 "Club" (pro) · T3 "Cadena" (premium).
 export const FEATURES = [
   { id: 'reservas',     label: 'Reservas / grilla',          core: true },
   { id: 'jugadores',    label: 'Jugadores',                  core: true },
   { id: 'turnos_fijos', label: 'Turnos fijos',               core: true },
-  { id: 'finanzas',     label: 'Finanzas (caja/stock)',      core: false },
+  { id: 'cobros',       label: 'Cobros online (MP/QR/transferencia) + deuda', core: false },
+  { id: 'caja_light',   label: 'Caja liviana (cierre diario)', core: false },
+  { id: 'finanzas',     label: 'Finanzas completas (stock/bar/gastos)', core: false },
   { id: 'direccion',    label: 'Dirección (análisis financiero)', core: false },
   { id: 'torneos',      label: 'Torneos',                    core: false },
   { id: 'profesores',   label: 'Profesores / Clases',        core: false },
   { id: 'estadisticas', label: 'Estadísticas',               core: false },
   { id: 'sponsors',     label: 'Sponsors / personalización', core: false },
-  { id: 'ia',           label: 'Asistente IA',               core: false },
+  { id: 'ia',           label: 'Asistente IA (WIarky)',      core: false },
   { id: 'multisede',    label: 'Multi-sede / multi-admin',   core: false },
   { id: 'branding',     label: 'Branding avanzado',          core: false },
 ]
@@ -26,10 +29,13 @@ export const CORE_FEATURES = FEATURES.filter((f) => f.core).map((f) => f.id)
 export const PLANES = ['basico', 'pro', 'premium']
 
 // Matriz por defecto (semilla). Cada plan lista TODAS las features que incluye.
+// T1 Cancha (basico): operativa + COBROS ONLINE + caja liviana → el club chico que cobra.
+// T2 Club (pro): + finanzas completas (bar/stock) + torneos + profes + stats + sponsors.
+// T3 Cadena (premium): + dirección (BI) + IA (WIarky) + multi-sede + branding.
 export const DEFAULT_MATRIZ = {
-  basico:  ['reservas', 'jugadores', 'turnos_fijos'],
-  pro:     ['reservas', 'jugadores', 'turnos_fijos', 'finanzas', 'torneos', 'profesores', 'estadisticas', 'sponsors'],
-  premium: ['reservas', 'jugadores', 'turnos_fijos', 'finanzas', 'torneos', 'profesores', 'estadisticas', 'sponsors', 'ia', 'multisede', 'branding', 'direccion'],
+  basico:  ['reservas', 'jugadores', 'turnos_fijos', 'cobros', 'caja_light'],
+  pro:     ['reservas', 'jugadores', 'turnos_fijos', 'cobros', 'caja_light', 'finanzas', 'torneos', 'profesores', 'estadisticas', 'sponsors'],
+  premium: ['reservas', 'jugadores', 'turnos_fijos', 'cobros', 'caja_light', 'finanzas', 'torneos', 'profesores', 'estadisticas', 'sponsors', 'ia', 'multisede', 'branding', 'direccion'],
 }
 
 // ¿El club tiene el acceso cortado por completo? (suspendido o prueba vencida)

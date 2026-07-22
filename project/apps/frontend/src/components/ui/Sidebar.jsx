@@ -23,7 +23,7 @@ const navItems = [
   { to: '/dashboardAdmin/clases',    label: 'Clases',    icon: GraduationCap, feature: 'profesores', permiso: 'clases' },
   { to: '/dashboardAdmin/torneos',   label: 'Torneos',   icon: Trophy,        feature: 'torneos',    permiso: 'torneos' },
   { to: '/dashboardAdmin/sponsors',  label: 'Sponsors',  icon: Star,          feature: 'sponsors',   permiso: 'sponsors' },
-  { to: '/dashboardAdmin/pagos',     label: 'Finanzas',  icon: CreditCard,    feature: 'finanzas',   permisoAny: ['ventas', 'caja'] },
+  { to: '/dashboardAdmin/pagos',     label: 'Finanzas',  icon: CreditCard,    feature: 'cobros',     permisoAny: ['ventas', 'caja'] },
   { to: '/dashboardAdmin/direccion', label: 'Dirección', icon: Compass,       feature: 'direccion',  permiso: 'caja' },
   { to: '/dashboardAdmin/equipo',    label: 'Equipo',    icon: UserCog,       ownerOnly: true },
 ]

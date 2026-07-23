@@ -108,28 +108,54 @@ const jugadorPublico = (j) => ({
   club:                { id: j.club.id, nombre: j.club.nombre },
 })
 
-// POST /api/auth/jugador/login
+// POST /api/auth/jugador/login — LOGIN GLOBAL (red unificada E2). Verifica DNI + contraseña contra
+// la CUENTA (la persona), y el club sale de sus MEMBRESÍAS (jugador-en-club): si viene clubId usa
+// esa; si tiene una sola, esa; si tiene varias sin elegir → devuelve la lista para un selector.
+// Backward-compatible: el front viejo manda clubId → funciona igual. El token sigue llevando clubId
+// (club activo) → las rutas scopeadas por req.user.clubId no se tocan.
 router.post('/jugador/login', loginLimiter, async (req, res) => {
   const { dni, password, clubId } = req.body
 
-  if (!dni || !password || !clubId) {
-    return res.status(400).json({ error: 'DNI, contraseña y clubId requeridos' })
+  if (!dni || !password) {
+    return res.status(400).json({ error: 'DNI y contraseña requeridos' })
   }
 
   try {
-    const jugador = await prisma.jugador.findUnique({
-      where: { clubId_dni: { clubId, dni } },
-      include: { club: true },
-    })
-
-    if (!jugador) {
+    const cuenta = await prisma.cuenta.findUnique({ where: { dni } })
+    if (!cuenta) {
       return res.status(401).json({ error: 'DNI no registrado' })
     }
-    if (!jugador.cuentaActiva) {
+    if (!cuenta.password) {
       return res.status(403).json({ error: 'Esta cuenta aún no fue activada. Completá el registro.' })
     }
-    if (!(await bcrypt.compare(password, jugador.password))) {
+    if (!(await bcrypt.compare(password, cuenta.password))) {
       return res.status(401).json({ error: 'Contraseña incorrecta' })
+    }
+
+    // Membresías (jugador-en-club) de esta persona
+    const membresias = await prisma.jugador.findMany({
+      where: { cuentaId: cuenta.id },
+      include: { club: true },
+    })
+    if (membresias.length === 0) {
+      return res.status(403).json({ error: 'Tu cuenta no está asociada a ningún club.' })
+    }
+
+    // Resolver el club activo
+    let jugador = null
+    if (clubId) jugador = membresias.find((m) => m.clubId === clubId) || null
+    if (!jugador && membresias.length === 1) jugador = membresias[0]
+    if (!jugador) {
+      // Varias membresías y no eligió → el front muestra un selector de club (E2 switcher)
+      return res.json({
+        needsClubChoice: true,
+        memberships: membresias.map((m) => ({ jugadorId: m.id, clubId: m.clubId, clubNombre: m.club.nombre })),
+      })
+    }
+
+    // Validaciones de la membresía elegida (mismos mensajes de antes)
+    if (!jugador.cuentaActiva) {
+      return res.status(403).json({ error: 'Esta cuenta aún no fue activada. Completá el registro.' })
     }
     if (!jugador.activo) {
       return res.status(403).json({ error: 'Tu cuenta fue dada de baja. Contactá al club.' })
@@ -137,7 +163,7 @@ router.post('/jugador/login', loginLimiter, async (req, res) => {
     const bloqueoJug = accesoBloqueado(jugador.club)
     if (bloqueoJug) return res.status(403).json({ error: 'club_bloqueado', message: mensajeBloqueo(bloqueoJug) })
 
-    const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId, tokenVersion: jugador.tokenVersion ?? 0 })
+    const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId, tokenVersion: jugador.tokenVersion ?? 0, accountId: cuenta.id })
     res.json({ token, user: jugadorPublico(jugador) })
   } catch (err) {
     console.error(err)

@@ -1,19 +1,31 @@
 import { createPortal } from 'react-dom'
+import { useState, useEffect } from 'react'
 import { X, Check, Crown, ArrowUpRight } from 'lucide-react'
 import { PLANES_INFO, ORDEN_PLAN, money } from '../../constants/planesInfo'
+import { api } from '../../lib/api'
 
-// ⚠️ WhatsApp de ventas de PadelwIArk (WiarkSolutions) — ACTUALIZAR con el número real.
-// Formato internacional sin + ni espacios (ej. AR: 549 + área sin 0 + número sin 15).
-const WHATSAPP_PADELWIARK = '5490000000000'
-
-// Modal de upgrade IN-APP (mejor que redirigir al sitio de ventas). Muestra los 3 planes,
-// marca el actual, y el CTA pide el upgrade por WhatsApp (cobro manual hoy; self-serve con MP luego).
+// Modal de upgrade IN-APP (mejor que redirigir al sitio de ventas). Muestra los 3 planes, marca el
+// actual, y el CTA pide el upgrade por el canal de ventas de PadelwIArk. Ese canal (WhatsApp/email)
+// se carga UNA vez en el panel /plataforma (GET /platform/contacto) → nada hardcodeado: cuando haya
+// número real, se propaga solo. Si todavía no hay contacto, el botón degrada (no abre link roto).
 const ModalMejorarPlan = ({ plan = 'basico', clubNombre = '', onClose }) => {
   const actual = ORDEN_PLAN[plan] ?? 0
+  const [contacto, setContacto] = useState(null) // { whatsapp, email } · null = cargando
+
+  useEffect(() => {
+    api.get('/platform/contacto').then(setContacto).catch(() => setContacto({ whatsapp: '', email: '' }))
+  }, [])
+
+  const hayContacto = !!(contacto && (contacto.whatsapp || contacto.email))
 
   const pedir = (p) => {
+    if (!hayContacto) return
     const msg = `¡Hola! Soy ${clubNombre || 'un club'} y quiero mejorar mi plan a ${p.nombre} (${money(p.precio)}/mes).`
-    window.open(`https://wa.me/${WHATSAPP_PADELWIARK}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener')
+    if (contacto.whatsapp) {
+      window.open(`https://wa.me/${contacto.whatsapp}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener')
+    } else {
+      window.location.href = `mailto:${contacto.email}?subject=${encodeURIComponent('Quiero mejorar mi plan')}&body=${encodeURIComponent(msg)}`
+    }
   }
 
   // Portal a document.body: el Sidebar usa transform (animación), que atraparía un position:fixed
@@ -52,16 +64,22 @@ const ModalMejorarPlan = ({ plan = 'basico', clubNombre = '', onClose }) => {
                   <div className="text-center text-xs text-slate-400 py-2 flex items-center justify-center gap-1"><Crown size={12} className="text-amber-400" /> Plan actual</div>
                 ) : esMenor ? (
                   <div className="text-center text-xs text-slate-300 py-2">Incluido</div>
-                ) : (
+                ) : hayContacto ? (
                   <button onClick={() => pedir(p)} className="w-full py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold flex items-center justify-center gap-1.5 transition-colors">
                     Mejorar a {p.nombre} <ArrowUpRight size={15} />
                   </button>
+                ) : (
+                  <div className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-400 text-sm font-semibold text-center">Disponible pronto</div>
                 )}
               </div>
             )
           })}
         </div>
-        <p className="px-6 pb-6 text-center text-[11px] text-slate-400">Nos escribís por WhatsApp y activamos tu plan al toque. 🎾</p>
+        <p className="px-6 pb-6 text-center text-[11px] text-slate-400">
+          {hayContacto
+            ? `Nos escribís${contacto.whatsapp ? ' por WhatsApp' : ''} y activamos tu plan al toque. 🎾`
+            : 'Muy pronto vas a poder mejorar tu plan desde acá. 🎾'}
+        </p>
       </div>
     </div>,
     document.body,

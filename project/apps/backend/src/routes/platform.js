@@ -6,7 +6,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js'
 import { loginLimiter, signupLimiter } from '../middleware/rateLimit.js'
 import { crearClub, PLANES_VALIDOS } from '../lib/tenants.js'
 import { FEATURES, FEATURE_IDS, CORE_FEATURES } from '../lib/planes.js'
-import { getMatriz, setMatriz } from '../lib/planesConfig.js'
+import { getMatriz, setMatriz, getContactoVentas, setContactoVentas } from '../lib/planesConfig.js'
 import { inicioMesArg } from '../lib/tiempo.js'
 
 const router = Router()
@@ -186,6 +186,29 @@ router.patch('/planes', requireAuth, requireRole('platform'), async (req, res) =
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al guardar los planes' })
+  }
+})
+
+// ---- GET /api/platform/contacto — contacto de ventas (público: lo lee el modal "Mejorar plan") ----
+// Es info pública (un WhatsApp/email de ventas), no hay nada sensible → sin auth.
+router.get('/contacto', async (req, res) => {
+  try {
+    res.json(await getContactoVentas())
+  } catch (err) {
+    console.error(err)
+    res.json({ whatsapp: '', email: '' }) // ante cualquier error, el modal degrada solo
+  }
+})
+
+// ---- PATCH /api/platform/contacto — el dueño de plataforma carga su WhatsApp/email de ventas ----
+router.patch('/contacto', requireAuth, requireRole('platform'), async (req, res) => {
+  const { prefijo, area, numero, whatsapp, email } = req.body || {}
+  try {
+    const guardado = await setContactoVentas({ prefijo, area, numero, whatsapp, email })
+    res.json({ ok: true, ...guardado })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'No se pudo guardar el contacto' })
   }
 })
 

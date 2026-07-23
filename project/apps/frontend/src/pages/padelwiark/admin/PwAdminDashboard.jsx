@@ -9,6 +9,7 @@ import PwModalResetAdmin from './PwModalResetAdmin'
 import PwModalRegalitos from './PwModalRegalitos'
 import PwPlanesEditor from './PwPlanesEditor'
 import PwSuscripciones from './PwSuscripciones'
+import PwPerfil from './PwPerfil'
 
 const PLAN_BADGE = {
   basico: 'text-slate-300 bg-white/5 border-white/10',
@@ -83,7 +84,7 @@ const PwAdminDashboard = () => {
       <main className="max-w-6xl mx-auto px-5 sm:px-8 py-8">
         {/* Selector de vista */}
         <div className="flex items-center gap-1 bg-white/[0.03] border border-white/8 rounded-xl p-1 w-fit mb-7">
-          {[{ id: 'clubes', label: 'Clubes' }, { id: 'cobros', label: 'Cobros' }, { id: 'planes', label: 'Planes' }].map(({ id, label }) => (
+          {[{ id: 'clubes', label: 'Clubes' }, { id: 'cobros', label: 'Cobros' }, { id: 'planes', label: 'Planes' }, { id: 'perfil', label: 'Perfil' }].map(({ id, label }) => (
             <button
               key={id} onClick={() => setView(id)}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === id ? 'bg-[#afca0b] text-[#0a0f0d]' : 'text-[#9ba89f] hover:text-[#f4f5ef]'}`}
@@ -97,6 +98,8 @@ const PwAdminDashboard = () => {
           <PwPlanesEditor notify={notify} />
         ) : view === 'cobros' ? (
           <PwSuscripciones notify={notify} />
+        ) : view === 'perfil' ? (
+          <PwPerfil notify={notify} />
         ) : (
         <>
         {/* Resumen */}

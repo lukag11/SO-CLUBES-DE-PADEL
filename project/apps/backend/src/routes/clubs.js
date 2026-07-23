@@ -323,6 +323,36 @@ router.get('/me/nudges', requireAuth, requireRole('admin'), requireOwner, async 
   }
 })
 
+// GET /api/clubs/me/setup — checklist de completitud del perfil del club (post-onboarding).
+// Deterministas (sin IA). El dashboard muestra una tarjeta "Completá tu club" mientras falte algo;
+// cada ítem se marca solo al completar el dato real → la tarjeta desaparece al llegar al 100%.
+router.get('/me/setup', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  const clubId = req.user.clubId
+  try {
+    const [club, canchasCount, mp] = await Promise.all([
+      prisma.club.findUnique({ where: { id: clubId }, select: { config: true } }),
+      prisma.cancha.count({ where: { clubId, activo: true } }),
+      prisma.mpConexion.findUnique({ where: { clubId }, select: { estado: true } }).catch(() => null),
+    ])
+    const cfg = club?.config || {}
+    const mpOk = !!mp && mp.estado === 'conectado'
+    // ruta 'club' = página Club (QuienesSomosPage): ahí viven logo, contacto, MP y descripción.
+    const items = [
+      { id: 'canchas',  label: 'Canchas y horario cargados',              done: canchasCount > 0,                    cta: 'Configurar', ruta: '/dashboardAdmin/club' },
+      { id: 'logo',     label: 'Subí el logo de tu club',                 done: !!cfg.logo,                          cta: 'Subir logo', ruta: '/dashboardAdmin/club' },
+      { id: 'contacto', label: 'Datos de contacto (dirección y teléfono)', done: !!(cfg.direccion && cfg.telefono),  cta: 'Completar',  ruta: '/dashboardAdmin/club' },
+      { id: 'pago',     label: 'Conectá Mercado Pago para cobrar online',  done: mpOk,                                cta: 'Conectar',   ruta: '/dashboardAdmin/club' },
+      { id: 'landing',  label: 'Contá quién es tu club (descripción)',     done: !!(cfg.descripcion || cfg.historia), cta: 'Escribir',   ruta: '/dashboardAdmin/club' },
+    ]
+    const hechos = items.filter((i) => i.done).length
+    const porcentaje = Math.round((hechos / items.length) * 100)
+    res.json({ items, hechos, total: items.length, porcentaje })
+  } catch (err) {
+    console.error('Error setup:', err.message)
+    res.status(500).json({ error: 'No se pudo calcular el checklist' })
+  }
+})
+
 // POST /api/clubs/me/insight/convocatoria-mensaje — redacta un mensaje de WhatsApp para
 // convocar un Americano/Super 8 y llenar una franja (solo dueño). On-demand, no cacheado.
 router.post('/me/insight/convocatoria-mensaje', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {

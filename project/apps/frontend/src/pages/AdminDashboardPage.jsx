@@ -6,6 +6,7 @@ import {
   MessageCircle, Copy, Check, Zap, Users2, Megaphone, Bell, Compass, Target, ShoppingCart,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
+import SetupChecklist from '../components/asistente/SetupChecklist'
 import { api } from '../lib/api'
 
 const money = (n) => `$${(n ?? 0).toLocaleString('es-AR')}`
@@ -59,6 +60,7 @@ const StatCard = ({ label, value, sub, icon: Icon, color, bg, delta }) => (
 
 const DashboardPage = () => {
   const token = useAuthStore((s) => s.token)
+  const esDueno = useAuthStore((s) => s.user?.rol) !== 'staff' // owner o sin definir = dueño
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saludFin, setSaludFin] = useState(null) // salud financiera para el widget (solo si permiso caja)
@@ -284,6 +286,9 @@ const DashboardPage = () => {
           )}
         </div>
       </div>
+
+      {/* ── Completá tu club: checklist de setup (se esconde solo al 100%). Solo dueño. ── */}
+      {esDueno && <SetupChecklist />}
 
       {/* ── Insight del día con IA (Court Noir: oscuro + neón lima, marca PadelwIArk) ── */}
       {(insightLoading || insight) && (

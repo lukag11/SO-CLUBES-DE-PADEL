@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 import useNotificacionesStore from '../store/notificacionesStore'
@@ -7,6 +7,7 @@ import useTurnosFijosStore from '../store/turnosFijosStore'
 import Sidebar from '../components/ui/Sidebar'
 import Navbar from '../components/ui/Navbar'
 import AsistenteWiark from '../components/asistente/AsistenteWiark'
+import AsistenteBienvenida from '../components/asistente/AsistenteBienvenida'
 import usePageTitle from '../hooks/usePageTitle'
 import { api } from '../lib/api'
 import { trackEvento } from '../lib/telemetria'
@@ -17,11 +18,26 @@ const DashboardLayout = () => {
   const setUser = useAuthStore((s) => s.setUser)
   const loadFromBackend = useClubStore((s) => s.loadFromBackend)
   const clubLoaded = useClubStore((s) => s._loaded)
+  const canchasReales = useClubStore((s) => s._canchasReales)
+  const onboardingCompletado = useClubStore((s) => s.club.onboardingCompletado)
+  const esDueno = useAuthStore((s) => s.user?.rol) !== 'staff' // owner o sin definir = dueño
   const setTurnosFijos = useTurnosFijosStore((s) => s.setTurnosFijos)
   const fetchNotificaciones = useNotificacionesStore((s) => s.fetchNotificaciones)
   const title = usePageTitle()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Onboarding: se decide UNA sola vez, cuando el club termina de cargar del backend. Si el dueño
+  // entra a un club recién creado (0 canchas reales y sin onboarding hecho) → wizard de bienvenida.
+  // Decidir una vez evita que el wizard se cierre solo a mitad de guardar (aplicarOnboarding marca
+  // el flag antes de persistir). El descarte lo controla onDone.
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const onboardingDecidido = useRef(false)
+  useEffect(() => {
+    if (!clubLoaded || onboardingDecidido.current) return
+    onboardingDecidido.current = true
+    if (esDueno && canchasReales === 0 && !onboardingCompletado) setShowOnboarding(true)
+  }, [clubLoaded, canchasReales, onboardingCompletado, esDueno])
 
   // Carga datos actualizados del admin desde el backend
   useEffect(() => {
@@ -72,6 +88,11 @@ const DashboardLayout = () => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
+  }
+
+  // Bienvenida a pantalla completa (sin sidebar/navbar) para el club recién creado.
+  if (showOnboarding) {
+    return <AsistenteBienvenida onDone={() => setShowOnboarding(false)} />
   }
 
   return (

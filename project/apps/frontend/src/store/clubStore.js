@@ -110,6 +110,8 @@ const useClubStore = create((set, get) => ({
   club: _clubCache || INITIAL_CLUB,  // hidratamos branding desde caché (navbar/landing sin flash)
   _dirty: false,   // true cuando hay cambios locales sin guardar en el backend
   _loaded: false,  // se mantiene false hasta el fetch real (no cambia la lógica de admin/torneos)
+  _canchasReales: null, // conteo REAL de canchas en la DB (el store rellena 4 demo si hay 0; esto
+                        // guarda la verdad del backend para detectar un club recién creado → onboarding)
 
   updateClub: (data) => {
     set((state) => ({ club: { ...state.club, ...data }, _dirty: true }))
@@ -157,6 +159,32 @@ const useClubStore = create((set, get) => ({
     })
   },
 
+  // Aplica en un solo paso lo que junta el asistente de bienvenida: arma N canchas frescas
+  // (nombre/tipo/indoor/precio parejos), setea el mismo horario para todos los días, guarda el
+  // logo (opcional) y marca el onboarding como completado. Deja _dirty para que saveClub persista.
+  aplicarOnboarding: ({ cantidad, tipo, indoor, precio, apertura, cierre, logo }) => {
+    set((state) => {
+      const n = Math.max(1, Math.min(20, Number(cantidad) || 1))
+      const canchas = Array.from({ length: n }, (_, i) => ({
+        id: Date.now() + i,
+        nombre: `Cancha ${i + 1}`,
+        tipo: tipo || 'Cristal',
+        indoor: indoor ?? true,
+        activa: true,
+        precioTurno: Number(precio) || 0,
+        recargoPico: 0,
+        horarios: null,
+      }))
+      const horarios = Object.fromEntries(
+        DIAS_SEMANA.map((dia) => [dia, { apertura, cierre, activo: true }])
+      )
+      return {
+        club: { ...state.club, canchas, horarios, ...(logo ? { logo } : {}), onboardingCompletado: true },
+        _dirty: true,
+      }
+    })
+  },
+
   // Carga club completo desde backend (config + canchas reales)
   loadFromBackend: (backendClub) => {
     if (!backendClub) return
@@ -189,7 +217,7 @@ const useClubStore = create((set, get) => ({
       applyColorsToDOM(merged.colorPrimario, merged.colorSecundario, merged.fontFamilia)
       // Refresca la caché para el próximo reload (stale-while-revalidate).
       try { localStorage.setItem(CLUB_CACHE_KEY, JSON.stringify(merged)) } catch { /* storage lleno/bloqueado: no es crítico */ }
-      return { club: merged, _dirty: false, _loaded: true }
+      return { club: merged, _dirty: false, _loaded: true, _canchasReales: canchasDB.length }
     })
   },
 
@@ -243,6 +271,7 @@ const useClubStore = create((set, get) => ({
             })),
           },
           _dirty: false,
+          _canchasReales: canchasDB.length, // verdad del backend actualizada (cierra el onboarding)
         }))
       } else {
         set({ _dirty: false })

@@ -149,7 +149,7 @@ router.post('/jugador/login', loginLimiter, async (req, res) => {
       // Varias membresías y no eligió → el front muestra un selector de club (E2 switcher)
       return res.json({
         needsClubChoice: true,
-        memberships: membresias.map((m) => ({ jugadorId: m.id, clubId: m.clubId, clubNombre: m.club.nombre })),
+        memberships: membresias.map((m) => ({ jugadorId: m.id, clubId: m.clubId, clubNombre: m.club.nombre, logo: m.club.config?.logo || m.club.logoUrl || null })),
       })
     }
 
@@ -184,7 +184,7 @@ router.get('/jugador/me', requireAuth, requireRole('jugador'), async (req, res) 
     res.json({
       user: jugadorPublico(jugador),
       clubActivo: jugador.clubId,
-      memberships: membresias.map((m) => ({ jugadorId: m.id, clubId: m.clubId, clubNombre: m.club.nombre, categoria: m.categoria })),
+      memberships: membresias.map((m) => ({ jugadorId: m.id, clubId: m.clubId, clubNombre: m.club.nombre, categoria: m.categoria, logo: m.club.config?.logo || m.club.logoUrl || null })),
     })
   } catch (err) {
     console.error(err)
@@ -214,6 +214,47 @@ router.post('/jugador/switch-club', requireAuth, requireRole('jugador'), async (
 
     const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId, tokenVersion: jugador.tokenVersion ?? 0, accountId: cuentaId })
     res.json({ token, user: jugadorPublico(jugador) })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
+// POST /api/auth/jugador/unirme — un jugador logueado se UNE a otro club (red unificada E3): crea
+// una membresía (Jugador) para su Cuenta en ese club, copiando sus datos de persona. La categoría
+// queda null (la asigna el admin del club). Si ya es miembro, no duplica. Resuelve el caso "el mismo
+// jugador juega en Tancacha y Río Tercero" con UNA sola cuenta.
+router.post('/jugador/unirme', requireAuth, requireRole('jugador'), async (req, res) => {
+  const { clubId } = req.body
+  if (!clubId) return res.status(400).json({ error: 'clubId requerido' })
+  try {
+    let cuentaId = req.user.accountId
+    if (!cuentaId) {
+      const actual = await prisma.jugador.findUnique({ where: { id: req.user.id }, select: { cuentaId: true } })
+      cuentaId = actual?.cuentaId
+    }
+    if (!cuentaId) return res.status(400).json({ error: 'No se pudo resolver tu cuenta' })
+
+    const [cuenta, club] = await Promise.all([
+      prisma.cuenta.findUnique({ where: { id: cuentaId } }),
+      prisma.club.findUnique({ where: { id: clubId }, select: { id: true, nombre: true } }),
+    ])
+    if (!club) return res.status(404).json({ error: 'El club no existe' })
+
+    const yaMiembro = await prisma.jugador.findFirst({ where: { cuentaId, clubId } })
+    if (yaMiembro) return res.json({ ok: true, ya: true, jugadorId: yaMiembro.id, clubNombre: club.nombre })
+
+    const nuevo = await prisma.jugador.create({
+      data: {
+        clubId, cuentaId,
+        nombre: cuenta.nombre, apellido: cuenta.apellido, dni: cuenta.dni, email: cuenta.email,
+        telefono: cuenta.telefono, password: cuenta.password, cuentaActiva: true, activo: true,
+        tokenVersion: 0, genero: cuenta.genero, fechaNacimiento: cuenta.fechaNacimiento,
+        provincia: cuenta.provincia, ciudad: cuenta.ciudad, posicion: cuenta.posicion, mano: cuenta.mano,
+        // categoria: null → el admin del club la asigna
+      },
+    })
+    res.json({ ok: true, jugadorId: nuevo.id, clubNombre: club.nombre })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error interno del servidor' })

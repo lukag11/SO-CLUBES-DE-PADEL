@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, Link } from 'react-router-dom'
 import { Zap, Lock, Eye, EyeOff, CreditCard, CalendarCheck, Trophy, BarChart3, KeyRound, Mail, X } from 'lucide-react'
 import Button from '../components/ui/Button'
@@ -36,6 +37,9 @@ const PlayerAuthPage = () => {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Red unificada E2.3b: si la cuenta tiene varios clubes, guardamos la elección pendiente
+  // { memberships, dni, password } y mostramos el selector.
+  const [clubChoice, setClubChoice] = useState(null)
 
   // ── Recuperar contraseña por DNI + email (modal de 2 pasos) ──
   const [forgotOpen, setForgotOpen] = useState(false)
@@ -127,9 +131,8 @@ const PlayerAuthPage = () => {
       // desde las membresías de la cuenta). Ya no depende de VITE_CLUB_ID.
       const data = await api.post('/auth/jugador/login', { dni: form.dni, password: form.password })
       if (data.needsClubChoice) {
-        // El jugador tiene cuenta en varios clubes → hace falta el selector (E2.3b, próximo).
-        // Hoy nadie tiene múltiples membresías, así que no se dispara.
-        setError('Tenés cuenta en varios clubes. El selector llega en el próximo paso.')
+        // Cuenta en varios clubes → mostramos el selector (E2.3b).
+        setClubChoice({ memberships: data.memberships, dni: form.dni, password: form.password })
         setLoading(false)
         return
       }
@@ -148,8 +151,49 @@ const PlayerAuthPage = () => {
     }
   }
 
+  // Elegir un club del selector → login con ese clubId (el backend devuelve el token de ese club).
+  const elegirClub = async (clubId) => {
+    if (!clubChoice || loading) return
+    setLoading(true); setError('')
+    try {
+      const data = await api.post('/auth/jugador/login', { dni: clubChoice.dni, password: clubChoice.password, clubId })
+      login(data.user, data.token)
+      navigate('/dashboardJugadores/dashboard')
+    } catch (err) {
+      setError(err.message || 'No se pudo entrar al club')
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex">
+
+      {/* Selector de club (red unificada E2.3b): aparece si la cuenta tiene varios clubes */}
+      {clubChoice && createPortal(
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" onClick={() => setClubChoice(null)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-sm bg-[#0d1117] border border-white/10 rounded-3xl p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <p className="text-white font-bold text-lg">Elegí tu club</p>
+            <p className="text-white/40 text-sm mt-0.5 mb-4">Tu cuenta está en varios clubes. ¿A cuál querés entrar?</p>
+            <div className="flex flex-col gap-2">
+              {clubChoice.memberships.map((m) => (
+                <button key={m.clubId} onClick={() => elegirClub(m.clubId)} disabled={loading}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-white/10 bg-white/5 hover:bg-club/10 hover:border-club/40 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                  <span className="w-9 h-9 rounded-lg overflow-hidden border border-white/10 flex items-center justify-center shrink-0 bg-club/15">
+                    {m.logo
+                      ? <img src={m.logo} alt={m.clubNombre} className="w-full h-full object-cover" />
+                      : <span className="text-club text-sm font-bold">{(m.clubNombre || '?').charAt(0).toUpperCase()}</span>}
+                  </span>
+                  <span className="flex-1 text-left">{m.clubNombre}</span>
+                  <span className="text-club">→</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setClubChoice(null)} className="mt-4 w-full text-white/40 hover:text-white/70 text-xs transition-colors">Cancelar</button>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {/* Panel izquierdo — branding */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-[#0d1117] flex-col justify-between p-12 overflow-hidden">

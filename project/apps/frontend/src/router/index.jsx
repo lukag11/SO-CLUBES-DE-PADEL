@@ -54,6 +54,9 @@ const router = createBrowserRouter([
     element: <PublicLayout />,
     children: [
       { path: '/', element: <LandingPage /> },
+      // Red unificada (E0.2): la landing del club también se sirve por /club/:slug.
+      // getClubSlug() lee el slug de la URL → una sola app muestra cualquier club.
+      { path: '/club/:slug', element: <LandingPage /> },
     ],
   },
   {

@@ -171,6 +171,55 @@ router.post('/jugador/login', loginLimiter, async (req, res) => {
   }
 })
 
+// GET /api/auth/jugador/me — datos del jugador logueado + sus membresías (para el selector de club).
+// Red unificada E2.2: la cuenta sale del token (accountId); si es un token viejo, se deriva del jugador.
+router.get('/jugador/me', requireAuth, requireRole('jugador'), async (req, res) => {
+  try {
+    const jugador = await prisma.jugador.findUnique({ where: { id: req.user.id }, include: { club: true } })
+    if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' })
+    const cuentaId = req.user.accountId || jugador.cuentaId
+    const membresias = cuentaId
+      ? await prisma.jugador.findMany({ where: { cuentaId, activo: true }, include: { club: true } })
+      : [jugador]
+    res.json({
+      user: jugadorPublico(jugador),
+      clubActivo: jugador.clubId,
+      memberships: membresias.map((m) => ({ jugadorId: m.id, clubId: m.clubId, clubNombre: m.club.nombre, categoria: m.categoria })),
+    })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
+// POST /api/auth/jugador/switch-club — cambia el club activo (red unificada E2.2). Valida que la
+// cuenta tenga una membresía activa en el club destino y RE-EMITE el token con ese club → las rutas
+// scopeadas por req.user.clubId siguen funcionando sin cambios.
+router.post('/jugador/switch-club', requireAuth, requireRole('jugador'), async (req, res) => {
+  const { clubId } = req.body
+  if (!clubId) return res.status(400).json({ error: 'clubId requerido' })
+  try {
+    let cuentaId = req.user.accountId
+    if (!cuentaId) {
+      const actual = await prisma.jugador.findUnique({ where: { id: req.user.id }, select: { cuentaId: true } })
+      cuentaId = actual?.cuentaId
+    }
+    if (!cuentaId) return res.status(400).json({ error: 'No se pudo resolver tu cuenta' })
+
+    const jugador = await prisma.jugador.findFirst({ where: { cuentaId, clubId }, include: { club: true } })
+    if (!jugador) return res.status(403).json({ error: 'No sos miembro de ese club.' })
+    if (!jugador.activo) return res.status(403).json({ error: 'Tu cuenta en ese club fue dada de baja.' })
+    const bloqueo = accesoBloqueado(jugador.club)
+    if (bloqueo) return res.status(403).json({ error: 'club_bloqueado', message: mensajeBloqueo(bloqueo) })
+
+    const token = signToken({ id: jugador.id, role: 'jugador', clubId: jugador.clubId, tokenVersion: jugador.tokenVersion ?? 0, accountId: cuentaId })
+    res.json({ token, user: jugadorPublico(jugador) })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
 // Hash del token de reseteo: nunca guardamos el token crudo en la DB.
 const hashResetToken = (raw) => crypto.createHash('sha256').update(raw).digest('hex')
 

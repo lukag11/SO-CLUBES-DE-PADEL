@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getClubSlug } from '../lib/clubContext'
+import UnirmeBanner from '../components/UnirmeBanner'
 import { useNavigate } from 'react-router-dom'
 import useClubStore from '../store/clubStore'
 import usePlayerStore from '../store/playerStore'
@@ -106,7 +107,12 @@ const LandingPage = () => {
 
   const Template = TEMPLATES[club.templateId] ?? Template1
 
-  return <Template club={club} onCta={handleCta} onTorneos={handleTorneos} />
+  return (
+    <>
+      <Template club={club} onCta={handleCta} onTorneos={handleTorneos} />
+      <UnirmeBanner />
+    </>
+  )
 }
 
 export default LandingPage

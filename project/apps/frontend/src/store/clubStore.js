@@ -195,6 +195,9 @@ const useClubStore = create((set, get) => ({
       const merged = {
         ...INITIAL_CLUB,
         ...config,
+        // El nombre del club puede vivir en config o en la columna Club.nombre → fallback a la columna
+        // (así un club sin config.nombre igual muestra su nombre en la landing, banner, etc.).
+        nombre: config.nombre || backendClub.nombre || INITIAL_CLUB.nombre,
         id: backendClub.id ?? null,
         slug: backendClub.slug ?? null,
         horarios: Object.fromEntries(

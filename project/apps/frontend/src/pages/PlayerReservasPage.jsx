@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useLocation, Link } from 'react-router-dom'
 import { CalendarDays, Clock, MapPin, CheckCircle, XCircle, ChevronLeft, ChevronRight, ChevronDown, Info, Repeat, X, Trophy, UserPlus, Users } from 'lucide-react'
 import useClubStore from '../store/clubStore'
@@ -214,6 +214,8 @@ const PlayerReservasPage = () => {
   const [buscarPrefill, setBuscarPrefill] = useState(null) // { fecha, horaInicio, nota, reservaId }
 
   const [slotsOcupadosClub, setSlotsOcupadosClub] = useState([])
+  const grillaRef = useRef(null) // destino del scroll + destello desde la card "armá tu partido" (estado C)
+  const [destacarHorarios, setDestacarHorarios] = useState(false) // pulso visual de la grilla al tocar "Elegí un horario"
 
   const clubId = club.id || import.meta.env.VITE_CLUB_ID
 
@@ -651,7 +653,15 @@ const PlayerReservasPage = () => {
             Ver mis búsquedas
           </Link>
         ) : (
-          <span className="shrink-0 text-club/70 text-xs font-semibold flex items-center gap-1">Elegí un horario <ChevronDown size={14} /></span>
+          <button
+            onClick={() => {
+              grillaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              setDestacarHorarios(true)
+              setTimeout(() => setDestacarHorarios(false), 1600) // el destello dura ~1.6s y se apaga solo
+            }}
+            className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-club text-dark-900 text-sm font-bold hover:opacity-90 transition-all">
+            <CalendarDays size={15} /> Elegí un horario
+          </button>
         )}
       </section>
       <InfoBlock label="¿Cómo armo mi partido?" variant="dark">
@@ -857,7 +867,7 @@ const PlayerReservasPage = () => {
           </div>
 
           {/* Grilla de turnos */}
-          <div className="bg-[#0d1117] border border-white/8 rounded-2xl overflow-hidden">
+          <div ref={grillaRef} className={`bg-[#0d1117] rounded-2xl overflow-hidden transition-all duration-500 border ${destacarHorarios ? 'border-club ring-2 ring-club/70 shadow-lg shadow-club/40' : 'border-white/8'}`}>
             <div className="px-5 py-3.5 border-b border-white/6 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Clock size={15} className="text-club" />

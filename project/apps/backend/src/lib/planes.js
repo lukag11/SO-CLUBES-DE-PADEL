@@ -6,7 +6,7 @@
 // ============================================================
 
 // Catálogo de módulos "gateables". core:true = siempre habilitado (todos los planes).
-// Tiers comerciales (2026-07-22): T1 "Cancha" (basico) · T2 "Club" (pro) · T3 "Cadena" (premium).
+// Tiers comerciales: T1 "Básico" (basico) · T2 "Pro" (pro) · T3 "Premium" (premium).
 export const FEATURES = [
   { id: 'reservas',     label: 'Reservas / grilla',          core: true },
   { id: 'jugadores',    label: 'Jugadores',                  core: true },
@@ -29,9 +29,9 @@ export const CORE_FEATURES = FEATURES.filter((f) => f.core).map((f) => f.id)
 export const PLANES = ['basico', 'pro', 'premium']
 
 // Matriz por defecto (semilla). Cada plan lista TODAS las features que incluye.
-// T1 Cancha (basico): operativa + COBROS ONLINE + caja liviana → el club chico que cobra.
-// T2 Club (pro): + finanzas completas (bar/stock) + torneos + profes + stats + sponsors.
-// T3 Cadena (premium): + dirección (BI) + IA (WIarky) + multi-sede + branding.
+// T1 Básico (basico): operativa + COBROS ONLINE + caja liviana → el club chico que cobra.
+// T2 Pro (pro): + finanzas completas (bar/stock) + torneos + profes + stats + sponsors.
+// T3 Premium (premium): + dirección (BI) + IA (WIarky) + multi-sede + branding.
 export const DEFAULT_MATRIZ = {
   basico:  ['reservas', 'jugadores', 'turnos_fijos', 'cobros', 'caja_light'],
   pro:     ['reservas', 'jugadores', 'turnos_fijos', 'cobros', 'caja_light', 'finanzas', 'torneos', 'profesores', 'estadisticas', 'sponsors'],

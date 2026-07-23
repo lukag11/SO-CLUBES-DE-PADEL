@@ -6,7 +6,7 @@ import { Check, ArrowRight } from 'lucide-react'
 const PLANES = [
   {
     id: 'basico',
-    nombre: 'Cancha',
+    nombre: 'Básico',
     desc: 'Para el club que quiere ordenar sus reservas y cobrar.',
     precio: 42900,
     destacado: false,
@@ -20,12 +20,12 @@ const PLANES = [
   },
   {
     id: 'pro',
-    nombre: 'Club',
+    nombre: 'Pro',
     desc: 'Tu club completo: bar, torneos y profesores.',
     precio: 74900,
     destacado: true,
     features: [
-      'Todo lo de Cancha, con canchas ilimitadas',
+      'Todo lo de Básico, con canchas ilimitadas',
       'Finanzas completas: caja, stock, bar/mesas y gastos',
       'Torneos con fixture, grupos y bracket',
       'Portal de profesores y clases + estadísticas',
@@ -34,12 +34,12 @@ const PLANES = [
   },
   {
     id: 'premium',
-    nombre: 'Cadena',
+    nombre: 'Premium',
     desc: 'Inteligencia de negocio, IA y soporte prioritario.',
     precio: 119900,
     destacado: false,
     features: [
-      'Todo lo de Club',
+      'Todo lo de Pro',
       'Dirección: tu punto de equilibrio y el costo de la hora vacía',
       'WIarky: el asistente con IA que hace tus tareas hablándole',
       'Usuarios ilimitados + soporte prioritario',

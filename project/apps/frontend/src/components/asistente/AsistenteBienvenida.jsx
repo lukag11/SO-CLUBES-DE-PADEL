@@ -89,7 +89,7 @@ const AsistenteBienvenida = ({ onDone }) => {
                 <PartyPopper size={30} className="text-brand-600" />
               </div>
               <h1 className="text-2xl font-bold text-slate-800 mb-2">¡Bienvenido{clubNombre ? `, ${clubNombre}` : ''}! 🎾</h1>
-              <p className="text-slate-500 text-sm mb-1">Soy WIarky y te voy a ayudar a dejar tu club andando.</p>
+              <p className="text-slate-500 text-sm mb-1">Te vamos a ayudar a dejar tu club andando, paso a paso.</p>
               <p className="text-slate-500 text-sm mb-7">Son 2 minutos. Después podés ajustar todo cuando quieras.</p>
               <button onClick={next} className="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors">
                 Empezar <ArrowRight size={16} />

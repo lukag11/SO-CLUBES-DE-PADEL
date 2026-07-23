@@ -5,7 +5,7 @@
 export const PLANES_INFO = [
   {
     id: 'basico',
-    nombre: 'Cancha',
+    nombre: 'Básico',
     precio: 42900,
     tagline: 'Ordená tus reservas y cobrá.',
     incluye: [
@@ -17,12 +17,12 @@ export const PLANES_INFO = [
   },
   {
     id: 'pro',
-    nombre: 'Club',
+    nombre: 'Pro',
     precio: 74900,
     tagline: 'Tu club completo: bar, torneos y profes.',
     destacado: true,
     incluye: [
-      'Todo lo de Cancha, canchas ilimitadas',
+      'Todo lo de Básico, canchas ilimitadas',
       'Finanzas completas (caja, stock, bar, gastos)',
       'Torneos + profesores + estadísticas',
       'Hasta 5 usuarios con permisos',
@@ -30,11 +30,11 @@ export const PLANES_INFO = [
   },
   {
     id: 'premium',
-    nombre: 'Cadena',
+    nombre: 'Premium',
     precio: 119900,
     tagline: 'Inteligencia de negocio e IA.',
     incluye: [
-      'Todo lo de Club',
+      'Todo lo de Pro',
       'Dirección: punto de equilibrio y costos',
       'WIarky: el asistente con IA',
       'Usuarios ilimitados + soporte prioritario',

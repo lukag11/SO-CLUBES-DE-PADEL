@@ -10,6 +10,7 @@ import { organizarConvocatoria, crearConvocatoriaCompleta } from '../lib/convoca
 import { normalizarCategoria } from '../lib/categorias.js'
 import { nivelDeCategoria, catCorta, registrarCambioCategoria } from '../lib/ascenso.js'
 import { limiteDelPlan } from '../lib/planes.js'
+import { parsearClubOnboarding } from '../lib/onboardingParse.js'
 
 const router = Router()
 
@@ -350,6 +351,23 @@ router.get('/me/setup', requireAuth, requireRole('admin'), requireOwner, async (
   } catch (err) {
     console.error('Error setup:', err.message)
     res.status(500).json({ error: 'No se pudo calcular el checklist' })
+  }
+})
+
+// POST /api/clubs/me/onboarding/parse — asistente de bienvenida v2: el dueño describe su club en
+// lenguaje natural y WIarky extrae la config para PRE-LLENAR el wizard. NO configura nada (no toca
+// la DB): solo devuelve los datos verificados para que el dueño confirme en los formularios reales.
+router.post('/me/onboarding/parse', requireAuth, requireRole('admin'), requireOwner, async (req, res) => {
+  const { texto } = req.body || {}
+  if (!texto || typeof texto !== 'string' || texto.trim().length < 3) {
+    return res.status(400).json({ error: 'texto_vacio' })
+  }
+  try {
+    const datos = await parsearClubOnboarding(texto.trim().slice(0, 1000)) // cap de largo (anti-abuso)
+    res.json(datos)
+  } catch (err) {
+    console.error('Error parse onboarding:', err.message)
+    res.status(502).json({ error: 'no_se_pudo_interpretar' })
   }
 })
 

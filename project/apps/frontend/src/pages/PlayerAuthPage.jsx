@@ -123,8 +123,16 @@ const PlayerAuthPage = () => {
     setError('')
 
     try {
-      const clubId = import.meta.env.VITE_CLUB_ID
-      const data = await api.post('/auth/jugador/login', { dni: form.dni, password: form.password, clubId })
+      // Red unificada E2.3: login GLOBAL, solo DNI + contraseña (el club lo resuelve el backend
+      // desde las membresías de la cuenta). Ya no depende de VITE_CLUB_ID.
+      const data = await api.post('/auth/jugador/login', { dni: form.dni, password: form.password })
+      if (data.needsClubChoice) {
+        // El jugador tiene cuenta en varios clubes → hace falta el selector (E2.3b, próximo).
+        // Hoy nadie tiene múltiples membresías, así que no se dispara.
+        setError('Tenés cuenta en varios clubes. El selector llega en el próximo paso.')
+        setLoading(false)
+        return
+      }
       login(data.user, data.token)
       navigate('/dashboardJugadores/dashboard')
     } catch (err) {

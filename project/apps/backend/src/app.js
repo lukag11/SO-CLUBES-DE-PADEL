@@ -31,19 +31,9 @@ import finanzasRouter from './routes/finanzas.js'
 import webhooksRouter from './routes/webhooks.js'
 import mpOAuthRouter from './routes/mpOAuth.js'
 import { requireAuth, requireRole, requireFeature, requireClubActivo, requirePermiso } from './middleware/auth.js'
-
-// Sentry (error tracking en producción). DORMIDO si no hay SENTRY_DSN: ni siquiera se
-// importa el paquete, así en local no afecta el arranque. Para activarlo en el deploy:
-// setear SENTRY_DSN en las env vars de Railway. No hay nada más que tocar.
-let Sentry = null
-if (process.env.SENTRY_DSN) {
-  Sentry = await import('@sentry/node')
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || 'production',
-    tracesSampleRate: 0.1,
-  })
-}
+// Sentry: init + puente console.error→Sentry (cubre los catches que responden 500 sin propagar).
+// Dormido si no hay SENTRY_DSN. Ver lib/sentry.js.
+import { sentryErrorHandler } from './lib/sentry.js'
 
 const app = express()
 
@@ -114,6 +104,6 @@ app.use('/api/webhooks', webhooksRouter) // PÚBLICO (sin auth) — MP notifica 
 app.use('/api/mp', mpOAuthRouter) // MP OAuth: /oauth/start + /oauth/callback + /estado + /disconnect
 
 // Captura de errores no manejados → Sentry (solo si está activo). Va DESPUÉS de las rutas.
-if (Sentry) Sentry.setupExpressErrorHandler(app)
+sentryErrorHandler(app)
 
 export default app

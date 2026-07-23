@@ -4,6 +4,7 @@ import prisma from '../lib/prisma.js'
 import { runSerializable } from '../lib/serializable.js'
 import { imputarPagoTx, revertirPagoTx } from '../lib/pagos.js'
 import { obtenerPago, obtenerMerchantOrder } from '../lib/mercadopago.js'
+import { captureException } from '../lib/sentry.js'
 
 const router = Router()
 
@@ -269,6 +270,14 @@ async function manejarWebhook(req, res, clubIdPath) {
     })
     return res.status(200).json({ ok: true })
   } catch (err) {
+    // Punto más crítico (procesamiento de un pago real) → Sentry con contexto para poder conciliar.
+    captureException(err, {
+      via: 'webhook_mp',
+      clubId: clubIdPath,
+      topic: req.query?.type || req.query?.topic || req.body?.type || req.body?.topic,
+      resource: req.body?.resource || req.query?.resource,
+      dataId: req.query?.['data.id'] || req.body?.data?.id,
+    })
     console.error('[webhook mp] error', err)
     return res.status(200).json({ ok: false }) // 200 para no gatillar retry infinito por bug propio
   }

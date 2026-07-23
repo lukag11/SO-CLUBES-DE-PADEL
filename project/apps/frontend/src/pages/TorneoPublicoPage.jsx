@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { getClubSlug } from '../lib/clubContext'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Trophy, Calendar, ArrowLeft, Users, GitMerge, Clock, CheckCircle, Flag, Tag,
@@ -2701,7 +2702,7 @@ const TorneoPublicoPage = () => {
   // Fetch club si no está cargado (visitante directo sin pasar por la landing)
   useEffect(() => {
     if (_loaded) return
-    const slug = import.meta.env.VITE_CLUB_SLUG
+    const slug = getClubSlug()
     if (!slug) return
     api.get(`/clubs/${slug}`).then((data) => {
       if (data?.id) loadFromBackend(data)

@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { getClubSlug } from '../../lib/clubContext'
 import { useNavigate, Link } from 'react-router-dom'
 import {
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
@@ -1640,7 +1641,7 @@ export const TurnosDisponibles = ({ canchas, horarios, colorPrimario, onCta, dar
 
   // Fetcha los slots ocupados desde el endpoint público (sin auth)
   useEffect(() => {
-    const slug = import.meta.env.VITE_CLUB_SLUG
+    const slug = getClubSlug()
     if (!slug || !fechaStr) return
     setOcupados([])
     setLoadingSlots(true)

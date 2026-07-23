@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getClubSlug } from '../lib/clubContext'
 
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
@@ -94,10 +95,10 @@ const applyColorsToDOM = (colorPrimario, colorSecundario, fontFamilia = 'Inter')
 
 // Caché del último club cargado (stale-while-revalidate): al recargar arrancamos con
 // estos datos para evitar el flash de defaults + spinner. Solo por slug (público).
-const CLUB_CACHE_KEY = `padelos_club_cache_${import.meta.env.VITE_CLUB_SLUG || 'default'}`
+const CLUB_CACHE_KEY = `padelos_club_cache_${getClubSlug() || 'default'}`
 const readClubCache = () => {
   try {
-    if (!import.meta.env.VITE_CLUB_SLUG) return null
+    if (!getClubSlug()) return null
     const raw = localStorage.getItem(CLUB_CACHE_KEY)
     return raw ? JSON.parse(raw) : null
   } catch { return null }

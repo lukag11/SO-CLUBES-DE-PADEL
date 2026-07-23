@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { getClubSlug } from '../lib/clubContext'
 import { Megaphone, Repeat, Users, CalendarDays, Clock, Check, Loader2, ChevronDown, Plus, X, Copy, Trophy } from 'lucide-react'
 import usePlayerStore from '../store/playerStore'
 import { api } from '../lib/api'
@@ -36,7 +37,7 @@ const fmtFecha = (f) => {
 export default function PlayerEventosPage() {
   const token = usePlayerStore((s) => s.token)
   const toast = useToast()
-  const slug = import.meta.env.VITE_CLUB_SLUG
+  const slug = getClubSlug()
   const [mias, setMias] = useState(null)
   const [abiertos, setAbiertos] = useState(null)
   const [jugados, setJugados] = useState(null) // { miNombre, eventos } — historial social

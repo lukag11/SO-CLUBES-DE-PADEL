@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getClubSlug } from '../lib/clubContext'
 import { useNavigate } from 'react-router-dom'
 import useClubStore from '../store/clubStore'
 import usePlayerStore from '../store/playerStore'
@@ -63,7 +64,7 @@ const LandingPage = () => {
   const [fetchDone, setFetchDone] = useState(false)
 
   useEffect(() => {
-    const slug = import.meta.env.VITE_CLUB_SLUG
+    const slug = getClubSlug()
     if (!slug) {
       setFetchDone(true)
       return

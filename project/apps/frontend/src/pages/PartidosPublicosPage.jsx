@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { getClubSlug } from '../lib/clubContext'
 import { Link } from 'react-router-dom'
 import { Swords, Users, UserPlus, CalendarDays, Clock, ArrowLeft } from 'lucide-react'
 import { api } from '../lib/api'
@@ -18,7 +19,7 @@ const fmt = (f) => {
 }
 
 export default function PartidosPublicosPage() {
-  const slug = import.meta.env.VITE_CLUB_SLUG
+  const slug = getClubSlug()
   const [lista, setLista] = useState(null)
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getClubSlug } from '../lib/clubContext'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import useClubStore from '../store/clubStore'
@@ -20,7 +21,7 @@ const TorneosPublicosPage = () => {
 
   // Si se entra directo a /torneos (sin pasar por la landing), cargar club + torneos.
   useEffect(() => {
-    const slug = import.meta.env.VITE_CLUB_SLUG
+    const slug = getClubSlug()
     if (!slug || _loaded) { setFetchDone(true); return }
     api.get(`/clubs/${slug}`)
       .then((data) => {

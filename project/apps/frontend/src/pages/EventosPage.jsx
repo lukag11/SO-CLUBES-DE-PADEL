@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { getClubSlug } from '../lib/clubContext'
 import { Link } from 'react-router-dom'
 import { Trophy, Users, Repeat, Plus, Trash2, ArrowLeft, Crown, Zap, Minus, ChevronDown, HelpCircle, CheckCircle2, AlertCircle, CalendarDays, Clock, ArrowRight, Megaphone } from 'lucide-react'
 import {
@@ -124,7 +125,7 @@ function Hub({ onJugar, onEventos }) {
 
 // ─────────────────────── EVENTOS DEL CLUB (convocatorias abiertas) ───────────────────────
 function EventosClub() {
-  const slug = import.meta.env.VITE_CLUB_SLUG
+  const slug = getClubSlug()
   const [lista, setLista] = useState(null)
 
   useEffect(() => {

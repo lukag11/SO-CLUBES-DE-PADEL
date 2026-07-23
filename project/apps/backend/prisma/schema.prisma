@@ -220,8 +220,41 @@ model Jugador {
   cambiosCategoria       CambioCategoria[]
   pagos                  Pago[]
 
+  // Red unificada (E1): vínculo a la Cuenta global (la persona). Nullable durante la migración
+  // (doble escritura, la app sigue leyendo los campos de Jugador). Pasa a required en un cleanup
+  // posterior (E2+). Ver project_red_unificada_arquitectura.
+  cuentaId String?
+  cuenta   Cuenta? @relation(fields: [cuentaId], references: [id])
+
   @@unique([clubId, dni])
   @@map("jugadores")
+}
+
+// Red unificada (E1): la PERSONA, global (una por DNI). Vive por encima de Jugador, que pasa a ser
+// la MEMBRESÍA jugador-en-club. Toda la data (reservas/cargos/torneos/pagos) sigue colgando de
+// Jugador.id → esta capa NO mueve ninguna FK existente. La usará el login global en la E2.
+model Cuenta {
+  id              String   @id @default(cuid())
+  dni             String   @unique          // una persona = un DNI = una cuenta (GLOBAL)
+  email           String?
+  password        String?
+  tokenVersion    Int      @default(0)
+  nombre          String
+  apellido        String
+  telefono        String?
+  genero          String?
+  apodo           String?
+  fechaNacimiento String?
+  provincia       String?
+  ciudad          String?
+  posicion        String?
+  mano            String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  jugadores Jugador[] // sus membresías (jugador-en-club)
+
+  @@map("cuentas")
 }
 
 // Auditoría de ascensos/descensos de categoría. Se graba en CADA cambio (WIarky o admin

@@ -6,6 +6,7 @@ import usePlayerNotificationsStore from '../store/playerNotificationsStore'
 import useReservasStore from '../store/reservasStore'
 import useTurnosFijosStore from '../store/turnosFijosStore'
 import useClubStore from '../store/clubStore'
+import ClubSwitcher from '../components/ClubSwitcher'
 import { useToast } from '../components/ui/ToastProvider'
 import { api } from '../lib/api'
 
@@ -226,19 +227,8 @@ const PlayerLayout = () => {
           <X size={16} />
         </button>
 
-        {/* Logo */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-white/5">
-          <div className="w-8 h-8 bg-club rounded-lg flex items-center justify-center shadow-lg shadow-club/20 shrink-0 overflow-hidden">
-            {clubLogo
-              ? <img src={clubLogo} alt={clubNombre || 'Club'} className="w-full h-full object-cover" />
-              : <Zap size={16} className="text-[#0d1117]" />
-            }
-          </div>
-          <div className="min-w-0">
-            <span className="text-white font-bold text-sm tracking-tight block truncate">{clubNombre || 'PadelwIArk'}</span>
-            <span className="text-white/30 text-xs">Área Jugadores</span>
-          </div>
-        </div>
+        {/* Club + selector de club (red unificada E2.3c) */}
+        <ClubSwitcher />
 
         {/* Avatar jugador */}
         <div className="px-4 py-4 border-b border-white/5">

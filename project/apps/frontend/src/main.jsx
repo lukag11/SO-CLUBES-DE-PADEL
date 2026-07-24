@@ -15,3 +15,11 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>,
 )
+
+// PWA: registra el service worker (app instalable). Funciona en HTTPS o en localhost.
+// No cachea la API (ver public/sw.js). Falla silenciosa si el navegador no lo soporta.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}
